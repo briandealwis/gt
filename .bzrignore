@@ -1,0 +1,11 @@
+.hgignore
+.hg
+.svn
+GTClient/GTClient.suo
+GTClient/*/OBJ
+GTClient/*/BIN
+GTServer/GTServer.suo
+GTServer/*/OBJ
+GTServer/*/BIN
+**/*.csproj.user
+**/*.vbproj.user
