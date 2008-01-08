@@ -740,12 +740,9 @@ namespace GTServer
             }
             catch (ThreadAbortException) 
             {
-                try
-                {
-                    KillAll();
-                }
-                catch (Exception) { }
                 //we were told to die.  die gracefully.
+                KillAll();
+                KillBouncer();
             }
         }
 
@@ -812,6 +809,20 @@ namespace GTServer
                 LastError = e;
                 if (ErrorEvent != null)
                     ErrorEvent(e, SocketError.Fault, null, "A non-socket exception occurred when we tried to start listening for incoming connections.");
+                bouncer = null;
+            }
+        }
+
+        private void KillBouncer()
+        {
+            // don't throw any exceptions
+            if (bouncer != null)
+            {
+                try
+                {
+                    bouncer.Stop();
+                }
+                catch (Exception) { }
                 bouncer = null;
             }
         }
