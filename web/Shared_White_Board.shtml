@@ -1,0 +1,782 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html>
+<!--#include virtual="/title_meta.shtml"--><!--#include virtual="/header.shtml"-->
+	<table border="0" cellpadding="0" cellspacing="10" width="780">
+	<tr>
+		<td width="200" align="center">
+			<img src="images/gt.jpg" alt="gt#">
+		</td>
+	</tr>
+	<tr>
+		<td>
+<br/>
+		<font size="+1">Shared White Board code </font>
+
+		<br/><br/>The aim of the Shared White Board is to allow you to draw anything you want with the mouse.
+
+		</p><hr />
+
+
+		<p><b>Creating a new Form</b></p>
+
+		<p>Before starting to type some code, you have to create a form. <br/> Here is an example of what you can do :</p> <br/>
+
+		
+
+	<tr>
+		<td width="200" align="center">
+			<img src="images/sharedwhiteboard.JPG" alt="gt#"> 
+		</td>
+	</tr>  
+		<td>  
+		
+		<p><br/>		
+		To start with, create a new project with a form. Then, in the "Form1.cs[Design]" tab, choose what you want to create in the toolbox on the left.<br/><br/>
+
+<tr>
+		<td width="200" align="center">
+		<img src="imagesSharedDictionary/sharedDictionary-1.png" border="1" />
+			<img src="images/toolbox2.jpg" alt="gt#">
+		</td>
+	</tr>
+		<td>
+
+<br/>
+		In the present example, I chose : <br/>
+		&nbsp;&nbsp; - "Button" for the "Clear", "Undo", "Redo" and "Change Color" buttons, <br/>
+		&nbsp;&nbsp; - a "Panel" for the drawing area,<br/>
+		&nbsp;&nbsp; - "GroupBox" for "Shape Type", "Filled or Unfilled Shape", "Rectangle" and "Ellipse", <br/>
+		&nbsp;&nbsp; - "RadioButton" for "Pen, Brush, Text, Line, Rectangle, Ellipse" <br/>
+		&nbsp;&nbsp; - "CheckBox" for "Filled" <br/>
+		<br/>
+		<i><u>NB</u> : you can rename the different objects, so it would be easy to identify them in the code, and you can change the text that defined each object.<i/></p>
+	<tr>
+		<td width="200" align="center">
+			<img src="images/SharedWhiteBoard_buttons_panel.JPG" alt="gt#">  <br/>
+			<img src="images/change_text_object_WhiteBoard.JPG" alt="gt#">
+		&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; <img src="images/change_name_object_WhiteBoard.JPG" alt="gt#">
+		</td>
+	</tr>
+		<td>
+
+		<br/> 
+
+
+		<p> Then, double click  on one of the objects present on the Form1 to access the code.<br/>
+		<br/></p>
+	
+
+		<p><b>Initializing step</b></p>
+		<p> First of all, you have to initialize the components of your Shared White Board.<br/></p>
+
+
+		<font color="blue"> <code>
+		namespace SharedWhiteBoard <br/>
+		{ <br/>
+
+		   &nbsp;&nbsp;<font color="green">// Create a structure for line </font><br/>
+		   &nbsp;&nbsp;public struct ligne <br/>
+    		   &nbsp;&nbsp;{ <br/>
+        				&nbsp;&nbsp;&nbsp;&nbsp;public Point p1; <br/>
+        				&nbsp;&nbsp;&nbsp;&nbsp;public Point p2;<br/>
+        				&nbsp;&nbsp;&nbsp;&nbsp;public Color color;<br/>
+    		   &nbsp;&nbsp;} <br/> <br/>
+
+		   &nbsp;&nbsp;<font color="green">// Create a structure for text </font><br/>
+	         &nbsp;&nbsp;public struct TextStruct <br/>
+    		   &nbsp;&nbsp;{ <br/>
+        				&nbsp;&nbsp;&nbsp;&nbsp; public List<StringThing> textMem = new List<StringThing>();<br/>
+          				&nbsp;&nbsp;&nbsp;&nbsp; public Object textShape; <br/>
+   		   &nbsp;&nbsp;} <br/> <br/>
+
+
+		 &nbsp;&nbsp;public class StringThing <br/>
+  		 &nbsp;&nbsp;       { <br/>
+            				&nbsp;&nbsp;&nbsp;&nbsp; public string s; <br/>
+            				&nbsp;&nbsp;&nbsp;&nbsp; public Rectangle r; <br/>
+        	 &nbsp;&nbsp;} <br/><br/>
+
+		   &nbsp;&nbsp;<font color="green">// class Form1 </font><br/>
+		   &nbsp;&nbsp; public partial class Form1 : Form <br/>
+		   &nbsp;&nbsp;{ <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;     <font color="green">// initialize X and Y </font><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; private int penx1 = 0; <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; private int peny1 = 0; <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; private int penx2 = 0; <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; private int peny2 = 0; <br/> <br/>
+
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; private int bigpenx1 = 0; <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; private int bigpeny1 = 0; <br/> 
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; private int bigpenx2 = 0; <br/> 
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; private int bigpeny2 = 0; <br/> <br/>
+
+   &nbsp;&nbsp;&nbsp;&nbsp;&nbsp; Point p1 = new Point();  <font color="green"> // rectangle </font> <br/>
+   &nbsp;&nbsp;&nbsp;&nbsp;&nbsp; Point p2 = new Point(); <br/>
+   &nbsp;&nbsp;&nbsp;&nbsp;&nbsp; Point b1 = new Point();  <font color="green"> // ellipse </font> <br/>
+   &nbsp;&nbsp;&nbsp;&nbsp;&nbsp; Point b2 = new Point(); <br/>
+   &nbsp;&nbsp;&nbsp;&nbsp;&nbsp; <font color="green"> //Point l1 = new Point(); // line </font><br/>
+   &nbsp;&nbsp;&nbsp;&nbsp;&nbsp; Point l2 = new Point(); <br/>
+   &nbsp;&nbsp;&nbsp;&nbsp;&nbsp; <font color="green"> //Point pen1 = new Point(); // pen  </font><br/>
+   &nbsp;&nbsp;&nbsp;&nbsp;&nbsp; <font color="green"> //Point pen2 = new Point(); </font><br/>
+   &nbsp;&nbsp;&nbsp;&nbsp;&nbsp; Point t1 = new Point();  <font color="green"> // text </font><br/>
+   &nbsp;&nbsp;&nbsp;&nbsp;&nbsp; Point t2 = new Point(); <br/> <br/>
+
+
+
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;        private bool drawing = false; <br/> <br/>
+        
+        
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;     <font color="green">    // Array Lists and Stacks : </font><br/>
+
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;        Array myArray = Array.CreateInstance(typeof(String),15); <br/><br/>
+
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;        private System.Collections.Stack lines; <br/> <br/>
+
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;        private System.Collections.ArrayList pens; <br/>
+
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;        private System.Collections.ArrayList BigPens; <br/><br/>
+
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;        private System.Collections.Stack rectangles; <br/><br/>
+
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;        private System.Collections.Stack ellipses;<br/><br/>
+
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;        private System.Collections.Stack polygons;<br/><br/>
+
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;        private System.Collections.Stack texts; <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;        private System.Collections.Stack textSave; <br/><br/>
+
+<br/>
+&nbsp;&nbsp;<font color="green">// Form1 </font><br/>
+&nbsp;&nbsp;        	    public Form1() <br/>
+&nbsp;&nbsp;	          { <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;     		 InitializeComponent(); <br/>
+ <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;	<font color="green"> // Array lists and Stacks : </font><br/>
+       
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;            lines = new System.Collections.Stack(); <br/> <br/>
+            
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;            rectangles = new System.Collections.Stack(); <br/> <br/>
+
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;            ellipses = new System.Collections.Stack(); <br/> <br/>
+
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;            polygons = new System.Collections.Stack(); <br/> <br/>
+
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;            pens = new System.Collections.ArrayList(); <br/>
+
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;            BigPens = new System.Collections.ArrayList(); <br/> <br/>
+
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;            texts = new System.Collections.Stack(); <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;            textSave = new System.Collections.Stack(); <br/> <br/>
+           
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;         <font color="green">    //set double-buffered drawing </font> <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;             this.SetStyle( <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;             ControlStyles.AllPaintingInWmPaint | <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;             ControlStyles.UserPaint | <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;             ControlStyles.DoubleBuffer, true); <br/><br/>
+
+&nbsp;&nbsp;} <font color="green"> // end of Form1 </font> <br/><br/>
+
+</code></font>
+
+<font color="purple">
+			<p><u><i>Array lists and Stacks</i></u></p> 
+	</font>
+
+<font color="blue"> <code>
+
+&nbsp;&nbsp;<font color="green">  // Array lists </font> <br/>
+&nbsp;&nbsp;        private ArrayList points = new ArrayList(); <br/>
+&nbsp;&nbsp;        private ArrayList strings = new ArrayList(); <br/>
+        
+&nbsp;&nbsp;<font color="green"> // font  </font> <br/>
+&nbsp;&nbsp;        Font font = new Font("Time New Roman", 12);  <br/>
+        
+&nbsp;&nbsp; <font color="green">         // stacks for Undo/Redo methods </font> <br/>
+&nbsp;&nbsp;        private Stack redoStack = new Stack(); <br/>
+&nbsp;&nbsp;        private Stack undoStack = new Stack(); <br/>
+       
+</code></font>
+
+<font color="purple">
+			<p><u><i>Pens and Brush</i></u></p> 
+	</font>
+
+<font color="blue"> <code>
+
+&nbsp;&nbsp; <font color="green">         // initialize pens and brush </font> <br/>
+&nbsp;&nbsp;        Pen penLine = new Pen(Color.Purple); <br/>
+&nbsp;&nbsp;        Pen penPolygon = new Pen(Color.DarkBlue); <br/>
+&nbsp;&nbsp;        Pen penRectangle = new Pen(Color.Blue,2); <br/>
+&nbsp;&nbsp;        Pen penEllipse = new Pen(Color.Green,2); <br/>
+&nbsp;&nbsp;        Pen myPen = new Pen(Color.Red); <br/>
+&nbsp;&nbsp;        SolidBrush brush = new SolidBrush(Color.Blue); <br/>
+&nbsp;&nbsp;        SolidBrush brushRectangle = new SolidBrush(Color.Blue); <br/>
+&nbsp;&nbsp;        SolidBrush brushEllipse = new SolidBrush(Color.Green);   <br/>      
+&nbsp;&nbsp;        SolidBrush brushPolygon = new SolidBrush(Color.DarkBlue); <br/>
+&nbsp;&nbsp;        SolidBrush textBrush = new SolidBrush(Color.Goldenrod); <br/>
+&nbsp;&nbsp;        Pen BigPen = new Pen(Color.CornflowerBlue, 15); <br/>
+
+
+
+		</code> </font>
+
+<br/>
+
+		<p><b>Configuration of the different objects</b></p>
+
+<font color="purple">
+			<p><u><i>"Clear" Button</i></u></p> 
+	</font>
+
+
+</p>	<font color="blue"> <code>
+
+private void ClearButton_Click(object sender, System.EventArgs e) <br/>
+        { <br/>
+&nbsp;&nbsp;&nbsp;           <font color="green"> // remove points </font> <br/>
+&nbsp;&nbsp;&nbsp;            points = new ArrayList(); <br/>  <br/>            
+           
+&nbsp;&nbsp;&nbsp;          <font color="green">// Clear panel </font> <br/>
+&nbsp;&nbsp;&nbsp;          lines.Clear(); <br/>
+&nbsp;&nbsp;&nbsp;          rectangles.Clear(); <br/>
+&nbsp;&nbsp;&nbsp;          ellipses.Clear(); <br/>
+&nbsp;&nbsp;&nbsp;          pens.Clear(); <br/>
+&nbsp;&nbsp;&nbsp;          BigPens.Clear(); <br/>
+&nbsp;&nbsp;&nbsp;          polygons.Clear();<br/>
+&nbsp;&nbsp;&nbsp;          texts.Clear();<br/>
+&nbsp;&nbsp;&nbsp;	   		textSave.Clear();  <br/>          
+&nbsp;&nbsp;&nbsp;          textBox1.Clear(); <br/>  
+&nbsp;&nbsp;&nbsp;				myText.textMem.Clear();<br/> <br/> 
+
+&nbsp;&nbsp;&nbsp;          <font color="green">  // refresh panel </font> <br/> 
+&nbsp;&nbsp;&nbsp;          drawPanel.Invalidate();  <br/>
+            
+        } <font color="green">// end of Clear Button </font> <br/>
+
+		</code> </font>
+<br/>
+
+
+<font color="purple">
+			<p><u><i>"Change Color" Buttons</i></u></p> 
+	</font>
+
+		<font color="red"> <i><font size="-1"> in "Shape Type" groupBox </i> </font> </font><br/><br/>
+
+<font color="blue"> <code>
+
+        private void colorButton_Click(object sender, System.EventArgs e) <br/>
+        { <br/>
+&nbsp;&nbsp;&nbsp;            <font color="green"> // create a new color dialog </font> <br/>
+&nbsp;&nbsp;&nbsp;             ColorDialog dialogColor = new ColorDialog(); <br/><br/>
+
+&nbsp;&nbsp;&nbsp;             <font color="green">// show dialog and obtain result </font> <br/>
+&nbsp;&nbsp;&nbsp;             DialogResult result = dialogColor.ShowDialog();<br/><br/>
+           
+&nbsp;&nbsp;&nbsp;            <font color="green"> // return if the user click on "Cancel" </font> <br/>
+&nbsp;&nbsp;&nbsp;             if (result == DialogResult.Cancel) <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                 return; <br/><br/>
+            
+&nbsp;&nbsp;&nbsp;             if (lineOption.Checked) <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                 penLine.Color = dialogColor.Color;<font color="green"> // set pen to color </font> <br/><br/>
+
+&nbsp;&nbsp;&nbsp;             if (penOption.Checked) <br/>
+&nbsp;&nbsp;&nbsp;             { <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                 myPen.Color = dialogColor.Color;<font color="green"> // set myPen to color   </font> <br/> 
+&nbsp;&nbsp;&nbsp;             } <br/><br/>
+
+&nbsp;&nbsp;&nbsp;             if (fillingBrush.Checked) <br/>
+&nbsp;&nbsp;&nbsp;             { <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                 BigPen.Color = dialogColor.Color;<font color="green"> // set myPen to color  </font> <br/>  
+&nbsp;&nbsp;&nbsp;             }<br/><br/>
+
+&nbsp;&nbsp;&nbsp;             if (rectangleOption.Checked)<br/>
+&nbsp;&nbsp;&nbsp;             {<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                penRectangle.Color = dialogColor.Color; <font color="green">// set pen to color  </font> <br/>
+&nbsp;&nbsp;&nbsp;             }<br/><br/>
+
+&nbsp;&nbsp;&nbsp;             if (ellipseOption.Checked)<br/>
+&nbsp;&nbsp;&nbsp;             {<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                 penEllipse.Color = dialogColor.Color; <font color="green">// set pen to color  </font> <br/>
+&nbsp;&nbsp;&nbsp;             }<br/><br/>
+
+&nbsp;&nbsp;&nbsp;             if (filledpolygonOption.Checked)<br/>
+&nbsp;&nbsp;&nbsp;             {<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                 brushPolygon.Color = dialogColor.Color; <font color="green">// set brush </font> <br/>
+&nbsp;&nbsp;&nbsp;             }<br/><br/>
+                        
+&nbsp;&nbsp;&nbsp;             if (textOption.Checked)<br/>
+&nbsp;&nbsp;&nbsp;             {<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                 textBrush.Color = dialogColor.Color; <font color="green">// set brush </font> <br/>
+&nbsp;&nbsp;&nbsp;             }<br/><br/>
+            
+&nbsp;&nbsp;&nbsp;             drawPanel.Invalidate(); <font color="green">// refresh panel </font> <br/>
+
+        }<font color="green">// end of ColorButton_Click </font> <br/><br/><br/>
+
+</code></font>
+<font color="red"> <i><font size="-1"> in "Filled Or Unfilled Shape" groupBox (either for rectangle or ellipse) </i> </font> </font><br/><br/>
+
+<font color="blue"> <code>
+private void filledRectColorButton_Click(object sender, EventArgs e) <font color="green"> //Rectangle </font> <br/>
+        { <br/>
+&nbsp;&nbsp;&nbsp;            <font color="green"> // create a new color dialog </font> <br/>
+&nbsp;&nbsp;&nbsp;            ColorDialog dialogColor = new ColorDialog(); <br/>
+
+&nbsp;&nbsp;&nbsp;            <font color="green"> // show dialog and obtain result </font> <br/>
+&nbsp;&nbsp;&nbsp;            DialogResult result = dialogColor.ShowDialog(); <br/>
+
+&nbsp;&nbsp;&nbsp;            <font color="green"> // return if user cancels </font> <br/>
+&nbsp;&nbsp;&nbsp;            if (result == DialogResult.Cancel) <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;     return;      <br/>      
+
+&nbsp;&nbsp;&nbsp;            <font color="green"> //if (filledrectangleOption.Checked) </font> <br/>
+&nbsp;&nbsp;&nbsp;            if (filledRectangleYesNo.Checked) <br/>
+&nbsp;&nbsp;&nbsp;            { <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;     brushRectangle.Color = dialogColor.Color; <font color="green">// set brush </font> <br/>
+&nbsp;&nbsp;&nbsp;            } <br/>
+           
+&nbsp;&nbsp;&nbsp;            drawPanel.Invalidate(); <font color="green"> // refresh panel </font> <br/>
+
+        } <font color="green"> // end of filledRectColorButton_Click </font> <br/><br/>
+        
+ 		</code> </font>
+
+
+<p><i>NB : Code the same way if you want to fill an ellipse.</i><br/><br/></p>
+
+
+
+<font color="purple">
+			<p><u><i>Drawing area</i></u></p> 
+	</font>
+
+<font color="blue"> <code> 
+
+<font color="green">// drawPanel </font> <br/>
+        private void drawPanel_Paint(object sender, System.Windows.Forms.PaintEventArgs e) <br/>
+        { <br/>
+ &nbsp;&nbsp;&nbsp;&nbsp;       <font color="green"> // get graphics objects for panel </font> <br/>
+ &nbsp;&nbsp;&nbsp;&nbsp;       Graphics graphicsObject = e.Graphics; <br/>
+ &nbsp;&nbsp;&nbsp;&nbsp;	  Graphics graphicsObject_pen = e.Graphics; <br/><br/>
+
+ &nbsp;&nbsp;&nbsp;&nbsp;          if (points.Count > 1) <br/>
+ &nbsp;&nbsp;&nbsp;&nbsp;          { <br/>
+  &nbsp;&nbsp;&nbsp;&nbsp; &nbsp;&nbsp;               Point[] pointArray = (Point[])points.ToArray(points[0].GetType()); <br/> <br/>
+                             
+             
+  &nbsp;&nbsp;&nbsp;&nbsp; &nbsp;&nbsp;            <font color="red"> // draw rectangles </font> <br/>
+  &nbsp;&nbsp;&nbsp;&nbsp; &nbsp;&nbsp;           foreach (Rectangle rect in rectangles) <br/>
+  &nbsp;&nbsp;&nbsp;&nbsp; &nbsp;&nbsp;           { <br/>
+  &nbsp;&nbsp;&nbsp;&nbsp; &nbsp;&nbsp;  &nbsp;&nbsp;                graphicsObject.DrawRectangle(penRectangle, rect); <br/><br/>
+                
+  &nbsp;&nbsp;&nbsp;&nbsp; &nbsp;&nbsp;  &nbsp;&nbsp;               <font color="green"> // filled rectangle</font> <br/>
+  &nbsp;&nbsp;&nbsp;&nbsp; &nbsp;&nbsp;  &nbsp;&nbsp;               if (filledRectangleYesNo.Checked) <br/>
+  &nbsp;&nbsp;&nbsp;&nbsp; &nbsp;&nbsp;  &nbsp;&nbsp;               { <br/>
+  &nbsp;&nbsp;&nbsp;&nbsp; &nbsp;&nbsp;  &nbsp;&nbsp;&nbsp;&nbsp;                   graphicsObject.FillRectangle(brushRectangle, rect); <br/>                   
+  &nbsp;&nbsp;&nbsp;&nbsp; &nbsp;&nbsp;  &nbsp;&nbsp;             }   <br/>           
+  &nbsp;&nbsp;&nbsp;&nbsp; &nbsp;&nbsp;         }  <br/><br/>
+
+
+
+ &nbsp;&nbsp;&nbsp;&nbsp; &nbsp;&nbsp;		<font color="red"> // draw lines</font> <br/>
+ &nbsp;&nbsp;&nbsp;&nbsp; &nbsp;&nbsp;           foreach (ligne line in lines) <br/>
+ &nbsp;&nbsp;&nbsp;&nbsp; &nbsp;&nbsp;           {  <br/>          
+ &nbsp;&nbsp;&nbsp;&nbsp; &nbsp;&nbsp;  &nbsp;&nbsp;               graphicsObject.DrawLine(penLine, line.p1.X, line.p1.Y, line.p2.X, line.p2.Y); <br/>                
+ &nbsp;&nbsp;&nbsp;&nbsp; &nbsp;&nbsp;           } <br/><br/>
+
+                
+&nbsp;&nbsp;&nbsp;&nbsp; &nbsp;&nbsp;               <font color="red"> // draw with pen </font> <br/>
+&nbsp;&nbsp;&nbsp;&nbsp; &nbsp;&nbsp;            foreach (Rectangle pen in pens) <br/>
+&nbsp;&nbsp;&nbsp;&nbsp; &nbsp;&nbsp;            {   <br/>              
+&nbsp;&nbsp;&nbsp;&nbsp; &nbsp;&nbsp;  &nbsp;&nbsp;                graphicsObject_pen.DrawLine(myPen, pen.X, pen.Y, pen.Right, pen.Bottom); <br/>             
+ &nbsp;&nbsp;&nbsp;&nbsp; &nbsp;&nbsp;           } <br/><br/>
+                
+&nbsp;&nbsp;&nbsp;&nbsp; &nbsp;&nbsp;            <font color="red">  // draw with Brush </font> <br/>
+&nbsp;&nbsp;&nbsp;&nbsp; &nbsp;&nbsp;             foreach (Rectangle bigpen in BigPens) <br/>
+&nbsp;&nbsp;&nbsp;&nbsp; &nbsp;&nbsp;             { <br/>
+&nbsp;&nbsp;&nbsp;&nbsp; &nbsp;&nbsp;  &nbsp;&nbsp;                graphicsObject.DrawLine(BigPen, bigpen.X, bigpen.Y, bigpen.Right, bigpen.Bottom); <br/>
+&nbsp;&nbsp;&nbsp;&nbsp; &nbsp;&nbsp;             } <br/><br/>
+
+
+&nbsp;&nbsp;&nbsp;&nbsp; &nbsp;&nbsp;		<font color="red"> // text option </font> <br/>                                 
+&nbsp;&nbsp;&nbsp;&nbsp; &nbsp;&nbsp;            StringFormat fmt = new StringFormat(); <br/><br/>
+                    
+&nbsp;&nbsp;&nbsp;&nbsp; &nbsp;&nbsp;            foreach (Rectangle rect in texts) <br/>
+&nbsp;&nbsp;&nbsp;&nbsp; &nbsp;&nbsp;            {    <br/>                        
+                            
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                List<StringThing> textMem = (List<StringThing>)textSave.Peek();  <br/><br/>
+                            
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; &nbsp;                           foreach (StringThing s in textMem) <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; &nbsp;&nbsp;	                        { <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;  &nbsp;                              graphicsObject.DrawString(s.s, font, textBrush, s.r, fmt); <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;  &nbsp;                          } <br/>
+
+&nbsp;&nbsp;&nbsp;&nbsp; &nbsp;&nbsp;                        }  <br/>                       
+                
+
+
+
+
+ &nbsp;&nbsp;  &nbsp;&nbsp;         }  <font color="green"> // end of "if (points.Count > 1)" </font>  <br/>
+        } <font color="green"> // end of drawPanel_Paint </font> <br/>
+
+</code> </font>
+<br/> 
+
+
+
+<font color="purple">
+			<p><u><i>Radio Buttons Checked Changed and Check Boxes Checked Changed</i></u></p> 
+	</font>
+
+<font color="red"> <i> Example of a Radio Button  </i> </font> <br/><br/>
+
+
+<code> <font color = "blue">
+
+	private void textOption_CheckedChanged(object sender, EventArgs e) <br/>
+        { <br/> 
+&nbsp;&nbsp;&nbsp;            drawPanel.Invalidate(); <font color="green">// refresh panel </font><br/> 
+        } <br/>
+
+</code> </font>
+<br/>
+
+<font color="red"> <i> Example of a Check box  </i> </font> <br/><br/>
+
+<code> <font color = "blue">
+
+	private void filledRectangleYesNo_CheckedChanged(object sender, EventArgs e) <br/>
+        { <br/>
+&nbsp;&nbsp;&nbsp;            drawPanel.Invalidate(); <font color="green">// refresh panel </font> <br/>
+        } <br/>
+
+</code> </font>
+<br/>
+
+
+<p><b>Configuration of the mouse movements</b></p>  
+
+
+<font color="purple">
+			<p><u><i>Move</i></u></p> 
+	</font>
+
+<p>When the mouse is down and if you are moving it, your drawing appears.</p> 
+<br/> 
+<font color="blue"> <code>
+
+        private void move(object sender, MouseEventArgs e) <br/> 
+        { <br/>
+
+
+&nbsp;&nbsp;&nbsp;		<font color="green"> // line while move </font> <br/>
+&nbsp;&nbsp;&nbsp;           if (lineOption.Checked) <br/>
+&nbsp;&nbsp;&nbsp;           { <br/>
+&nbsp;&nbsp;&nbsp; &nbsp; &nbsp;                if (drawing) <br/>
+  &nbsp;&nbsp;&nbsp; &nbsp;&nbsp;               { <br/>
+  &nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp; &nbsp;      ligne myLigne = (ligne)lines.Pop(); <br/>
+  &nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp; &nbsp;      myLigne.p2 = new Point(e.X, e.Y); <br/><br/>
+
+   &nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp; &nbsp;     lines.Push(myLigne); <br/>
+   &nbsp;&nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;     drawPanel.Invalidate(); <br/>
+ &nbsp;&nbsp;&nbsp; &nbsp;&nbsp;                } <br/>
+  &nbsp;&nbsp;&nbsp;           } <br/><br/>
+
+
+ &nbsp;&nbsp;&nbsp;            <font color="green"> // rectangle while move </font> <br/>
+  &nbsp;&nbsp;&nbsp;           else if (rectangleOption.Checked) <br/>
+ &nbsp;&nbsp;&nbsp;            { <br/>
+ &nbsp;&nbsp;&nbsp; &nbsp; &nbsp;               <font color="green">//p1.X = e.X; </font> <br/>
+&nbsp;&nbsp;&nbsp; &nbsp; &nbsp;                <font color="green">//p1.Y = e.Y; </font> <br/>
+&nbsp;&nbsp;&nbsp; &nbsp; &nbsp;                p2.X = e.X; <br/>
+&nbsp;&nbsp;&nbsp; &nbsp; &nbsp;                p2.Y = e.Y; <br/><br/>
+
+&nbsp;&nbsp;&nbsp; &nbsp; &nbsp;                int p1x = 0; <br/>
+&nbsp;&nbsp;&nbsp; &nbsp; &nbsp;                int p1y = 0; <br/>
+&nbsp;&nbsp;&nbsp; &nbsp; &nbsp;                int p2x = 0; <br/>
+&nbsp;&nbsp;&nbsp; &nbsp; &nbsp;                int p2y = 0; <br/><br/>
+
+&nbsp;&nbsp;&nbsp; &nbsp; &nbsp;                if (p2.X > p1.X) <br/>
+&nbsp;&nbsp;&nbsp; &nbsp; &nbsp;                { <br/>
+&nbsp;&nbsp;&nbsp; &nbsp; &nbsp;&nbsp;&nbsp;            p1x = p1.X; <br/>
+&nbsp;&nbsp;&nbsp; &nbsp; &nbsp;&nbsp;&nbsp;            p2x = p2.X; <br/>
+&nbsp;&nbsp;&nbsp; &nbsp; &nbsp;                } <br/>
+&nbsp;&nbsp;&nbsp; &nbsp; &nbsp;                else <br/>
+&nbsp;&nbsp;&nbsp; &nbsp; &nbsp;                { <br/>
+&nbsp;&nbsp;&nbsp; &nbsp; &nbsp;&nbsp;&nbsp;            p1x = p2.X; <br/>
+&nbsp;&nbsp;&nbsp; &nbsp; &nbsp;&nbsp;&nbsp;            p2x = p1.X; <br/>
+&nbsp;&nbsp;&nbsp; &nbsp; &nbsp;                } <br/><br/>
+
+&nbsp;&nbsp;&nbsp; &nbsp; &nbsp;                if (p2.Y > p1.Y) <br/>
+&nbsp;&nbsp;&nbsp; &nbsp; &nbsp;                { <br/>
+&nbsp;&nbsp;&nbsp; &nbsp; &nbsp;&nbsp;&nbsp;            p1y = p1.Y; <br/>
+&nbsp;&nbsp;&nbsp; &nbsp; &nbsp;&nbsp;&nbsp;            p2y = p2.Y; <br/>
+&nbsp;&nbsp;&nbsp; &nbsp; &nbsp;                } <br/>
+&nbsp;&nbsp;&nbsp; &nbsp; &nbsp;                else <br/>
+&nbsp;&nbsp;&nbsp; &nbsp; &nbsp;                { <br/>
+&nbsp;&nbsp;&nbsp; &nbsp; &nbsp;&nbsp;&nbsp;            p1y = p2.Y; <br/>
+&nbsp;&nbsp;&nbsp; &nbsp; &nbsp;&nbsp;&nbsp;            p2y = p1.Y; <br/>
+&nbsp;&nbsp;&nbsp; &nbsp; &nbsp;                } <br/><br/>
+                
+                
+&nbsp;&nbsp;&nbsp; &nbsp; &nbsp;                if (drawing) <br/>
+&nbsp;&nbsp;&nbsp; &nbsp; &nbsp;                { <br/>
+&nbsp;&nbsp;&nbsp; &nbsp; &nbsp;&nbsp;&nbsp;            Rectangle rectangle = new Rectangle(p1x, p1y, p2x - p1x, p2y - p1y); <br/>
+
+&nbsp;&nbsp;&nbsp; &nbsp; &nbsp;&nbsp;&nbsp;            rectangles.Pop(); <br/>
+
+&nbsp;&nbsp;&nbsp; &nbsp; &nbsp;&nbsp;&nbsp;            rectangles.Push(rectangle); <font color="green"> // Push the shape into the stack </font><br/>
+
+&nbsp;&nbsp;&nbsp; &nbsp; &nbsp;&nbsp;&nbsp;            drawPanel.Invalidate(); <font color="green"> // Refresh panel </font><br/>
+&nbsp;&nbsp;&nbsp; &nbsp; &nbsp;                } <br/>
+&nbsp;&nbsp;&nbsp;             } <br/><br/>
+
+
+ &nbsp;&nbsp;&nbsp; 			<font color="green">// pen while move </font> <br/>
+ &nbsp;&nbsp;&nbsp; 		        if (penOption.Checked) <br/>
+ &nbsp;&nbsp;&nbsp;             { <br/>
+ &nbsp;&nbsp;&nbsp;  &nbsp;&nbsp;                penx1 = penx2; <br/>
+ &nbsp;&nbsp;&nbsp;  &nbsp;&nbsp;                peny1 = peny2;<br/>
+ &nbsp;&nbsp;&nbsp;  &nbsp;&nbsp;                penx2 = e.X; <br/>
+ &nbsp;&nbsp;&nbsp;  &nbsp;&nbsp;                peny2 = e.Y; <br/><br/>
+
+ &nbsp;&nbsp;&nbsp;  &nbsp;&nbsp;                if (drawing) <br/>
+ &nbsp;&nbsp;&nbsp;  &nbsp;&nbsp;                {    <br/>
+ &nbsp;&nbsp;&nbsp;  &nbsp;&nbsp;&nbsp;  &nbsp;&nbsp;                    pens.Add(new Rectangle(penx1, peny1, penx2 - penx1, peny2 - peny1)); <br/>
+ &nbsp;&nbsp;&nbsp;  &nbsp;&nbsp;&nbsp;  &nbsp;&nbsp;                    drawPanel.Invalidate(); <br/>
+ &nbsp;&nbsp;&nbsp;  &nbsp;&nbsp;                } <br/>
+ &nbsp;&nbsp;&nbsp;             } <br/><br/>
+
+ &nbsp;&nbsp;&nbsp; 		       <font color="green">// Big pen while move</font> <br/>
+ &nbsp;&nbsp;&nbsp;             if (fillingBrush.Checked) <br/>
+ &nbsp;&nbsp;&nbsp;             { <br/>
+ &nbsp;&nbsp;&nbsp;  &nbsp;&nbsp;                bigpenx1 = bigpenx2; <br/>
+ &nbsp;&nbsp;&nbsp;  &nbsp;&nbsp;                bigpeny1 = bigpeny2; <br/>
+ &nbsp;&nbsp;&nbsp;  &nbsp;&nbsp;                bigpenx2 = e.X; <br/>
+ &nbsp;&nbsp;&nbsp;  &nbsp;&nbsp;                bigpeny2 = e.Y; <br/><br/>
+
+ &nbsp;&nbsp;&nbsp;  &nbsp;&nbsp;                if (drawing) <br/>
+ &nbsp;&nbsp;&nbsp;  &nbsp;&nbsp;                { <br/>
+ &nbsp;&nbsp;&nbsp;  &nbsp;&nbsp;&nbsp;  &nbsp;&nbsp;                    BigPens.Add(new Rectangle(bigpenx1, bigpeny1, bigpenx2 - bigpenx1, bigpeny2 - bigpeny1)); <br/>
+ &nbsp;&nbsp;&nbsp;  &nbsp;&nbsp;&nbsp;  &nbsp;&nbsp;                    drawPanel.Invalidate(); <br/>
+ &nbsp;&nbsp;&nbsp;  &nbsp;&nbsp;                } <br/>
+ &nbsp;&nbsp;&nbsp;             } <br/><br/>
+
+ &nbsp;&nbsp;&nbsp;            <font color="green">// text while move </font> <br/>
+ &nbsp;&nbsp;&nbsp;            if (textOption.Checked) <br/>
+ &nbsp;&nbsp;&nbsp;            { <br/>
+ &nbsp;&nbsp;&nbsp; &nbsp;&nbsp;                t2.X = e.X; <br/>
+ &nbsp;&nbsp;&nbsp; &nbsp;&nbsp;                t2.Y = e.Y;<br/><br/>
+
+ &nbsp;&nbsp;&nbsp; &nbsp;&nbsp;                int t1x = 0; <br/>
+ &nbsp;&nbsp;&nbsp; &nbsp;&nbsp;                int t1y = 0; <br/>
+ &nbsp;&nbsp;&nbsp; &nbsp;&nbsp;                int t2x = 0; <br/>
+ &nbsp;&nbsp;&nbsp; &nbsp;&nbsp;                int t2y = 0;   <br/><br/>
+
+ &nbsp;&nbsp;&nbsp; &nbsp;&nbsp;                if (t2.X > t1.X) <br/>
+ &nbsp;&nbsp;&nbsp; &nbsp;&nbsp;                { <br/>
+ &nbsp;&nbsp;&nbsp;  &nbsp;&nbsp;&nbsp;  &nbsp;&nbsp;                    t1x = t1.X; <br/>
+ &nbsp;&nbsp;&nbsp;  &nbsp;&nbsp;&nbsp;  &nbsp;&nbsp;                    t2x = t2.X; <br/>
+ &nbsp;&nbsp;&nbsp; &nbsp;&nbsp;                }<br/><br/>
+
+ &nbsp;&nbsp;&nbsp; &nbsp;&nbsp;                else  <br/>
+ &nbsp;&nbsp;&nbsp; &nbsp;&nbsp;                { <br/>
+ &nbsp;&nbsp;&nbsp;  &nbsp;&nbsp;&nbsp;  &nbsp;&nbsp;                    t1x = t2.X; <br/>
+ &nbsp;&nbsp;&nbsp;  &nbsp;&nbsp;&nbsp;  &nbsp;&nbsp;                    t2x = t1.X;  <br/>
+ &nbsp;&nbsp;&nbsp; &nbsp;&nbsp;                } <br/><br/>
+
+ &nbsp;&nbsp;&nbsp; &nbsp;&nbsp;                if (t2.Y > t1.Y) <br/>
+ &nbsp;&nbsp;&nbsp; &nbsp;&nbsp;                { <br/>
+ &nbsp;&nbsp;&nbsp;  &nbsp;&nbsp;&nbsp;  &nbsp;&nbsp;                    t1y = t1.Y; <br/>
+ &nbsp;&nbsp;&nbsp;  &nbsp;&nbsp;&nbsp;  &nbsp;&nbsp;                    t2y = t2.Y; <br/>
+ &nbsp;&nbsp;&nbsp; &nbsp;&nbsp;                } <br/><br/>
+
+ &nbsp;&nbsp;&nbsp; &nbsp;&nbsp;                else <br/>
+ &nbsp;&nbsp;&nbsp; &nbsp;&nbsp;                { <br/>
+ &nbsp;&nbsp;&nbsp;  &nbsp;&nbsp;&nbsp;  &nbsp;&nbsp;                    t1y = t2.Y; <br/>
+ &nbsp;&nbsp;&nbsp;  &nbsp;&nbsp;&nbsp;  &nbsp;&nbsp;                    t2y = t1.Y; <br/>
+ &nbsp;&nbsp;&nbsp; &nbsp;&nbsp;                } <br/><br/>
+
+ &nbsp;&nbsp;&nbsp; &nbsp;&nbsp;                if (drawing) <br/>
+ &nbsp;&nbsp;&nbsp; &nbsp;&nbsp;                { <br/>
+
+ &nbsp;&nbsp;&nbsp;  &nbsp;&nbsp;&nbsp;  &nbsp;&nbsp;			Rectangle textShape = new Rectangle(t1.X, t1.Y, t2.X, t2.Y); <br/>
+&nbsp;&nbsp;&nbsp;  &nbsp;&nbsp;&nbsp;  &nbsp;&nbsp;                    Object textMem = new Object(); <br/>
+&nbsp;&nbsp;&nbsp;  &nbsp;&nbsp;&nbsp;  &nbsp;&nbsp;                    textMem = textSave.Peek(); <br/><br/>
+                                       
+&nbsp;&nbsp;&nbsp;  &nbsp;&nbsp;&nbsp;  &nbsp;&nbsp;                    texts.Push(textShape);  <br/>
+&nbsp;&nbsp;&nbsp;  &nbsp;&nbsp;&nbsp;  &nbsp;&nbsp;                    textSave.Push(textMem);  <br/><br/>
+                    
+&nbsp;&nbsp;&nbsp;  &nbsp;&nbsp;&nbsp;  &nbsp;&nbsp;                    drawPanel.Invalidate(); <br/>
+
+&nbsp;&nbsp;&nbsp; &nbsp;&nbsp;                } <br/>
+&nbsp;&nbsp;&nbsp;		} <font color="green">// end of "if(textOption.Checked)" </font> <br/>
+
+
+
+        } <font color="green">// end of Move </font><br/><br/>
+
+</code> </font>
+
+<br/>
+
+
+
+<font color="purple">
+			<p><u><i>Start drawing</i></u></p> 
+	</font>
+
+<p>When the mouse is down, start drawing.</p> 
+<br/> 
+
+<font color="blue"> <code>
+
+TextStruct myText = new TextStruct(); <br/> <br/>
+
+        private void StartDrawing(object sender, MouseEventArgs e) <br/>
+        { <br/>
+ &nbsp;&nbsp;&nbsp;&nbsp;           <font color="green">// Line while drawing </font><br/>
+ &nbsp;&nbsp;&nbsp;&nbsp;            if (lineOption.Checked) <br/>
+ &nbsp;&nbsp;&nbsp;&nbsp;            {      <br/>           
+ &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                drawing = true; <br/><br/>
+                
+ &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                ligne myLigne = new ligne(); <br/><br/>
+                
+                
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                	   myLigne.p1 = new Point(e.X, e.Y); <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;	                   myLigne.p2 = new Point(e.X, e.Y); <br/><br/>
+                              
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;	                   lines.Push(myLigne);  <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;            } <br/><br/>
+
+
+
+ &nbsp;&nbsp;&nbsp;&nbsp;	     <font color="green">// Rectangle while drawing </font> <br/>
+ &nbsp;&nbsp;&nbsp;&nbsp;             if (rectangleOption.Checked) <br/>
+ &nbsp;&nbsp;&nbsp;&nbsp;            { <br/>
+ &nbsp;&nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp;                drawing = true; <br/><br/>
+
+ &nbsp;&nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp;                <font color="green">// Memorise the start point of the growing rectangle : </font><br/> <br/>
+
+ &nbsp;&nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp;                p1.X = e.X; <br/>
+ &nbsp;&nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp;                p1.Y = e.Y; <br/>
+ &nbsp;&nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp;                <font color="green">//p2.X = e.X;  </font> <br/>
+ &nbsp;&nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp;                <font color="green">//p2.Y = e.Y; </font> <br/><br/>
+
+ &nbsp;&nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp;                Rectangle rectangle = new Rectangle(p1.X, p1.Y, 0, 0); <br/>
+ &nbsp;&nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp;                rectangles.Push(rectangle); <br/><br/>
+                
+ &nbsp;&nbsp;&nbsp;&nbsp;            }<br/><br/>
+
+
+
+ &nbsp;&nbsp;&nbsp;&nbsp; 	    <font color="green"> // Pen while drawing </font> <br/>
+ &nbsp;&nbsp;&nbsp;&nbsp;            if (penOption.Checked) <br/>
+ &nbsp;&nbsp;&nbsp;&nbsp;            { <br/>
+ &nbsp;&nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp;                drawing = true; <br/>
+ &nbsp;&nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp;                penx1 = e.X; <br/>
+ &nbsp;&nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp;                peny1 = e.Y; <br/>
+                
+ &nbsp;&nbsp;&nbsp;&nbsp;           }<br/><br/>
+
+ &nbsp;&nbsp;&nbsp;&nbsp;           <font color="green"> // Brush while drawing </font> <br/>
+ &nbsp;&nbsp;&nbsp;&nbsp;           if (fillingBrush.Checked)<br/>
+ &nbsp;&nbsp;&nbsp;&nbsp;           {<br/>
+ &nbsp;&nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp;               drawing = true; <br/>
+ &nbsp;&nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp;               bigpenx1 = e.X; <br/>
+ &nbsp;&nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp;               bigpeny1 = e.Y; <br/>
+ &nbsp;&nbsp;&nbsp;&nbsp;           } <br/><br/>
+
+
+ &nbsp;&nbsp;&nbsp;&nbsp;           <font color="green"> // Text while drawing </font> <br/>
+ &nbsp;&nbsp;&nbsp;&nbsp;           if (textOption.Checked) <br/>
+ &nbsp;&nbsp;&nbsp;&nbsp;           { <br/>
+ &nbsp;&nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp;               drawing = true; <br/><br/>
+ 
+ &nbsp;&nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp;               t1.X = e.X;  <br/>
+ &nbsp;&nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp;               t1.Y = e.Y; <br/><br/>
+              
+ &nbsp;&nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp;               StringThing tempStringThing = new StringThing(); <br/><br/>
+
+ &nbsp;&nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp;               tempStringThing.s = textBox1.Text; <br/>
+ &nbsp;&nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp;               tempStringThing.r = new Rectangle(t1.X, t1.Y, t2.X, t2.Y); <br/>
+ &nbsp;&nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp;               myText.textMem.Add(tempStringThing); <br/>
+ &nbsp;&nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp;               textSave.Push(myText.textMem); <font color="green">// Push "textMem" into the stack "textSave"<br/>         
+
+ &nbsp;&nbsp;&nbsp;&nbsp;           } <br/><br/>
+
+
+
+
+        } <br/> <br/>
+
+
+
+</code> </font>
+
+
+
+<font color="purple">
+			<p><u><i>End drawing</i></u></p> 
+	</font>
+
+<p>When the mouse is up, stop drawing.</p> 
+<br/> 
+
+
+  <font color="blue"> <code>
+
+        private void endDrawing(object sender, MouseEventArgs e) <br/>
+        { <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;            drawing = false; <br/>
+        } 
+
+</code> </font>
+
+<br/>
+<br/>
+
+
+
+	<p><b>Shared White Board views</b></p> 
+<br/>
+<tr>
+		<td width="200" align="center">
+			<img src="images/SWB_1.JPG" alt="gt#">
+		</td>
+	</tr>
+		<td>
+
+<br/>
+<tr>
+		<td width="200" align="center">
+			<img src="images/SWB_2.JPG" alt="gt#">
+		</td>
+	</tr>
+		<td>
+
+<br/>
+<tr>
+		<td width="200" align="center">
+			&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; <img src="images/SWB_3.JPG" alt="gt#">
+		</td>
+	</tr>
+		<td>
+
+<br/>
+		<p>Now : enjoy ! :-)</p> <br/>
+
+
+<br/><br/>
+
+<b>To the other tutorials :</b><br/>
+			<a href="simpleTut.shtml">Short Tutorial</a> <br/>			
+			<a href="chat_code.shtml">Chat application code</a> <br/>
+			<a href="Simple_Shared_White_Board.shtml">Simple Shared White Board code </a><br/>
+			<a href="RemoteSpinner.shtml">Remote Spinner code </a><br/>
+			<a href="real_time_chess.shtml">Real Time Chess code </a><br/>
+			<a href="streamedTuples.shtml">Simple Telepointer code </a><br/>
+			<a href="shared_dictionary.shtml">Shared Dictionary code </a><br/>			
+			<a href="card_game.shtml">Card Game code </a><br/>

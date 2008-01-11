@@ -1,0 +1,78 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html>
+<!--#include virtual="/title_meta.shtml"--><!--#include virtual="/header.shtml"-->
+	<table border="0" cellpadding="0" cellspacing="10" width="580">
+	<tr>
+		<td width="200" align="center">
+			<img src="images/gt.jpg" alt="gt#">
+		</td>
+	</tr>
+	<tr>
+		<td valign="top">
+			<font face="Arial, Helvetica, sans-serif" size="+2" color="#666666">
+			Groupware Toolkit for C#
+			</font>
+		</td>
+	</tr>
+	<tr>
+		<td>
+			<p>
+			The GT library is a new groupware toolkit with two goals: to simplify the development of real-time 
+			distributed groupware, and to improve the performance of distributed applications. The toolkit makes 
+			it simple to build groupware by taking care of networking and by providing several high-level programming 
+			abstractions to deal with communication and distributed data.  It is designed to speed the development of 
+			simple groupware applications by allowing developers to create distributed systems without the need to program 
+			lower-level networking code.
+			</p>
+
+			
+			<b>Tutorials :</b><br/>
+			<a href="simpleTut.shtml">Short Tutorial</a> <br/>			
+			<a href="chat_code.shtml">Chat application code</a> <br/>
+			<a href="Simple_Shared_White_Board.shtml">Simple Shared White Board code </a><br/>
+			<a href="Shared_White_Board.shtml">Shared White Board code </a><br/>
+			<a href="RemoteSpinner.shtml">Remote Spinner code </a><br/>
+			<a href="real_time_chess.shtml">Real Time Chess code </a><br/>
+			<a href="streamedTuples.shtml">Simple Telepointer code </a><br/>
+			<a href="shared_dictionary.shtml">Shared Dictionary code </a><br/>			
+			<a href="card_game.shtml">Card Game code </a><br/>
+
+		</td>
+	</tr>
+	<tr>
+		<td>
+<br/>
+			<b>Downloads :</b><br />
+			<a href="/software/GTC/GTC.zip">The GT Libraries</a> - download for use in applications<br />
+			<a href="/software/GTC/GTClientCode.zip">The GT Client code with examples</a><br />
+			<a href="/software/GTC/GTServerCode.zip">The GT Server code with examples</a><br />
+		</td>
+	</tr>
+	<tr>
+		<td>
+			<br/>
+			<b>Participants :</b><br />
+			<a href="/people/carl.shtml">Carl Gutwin</a><br />
+			<a href="/people/dane.shtml">Dane Stuckel</a><br />
+			<a href="/people/tad.shtml">Tad Stach</a><br />
+			Mark Watson<br />
+			<a href="/people/chris.shtml">Chris Fedak</a><br />
+			<a href="/people/jeff.shtml">Jeff Dyck</a><br />
+			Céline Ferré<br />
+
+		</td>
+	</tr>
+	<tr>
+		<td>
+			<br/>
+			Contact <a href="mailto:gutwin@cs.usask.ca">Carl Gutwin</a>
+			if you would like more information about these projects. 
+		</td>
+	</tr>
+	</table>
+<!--#include virtual="/footer.shtml"-->
+
+
+
+
+

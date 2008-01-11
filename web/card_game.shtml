@@ -1,0 +1,367 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html>
+<!--#include virtual="/title_meta.shtml"--><!--#include virtual="/header.shtml"-->
+	<table border="0" cellpadding="0" cellspacing="10" width="830">
+	<tr>
+		<td width="200" align="center">
+			<img src="images/gt.jpg" alt="gt#">
+		</td>
+	</tr>
+	<tr>
+		<td>
+<br/>
+		<font size="+1">Card Game code </font>
+
+		<br/><br/>This example is just a simple card game : "War Game". <br/>Everybody knows the rules of this game : the highest card wins. 
+
+		</p><hr /> 
+
+
+		<p><b>Creating a new form</b></p>
+
+		<p>Before starting to type some code, you have to create a form. <br/> Here is an example of what you can do :</p> <br/>
+		
+	<tr>
+		<td width="100" align="center">
+			<img src="images/bataille_begin2.JPG" alt="gt#"> <br/>
+			<img src="images/bataille_NewGame2.JPG" alt="gt#"> 
+		</td>
+	</tr>
+		<td> 
+
+		
+		<p><br/>		
+		To start with, create a new project with a form. Then, in the "Form1.cs[Design]" tab, choose what you want to create in the toolbox on the left.<br/><br/>
+
+<tr>
+		<td width="200" align="center">
+		<img src="imagesSharedDictionary/sharedDictionary-1.png" border="1" />
+			<img src="images/toolbox2.jpg" alt="gt#">
+		</td>
+	</tr>
+		<td>
+<br/>
+		<p>
+		In the present example, I chose : <br/>
+		&nbsp;&nbsp; - "Button" for the "New Game", "Stop-Exit", "Deal A New Card" and "New Round" buttons, <br/>
+		&nbsp;&nbsp; - "Label" to write messages and print the cards value,<br/>
+		&nbsp;&nbsp; - "Panel" to delimit the shape of the cards (pnlLeft, pnlRight, etc), <br/>
+		&nbsp;&nbsp; - "PictureBox" for the cards suit. <br/>
+		<br/>
+		<i><u>NB</u> : you can rename the different objects, so it would be easy to identify them in the code, and you can change the text that defined each object.<i/></p>
+			
+	<tr> 
+		<td width="200" align="center">
+			<img src="images/bataille_begin2_buttons_lbl.JPG" alt="gt#"> <br/>
+			<img src="images/change_name_Exit.JPG" alt="gt#">
+			&nbsp;&nbsp;&nbsp;&nbsp; <img src="images/change_text_NewGame.JPG" alt="gt#">
+			
+		</td>
+	</tr>
+		<td> 
+
+	
+  		</p> <br/>
+
+<font color="Purple">	
+		<p><b><i><u>Code :</u></i></b><br/></p>
+</font>
+
+
+	<p><b>"New Game Button"</b></p>
+
+<font color="blue"> <code>
+
+	 private void NewGameButton_Click(object sender, EventArgs e) <br/>
+        {             <br/>
+&nbsp;&nbsp;&nbsp; 	NewGameButton.Enabled = false; <font color="green">// the NewGameButton is not enabled </font><br/>
+&nbsp;&nbsp;&nbsp; 	ExitButton.Text = "Stop"; <font color="green">// The text on the ExitButton is now "Stop" </font><br/>
+&nbsp;&nbsp;&nbsp;    lblMessage.Text = "Deal a new card"; <br/>
+&nbsp;&nbsp;&nbsp;            btnDealNCardRight.Visible = true; <br/>
+&nbsp;&nbsp;&nbsp;            btnDealNCardLeft.Visible = true; <br/>
+&nbsp;&nbsp;&nbsp;            btnDealNCardRight.Enabled = true; <br/>
+&nbsp;&nbsp;&nbsp;            btnDealNCardLeft.Enabled = true; <br/>
+&nbsp;&nbsp;&nbsp;            lblPlayer1.Visible= true; <br/>
+&nbsp;&nbsp;&nbsp;            lblPlayer2.Visible = true; <br/><br/>
+            
+&nbsp;&nbsp;&nbsp;            <font color="green">// Set N_Integer and cardIndex </font><br/>
+&nbsp;&nbsp;&nbsp;            N_Integers(52, cards); <br/>
+&nbsp;&nbsp;&nbsp;            cardIndex = 1; <br/> <br/>
+
+&nbsp;&nbsp;&nbsp;            pnlLeft.Visible = true; <br/>
+&nbsp;&nbsp;&nbsp;	    <font color="green">// Set the back color of the left card to "DarkBlue"</font><br/>
+&nbsp;&nbsp;&nbsp;            pnlLeft.BackColor = Color.FromName("DarkBlue"); <br/>
+&nbsp;&nbsp;&nbsp;            pnlRight.Visible = true; <br/>
+&nbsp;&nbsp;&nbsp;	    <font color="green">// Set the back color of the left card to "DarkGreen"</font><br/>
+&nbsp;&nbsp;&nbsp;            pnlRight.BackColor = Color.FromName("DarkGreen"); <br/><br/>
+
+&nbsp;&nbsp;&nbsp;	    <font color="green">// Hide the cards that are on the left in the middle of the form</font><br/>
+&nbsp;&nbsp;&nbsp;            pnlLeftCenter.Visible = false; <br/>
+&nbsp;&nbsp;&nbsp;            lblLeftCenter.Visible = false; <br/>
+&nbsp;&nbsp;&nbsp;            picLeftCenter.Visible = false; <br/><br/>
+
+&nbsp;&nbsp;&nbsp;	    <font color="green">// Hide the cards that are on the right in the middle of the form</font><br/>
+&nbsp;&nbsp;&nbsp;            pnlRightCenter.Visible = false; <br/>
+&nbsp;&nbsp;&nbsp;            lblRightCenter.Visible = false; <br/>
+&nbsp;&nbsp;&nbsp;            picRightCenter.Visible = false; <br/><br/>
+
+&nbsp;&nbsp;&nbsp;            btnNewRound.Visible = false; <br/> <br/> 
+
+            
+
+        } <font color="green">// end of NewGameButton </font> <br/><br/>
+
+
+</code></font>
+
+
+<p><b>"Exit Button"</b></p>
+
+<font color="blue"> <code>
+
+
+	private void ExitButton_Click(object sender, EventArgs e) <br/>
+        { <br/>
+&nbsp;&nbsp;            <font color="green">// Either exit or stop current game </font> <br/>
+&nbsp;&nbsp;            if (ExitButton.Text == "Exit") <br/>
+&nbsp;&nbsp;            { <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;                lblMessage.Text = "Game stopped"; <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;		<font color="green">// Display a 'Yes-No Message Box' so you can either exit the game or not </font><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;                DialogResult result = MessageBox.Show("Do you want to exit the game ? ","Exit game", MessageBoxButtons.YesNo); <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;               if (result == DialogResult.Yes) <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                    this.Close(); <br/>
+                
+&nbsp;&nbsp;            } <br/> <br/>
+
+&nbsp;&nbsp;            else <br/>
+&nbsp;&nbsp;            { <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;                ExitButton.Text = "Exit"; <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;                NewGameButton.Text = "New Game"; <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;                NewGameButton.Enabled = true; <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;                btnDealNCardLeft.Text = "Deal A New Card"; <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;                btnDealNCardRight.Text = "Deal A New Card"; <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;                btnDealNCardLeft.Enabled = false; <font color="green">// Does not allow you to use the "Deal a new card" button </font> <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;                btnDealNCardRight.Enabled = false; <font color="green">// Does not allow you to use the "Deal a new card" button </font> <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;                pnlLeftCenter.Visible = false; <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;                pnlRightCenter.Visible = false; <br/>                
+&nbsp;&nbsp;&nbsp;&nbsp;                lblMessage.Text = "Game stopped"; <br/> <br/>
+                 
+&nbsp;&nbsp;&nbsp;&nbsp;		NewGameButton.Focus(); <br/>
+&nbsp;&nbsp;            } <br/>
+        } <font color="green">// end of ExitButton </font> <br/><br/>
+
+
+</code></font>
+
+<p><b>Display Card</b></p>
+
+<font color="blue"> <code>
+	private void DisplayCard(int v, string c) <br/>
+        { <br/>
+&nbsp;&nbsp;&nbsp;            <font color="green">// This routine displays the left or right card based on the value (v) </font><br/>
+&nbsp;&nbsp;&nbsp;            string cardLabel; <br/>
+&nbsp;&nbsp;&nbsp;            int cardSuit; <br/>
+&nbsp;&nbsp;&nbsp;            switch ((v - 1) % 13 + 1) <font color="green">// Switch value </font> <br/>
+&nbsp;&nbsp;&nbsp;            { <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                case 10: <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                    cardLabel = "J"; <font color="green">// Jack </font><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                    break; <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                case 11: <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                    cardLabel = "Q"; <font color="green">// Queen </font><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                    break; <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                case 12: <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                    cardLabel = "K"; <font color="green">// King </font><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                    break; <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                case 13: <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                    cardLabel = "A"; <font color="green">// Ace </font><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                    break; <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                default: <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                    cardLabel = Convert.ToString((v - 1) % 13 + 2); <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                    break; <br/>
+&nbsp;&nbsp;&nbsp;            } <font color="green">// Switch ((v - 1) % 13 + 1) </font><br/><br/>
+&nbsp;&nbsp;&nbsp;            cardSuit = (int)((v - 1) / 13); <br/><br/>
+&nbsp;&nbsp;&nbsp;            switch (c)  <font color="green"> // Switch place (left or right) </font><br/> 
+&nbsp;&nbsp;&nbsp;            { <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                case <font color="red">"Left Center"</font>: <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                    pnlLeftCenter.BackColor = Color.White; <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                    lblLeftCenter.Text = cardLabel; <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                    lblLeftCenter.Visible = true; <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                    picLeftCenter.Visible = true; <br/><br/>
+
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                    switch (cardSuit) <font color="green"> // Switch card suit </font><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                    { <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                        case 0: <br/>                            
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                            picLeftCenter.Image = picHeart.Image; <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                            break; <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                        case 1:   <br/>                          
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                            picLeftCenter.Image = picClub.Image; <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                            break; <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                        case 2: <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                            picLeftCenter.Image = picDiamond.Image; <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                            break; <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                        case 3: <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                            picLeftCenter.Image = picSpade.Image; <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                            break; <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                    } <br/>
+                    
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                    pnlLeftCenter.Refresh(); <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp;                   break; <br/><br/>
+
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                case <font color="red">"Right Center"</font>: <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                    (...) <br/>
+
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                    switch (cardSuit) <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                    { <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                        (...) <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                    } <br/>
+
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;		          pnlRightCenter.Refresh(); <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                    break; <br/> <br/>
+                
+&nbsp;&nbsp;&nbsp;            } <font color = "green"> // end of "Switch (c)" </font><br/>
+        } <font color = "green"> // end of DisplayCard </font><br/><br/>
+
+</code></font>
+
+
+<p><b>"Deal A New Card" Button</b></p>
+
+<font color="blue"> <code>
+
+
+private void btnDealNCardLeft_Click(object sender, EventArgs e) <br/>
+        { <br/>
+ 
+&nbsp;&nbsp;&nbsp;            cardLeft = cards[cardIndex]; <br/>
+&nbsp;&nbsp;&nbsp;            vLeftCenter = (cardLeft - 1) % 13 + 1; <br/>
+&nbsp;&nbsp;&nbsp;            DisplayCard(cardLeft, "Left Center"); <br/>
+&nbsp;&nbsp;&nbsp;            cardIndex = cardIndex + 1; <br/><br/>
+            
+&nbsp;&nbsp;&nbsp;            pnlLeftCenter.Visible = true; <br/>
+&nbsp;&nbsp;&nbsp;            picLeftCenter.Visible = true; <br/>
+&nbsp;&nbsp;&nbsp;            lblLeftCenter.Visible = true;<br/><br/>
+
+&nbsp;&nbsp;&nbsp;            picRight.Visible = false; <br/>
+&nbsp;&nbsp;&nbsp;            lblRight.Visible = false; <br/><br/>
+            
+&nbsp;&nbsp;&nbsp;            pnlLeftCenter.BackColor = Color.FromName("LightBlue"); <br/><br/>
+
+&nbsp;&nbsp;&nbsp;            btnDealNCardLeft.Enabled = false; <br/>
+&nbsp;&nbsp;&nbsp;            if (btnDealNCardRight.Enabled == false && btnDealNCardLeft.Enabled == false) <br/>
+&nbsp;&nbsp;&nbsp;            { <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                btnNewRound.Visible = true; <br/><br/>
+
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                <font color = "green">// Check for win </font> <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                if (vLeftCenter > vRightCenter) <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                { <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                   p1score += 1; <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                   lblMessage.Text = <font color = "red">"Player 1 wins !\n\nThe score is " </font> + p1score + <font color = "red">" to " </font>+ p2score + <font color = "red">"."</font>; <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                } <br/><br/>
+
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                else if (vLeftCenter < vRightCenter) <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                { <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                   p2score += 1; <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                   lblMessage.Text = <font color = "red">"Player 2 wins !\n\nThe score is "</font> + p1score + <font color = "red">" to " </font>+ p2score + <font color = "red">"."</font>; <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                } <br/><br/>
+
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                else <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                { <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                   lblMessage.Text = <font color = "red">"Tie !"</font>; <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                   tieScore += 1; <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                } <br/><br/>
+
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                if (cardIndex >= 53) <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                { <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                    btnNewRound.Enabled = false; <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                    btnNewRound.Visible = false; <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                    NewGameButton.Enabled = true; <br/><br/>
+
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                    lblMessage.Text = <font color = "red">"YOU ARE OUT OF CARDS.\n The score is : " </font>+ p1score + <font color = "red">" to "</font> + p2score + <font color = "red">" with " </font>+ tieScore + <font color = "red">" tie round(s)."</font>; <br/><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                    if (p1score > p2score) <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                        lblMessage.Text += <font color = "red">"\n PLAYER 1 WINS !"</font>; <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                    else <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                        lblMessage.Text += <font color = "red">"\n PLAYER 2 WINS !"</font>; <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                } <br/>
+&nbsp;&nbsp;&nbsp;            } <br/>
+
+        } <font color = "green">// end of btnDealNCardLeft_Click </font><br/><br/>
+
+</font> </code>
+
+
+
+<p><b>N_Intergers</b></p>
+
+<font color="blue"> <code>
+
+
+	private void N_Integers(int n, int[] nArray) <br/>
+        { <br/>
+&nbsp;&nbsp;&nbsp;            // Returns n randomly sorted integers in nArray <br/>
+&nbsp;&nbsp;&nbsp;            int i, j, temp; <br/>
+&nbsp;&nbsp;&nbsp;            for (i = 1; i <= n; i++) <br/>
+&nbsp;&nbsp;&nbsp;            { <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                nArray[i] = i; <br/>
+&nbsp;&nbsp;&nbsp;            } <br/>
+&nbsp;&nbsp;&nbsp;            for (i = n; i >= 2; i--) <br/>
+&nbsp;&nbsp;&nbsp;            { <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                j = myRandom.Next(i) + 1; <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                temp = nArray[j]; <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                nArray[j] = nArray[i]; <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                nArray[i] = temp;<br/>
+&nbsp;&nbsp;&nbsp;            } <br/>
+        } <font color = "green">// end of N_Integers </font> <br/><br/>
+
+</font> </code>
+
+
+<p><b>"New Round" Button</b></p> 
+
+<font color="blue"> <code>
+
+
+        private void btnNewRound_Click(object sender, EventArgs e) <br/>
+        { <br/>
+&nbsp;&nbsp;&nbsp;            btnNewRound.Visible = false; <br/><br/>
+
+&nbsp;&nbsp;&nbsp;            pnlRightCenter.Visible = false; <br/>
+&nbsp;&nbsp;&nbsp;            pnlLeftCenter.Visible = false;<br/>
+&nbsp;&nbsp;&nbsp;            lblMessage.Text = "Deal a new card"; <br/><br/>
+
+&nbsp;&nbsp;&nbsp;            btnDealNCardRight.Enabled = true; <br/>
+&nbsp;&nbsp;&nbsp;            btnDealNCardLeft.Enabled = true; <br/>
+        } <font color = "green">// end of btnNewRound_Click  </font><br/><br/>
+
+
+</font> </code>
+
+<font color="Purple">	
+		<p><b><i><u>War Game views :</u></i></b><br/></p>
+</font>
+
+
+<tr>
+		<td width="100" align="center">
+			<img src="images/bataille_game.JPG" alt="gt#"> <br/>
+			<img src="images/bataille_end.JPG" alt="gt#"> <br/>
+			<img src="images/bataille_exit.JPG" alt="gt#"> 
+		</td>
+	</tr>
+		<td> 
+
+<br/>
+<p>Now : enjoy !  :-) </p>
+
+
+<br/>
+
+<b>To the other tutorials :</b><br/>
+			<a href="simpleTut.shtml">Short Tutorial</a> <br/>			
+			<a href="chat_code.shtml">Chat application code</a> <br/>
+			<a href="Simple_Shared_White_Board.shtml">Simple Shared White Board code </a><br/>
+			<a href="Shared_White_Board.shtml">Shared White Board code </a><br/>
+			<a href="RemoteSpinner.shtml">Remote Spinner code </a><br/>
+			<a href="real_time_chess.shtml">Real Time Chess code </a><br/>
+			<a href="streamedTuples.shtml">Simple Telepointer code </a><br/>
+			<a href="shared_dictionary.shtml">Shared Dictionary code </a><br/>			
+			

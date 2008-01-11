@@ -1,0 +1,209 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html>
+<!--#include virtual="/title_meta.shtml"--><!--#include virtual="/header.shtml"-->
+	<table border="0" cellpadding="0" cellspacing="10" width="720">
+	<tr>
+		<td width="200" align="center">
+			<img src="images/gt.jpg" alt="gt#">
+		</td>
+	</tr>
+	<tr>
+		<td>
+<br/>
+		<font size="+1">Chat application code </font>
+
+		</p><hr />
+
+
+		<p><b>Creating a new Form</b></p>
+
+		<p>Before starting to type some code, you have to create a form such as the following one :<p>
+
+	<tr>
+		<td width="200" align="center">
+			<img src="images/chat.JPG" alt="gt#">
+		</td>
+	</tr>
+		<td>
+
+		<p><br/>		
+		To start with, create a new project with a form. Then, in the "Form1.cs[Design]" tab, choose what you want to create in the toolbox on the left.<br/><br/>
+
+<tr>
+		<td width="200" align="center">
+		<img src="imagesSharedDictionary/sharedDictionary-1.png" border="1" />
+			<img src="images/toolbox2.jpg" alt="gt#">
+		</td>
+	</tr>
+		<td>
+
+<br/>
+		In the present example, I chose "Label" for the "Enter a nickname" spot, a "TextBox", so you can enter 
+		your name, and a "Button" for the "Register" button.<br/><br/>
+		Then, I decided to add another "label" to inform the client that he/she registered.
+		After that, three important things : <br/>
+		&nbsp;- the chat list box, defined by a "ListBox" in the toolbox.<br/>
+		&nbsp;- the text box where you type what you want to say, defined by a "TextBox" in the toolbox.<br/>
+		&nbsp;- and the "Send" button, defined by a "Button" in the toolbox.<br/>
+		<br/>
+		Finaly, add a timer clicking wherever on the Form1.<br/>
+		<br/>
+		<i>NB : you can rename the different objects so it would be easy to identify them in the code.<i/></p>
+	<tr>
+		<td width="200" align="center">
+			<img src="images/chat_labels_boxes_buttons.JPG" alt="gt#">
+		</td>
+	</tr>
+		<td>
+
+		<br/>
+				
+	<tr>
+		<td>
+
+		<p> Then, double-click one of the objects present on the Form1 to enter the code.<br/>
+		<br/></p>
+		<p><b>Creating a client</b></p>
+
+		<p>A Client object stores state information about the network.</p>
+
+		<font color="blue"> <code> 
+		public partial class Form1 : Form <br/>
+    		{ <br/>
+			&nbsp;&nbsp; Client myClient = new Client();<br/>
+			&nbsp;&nbsp; StringStream chaine;<br/>
+		
+		</code> </font>
+<br/>
+
+		<p><b>Initializing step</b></p>
+		<p> After creating a new client, you have to initialize the components of your chat.<br/>
+		<br/></p>
+
+
+		<font color="blue"> <code>
+		public Form1() <br/>
+        { <br/>
+            &nbsp;&nbsp; InitializeComponent(); <br/>
+            &nbsp;&nbsp; chaine = myClient.GetStringStream("127.0.0.1", "9999", 0); <br/>
+            &nbsp;&nbsp; timer1.Enabled = true; <br/>
+        }
+		</code> </font>
+
+<br/>
+
+		<p><b>Configuration of the different objects</b></p>
+<p><u>"Register" Button</u><br/>
+		<br/></p>
+
+		<font color="blue"> <code>
+
+ 		private void button2_Click(object sender, EventArgs e)  <br/>
+        { <br/>
+		&nbsp;&nbsp;<font color="green"> // If the text box is not empty then confirm the connection </font><br/>
+		&nbsp;&nbsp; if (textBox1.Text != "") <br/>
+            &nbsp;&nbsp; label2.Text += textBox1.Text + " , you are now connected to the chat. \n"; <br/>
+        }<br/>
+
+		</code> </font>
+<br/>
+
+<p><u>"Send" Button</u><br/>
+		<br/></p>
+
+		<font color="blue"> <code>
+
+ 		private void button1_Click(object sender, EventArgs e)  <br/>
+        { <br/>
+		&nbsp;&nbsp;<font color="green"> // If the text boxes are not empty then write the conversation in the list box </font><br/>
+		&nbsp;&nbsp; if (textBox2.Text != "")  <br/>
+            &nbsp;&nbsp; { <br/>
+                &nbsp;&nbsp;&nbsp; if (textBox1.Text != "")<br/>
+                &nbsp;&nbsp;&nbsp; { <br/>
+                    &nbsp;&nbsp;&nbsp;&nbsp; <font color="green"> // Write the client's name + "says" </font><br/>
+                    &nbsp;&nbsp;&nbsp;&nbsp; chaine.Send("\n" + textBox2.Text + " says : \n"); <br/>
+			<br/>
+                   &nbsp;&nbsp;&nbsp;&nbsp; <font color="green"> // Send what the client wrote in listBox1 </font><br/>
+                   &nbsp;&nbsp;&nbsp;&nbsp; chaine.Send(textBox1.Text); <br/>
+			<br/>
+                   &nbsp;&nbsp;&nbsp;&nbsp; <font color="green"> // Clear the box</font> <br/>
+                  &nbsp;&nbsp;&nbsp;&nbsp;  textBox1.Clear(); <br/>
+                &nbsp;&nbsp;&nbsp; } <br/>
+            &nbsp;&nbsp; } <br/>
+            &nbsp;&nbsp; else <br/>
+           &nbsp;&nbsp; { <br/>
+              &nbsp;&nbsp;&nbsp;  IconType = MessageBoxIcon.Error; <br/>
+               &nbsp;&nbsp;&nbsp; string monTexte = "Enter a nickname"; <br/>
+               &nbsp;&nbsp;&nbsp; MessageBox.Show(monTexte); <font color="green"> // Create and show a Message Box </font><br/> 
+           &nbsp;&nbsp; }<br/>
+        }<br/>
+
+		</code> </font>
+
+<br/>
+<p><u>Timer</u><br/>
+		<br/></p>
+
+		<font color="blue"> <code>
+
+private void timer1_Tick(object sender, EventArgs e) <br/>
+        { <br/>
+            &nbsp;&nbsp; myClient.Heartbeat(); <br/>
+<br/>
+            &nbsp;&nbsp; String str; <br/>
+            &nbsp;&nbsp; if ((str = chaine.DequeueMessage(0)) != null) <br/>
+            &nbsp;&nbsp;&nbsp; listBox1.Items.Add(str); <br/>
+        } <br/>
+
+</code> </font> 
+
+<br/>
+		<p><i><u>NB </u>: Before using the "Start Debugging" button or "F5" key (<img src="images/Start_Debugging.jpg" alt="gt#">), don't forget to add the "GTClient.dll" file.</i></p> 
+<br/>
+
+<tr>
+		<td width="200" align="center">
+			<img src="images/References.JPG" alt="gt#"> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+			<img src="images/Add_Reference.JPG" alt="gt#"> <br/><br/>
+			<img src="images/Add_Reference_Window.JPG" alt="gt#">
+		</td>
+	</tr>
+		<td>
+
+<br/>
+	<p><b>Chat views</b></p>
+
+<tr>
+		<td width="200" align="center">
+			<img src="images/chat_Cel_Reg.JPG" alt="gt#">
+		</td>
+	</tr>
+		<td>
+
+<br/>
+<tr>
+		<td width="200" align="center">
+			<img src="images/chat_msg_sent.JPG" alt="gt#">
+		</td>
+	</tr>
+		<td>
+
+<br/>
+
+		<p>Now : enjoy ! :-)</p> <br/><br/>
+
+
+<b>To the other tutorials :</b><br/>
+			<a href="simpleTut.shtml">Short Tutorial</a> <br/>						
+			<a href="Simple_Shared_White_Board.shtml">Simple Shared White Board code </a><br/>
+			<a href="Shared_White_Board.shtml">Shared White Board code </a><br/>
+			<a href="RemoteSpinner.shtml">Remote Spinner code </a><br/>
+			<a href="real_time_chess.shtml">Real Time Chess code </a><br/>
+			<a href="streamedTuples.shtml">Simple Telepointer code </a><br/>
+			<a href="shared_dictionary.shtml">Shared Dictionary code </a><br/>			
+			<a href="card_game.shtml">Card Game code </a><br/>
+
+
+
+
+

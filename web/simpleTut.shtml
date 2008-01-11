@@ -1,0 +1,138 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html>
+<!--#include virtual="/title_meta.shtml"--><!--#include virtual="/header.shtml"-->
+	<table border="0" cellpadding="0" cellspacing="10" width="580">
+	<tr>
+		<td width="200" align="center">
+			<img src="images/gt.jpg" alt="gt#">
+		</td>
+	</tr>
+	<tr>
+		<td>
+
+		<font size="+1">Short Tutorial</font>
+
+		<p>You should reference GTClient in your client, and GTServer in your server.  For peer-to-peer applications, you should include 
+		both.</p>
+
+		<hr />
+		
+		<p><b>Creating A Client</b></p>
+
+		<p>A Client object stores state information about the network.</p>
+
+		<font color="blue"> <code>Client myClient = new Client();</code> </font>
+
+		<br />
+
+		<p><b>Sending Messages to the Server</b></p>
+
+		<p>From the Client object, one can create Streams.  A stream sends and receives information of a certain type to the server.
+		For example, the following code creates a stream for passing strings:<p>
+
+		<font color="blue"> <code>StringStream strStream = <br />
+			&nbsp;&nbsp;&nbsp;&nbsp;myClient.GetStringStream("127.0.0.1", "9999", 0);</code> </font>
+
+		<p>The first argument is the address of the server, which can be in the form of a domain name or an ip address.  Therefore, both 
+		"hci.usask.ca" or "127.0.0.1" are valid addresses, as long as there is a server listening at that location.</p>  
+
+		<p>The second argument is the port that the server is listening on.  The client will attempt to connect to that port.</p>
+
+		<p>The third argument is the identity of this stream of strings.  You're encouraged to have multiple streams in a groupware 
+		application, divided by task or service.  For example, one could have a stream of strings for the text chat part of the 
+		application, and another stream of strings for game-wide announcements.  It is useful to use enumerations to give names
+		to the numbers that identify your different streams.</p>
+
+		<p>Use a stream to send a message.</p>
+
+		<font color="blue"> <code>strStream.Send("Hello!");</code> </font>
+
+		<br />
+
+		<p><b>Receiving Messages from the Server</b></p>
+
+		<p>You can tell your client to check the network.</p>
+
+		<font color="blue"> <code>myClient.Update();</code> </font>
+
+		<p>The Update method should be called at a regular interval, because it checks the network for new messages, and performs 
+		any sort of network maintainance that is necessary.  One advantage of using the Update method is that you are able to
+		control the amount of processing time that is being thrown toward maintaining the network and receiving messages.  Another 
+		advantage is that all of the processing is done in the current thread, so there is less overhead as well as less trouble to
+		debug.</p>
+
+		<p>There is another way to check the network instead of calling the Update method repeatedly.</p>
+
+		<font color="blue"> <code>myClient.StartListeningOnSeparateThread(0);</code> </font>
+
+		<p>That method creates a new thread to check the network for you.  The one argument is approximately the number of 
+		milliseconds that should pass before it checks the network again.</p>
+
+		<p>Received messages are queued into streams.</p>
+
+		<font color="blue"> <code>string s; <br />
+			while ((s = strStream.Dequeue(0)) != null)</code><br />
+				&nbsp;&nbsp;&nbsp;&nbsp;<code>Console.WriteLine(s);</code> </font><br />
+
+		<br />
+
+		<hr />
+
+		<p><b>Creating A Server</b></p>
+
+		<p>A Server object represents a server on the network.</p>
+
+		<font color="blue"> <code>Server myServer = new Server(9999, 1);</code> </font>
+
+		<p>The first argument is the server's listening port.<p>  
+
+		<p>The second argument is how often the server will run, in milliseconds.  The best setting for a server that should run 
+		as quickly as possible is 0.</p>
+
+		<p>One must start the server.</p>
+
+		<font color="blue"> <code>myServer.StartListening();</code> </font>
+
+		<p>StartListening will enter an infinite loop that will repeatly listen to the network.  One can do the same thing on a separate 
+		thread as well.</p>
+
+		<font color="blue"> <code>myServer.StartListeningOnSeparateThread();</code> </font>
+
+		<br />
+
+		<p><b>Receiving Messages from the Client</b></p>
+
+		<p>To receive a message from a client, attach a method to an event.</p>
+
+		<font color="blue"> <code>myServer.MessageReceived += new MessageHandler(MessageReceived);<br /><br />
+
+		...<br /><br />
+
+		MessageReceived(byte id, MessageType messageType, byte[] data, <br />
+		&nbsp;&nbsp;&nbsp;&nbsp;Server.Client client, MessageProtocol protocol) <br />
+		{ <br />
+			&nbsp;&nbsp;&nbsp;&nbsp;...<br />
+		}<br />
+		</code> </font>
+
+		<p>The id is the identity of the stream that the client sent it on.<p>
+
+		<p>The server likes to keep messages in byte-form, even if it is an object or string.  To convert the bytes to some
+		other form in a way consistent with the client, use the static method found in the Server object.</p>
+
+		<font color="blue"> <code>string s = Server.BytesToString(data);</code> </font>
+
+		<br />
+
+		<p><b>Sending Messages to the Client</b></p>
+
+		<p>To send to a specific client, one can use that client's object.  The id is the identity of client's stream 
+		that it will receive it on. <p>
+
+		<font color="blue"> <code>client.Send("Hello!", id, MessageProtocol.Tcp);</code> </font>
+
+
+		</td>
+	</tr>
+	</table>
+<!--#include virtual="/footer.shtml"-->

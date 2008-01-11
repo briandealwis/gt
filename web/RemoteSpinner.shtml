@@ -1,0 +1,371 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html>
+<!--#include virtual="/title_meta.shtml"--><!--#include virtual="/header.shtml"-->
+	<table border="0" cellpadding="0" cellspacing="10" width="780">
+	<tr>
+		<td width="200" align="center">
+			<img src="images/gt.jpg" alt="gt#">
+		</td>
+	</tr>
+	<tr>
+		<td>
+<br/>
+		<font size="+1">Remote Spinner code </font>
+
+		<br/><br/>The Remote Spinner can control a webcam using phidgets. <br/>
+									<u>Status :</u> The camera can move up/down and left/right.<br/><br/>
+		
+									<i>Definition you need to know :</i> Phidget servos control the direction in which the Webcam is pointing. 
+
+		</p><hr /> 
+
+
+		<p><b>Client</b></p> 
+
+<font color="purple">
+		<p><u><i>Creating a new form</i></u></p> 
+</font>
+
+		<p>Before starting to type some code, you have to create a form. <br/> Here are examples of what you can do :
+		</p> 
+		
+	<tr>		
+		<td width="200" align="center">
+			<img src="images/webcamcontrolcenter.JPG" alt="gt#"> 
+			&nbsp; &nbsp;  <img src="images/webcamcontrolcenter+image3.JPG" alt="gt#"> 
+		</td>
+
+	</tr>
+		<td> 
+
+		
+		<p><br/>		
+		To start with, create a new project with a form. Then, in the "Form1.cs[Design]" tab, choose what you want to create in the toolbox on the left.<br/><br/>
+
+<tr>
+		<td width="200" align="center">
+		<img src="imagesSharedDictionary/sharedDictionary-1.png" border="1" />
+			<img src="images/toolbox2.jpg" alt="gt#">
+		</td>
+	</tr>
+		<td>
+
+<br/>
+		In the present example, it was chosen : <br/>
+		&nbsp;&nbsp; - "Button" for the "Connect" button, <br/>
+		&nbsp;&nbsp; - "PictureBox" for the video area,<br/>
+		&nbsp;&nbsp; - "TextBox" to type the IP number, <br/>
+		&nbsp;&nbsp; - "Label" to print the position of the webcam,  <br/>
+		&nbsp;&nbsp; - "CheckBox" for "High Quality" and "Stream Video". <br/>
+		<br/>
+		<i><u>NB</u> : You can rename the different objects, so it would be easy to identify them in the code, and you can change the text that defined each object.</i></p>
+
+<br/>
+
+	<font color="Purple">
+<p><u><i>Code example</font></u><br/></i></p>
+</font>
+
+<p>
+<font color="blue"> <code>
+
+
+    public partial class frmMain : Form <br/>
+    { <br/>
+
+&nbsp;&nbsp;       Client c = new Client();  <font color="green">// Create a new client </font><br/>
+&nbsp;&nbsp;       GTClient.BinaryStream s; <br/><br/>
+
+
+&nbsp;&nbsp;        public frmMain() <br/>
+&nbsp;&nbsp;        { <br/>
+
+&nbsp;&nbsp;&nbsp;&nbsp;            InitializeComponent(); <br/>
+&nbsp;&nbsp;        } <br/><br/>
+
+
+
+&nbsp;&nbsp;        private void btnConnect_Click_1(object sender, EventArgs e) <font color="green"> // Connect Button </font> <br/>
+&nbsp;&nbsp;        { <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;            try <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;            { <br/>
+
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                s = c.GetBinaryStream(txtIP.Text, "9999", 0);  <font color="green"> // Connect to the server via port 9999 </font><br/><br/>
+
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                lblConnect.Text = "Connected"; <br/>
+
+&nbsp;&nbsp;&nbsp;&nbsp;            } <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;            catch <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;            { <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                MessageBox.Show("Error Connecting"); <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;            } <br/>
+&nbsp;&nbsp;        } <br/><br/>
+
+&nbsp;&nbsp;        private void tmrPulse_Tick_1(object sender, EventArgs e) <br/>
+&nbsp;&nbsp;        { <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;            c.Heartbeat(); <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;            if (s != null && !s.Dead) <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;            { <br/>
+
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                <font color="green"> //The sensor has a value from 1 to 1000, the motor from 1 to 180 </font> <br/>
+                
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                System.Text.ASCIIEncoding enc = new System.Text.ASCIIEncoding(); <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                char quality = 'l'; <br/> 
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                char video = 'n'; <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                if (chkVideo.Checked)  <font color="green"> // If the "Stream Video" CheckBox is checked then</font > <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                    video = 'y';  <font color="green"> // Show video</font> <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                if (chkHighQuality.Checked)  <font color="green"> // If "High Quality" CheckBox is checked then</font> <br/> 
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                    quality = 'h'; <font color="green"> // Set high quality for the video </font><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                s.Send(enc.GetBytes("" + video + "/" + quality + "/"+ (360 - trckSlideX.Value) + "/" + trckSlideY.Value));  <font color="green"> // Send the information (converted into ASCII) </font><br/><br/>
+
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                lblX.Text = "" + trckSlideX.Value; <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                lblY.Text = "" + trckSlideY.Value; <br/> <br/>
+
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                byte[] picture = null; <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                MemoryStream ms; <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                Image bmp; <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                byte[] temp; <br/> 
+
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                while ((temp = s.DequeueMessage(0)) != null) <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                { <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                    picture = temp;<font color="green">//enc.GetBytes(temp); </font><br/>
+                     
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                } <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                if (picture != null) <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                { <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                    ms = new MemoryStream(picture); <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                    bmp = Image.FromStream(ms); <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                    imgCam.Image = bmp; <br/>
+
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                } <br/>
+
+&nbsp;&nbsp;&nbsp;&nbsp;            } <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;            else <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;            { <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                lblConnect.Text = "Not Connected"; <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;            } <br/>
+&nbsp;&nbsp;        } <br/> <br/>
+
+&nbsp;&nbsp;        private void trckSlide_Scroll(object sender, EventArgs e) <br/>
+&nbsp;&nbsp;        { <br/> 
+
+&nbsp;&nbsp;        } <br/><br/>
+
+&nbsp;&nbsp;        private void frmMain_Load(object sender, EventArgs e) <br/>
+&nbsp;&nbsp;        { <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;            tmrPulse.Enabled = true; <br/>
+&nbsp;&nbsp;	  } <br/><br/>
+      } <font color="green">//end of "public partial class frmMain"  </font><br/>
+
+
+<br/><br/>
+
+
+
+</code></font>
+</p>
+	<p><b>Server</b></p> 
+
+
+<tr>		
+		<td width="200" align="center">
+			<img src="images/pseudo_serveur.JPG" alt="gt#"> 		
+		</td>
+
+	</tr>
+		<td> 
+
+
+	<font color="Purple">
+<p><u><i>Code example</i></u><br/></p>
+</font>
+		
+<font color="blue"> <code>
+
+
+
+    class Program <br/>
+    { <br/>
+&nbsp;&nbsp;         <font color="grey">  [STAThread]  </font> <br/>
+&nbsp;&nbsp;        static void Main(string[] args) <br/>
+&nbsp;&nbsp;        { <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;            RemoteSpinnerServerTriple blah = new RemoteSpinnerServerTriple(); <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;            while (true) <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;            { <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                Application.DoEvents(); <br/>
+
+&nbsp;&nbsp;&nbsp;&nbsp;            } <br/>
+&nbsp;&nbsp;        } <br/><br/>
+
+
+&nbsp;&nbsp;        public class RemoteSpinnerServerTriple <br/>
+&nbsp;&nbsp;        { <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;            Server s; <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;            Servo servo = new Servo(); <font color="green"> // Control the rotation of the webcam</font> <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;            double posX = 90; <font color="green"> // X position of the direction of the webcam </font>  <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;            double posY = 90; <font color="green"> // Y position of the direction of the webcam </font>  <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;            ImageCamera.Webcamera camera; <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;            System.Threading.Thread listenThread;  <font color="green"> // Define a new threat </font><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;            char quality = 'l'; <font color="green">// By default, the video quality is set to "Low"</font><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;            bool video = false; <font color="green">// By default, the video is not visible </font><br/><br/>
+
+
+
+&nbsp;&nbsp;&nbsp;&nbsp;            public RemoteSpinnerServerTriple() <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;            { <br/>
+
+
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                camera = new ImageCamera.Webcamera(); <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                if (camera == null) <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                {<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                    MessageBox.Show("Camera Not Found. Please connect a working webcam and restart this application."); <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                }<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                else <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                { <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                    camera.ImageCaptured += new ImageCamera.Webcamera.WebCamEventHandler(camera_ImageCaptured); <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                    camera.imageWidth = 320; &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<font color="green"> // Caracteristics </font ><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                    camera.imageHeight = 240;  &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<font color="green"> // of the </font ><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                    camera.TimeToCaptureInMilliseconds = 150; <font color="green"> // webcam </font><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                } <br/> <br/>
+
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                servo.open(); <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                s = new Server(9999, 1); <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                s.MessageReceived += new MessageHandler(s_MessageReceived); <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                s.ClientsJoined += new ClientsJoinedHandler(s_ClientsJoined); <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                s.ClientsRemoved += new ClientsRemovedHandler(s_ClientsRemoved); <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                s.ErrorEvent += new ErrorHandler(s_ErrorEvent); <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                listenThread = s.StartSeparateListeningThread(25); <font color="green"> // Start listening</font><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                camera.Start(0); <br/>
+
+ 
+&nbsp;&nbsp;&nbsp;&nbsp;            } <br/><br/><br/>
+
+
+&nbsp;&nbsp;&nbsp;&nbsp;            void s_ErrorEvent(Exception e, string explanation) <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;            { <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                throw new Exception("The method or operation is not implemented."); <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;            } <br/><br/>
+
+&nbsp;&nbsp;&nbsp;&nbsp;            void s_ClientsJoined(List<Server.Client> list) <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;            { <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                foreach (Server.Client client in list) <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                { <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                    int clientId = client.UniqueIdentity; <font color="green"> // Give the client a unique identity </font><br/>                    
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                } <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;            } <br/><br/>
+
+&nbsp;&nbsp;&nbsp;&nbsp;            void s_ClientsRemoved(List<Server.Client> list) <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;            { <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                foreach (Server.Client client in list) <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                { <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                    <font color="green">// kill client </font><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                    int clientId = client.UniqueIdentity; <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                    Server.Client.Kill(client); <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                    Console.WriteLine("Client left: " + clientId); <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                } <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;            } <br/> <br/>
+
+&nbsp;&nbsp;&nbsp;&nbsp;            void s_MessageReceived(byte id, MessageType messageType, byte[] data, Server.Client client, MessageProtocol protocol) <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;            { <br/>
+
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                string str = System.Text.ASCIIEncoding.ASCII.GetString(data); <br/>
+ <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                string[] splitter = new string[6]; <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                splitter = str.Split('/'); <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                posX = 90; <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                posY = 90; <br/> <br/>
+
+                
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                if (splitter[0] == "n") <font color="green">// The first split is whether to send the video </font><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                { <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                    video = false; <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                } <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                else if (splitter[0] == "y") <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                { <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                    video = true; <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                } <br/><br/>
+
+
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                quality = char.Parse(splitter[1]); <br/><br/>
+
+
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                if (splitter.Length > 2) <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                    posX = Double.Parse(splitter[2]); <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                if (splitter.Length > 3) <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                    posY = Double.Parse(splitter[3]); <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                if (posX > 360) posX = 360; <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                if (posX < 0) posX = 0; <br/> <br/>
+
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                if (posY > 120) posY = 120; <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                if (posY < 60) posY = 60; <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                posY = 180 - posY; <br/><br/>
+
+
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                Console.WriteLine(str + "\t" + posX + "\t" + posY); <br/> <br/>
+
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                if (servo.servos.Count > 0) <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                { <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                    if (posX > 180) <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                        servo.servos[0].Position = 180; <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                    else <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                        servo.servos[0].Position = posX; <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                } <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                if (servo.servos.Count > 1) <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                        servo.servos[1].Position = posY; <br/><br/>
+
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                    if (servo.servos.Count > 2)<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                    { <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                        if (posX > 180) <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                            servo.servos[2].Position = posX - 180; <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                        else <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                            servo.servos[2].Position = 0; <br/> 
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                    } <br/><br/>
+
+
+&nbsp;&nbsp;&nbsp;&nbsp;            } <br/><br/>
+
+&nbsp;&nbsp;&nbsp;&nbsp;            void camera_ImageCaptured(object source, ImageCamera.WebcamEventArgs e) <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;            { <br/>
+
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                if (video) <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                { <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                    byte[] ret; <font color="green"> // Array of bytes </font><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                    Console.WriteLine("Capture"); <br/>
+ <br/>
+
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                    MemoryStream ms = new MemoryStream(); <font color="green"> // Create a new Memory Stream </font><br/> <br/>
+
+
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                    if (quality == 'h') <font color="green"> // If  "High Quality" then </font> <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                        e.WebCamImage.Save(ms, System.Drawing.Imaging.ImageFormat.Jpeg); <font color="green"> // Set video to "High Quality", that is to say to the .JPEG format </font><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                    else <font color="green"> // else </font><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                        e.WebCamImage.Save(ms, System.Drawing.Imaging.ImageFormat.Gif); <font color="green"> // Set it to the .GIF format </font><br/><br/>
+                   
+
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                    ret = ms.ToArray(); <font color="green"> // Convert the MemoryStream into an Array of bytes </font><br/>
+
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                    List<MessageOut> list = new List<MessageOut>(); <font color="green"> //  Create a new list </font><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                    list.Add(new MessageOut((byte)0, MessageType.Binary, ret)); <font color="green"> // Add messages to the array "ret" </font><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                    s.Send(list, s.ClientList, MessageProtocol.Tcp); <br/><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                }  <font color="green"> //end of "if (video)" </font> <br/><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;            } <font color="green"> //end of "void camera_ImageCaptured" </font> <br/><br/>
+&nbsp;&nbsp;        }<font color="green"> //end of "public class RemoteSpinnerServerTriple" </font> <br/><br/>
+    } <font color="green"> //end of "class Program " </font> <br/><br/>
+
+
+
+</code> </font>
+
+
+<br/><br/>
+
+<b>To the other tutorials :</b><br/>
+			<a href="simpleTut.shtml">Short Tutorial</a> <br/>			
+			<a href="chat_code.shtml">Chat application code</a> <br/>
+			<a href="Simple_Shared_White_Board.shtml">Simple Shared White Board code </a><br/>
+			<a href="Shared_White_Board.shtml">Shared White Board code </a><br/>
+			<a href="real_time_chess.shtml">Real Time Chess code </a><br/>
+			<a href="streamedTuples.shtml">Simple Telepointer code </a><br/>
+			<a href="shared_dictionary.shtml">Shared Dictionary code </a><br/>			
+			<a href="card_game.shtml">Card Game code </a><br/>
+

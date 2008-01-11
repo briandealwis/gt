@@ -1,0 +1,108 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html>
+<!--#include virtual="/title_meta.shtml"--><!--#include virtual="/header.shtml"-->
+<table border="0" cellpadding="0" cellspacing="10" width="600">
+<tr><td width="200" align="center">
+	<img src="images/gt.jpg" alt="gt#">
+</td></tr>
+<tr><td>
+
+
+<font size="+1">Shared Dictionary code </font>
+
+<p>This example will demonstrate how to use the SimpleSharedDictionary class.</p> 
+
+<hr />
+
+<p>There are four things that one must know to use this class: the constructor, how to set an entry, how to get an entry, and how to know if an entry has be changed.</p>
+
+<p>One creates a shared dictionary by giving it a binary stream.</p>
+
+<font color="blue"><code>
+SimpleSharedDictionary shared = new SimpleSharedDictionary(binaryStream);<br />
+</code></font>
+
+<p>One puts an object inside the shared dictionary by giving it a key string.</p>
+
+<font color="blue"><code>
+shared["dane/position"] = new Point(10, 56);<br />
+</code></font>
+
+<p>One takes an object out of the shared dictionary by giving it a key string.</p>
+
+<font color="blue"><code>
+Point p = (Point) shared["dane/position"];<br />
+</code></font>
+
+<p>One learns when a dictionary key has been changed when they receive an event from ChangeEvent.</p>
+
+<font color="blue"><code>
+shared.ChangeEvent += <br />
+&nbsp;&nbsp;&nbsp;&nbsp;new SimpleSharedDictionary.Change(shared_ChangeEvent);<br />
+<br />
+...<br />
+<br />
+void shared_ChangeEvent(string key)<br />
+{<br />
+&nbsp;&nbsp;&nbsp;&nbsp;Console.Write("The entry " + key + " has been changed.\n");<br />
+}<br />
+</code></font>
+
+<p>The Simple Shared Dictionary is <b>very</b> simple.  If the shared dictionary has seen a key before, whether from a change event or because it was set, then it will return an object.  However, if the dictionary has never seen that key before, then it will return <font color="blue"><code>null</code></font> and ask for that key from the other clients.</p>
+
+<p>Now that you know what the shared dictionary looks like, we should build an example that uses it.  The goal of this example is to create a text box that contains the same string on every client, even if someone edits it.</p>
+
+<img src="imagesSharedDictionary/sharedDictionary-1.png" border="1" />
+
+<p>Create a new project with a form, and then put a text box on the form.</p>
+
+<img src="imagesSharedDictionary/sharedDictionary-2.png" border="1" />
+
+<p>Double-click on the form (not on the text box).  This will automatically generate code to handle the event of the form loading.<p>
+
+<img src="imagesSharedDictionary/sharedDictionary-3.png" border="1" />
+
+<p>Add GTClient as a reference to the project.</p>
+
+<img src="imagesSharedDictionary/sharedDictionary-4.png" border="1" /> <img src="imagesSharedDictionary/sharedDictionary-5.png" border="1" />
+
+<p>Create a new client, a new binary stream, and a new shared dictionary.<p>
+
+<img src="imagesSharedDictionary/sharedDictionary-6.png" border="1" />
+
+<p>When the key for our text box changes, we should change our text box to reflect the new information.<p>
+
+<img src="imagesSharedDictionary/sharedDictionary-7.png" border="1" />
+
+<p>Request the key that we're going to be using from the network.  This will return null because our shared dictionary has never seen this key before.  If another client is already running, this will request an update about this dictionary entry.</p>
+
+<img src="imagesSharedDictionary/sharedDictionary-8.png" border="1" />
+
+<p>Double-click on the text box in the form designer.  This will automatically generate code to handle the event of the user changing the string in the text box.</p>
+
+<img src="imagesSharedDictionary/sharedDictionary-9.png" border="1" />
+
+<p>When the user has changed the text box, we should share the results with everyone else.  Put the new information from the text box into the shared dictionary.</p>
+
+<img src="imagesSharedDictionary/sharedDictionary-10.png" border="1" />
+
+<p>Now try it out.  Run ClientRepeater from the GTServer code.  Run some instances of your new program.  Changing the text box in one program should change the text box in the others as well.</p>
+
+
+
+<br/><br/>
+
+
+<b>To the other tutorials :</b><br/>
+			<a href="simpleTut.shtml">Short Tutorial</a> <br/>			
+			<a href="chat_code.shtml">Chat application code</a> <br/>
+			<a href="Simple_Shared_White_Board.shtml">Simple Shared White Board code </a><br/>
+			<a href="Shared_White_Board.shtml">Shared White Board code </a><br/>
+			<a href="RemoteSpinner.shtml">Remote Spinner code </a><br/>
+			<a href="real_time_chess.shtml">Real Time Chess code </a><br/>
+			<a href="streamedTuples.shtml">Simple Telepointer code </a><br/>
+			<a href="card_game.shtml">Card Game code </a><br/>
+
+</td></tr>
+</table>
+<!--#include virtual="/footer.shtml"-->

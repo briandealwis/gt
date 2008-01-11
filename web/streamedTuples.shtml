@@ -1,0 +1,99 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html>
+<!--#include virtual="/title_meta.shtml"--><!--#include virtual="/header.shtml"-->
+<table border="0" cellpadding="0" cellspacing="10" width="600">
+<tr><td width="200" align="center">
+	<img src="images/gt.jpg" alt="gt#">
+</td></tr>
+<tr><td>
+
+
+<font size="+1">Telepointer Example</font>
+
+<p>This example will demonstrate how to use the StreamingTuple class.</p>
+
+<hr />
+
+<p>Streaming tuples are useful for the positions of avatars, telepointers, and other moving shared objects.  They are storage containers that send their values to everyone only after a certain amount of time has passed and only if the values have been changed.  It is meant to be used for small groupware programs that have been thrown together very quickly.</p>
+
+<p>A tuple is a small grouping of numbers, often used in graphs and maps.  For example, (345, 947) would be a two tuple, and it could be a location on the screen, the position inside of a list of arrays, a character's health and mana status, or any other group of a few numbers.  In real-time groupware, groups of numbers are often streamed to the server or to other clients.</p>
+
+<p>There are three things that you need to know to use this class: the constructor, how to set values, and how to receive values.</p>
+
+<p>One gets a new streamed tuple by giving it the IP address and port of a listening server.  The id only applies to this dimension of tuple, so you can reuse ids if the tuples are different sizes.  The time value is the number of milliseconds that the tuple will wait before sending changed values.</p>
+
+<font color="blue"><code>
+StreamedTuple&lt;int, int&gt; coords = <br />
+&nbsp;&nbsp;&nbsp;&nbsp;client.GetStreamedTuple&lt;int, int&gt;(ip, port, id, time);<br />
+</code></font>
+
+<p>For example, suppose you have an avatar that is represented in 2D space, and the avatar's position is the pair of floating point values (x, y). Also suppose that you only want to send the avatar's position to the other clients if its position has changed, and you only want to send a message once every 250 milliseconds.  The constructor would look like this:</p>
+
+<font color="blue"><code>
+StreamedTuple&lt;float, float&gt; coords = <br />
+&nbsp;&nbsp;&nbsp;&nbsp;client.GetStreamedTuple&lt;float, float&gt;(ip, port, 0, 250);<br />
+</code></font>
+
+<p>One sets the values of a tuple by changing its X, Y, or Z.</p>
+
+<font color="blue"><code>
+coords.X = 345;<br />
+coords.Y = 947;<br />
+</code></font>
+
+<p>One receives streamed tuples from other clients with the event StreamedTupleReceived.</p>
+
+<font color="blue"><code>
+coords.StreamedTupleReceived += <br />
+&nbsp;&nbsp;&nbsp;&nbsp;new StreamedTupleReceivedDelegate&lt;int, int&gt;(StreamedTupleReceived);<br />
+<br />
+...<br />
+<br />
+void StreamedTupleReceived(RemoteTuple&lt;int, int&gt; tuple, int clientID)<br />
+{<br />
+&nbsp;&nbsp;&nbsp;&nbsp;Console.Write("Tuple received from " + clientID + ".\n");<br />
+}<br />
+</code></font>
+
+<p>Now that you know what the streamed tuple looks like, we should build an example that uses it.  The goal of this example is to create a telepointer application that displays all of the clients' mouse cursor positions.</p>
+
+<img src="imagesStreamedTuples/Untitled-1.png" border="1" />
+
+<p>Create a new project with a form, and then put a timer on the form.</p>
+
+<img src="imagesStreamedTuples/Untitled-2.png" border="1" />
+
+<p>Double-click on the form.  This will automatically generate code to handle the event of the form loading.<p>
+
+<img src="imagesStreamedTuples/Untitled-3.png" border="1" />
+
+<p>Next, we need code to draw some points on the screen to be our telepointers.  This tutorial is not about drawing to forms, so we'll skip over the explanations of doing this.  Add the following code to the project:</p>
+
+<img src="imagesStreamedTuples/Untitled-4.png" border="1" />
+
+<p>Now we're ready to add GTClient as a reference to the project.</p>
+
+<img src="imagesStreamedTuples/Untitled-5.png" border="1"/>
+<img src="imagesStreamedTuples/Untitled-6.png" border="1"/>
+
+<p>Create a new client and streamed tuple.</p>
+
+<img src="imagesStreamedTuples/Untitled-7.png" border="1"/>
+
+<p>Add an event to handle other client's telepointer positions.</p>
+
+<img src="imagesStreamedTuples/Untitled-8.png" border="1"/>
+
+<p>Update our own telepointer position every frame.</p>
+
+<img src="imagesStreamedTuples/Untitled-9.png" border="1"/>
+
+<p>Now try it out.  Run ClientRepeater from the GTServer code.  Run some instances of your new program.  Moving the mouse in one client should move small telepointers in the other clients.</p>
+
+
+</td></tr>
+</table>
+<!--#include virtual="/footer.shtml"-->
+
+</body>
+</html>

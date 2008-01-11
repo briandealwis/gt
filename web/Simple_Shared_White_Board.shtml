@@ -1,0 +1,262 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html>
+<!--#include virtual="/title_meta.shtml"--><!--#include virtual="/header.shtml"-->
+	<table border="0" cellpadding="0" cellspacing="10" width="720">
+	<tr>
+		<td width="200" align="center">
+			<img src="images/gt.jpg" alt="gt#">
+		</td>
+	</tr>
+	<tr>
+		<td>
+<br/>
+		<font size="+1">Simple Shared White Board code</font>
+
+		<br/><br/>The aim of the Shared White Board is to allow you to draw anything you want with the mouse.
+
+		</p><hr />
+
+
+		<p><b>Creating a new Form</b></p>
+
+		<p>Before starting to type some code, you have to create a form such as the following one :<p>
+
+	<tr>
+		<td width="250" align="center">
+			<img src="images/simplesharedwhiteboard.JPG" alt="gt#">
+		</td>
+	</tr>
+		<td>
+		
+		<p><br/>		
+		To start with, create a new project with a form. Then, in the "Form1.cs[Design]" tab, choose what you want to create in the toolbox on the left.<br/><br/>
+
+<tr>
+		<td width="200" align="center">
+		<img src="imagesSharedDictionary/sharedDictionary-1.png" border="1" />
+			<img src="images/toolbox2.jpg" alt="gt#">
+		</td>
+	</tr>
+		<td>
+
+<br/>
+		In the present example, I chose "Button" for the "Clear" and "Change Color" buttons and a "Panel" for the drawing area.<br/>
+		<br/>
+		<i><u>NB</u> : you can rename the different objects, so it would be easy to identify them in the code, and you can change the text that defined each object.<i/></p>
+	<tr>
+		<td width="200" align="center">
+			<img src="images/SimpleSharedWhiteBoard_buttons_panel.JPG" alt="gt#">  <br/>
+			<img src="images/change_text_object_WhiteBoard.JPG" alt="gt#">
+		&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; <img src="images/change_name_object_WhiteBoard.JPG" alt="gt#">
+		</td>
+	</tr>
+		<td>
+
+		<br/>
+
+
+		<p> Then, double-click one of the objects present on the Form1 to enter the code.<br/>
+		<br/></p>
+		
+
+		<p><b>Initializing step</b></p>
+		<p> First of all, you have to initialize the components of your Shared White Board.<br/></p>
+
+
+		<font color="blue"> <code>
+		namespace SharedWhiteBoardSimple <br/>
+		{ <br/>
+		   &nbsp;&nbsp; public partial class Form1 : Form <br/>
+		   &nbsp;&nbsp;{ <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;     <font color="green">// initialize X and Y </font><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;     private int x1 = 0; <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;     private int y1 = 0; <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;     private int x2 = 0; <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;     private int y2 = 0; <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;     private bool drawing = false; <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;     <font color="green">// initialize a new object : "lines" </font><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;     private System.Collections.ArrayList lines; <br/><br/>
+
+
+&nbsp;&nbsp;        	    public Form1() <br/>
+&nbsp;&nbsp;	          { <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;     		 InitializeComponent(); <br/>
+ <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;	       lines = new System.Collections.ArrayList(); <br/>
+&nbsp;&nbsp;           	    } <br/>
+<br/>
+&nbsp;&nbsp;        	    <font color="green">// initialize pen </font><br/>
+&nbsp;&nbsp;	          Pen myPen = new Pen(Color.DarkBlue); <br/>
+
+		</code> </font>
+
+<br/>
+
+		<p><b>Configuration of the different objects</b></p>
+<p><u>"Clear" Button</u><br/>
+		<br/>
+</p>	<font color="blue"> <code>
+
+	<font color="green">  // handler clearButton_Click event </font> <br/>
+        private void ClearButton_Click(object sender, System.EventArgs e) <br/>
+        {   <br/>
+     &nbsp;&nbsp;      lines.Clear(); <br/>
+    &nbsp;&nbsp;       drawPanel.Invalidate();  <br/>
+
+        }<br/>
+
+		</code> </font>
+<br/>
+
+
+<p><u>"Change Color" Button</u><br/>
+		<br/>
+</p>
+		<font color="blue"> <code>
+
+  <font color="green">  // Handle colorButton click event </font> <br/>
+        private void colorButton_Click(object sender, EventArgs e) <br/>
+        { <br/>
+     &nbsp;&nbsp;  <font color="green">     // create a new color dialog </font> <br/> 
+     &nbsp;&nbsp;       ColorDialog dialogColor = new ColorDialog(); <br/>
+<br/>
+     &nbsp;&nbsp;  <font color="green">     // show dialog and obtain result</font> <br/>
+     &nbsp;&nbsp;       DialogResult result = dialogColor.ShowDialog(); <br/>
+<br/>
+     &nbsp;&nbsp;   <font color="green">    // return if user cancels </font><br/>
+     &nbsp;&nbsp;       if (result == DialogResult.Cancel) <br/>
+     &nbsp;&nbsp;&nbsp;           return; <br/>
+<br/>
+     &nbsp;&nbsp;    <font color="green">   // set pen to color</font>  <br/>
+     &nbsp;&nbsp;       myPen.Color = dialogColor.Color; <br/>
+     &nbsp;&nbsp;    <font color="green">   // refresh panel </font><br/>
+      &nbsp;&nbsp;      drawPanel.Invalidate();  <br/>
+<br/>
+        } <font color="green">// end of colorButton_Click</font> <br/>
+
+ 		</code> </font>
+
+<br/>
+<p><u>Drawing area</u><br/>
+
+<br/>
+</p>
+<font color="blue"> <code>
+
+<font color="green">// drawPanel </font> <br/>
+        private void drawPanel_Paint(object sender, System.Windows.Forms.PaintEventArgs e) <br/>
+        { <br/>
+ &nbsp;&nbsp; &nbsp;&nbsp;          <font color="green"> // get graphics object for panel </font> <br/>
+  &nbsp;&nbsp;   &nbsp;&nbsp;       Graphics graphicsObject = e.Graphics; <br/>
+<br/>
+  &nbsp;&nbsp;   &nbsp;&nbsp;       foreach (Rectangle line in lines) <br/>
+ &nbsp;&nbsp; &nbsp;&nbsp;          { <br/>
+ &nbsp;&nbsp;&nbsp;&nbsp;  &nbsp;&nbsp;&nbsp;&nbsp;             graphicsObject.DrawLine(myPen, line.X, line.Y, line.Right, line.Bottom); <br/>
+ &nbsp;&nbsp;  &nbsp;&nbsp;         }   <font color="green"> // end of "foreach" </font> <br/>
+        } <font color="green"> // end of drawPanel_Paint </font> <br/>
+
+</code> </font>
+<br/> 
+
+<p><b>Configuration of the mouse movements</b></p>  
+
+<p><u>Draw</u><br/>
+<br/> 
+<p>When the mouse is down and if you are moving it, your drawing appears.</p> 
+<br/> 
+<font color="blue"> <code>
+
+        private void draw(object sender, MouseEventArgs e) <br/> 
+        { <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;            x1 = x2; <br/> 
+&nbsp;&nbsp;&nbsp;&nbsp;            y1 = y2; <br/>
+ &nbsp;&nbsp;&nbsp;&nbsp;           x2 = e.X; <br/>
+ &nbsp;&nbsp;&nbsp;&nbsp;           y2 = e.Y; <br/>
+ &nbsp;&nbsp;&nbsp;&nbsp;           if (drawing) <br/>
+  &nbsp;&nbsp;&nbsp;&nbsp;          { <br/>
+  &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;              lines.Add(new Rectangle(x1, y1, x2 - x1, y2 - y1)); <br/>
+ &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;               drawPanel.Invalidate(); <br/>
+  &nbsp;&nbsp;&nbsp;&nbsp;          } <br/>
+        } <br/>
+
+</code> </font>
+
+<br/>
+
+
+<p><u>Start drawing</u><br/>
+    <br/>
+<p>When the mouse is down, start drawing.</p> 
+<br/> 
+
+<font color="blue"> <code>
+
+        private void StartLine(object sender, MouseEventArgs e) <br/>
+        { <br/>
+ &nbsp;&nbsp;&nbsp;&nbsp;           drawing = true; <br/>
+  &nbsp;&nbsp;&nbsp;&nbsp;          x1 = e.X; <br/>
+  &nbsp;&nbsp;&nbsp;&nbsp;          y1 = e.Y; <br/>
+        } <br/>
+</code> </font>
+<br/>
+
+<p><u>End drawing</u><br/> 
+<br/>
+<p>When the mouse is up, stop drawing.</p> 
+<br/> 
+
+
+  <font color="blue"> <code>
+
+        private void endLine(object sender, MouseEventArgs e) <br/>
+        { <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;            drawing = false; <br/>
+        } <font color="green">// end of endLine </font><br/> 
+
+</code> </font>
+
+<br/>
+<br/>
+
+
+
+	<p><b>Shared White Board views</b></p> 
+<br/>
+<tr>
+		<td width="200" align="center">
+			<img src="images/SWB1.JPG" alt="gt#">
+		</td>
+	</tr>
+		<td>
+
+<br/>
+<tr>
+		<td width="200" align="center">
+			<img src="images/SWB2.JPG" alt="gt#">
+		</td>
+	</tr>
+		<td>
+
+<br/>
+<tr>
+		<td width="200" align="center">
+			<img src="images/SWB3.JPG" alt="gt#">
+		</td>
+	</tr>
+		<td>
+
+<br/>
+		<p>Now : enjoy ! :-)</p> <br/>
+
+
+<br/><br/>
+
+<b>To the other tutorials :</b><br/>
+			<a href="simpleTut.shtml">Short Tutorial</a> <br/>			
+			<a href="chat_code.shtml">Chat application code</a> <br/>
+			<a href="Shared_White_Board.shtml">Shared White Board code </a><br/>
+			<a href="RemoteSpinner.shtml">Remote Spinner code </a><br/>
+			<a href="real_time_chess.shtml">Real Time Chess code </a><br/>
+			<a href="streamedTuples.shtml">Simple Telepointer code </a><br/>
+			<a href="shared_dictionary.shtml">Shared Dictionary code </a><br/>			
+			<a href="card_game.shtml">Card Game code </a><br/>

@@ -1,0 +1,848 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html>
+<!--#include virtual="/title_meta.shtml"--><!--#include virtual="/header.shtml"-->
+	<table border="0" cellpadding="0" cellspacing="10" width="800">
+	<tr>
+		<td width="200" align="center">
+			<img src="images/gt.jpg" alt="gt#">
+		</td>
+	</tr>
+	<tr>
+		<td>
+
+
+
+<br/>
+		<font size="+1">Real Time Chess code with examples</font>
+
+		<br/><br/>The Real Time Chess is based on chess game but contrary to the usual game, you can play with as many players as you want and divide them in teams (obviously "Whites" & "Blacks".)
+
+		</p><hr /> 
+
+
+		<p><b>Creating a new form</b></p>
+
+		<p>Before starting to type some code, you have to create a form. <br/> Here is an example of what you can do :</p> <br/>
+		
+	<tr>
+		<td width="200" align="center">
+			<img src="images/realtimechess.JPG" alt="gt#"> <br/>
+			<img src="images/RTChess.jpg" alt="gt#"> <br/>
+			<img src="images/connection.jpg" alt="gt#">
+		</td>
+	</tr>
+		<td> 
+		
+		<p><br/>		
+		To start with, create a new project with a form. Then, in the "Form1.cs[Design]" tab, choose what you want to create in the toolbox on the left.<br/><br/>
+
+<tr>
+		<td width="200" align="center">
+		<img src="imagesSharedDictionary/sharedDictionary-1.png" border="1" />
+			<img src="images/toolbox2.jpg" alt="gt#">
+		</td>
+	</tr>
+		<td>
+<br/>
+	
+<p><b>Code example</b><br/></p>
+
+<font color="purple">
+		<p><u><i>Start</i></u></p> 
+</font>
+<p>
+<font color="blue"> <code>
+
+
+ public partial class RTChessClient <br/>
+    { <br/>
+&nbsp;&nbsp;        private Thread _thread;                         <font color="green">// to deal with our client thread </font> <br/>
+&nbsp;&nbsp;        private Client _client;                         <font color="green">// indicates the curent local client </font> <br/>
+&nbsp;&nbsp;        private ClientInformation _clientInfo;          <font color="green">// stores different options for how the game will be played </font> <br/>
+&nbsp;&nbsp;        private Dictionary<int, Player> _playersList;   <font color="green">// list of all players </font> <br/>
+&nbsp;&nbsp;        private RTChessClientForm _applicationWindow;   <font color="green">// stores the application window handle </font> <br/>
+&nbsp;&nbsp;        private ChessGame _chessGame;                   <font color="green">// stores the chess game </font> <br/><br/>
+
+        <font color="grey">/// ... <br/>
+			   /// Then, define the streams to send/recieve data between the server and the client. <br/>
+			   /// ... </font> <br/>
+
+<br/>
+
+</code></font>
+
+<font color="purple">
+		<p><u><i>Connect to the server</i></u></p> 
+</font>
+
+
+	<p>
+		Connects the client to the server.<br/>
+		Returns "true" if the client was connected successfully, "false" otherwise.
+	</p>
+
+<font color="blue"> <code>	
+
+        
+        public bool Connect(string serverIp, string port) <br/>
+        { <br/>
+&nbsp;&nbsp;            _clientInfo.ServerIp = serverIp; <br/>
+&nbsp;&nbsp;            _clientInfo.Port = port; <br/><br/>
+
+&nbsp;&nbsp;            try <br/>
+&nbsp;&nbsp;            { <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;                if (!_clientInfo.IsConnectedToServer) <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;                { <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                    _client = new Client(); <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                    if (_client == null) <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                        return false; <br/><br/>
+
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                    _thread = _client.StartListeningOnSeperateThread(0); <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                    _client.ErrorEvent += new GTClient.ErrorEventHandler(_client_ErrorEvent); <br/><br/>
+
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                    _clientJoinedStream = _client.GetStringStream(_clientInfo.ServerIp, _clientInfo.Port, (byte)Streams.ClientJoined); <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                    if (_clientJoinedStream == null) <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                        return false; <br/><br/>
+
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                    int waitCount = 0; <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                    while (_clientJoinedStream.UniqueIdentity == 0 && waitCount < 10) <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                    { <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                        waitCount++; <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                        Thread.Sleep(200); <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                    } <br/><br/>
+
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                    if (waitCount >= 10) <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                        return false; <br/>
+
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                    _clientInfoUpdateStream = _client.GetStringStream(_clientInfo.ServerIp, _clientInfo.Port, (byte)Streams.ClientInfoUpdate); <br/><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                    _clientLeftStream = _client.GetStringStream(_clientInfo.ServerIp, _clientInfo.Port, (byte)Streams.LeaveGame); <br/><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                    _clientMouseMoveStream = _client.GetStringStream(_clientInfo.ServerIp, _clientInfo.Port, (byte)Streams.ClientMouseMove); <br/><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                    _clientMouseDownStream = _client.GetStringStream(_clientInfo.ServerIp, _clientInfo.Port, (byte)Streams.ClientMouseDown); <br/><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                    _clientMouseUpStream = _client.GetStringStream(_clientInfo.ServerIp, _clientInfo.Port, (byte)Streams.ClientMouseUp); <br/><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                    _gameStateStream = _client.GetStringStream(_clientInfo.ServerIp, _clientInfo.Port, (byte)Streams.GameStates); <br/><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                    _chessBoardStream = _client.GetBinaryStream(_clientInfo.ServerIp, _clientInfo.Port, (byte)Streams.ChessBoard); <br/><br/><br/>
+
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                    _clientJoinedStream.StringNewMessageEvent += new StringNewMessage(_clientJoinedStream_StringNewMessageEvent); <br/><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                    _clientInfoUpdateStream.StringNewMessageEvent += new StringNewMessage(_clientInfoUpdateStream_StringNewMessageEvent); <br/><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                    _clientLeftStream.StringNewMessageEvent += new StringNewMessage(_clientLeftStream_StringNewMessageEvent); <br/><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                    _clientMouseMoveStream.StringNewMessageEvent += new StringNewMessage(_clientMouseMoveStream_StringNewMessageEvent); <br/><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                    _clientMouseDownStream.StringNewMessageEvent += new StringNewMessage(_clientMouseDownStream_StringNewMessageEvent); <br/><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                    _clientMouseUpStream.StringNewMessageEvent += new StringNewMessage(_clientMouseUpStream_StringNewMessageEvent);<br/><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                    _gameStateStream.StringNewMessageEvent += new StringNewMessage(_gameStateStream_StringNewMessageEvent); <br/><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                    _chessBoardStream.BinaryNewMessageEvent += new BinaryNewMessage(_chessBoardStream_BinaryNewMessageEvent); <br/><br/>
+
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                    <font color="green"> // save the local player's id </font><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                    _clientInfo.ClientId = _clientJoinedStream.UniqueIdentity; <br/> <br/>
+
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                    <font color="green"> // check for any messages already in the queue </font><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                    _clientJoinedStream_StringNewMessageEvent(_clientJoinedStream); <br/> <br/>
+
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                    <font color="green"> // we are now connected to the server </font><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                    _clientInfo.IsConnectedToServer = true; <br/><br/>
+
+&nbsp;&nbsp;&nbsp;&nbsp;                } <font color="green">// end of "if (!_clientInfo.IsConnectedToServer)"</font><br/>
+&nbsp;&nbsp;            } <font color="green">// end of "Try"</font><br/><br/>
+&nbsp;&nbsp;            catch (Exception ex) <br/><br/>
+&nbsp;&nbsp;            { <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;                WriteConsolError(<font color="red">"Connect"</font>, ex); <br/>
+&nbsp;&nbsp;            } <br/><br/>
+
+&nbsp;&nbsp;            return _clientInfo.IsConnectedToServer; <br/><br/>
+        }  <font color="green">// end of "Connect"</font><br/><br/>
+
+
+
+</code></font>
+
+
+
+
+<font color="purple">
+		<p><u><i>Join the game</i></u></p> 
+</font>
+
+<p>
+	Allows the player to Join a game.<br/>
+	Returns "true" if the player joined the game successfully or "false" otherwise.
+</p>
+
+
+<font color="blue"> <code>
+
+        public bool JoinGame() <br/>
+        { <br/>
+&nbsp;&nbsp;            if (_clientJoinedStream == null) <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                return false; <br/><br/>
+
+&nbsp;&nbsp;            if (_clientInfo.IsConnectedToServer && !_clientInfo.IsGameJoined) <br/>
+&nbsp;&nbsp;            {<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                <font color="green"> // encode the player's name into unicode </font><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                string playerName = ClientInformation.EncodeNameString(_clientInfo.PlayerName); <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                _clientJoinedStream.Send(playerName + ((byte)_clientInfo.PlayerColor).ToString() + "\n" + ((byte)_clientInfo.PlayerTeam).ToString(), MessageProtocol.Tcp); <br/><br/>
+
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                int waitCount = 0; <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                while (!_clientInfo.IsGameJoined && waitCount < 10) <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                { <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                  waitCount++; <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                    Thread.Sleep(200);<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                }<br/><br/>
+
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                <font color="green"> // if we are still not joined, send a message to the server telling him about that </font><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                if (!_clientInfo.IsGameJoined && _clientJoinedStream != null) <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                    _clientJoinedStream.Send("NotJoined", MessageProtocol.Tcp); <br/><br/>
+&nbsp;&nbsp;            } <br/> <br/>
+&nbsp;&nbsp;            return _clientInfo.IsGameJoined; <br/><br/>
+        } <font color="green"> // end of "JoinGame" </font> <br/><br/>
+
+
+</code></font>
+
+
+<font color="purple">
+		<p><u><i>Disconnection</i></u></p> 
+</font>
+
+<p>
+		Set everything to "false", "null" or "0".<br/><br/>
+</p>
+
+
+
+
+<font color="purple">
+		<p><u><i>Leave the game</i></u></p> 
+</font>
+
+<p>
+		Allows the player to leave the game and to stay connected to the server.<br/>
+</p>
+
+
+<code><font color = "blue" >
+        public void LeaveGame() <br/>
+        { <br/>
+&nbsp;&nbsp;&nbsp;           if (_clientLeftStream == null) <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                return; <br/><br/>
+
+&nbsp;&nbsp;&nbsp;            if (_clientInfo.IsConnectedToServer && _clientInfo.IsGameJoined) <br/>
+&nbsp;&nbsp;&nbsp;            { <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                _clientInfo.IsGameJoined = false; <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                _clientInfo.IsGameStarted = false; <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                _clientInfo.IsGameOver = false; <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                _clientLeftStream.Send("Leave", MessageProtocol.Tcp); <br/>
+&nbsp;&nbsp;&nbsp;            } <br/>
+        } <br/><br/>
+
+</code></font>
+
+
+
+<font color="purple">
+		<p><u><i>End the game</i></u></p> 
+</font>
+
+<p>
+        Ends the current game. <br/>
+</p>
+
+<code><font color = "blue" >
+       
+        public void EndGame() <br/>
+        { <br/>
+&nbsp;&nbsp;&nbsp;             if (_clientInfo.EndGameMode == EndGameModeEnum.KillAllPieces) <br/>
+&nbsp;&nbsp;&nbsp;             { <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                 if (_chessGame.NumOfWhitePieces == 0) <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                 { <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp;                     _clientInfo.BlackTeamWon = true; <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp;                     _clientInfo.NumOfBlackWins++; <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                 } <br/><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                 else if (_chessGame.NumOfBlackPieces == 0) <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                { <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                    _clientInfo.WhiteTeamWon = true; <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                    _clientInfo.NumOfWhiteWins++; <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                } <br/>
+&nbsp;&nbsp;&nbsp;            } <br/><br/>
+
+&nbsp;&nbsp;&nbsp;            else <br/>
+&nbsp;&nbsp;&nbsp;            { <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                if (_chessGame.IsWhiteKingKilled) <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                { <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                    _clientInfo.BlackTeamWon = true; <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                    _clientInfo.NumOfBlackWins++; <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                } <br/><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                else if (_chessGame.IsBlackKingKilled) <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                { <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                    _clientInfo.WhiteTeamWon = true; <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                    _clientInfo.NumOfWhiteWins++; <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                } <br/>
+&nbsp;&nbsp;&nbsp;            } <br/><br/>
+
+&nbsp;&nbsp;&nbsp;            _clientInfo.IsGameOver = true; <br/>
+&nbsp;&nbsp;&nbsp;            _clientInfo.IsGameStarted = false; <br/>
+&nbsp;&nbsp;&nbsp;            _clientInfo.UpdatePlayersList = true; <br/><br/>
+
+&nbsp;&nbsp;&nbsp;            int nCntr = 3; <br/>
+&nbsp;&nbsp;&nbsp;            while (nCntr > 0) <br/>
+&nbsp;&nbsp;&nbsp;            { <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                _clientInfo.Counter = nCntr; <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                Thread.Sleep(1000); <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                nCntr--; <br/>
+&nbsp;&nbsp;&nbsp;            } <br/>
+        } <br/>
+
+
+</code></font>
+
+<font color="purple">
+		<p><u><i>Restart the game</i></u></p> 
+</font>
+
+<p>
+		Restarts the game.<br/>
+<p/>
+
+
+<code><font color = "blue" >
+   
+
+        public void RestartGame() <br/>
+        { <br/>
+&nbsp;&nbsp;&nbsp;            _chessGame.Reset(); <br/><br/>
+
+&nbsp;&nbsp;&nbsp;            _clientInfo.IsGameOver = false; <br/>
+&nbsp;&nbsp;&nbsp;            _clientInfo.IsGameStarted = false; <br/>
+&nbsp;&nbsp;&nbsp;            _clientInfo.BlackTeamWon = false; <br/>
+&nbsp;&nbsp;&nbsp;            _clientInfo.WhiteTeamWon = false; <br/>
+&nbsp;&nbsp;&nbsp;            _clientInfo.UpdateMenu = true; <br/>
+        }
+
+</code></font>
+
+
+
+
+<font color="purple">
+		<p><u><i>Draw the chess game</i></u></p> 
+</font>
+
+
+<code><font color = "blue" > 
+
+
+        <font color = "grey" >/// < param name="gdi" >Graphics Device Interface used for drawing.</param></font> <br/><br/>
+        public void Draw(Graphics gdi) <br/>
+        { <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;            <font color = "green" >// draw the chess board and pieces</font> <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;            if (_chessGame != null || gdi == null) <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;                _chessGame.Draw(gdi); <br/><br/>
+
+&nbsp;&nbsp;&nbsp;&nbsp;            if (_clientInfo.IsGameOver) <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;            { <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                string teamName; <br/><br/>
+
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                if (_clientInfo.WhiteTeamWon) <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                    teamName = <font color="red">"White Team Wins!!"</font>; <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                else if (_clientInfo.BlackTeamWon) <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                    teamName = <font color="red">"Black Team Wins!!"</font>; <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                else <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                    teamName = <font color="red">"Restarting.....!!"</font>; <br/><br/>
+ 
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                int dim; <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                if (_clientInfo.WindowDims == WindowDimsEnum.SmallWindow) <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                { <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                    dim = (int)WindowDimsEnum.SmallWindow; <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                    gdi.DrawImage(new Bitmap(<font color = "red">"Resources/BlackShade-584x584.png"</font>), 0, 0, dim, dim); <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                } <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                else <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                { <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                    dim = (int)WindowDimsEnum.LargeWindow; <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                    gdi.DrawImage(new Bitmap(<font color="red">"Resources/BlackShade-800x800.png"</font>), 0, 0, dim, dim); <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                } <br/><br/>
+
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                Point namePosition = new Point(dim / 2 - 130, dim / 2 - 55); <br/> 
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                gdi.DrawString(teamName, _clientInfo.TimesNewRoman25Bold, _clientInfo.WhiteBrush, namePosition);<br/><br/>
+
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                Point counterPosition = new Point(dim / 2 - 5, dim / 2); <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                gdi.DrawString(_clientInfo.Counter.ToString(), _clientInfo.TimesNewRoman25Bold, _clientInfo.WhiteBrush, counterPosition); <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;            } <br/><br/>
+
+&nbsp;&nbsp;&nbsp;&nbsp;            <font color = "green" >// draw each player's mouse movement, and piece selection </font> <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;            foreach (KeyValuePair<int, Player> kvp in _playersList) <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;            { <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                if (kvp.Value.IsMouseDown && kvp.Value.SelectedPiece != null) <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                { <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                    int pieceDim = kvp.Value.SelectedPiece.PieceDim; <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                    int xPos = kvp.Value.SelectedPiece.XPosition * pieceDim + pieceDim / 2; <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                    int yPos = kvp.Value.SelectedPiece.YPosition * pieceDim + pieceDim / 2;<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                    kvp.Value.SelectedPiece.DrawShadow(gdi, kvp.Value.CursorPosition.X, kvp.Value.CursorPosition.Y); <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                    gdi.DrawLine(new Pen(_clientInfo.BlackBrush), new Point(xPos, yPos), kvp.Value.CursorPosition); <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                } <br/><br/>
+
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                if (kvp.Value.Name == _clientInfo.LocalPlayer.Name) <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                    continue; <br/><br/>
+
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                <font color = "green" >// draw the mouse </font> <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                if (_clientInfo.PlayerColorMode == PlayerColorModeEnum.EachPlayerColor) <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                    gdi.DrawImage(kvp.Value.ColoredCursor, kvp.Value.CursorPosition); <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                else <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                    gdi.DrawImage(kvp.Value.MonoCursor, kvp.Value.CursorPosition); <br/><br/>
+
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                <font color = "green" >// set the name position, the constants are to move the name from the way of the mouse </font> <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                Point namePosition = new Point(kvp.Value.CursorPosition.X + 13, kvp.Value.CursorPosition.Y + 22); <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                gdi.DrawString(kvp.Value.Name, _clientInfo.Arial8Bold, _clientInfo.BlackBrush, namePosition); <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;            } <br/>
+        } <br/><br/>
+
+
+</code></font>
+
+
+
+<font color="purple">
+		<p><u><i>Updates</i></u></p> 
+</font>
+
+<p>
+		You have to update the Team information of the local player and to update the Client Window Dimension. <br/>
+
+<p/>
+
+<br/>
+
+<font color="purple">
+		<p><u><i>Initialize the move</i></u></p> 
+</font>
+
+<code><font color = "blue" > 
+
+        public void InitMove(Player player) <br/>
+        { <br/>
+&nbsp;&nbsp;&nbsp;            if (player == null || player.SelectedPiece == null || _chessGame == null) <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                return; <br/><br/>
+
+&nbsp;&nbsp;&nbsp;            <font color = "green" >// set the piece as moving </font> <br/>
+&nbsp;&nbsp;&nbsp;            player.SelectedPiece.IsMoving = true; <br/>
+&nbsp;&nbsp;&nbsp;            <font color = "green" >// select the destination block </font> <br/>
+&nbsp;&nbsp;&nbsp;            SelectBlock(player, player.MoveEndPoints[1].X, player.MoveEndPoints[1].Y); <br/><br/>
+
+&nbsp;&nbsp;&nbsp;            <font color = "green" >// if it is the local player's move, then initialize the move steps </font> <br/>
+&nbsp;&nbsp;&nbsp;            if (player == _clientInfo.LocalPlayer) <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                _chessGame.InitMoveSteps(player.SelectedPiece.Type, player.MoveEndPoints[0], player.MoveEndPoints[1]); <br/>
+        } <br/><br/>
+
+</code></font>
+
+
+<font color="purple">
+		<p><u><i>Movements</i></u></p> 
+</font>
+
+<p>
+        Sends the local player's mouse movement to the server. <br/>
+</p>
+
+<code> <font color = "blue" > 
+        
+	<font color="grey"> /// < param name="xPos" > X-axis position of the mouse.</param> </font><br/>
+        <font color="grey"> /// < param name="yPos" > Y-axis position of the mouse.</param> </font> <br/><br/>
+
+
+        public void MouseMove(int xPos, int yPos) <br/>
+        { <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;            <font color = "green" >// if the new position of the mouse is the same as the old position, then return </font><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;            if (_clientMouseMoveStream == null || _clientInfo.LocalPlayer == null || (_clientInfo.LocalPlayer.CursorPosition.X == xPos && _clientInfo.LocalPlayer.CursorPosition.Y == yPos)) <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                return; <br/>
+
+&nbsp;&nbsp;&nbsp;&nbsp;            <font color = "green" >// create a new point for the cursor position, make sure to keep the position within the window dimensions </font><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;            _clientInfo.LocalPlayer.CursorPosition = new Point(Math.Max(Math.Min(xPos, (int)_clientInfo.WindowDims), 0), <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;                Math.Max(Math.Min(yPos, (int)_clientInfo.WindowDims), 0)); <br/> <br/>
+
+&nbsp;&nbsp;&nbsp;&nbsp;            <font color = "green" >// get relative positions for the mouse (in percent) in order to cope with different client window sizes </font><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;            int relativeXPos = (int)((_clientInfo.LocalPlayer.CursorPosition.X / (float)_clientInfo.WindowDims) * 100); <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;            int relativeYPos = (int)((_clientInfo.LocalPlayer.CursorPosition.Y / (float)_clientInfo.WindowDims) * 100); <br/><br/>
+
+&nbsp;&nbsp;&nbsp;&nbsp;            <font color = "green" >// send the position to the server </font> <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;            if (_clientInfo.IsGameJoined) <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                _clientMouseMoveStream.Send(relativeXPos.ToString() + "\n" + relativeYPos.ToString()); <br/>
+        } <br/><br/>
+
+
+</code></font>
+
+
+<font color="purple">
+		<p><u><i>Move a chess piece</i></u></p> 
+</font>
+
+
+<code><font color = "blue" >     
+      
+        <font color="grey"> /// < param name="player" >The player moves the piece.</param> </font> <br/>
+        <font color="grey"> /// < param name="dstXPos" >X-axis of the destination block where the piece will move. Allowed values from 0 to 7.</param> </font> <br/>
+        <font color="grey"> /// < param name="dstYPos" >Y-axis of the destination block where the piece will move. Allowed values from 0 to 7.</param> </font> <br/>
+        <br/>
+	public void MovePiece(Player player, int dstXPos, int dstYPos) <br/>
+        { <br/>
+&nbsp;&nbsp;&nbsp;             if (player == null || _chessGame == null || dstXPos < 0 || dstXPos > 7 || dstYPos < 0 || dstYPos > 7) <br/>
+&nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp;                 return; <br/><br/>
+
+&nbsp;&nbsp;&nbsp;             _chessGame.MovePiece(player.SelectedPiece, dstXPos, dstYPos); <br/>
+        } <br/><br/>
+
+
+</code></font>
+
+
+
+<font color="purple">
+		<p><u><i>Finalize a piece move</i></u></p> 
+</font>
+
+
+<code><font color = "blue" >
+
+        <font color="grey">/// < param name="player" ></param>  </font><br/><br/>
+
+        public void FinalizeMove(Player player) <br/>
+        { <br/>
+&nbsp;&nbsp;&nbsp;            if (player == null || player.SelectedPiece == null || _clientMouseUpStream == null) <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                return; <br/><br/>
+
+&nbsp;&nbsp;&nbsp;            <font color="green">// the piece is not moving anymore </font> <br/>
+&nbsp;&nbsp;&nbsp;            player.SelectedPiece.IsMoving = false; <br/><br/>
+
+&nbsp;&nbsp;&nbsp;            <font color="green">// deselect the source & destination blocks </font> <br/>
+&nbsp;&nbsp;&nbsp;            _chessGame.DeselectBlock(player.MoveEndPoints[0].X, player.MoveEndPoints[0].Y); <br/>
+&nbsp;&nbsp;&nbsp;            _chessGame.DeselectBlock(player.MoveEndPoints[1].X, player.MoveEndPoints[1].Y); <br/>
+        } <br/><br/>
+
+</code></font>
+
+
+<font color="purple">
+		<p><u><i>Select a piece</i></u></p> 
+</font>
+
+<p>
+	Selects a piece, and sends this event to the server.<br/>
+</p>
+
+
+<code><font color = "blue" > 
+
+	public void MouseDown(int xPos, int yPos) <br/>
+        { <br/>
+&nbsp;&nbsp;&nbsp;            if (_clientMouseDownStream == null || _clientMouseUpStream == null || _chessGame == null || _clientInfo.LocalPlayer == null) <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                return;<br/>
+
+&nbsp;&nbsp;&nbsp;            <font color = "green" > //if the game is not over yet, and the mouse button is not already down </font><br/>
+&nbsp;&nbsp;&nbsp;            if (!_clientInfo.IsGameOver && !_clientInfo.LocalPlayer.IsMouseDown) <br/>
+&nbsp;&nbsp;&nbsp;            { <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                <font color = "green" > // if the player is already moving another stone, then dont do anything </font><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                if (_clientInfo.LocalPlayer.SelectedPiece != null && _clientInfo.LocalPlayer.SelectedPiece.IsMoving) <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                    return; <br/><br/>
+
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                <font color = "green" > // convert the mouse x and y positions to chess board dimentions (from 0 to 7) </font> <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                int boardXPos = _clientInfo.MouseToBoardDims(xPos); <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                int boardYPos = _clientInfo.MouseToBoardDims(yPos); <br/><br/>
+
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                <font color = "green" > // at this point, the local player should not be selecting any other piece </font> <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                <font color = "green" > // but in case of an error happens, just Force deselecting the piece </font> <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                if (_clientInfo.LocalPlayer.SelectedPiece != null) <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                    ForceDeselectPiece(); <br/><br/>
+
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                <font color = "green" > // if this is a valid selection, send the sever telling it that we want to select this piece </font> <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                if (_chessGame.IsValidPieceSelection(_clientInfo.PlayerTeam, boardXPos, boardYPos)) <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                    _clientMouseDownStream.Send(boardXPos.ToString() + "\n" + boardYPos.ToString()); <br/><br/>
+
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                <font color = "green" > // the player is pressing the mouse button </font> <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                _clientInfo.LocalPlayer.IsMouseDown = true; <br/>
+&nbsp;&nbsp;&nbsp;            } <br/>
+        } <br/><br/>
+
+</code></font>
+
+
+	<font color="purple">
+			<p><u><i>One piece per player</i></u></p> 
+	</font>
+<font color="blue"> <code>
+<pre>
+
+public void SelectPiece(Player player, int xPos, int yPos)
+{
+	ChessPiece piece;
+
+	if (player == null || player.MoveEndPoints == null || _chessGame == null)
+		return;
+
+	if (_clientInfo.PlayerColorMode == PlayerColorModeEnum.EachPlayerColor)
+		piece = _chessGame.SelectPiece(Color.FromName(player.PlayerColor.ToString()), xPos, yPos);
+	else
+	{
+		if (player.Team == ChessTeam.White)
+			piece = _chessGame.SelectPiece(_clientInfo.WhiteTeamSelectionColor, xPos, yPos);
+                else
+                	piece = _chessGame.SelectPiece(_clientInfo.BlackTeamSelectionColor, xPos, yPos);
+	}
+		<font color = "green" >// make the player select the piece </font>
+		player.SelectedPiece = piece; 
+		<font color = "green" >// the player has his mouse button down for sure </font>
+		player.IsMouseDown = true;
+		<font color = "green" >// prepare the player to move this piece </font>
+		player.MoveEndPoints[0] = new Point(xPos, yPos);
+}
+
+</pre>
+
+</font> </code>
+
+
+<font color="purple">
+		<p><u><i>Lets go of a selected piece</i></u></p> </font>
+
+<p> After picking up a piece and draging it, you let it go. That means the mouse is up.</p>
+
+<font color="blue"> <code>
+
+ <pre>        <font color="grey">
+/// < param name="xPos" > X-axis position of the mouse.</param>
+/// < param name="yPos" > Y-axis position of the mouse.</param> </font>
+
+public void MouseUp(int xPos, int yPos)
+{
+	if (_clientInfo.IsGameOver || _chessGame == null || _clientInfo.LocalPlayer == null)
+        	return;
+
+	<font color = "green" > // the player is not pressing the mouse button </font>
+	_clientInfo.LocalPlayer.IsMouseDown = false;
+	<font color = "green" > // tell everybody that your mouse is up </font>
+	_clientMouseUpStream.Send("MouseUp", MessageProtocol.Tcp);
+
+	<font color = "green" > // only if the player already selected a piece previously </font>
+	if (_clientInfo.LocalPlayer.SelectedPiece != null)
+	{
+		<font color = "green" > // if the player is already moving a piece, then do nothing </font>
+                if (_clientInfo.LocalPlayer.SelectedPiece.IsMoving)
+                    return;
+
+                <font color = "green" > // convert the mouse x and y positions to chess board dimentions (from 0 to 7) </font>
+                int boardXPos = _clientInfo.MouseToBoardDims(xPos);
+                int boardYPos = _clientInfo.MouseToBoardDims(yPos);
+
+                <font color = "green" > // the player is trying to move the piece, check if this is a valid move </font>
+                if (_chessGame.IsValidPieceMove(_clientInfo.LocalPlayer.SelectedPiece, boardXPos, boardYPos))
+                {
+                    <font color = "green" > // store the end position of the piece </font>
+                    _clientInfo.LocalPlayer.MoveEndPoints[1] = new Point(boardXPos, boardYPos);
+                    <font color = "green" > // send a message to the server telling it to move the piece </font>
+                    _clientMouseUpStream.Send("Move\n" + boardXPos.ToString() + "\n" + boardYPos.ToString());
+                }
+
+                else
+                    <font color = "green" > // Deselect the piece </font>
+                    _clientMouseUpStream.Send("LetGo");
+	}
+}
+
+
+</pre>
+
+
+</font> </code>
+
+
+<font color="purple">
+			<p><u><i>Deselect a piece</i></u></p> 
+	</font>
+<p> Deselects a chess piece that was selected by the player. </p>
+
+<code><font color = "blue" > 
+
+
+        <font color = "grey" > /// < param name="player" > The player that is deselecting. </font> <br/> <br/>
+
+        public void DeselectPiece(Player player) <br/>
+        { <br/>
+&nbsp;&nbsp;&nbsp;            if (_chessGame == null || player == null) <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                return; <br/><br/>
+
+&nbsp;&nbsp;&nbsp;            <font color = "green" >// let go of the piece, the server cannot refuse this request, thats why we apply it directly <br/> </font>
+&nbsp;&nbsp;&nbsp;            _chessGame.DeselectPiece(player.SelectedPiece); <br/>
+&nbsp;&nbsp;&nbsp;            player.SelectedPiece = null; <br/>
+        } <br/>
+
+
+</font> </code>
+
+<br/>
+
+<font color="purple">
+			<p><u><i>Kill a piece</i></u></p> 
+	</font>
+
+
+<code><font color = "blue" > 
+
+        <font color = "grey" >/// < param name="xPos" >X-axis of the piece to kill (from 0 to 7).</param> <br/>
+        /// < param name="yPos" >Y-axis of the piece to kill (from 0 to 7).</param> </font> <br/><br/>
+
+        public void KillPiece(int xPos, int yPos) <br/>
+        { <br/>
+&nbsp;&nbsp;&nbsp;            ChessPiece piece = _chessGame.KillPiece(xPos, yPos); <br/><br/>
+
+&nbsp;&nbsp;&nbsp;            <font color = "green" > // loop over all players and remove this piece from their selection (if any) </font> <br/>
+&nbsp;&nbsp;&nbsp;            foreach (KeyValuePair<int, Player> kvp in _playersList)<br/>
+&nbsp;&nbsp;&nbsp;            { <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                <font color = "green" > // remove the piece only if it is not me </font> <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                if (kvp.Key != _clientInfo.ClientId) <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                { <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                    if (kvp.Value.SelectedPiece != null && !kvp.Value.SelectedPiece.IsMoving && kvp.Value.SelectedPiece == piece) <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                        kvp.Value.SelectedPiece = null; <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                } <br/>
+&nbsp;&nbsp;&nbsp;            } <br/>
+        } <br/><br/>
+
+
+</font> </code>
+
+
+
+
+
+
+	<font color="purple">
+			<p><u><i>Track the team members number</i></u></p> 
+	</font>
+
+<code><font color = "blue" > 
+
+	<font color = "green" > // When a person joins the game  </font> <br/><br/>
+
+        private void TeamMemberJoined(ChessTeam team) <br/>
+        { <br/>
+&nbsp;&nbsp;&nbsp;            if (team == ChessTeam.White) <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                _clientInfo.NumOfWhitePlayers++; <br/>
+&nbsp;&nbsp;&nbsp;            else <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                _clientInfo.NumOfBlackPlayers++; <br/>
+        } <br/><br/>
+
+        <font color = "green" > // When a person leaves the games </font> <br/>
+        private void TeamMemberLeft(ChessTeam team) <br/>
+        { <br/>
+&nbsp;&nbsp;&nbsp;            if (team == ChessTeam.White) <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                _clientInfo.NumOfWhitePlayers--; <br/>
+&nbsp;&nbsp;&nbsp;            else <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;                _clientInfo.NumOfBlackPlayers--; <br/>
+        } <br/><br/>
+
+</font> </code>
+
+
+
+
+<font color="purple">
+			<p><u><i>Gets the cursor bitmap for the specified color</i></u></p> 
+	</font>
+
+<code><font color = "blue" > 
+
+        static Bitmap GetCursorBitmap(PlayerColor color) <br/>
+        { <br/>
+&nbsp;&nbsp;&nbsp;             switch (color) <br/>
+&nbsp;&nbsp;&nbsp;             { <br/>
+&nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp;                 case PlayerColor.Black: <br/>
+&nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp;                     return new Bitmap("Resources/cursor-black.png"); <br/>
+&nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp;                 case PlayerColor.Blue: <br/>
+&nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp;                     return new Bitmap("Resources/cursor-blue.png"); <br/>
+&nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp;                 case PlayerColor.Green: <br/>
+&nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp;                     return new Bitmap("Resources/cursor-green.png"); <br/>
+&nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp;                 case PlayerColor.LightBlue: <br/>
+&nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp;                     return new Bitmap("Resources/cursor-lightblue.png");<br/><br/>
+
+&nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp;                <font color = "green" > (...) </font> <br/><br/>
+
+&nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp;                 default: <br/>
+&nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp;                     return null; <br/>
+&nbsp;&nbsp;&nbsp;             } <br/>
+        } <br/><br/>
+
+
+        static Bitmap GetMonoCursorBitmap(ChessTeam team) <br/>
+        { <br/>
+&nbsp;&nbsp;&nbsp;             return GetCursorBitmap((team == ChessTeam.White) ? PlayerColor.White : PlayerColor.Black); <br/>
+        } <br/><br/>
+
+
+</font> </code>
+
+
+
+	<font color="purple">
+			<p><u><i>Properties</i></u></p> 
+	</font>
+
+<p>
+Properties to access different variables in the client
+</p>
+
+
+<code><font color = "blue" > 
+
+<pre>
+        public string ServerIp { get { return _clientInfo.ServerIp; } set { _clientInfo.ServerIp = value; } }
+
+        public string Port { get { return _clientInfo.Port; } set { _clientInfo.Port = value; } }
+
+        public bool IsConnectedToServer { get { return _clientInfo.IsConnectedToServer; } set { _clientInfo.IsConnectedToServer = value; } }
+
+        public bool IsGameJoined { get { return _clientInfo.IsGameJoined; } set { _clientInfo.IsGameJoined = value; } }
+
+        public bool IsGameStarted { get { return _clientInfo.IsGameStarted; } set { _clientInfo.IsGameStarted = value; } }
+
+        public WindowDimsEnum WindowDims { get { return _clientInfo.WindowDims; } set { _clientInfo.WindowDims = value; } }
+
+        public ChessTeam PlayerTeam { get { return _clientInfo.PlayerTeam; } set { _clientInfo.PlayerTeam = value; } }
+
+        public PlayerColor PlayerColor { get { return _clientInfo.PlayerColor; } set { _clientInfo.PlayerColor = value; } }
+
+        public string PlayerName { get { return _clientInfo.PlayerName; } set { _clientInfo.PlayerName = value; } }
+
+        public List<PlayerColor> AvailableColors { get { return _clientInfo.AvailableColors; } }
+
+        public string ErrorMessage { get { return _clientInfo.ErrorMessage; } }
+
+        public int NumOfWhitePlayers { get { return _clientInfo.NumOfWhitePlayers; } set { _clientInfo.NumOfWhitePlayers = value; } }
+
+        public int NumOfBlackPlayers { get { return _clientInfo.NumOfBlackPlayers; } set { _clientInfo.NumOfBlackPlayers = value; } }
+
+        public Player LocalPlayer { get { return _clientInfo.LocalPlayer; } set { _clientInfo.LocalPlayer = value; } }
+
+        public Dictionary<int, Player> PlayersList { get { return _playersList; } }
+
+        public bool UpdatePlayersList { get { return _clientInfo.UpdatePlayersList; } set { _clientInfo.UpdatePlayersList = value; } }
+
+        public bool UpdateMenu { get { return _clientInfo.UpdateMenu; } set { _clientInfo.UpdateMenu = value; } }
+
+        public PlayerColorModeEnum PlayerColorMode { get { return _clientInfo.PlayerColorMode; } set { _clientInfo.PlayerColorMode = value; } }
+
+        public EndGameModeEnum EndGameMode { get { return _clientInfo.EndGameMode; } set { _clientInfo.EndGameMode = value; } }
+
+        public int NumOfWhiteWins { get { return _clientInfo.NumOfWhiteWins; } set { _clientInfo.NumOfWhiteWins = value; } }
+
+        public int NumOfBlackWins { get { return _clientInfo.NumOfBlackWins; } set { _clientInfo.NumOfBlackWins = value; } }
+
+</pre>
+</code></font>
+
+<br/>
+
+<b>To the other tutorials :</b><br/>
+			<a href="simpleTut.shtml">Short Tutorial</a> <br/>			
+			<a href="chat_code.shtml">Chat application code</a> <br/>
+			<a href="Simple_Shared_White_Board.shtml">Simple Shared White Board code </a><br/>
+			<a href="Shared_White_Board.shtml">Shared White Board code </a><br/>
+			<a href="RemoteSpinner.shtml">Remote Spinner code </a><br/>
+			<a href="streamedTuples.shtml">Simple Telepointer code </a><br/>
+			<a href="shared_dictionary.shtml">Shared Dictionary code </a><br/>			
+			<a href="card_game.shtml">Card Game code </a><br/>
