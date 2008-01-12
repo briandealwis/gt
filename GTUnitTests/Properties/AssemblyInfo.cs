@@ -5,12 +5,12 @@ using System.Runtime.InteropServices;
 // General Information about an assembly is controlled through the following 
 // set of attributes. Change these attribute values to modify the information
 // associated with an assembly.
-[assembly: AssemblyTitle("EmptyStringTest")]
+[assembly: AssemblyTitle("GT Unit Tests")]
 [assembly: AssemblyDescription("")]
 [assembly: AssemblyConfiguration("")]
-[assembly: AssemblyCompany("HCI Lab")]
-[assembly: AssemblyProduct("EmptyStringTest")]
-[assembly: AssemblyCopyright("Copyright © HCI Lab 2007")]
+[assembly: AssemblyCompany("University of Saskatchewan")]
+[assembly: AssemblyProduct("GT: The Groupware Toolkit")]
+[assembly: AssemblyCopyright("Copyright ©  2008")]
 [assembly: AssemblyTrademark("")]
 [assembly: AssemblyCulture("")]
 
@@ -20,7 +20,7 @@ using System.Runtime.InteropServices;
 [assembly: ComVisible(false)]
 
 // The following GUID is for the ID of the typelib if this project is exposed to COM
-[assembly: Guid("ce291145-b854-4ef3-a7fd-953696e436a0")]
+[assembly: Guid("c48d4803-900f-49d3-aa1b-a183278cc750")]
 
 // Version information for an assembly consists of the following four values:
 //

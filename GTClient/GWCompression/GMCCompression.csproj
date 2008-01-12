@@ -45,7 +45,7 @@
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="..\MercuryClient\MercuryClient.csproj">
+    <ProjectReference Include="..\GTClient\GTClient.csproj">
       <Project>{621EB577-E34F-4833-A978-9DCA342D9F6C}</Project>
       <Name>MercuryClient</Name>
     </ProjectReference>

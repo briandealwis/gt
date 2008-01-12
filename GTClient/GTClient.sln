@@ -1,10 +1,6 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 9.00
 # Visual Studio 2005
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ClientChat", "ClientChat\ClientChat.csproj", "{4582FA58-11F9-4C2B-B2B9-C4DC51C3FC26}"
-EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Telepointers", "Telepointers\Telepointers.csproj", "{0429E659-A35B-4A5C-917A-49CEA6D48B5E}"
-EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SharedDictionaryTest", "SharedDictionaryTest\SharedDictionaryTest.csproj", "{0A455BC3-ECB0-4E60-BCF4-4C2079362D07}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Lobby", "Lobby\Lobby.csproj", "{5140F22E-6865-40DA-BA8F-6B516D16F4D6}"
@@ -17,8 +13,6 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "GTClient", "GTClient\GTClie
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Test", "Test\Test.csproj", "{5E0D5A6B-F5D2-4EAB-AA17-11EB7EBAED02}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "PassiveTelepointers", "PassiveTelepointers\PassiveTelepointers.csproj", "{C50DD63B-0ACE-4F9B-A8C9-7E2C7EC0D3C8}"
-EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "EmptyStringTest", "EmptyStringTest\EmptyStringTest.csproj", "{D417F52C-AA66-4894-93B9-9D8C6DAD6940}"
 EndProject
 Global
@@ -27,14 +21,6 @@ Global
 		Release|Any CPU = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(ProjectConfigurationPlatforms) = postSolution
-		{4582FA58-11F9-4C2B-B2B9-C4DC51C3FC26}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{4582FA58-11F9-4C2B-B2B9-C4DC51C3FC26}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{4582FA58-11F9-4C2B-B2B9-C4DC51C3FC26}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{4582FA58-11F9-4C2B-B2B9-C4DC51C3FC26}.Release|Any CPU.Build.0 = Release|Any CPU
-		{0429E659-A35B-4A5C-917A-49CEA6D48B5E}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{0429E659-A35B-4A5C-917A-49CEA6D48B5E}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{0429E659-A35B-4A5C-917A-49CEA6D48B5E}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{0429E659-A35B-4A5C-917A-49CEA6D48B5E}.Release|Any CPU.Build.0 = Release|Any CPU
 		{0A455BC3-ECB0-4E60-BCF4-4C2079362D07}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{0A455BC3-ECB0-4E60-BCF4-4C2079362D07}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{0A455BC3-ECB0-4E60-BCF4-4C2079362D07}.Release|Any CPU.ActiveCfg = Release|Any CPU
@@ -59,10 +45,6 @@ Global
 		{5E0D5A6B-F5D2-4EAB-AA17-11EB7EBAED02}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{5E0D5A6B-F5D2-4EAB-AA17-11EB7EBAED02}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{5E0D5A6B-F5D2-4EAB-AA17-11EB7EBAED02}.Release|Any CPU.Build.0 = Release|Any CPU
-		{C50DD63B-0ACE-4F9B-A8C9-7E2C7EC0D3C8}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{C50DD63B-0ACE-4F9B-A8C9-7E2C7EC0D3C8}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{C50DD63B-0ACE-4F9B-A8C9-7E2C7EC0D3C8}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{C50DD63B-0ACE-4F9B-A8C9-7E2C7EC0D3C8}.Release|Any CPU.Build.0 = Release|Any CPU
 		{D417F52C-AA66-4894-93B9-9D8C6DAD6940}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{D417F52C-AA66-4894-93B9-9D8C6DAD6940}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{D417F52C-AA66-4894-93B9-9D8C6DAD6940}.Release|Any CPU.ActiveCfg = Release|Any CPU

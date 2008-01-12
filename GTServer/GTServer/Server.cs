@@ -285,13 +285,21 @@ namespace GTServer
         /// <summary>Invoked each time a message is received.</summary>
         public event MessageHandler MessageReceived;
 
+        /* Note: the specialized message handlers are provided the message payloads
+         * as raw uninterpreted byte arrays so as to avoid introducing latency
+         * from unneeded latency.  If your server needs to use
+         * the message content, then the server should perform the interpretation. */
+
         /// <summary>Invoked each time a session message is received.</summary>
         public event SessionMessageHandler SessionMessageReceived;
 
-        /// <summary>Invoked each time a string message is received.</summary>
+        /// <summary>Invoked each time a string message is received.
+        /// Strings are encoded as bytes and can be decoded using variants of BytesToString().</summary>
         public event StringMessageHandler StringMessageReceived;
 
-        /// <summary>Invoked each time a object message is received.</summary>
+        /// <summary>Invoked each time a object message is received.
+        /// Objects are encoded as bytes and can be decoded using variants of BytesToObject().</summary>
+        /// FIXME: document the format.</summary>
         public event ObjectMessageHandler ObjectMessageReceived;
 
         /// <summary>Invoked each time a binary message is received.</summary>
@@ -579,7 +587,8 @@ namespace GTServer
 
         /// <summary>Creates a new Server object.</summary>
         /// <param name="port">The port to listen on.</param>
-        /// <param name="interval">The interval at which to check for new connections or new data.</param>
+        /// <param name="interval">The interval in milliseconds at which to check 
+        /// for new connections or new data.</param>
         public Server(int port, int interval)
         {
             this.port = port;
@@ -590,7 +599,9 @@ namespace GTServer
         }
 
         /// <summary>Starts a new thread that listens for new clients or new data.
-        /// Abort returned thread at any time to stop listening.</summary>
+        /// Abort returned thread at any time to stop listening.
+        /// <param name="interval">The interval in milliseconds at which to check 
+        /// for new connections or new data.</param> </summary>
         public Thread StartSeparateListeningThread(int interval)
         {
             this.Interval = interval;
