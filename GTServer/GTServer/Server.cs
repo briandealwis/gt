@@ -252,8 +252,13 @@ namespace GTServer
     {
         #region Variables and Properties
 
+        /// <summary>The listening backlog to use for the server socket.  Historically
+        /// the maximum was 5; some newer OS' support up to 128.</summary>
+        public static int LISTENER_BACKLOG = 10;
+
         private static Random random = new Random();
         private static BinaryFormatter formatter = new BinaryFormatter();
+
         TcpListener bouncer;
         private int lastPingTime = 0;
         private int port;
@@ -581,8 +586,7 @@ namespace GTServer
         {
             this.port = port;
             bouncer = new TcpListener(IPAddress.Any, port);
-            bouncer.ExclusiveAddressUse = true;
-            bouncer.Start(1);
+            bouncer.Start(LISTENER_BACKLOG);
         }
 
         /// <summary>Creates a new Server object.</summary>
@@ -594,9 +598,9 @@ namespace GTServer
             this.port = port;
             this.Interval = interval;
             bouncer = new TcpListener(IPAddress.Any, port);
-            bouncer.ExclusiveAddressUse = true;
-            bouncer.Start(1);
+            bouncer.Start(LISTENER_BACKLOG);
         }
+
 
         /// <summary>Starts a new thread that listens for new clients or new data.
         /// Abort returned thread at any time to stop listening.
@@ -804,8 +808,7 @@ namespace GTServer
             try
             {
                 bouncer = new TcpListener(IPAddress.Any, this.port);
-                bouncer.ExclusiveAddressUse = true;
-                bouncer.Start(1);
+                bouncer.Start(LISTENER_BACKLOG);
             }
             catch (ThreadAbortException t) { throw t; }
             catch (SocketException e)
