@@ -111,12 +111,19 @@ namespace GTClient
     /// <summary>Handles a Message event, when a message arrives.</summary>
     /// /// <param name="stream">The stream that has the new message.</param>
     public delegate void BinaryNewMessage(IBinaryStream stream);
+
     /// <summary>Handles a Error event, when an error occurs on the network.</summary>
     /// <param name="e">The exception.  May be null.</param>
     /// <param name="se">The networking error type.</param>
     /// <param name="ss">The server stream in which it occurred.  May be null if exception not in ServerStream.</param>
     /// <param name="explanation">A string describing the problem.</param>
+    /// <remarks>deprecated: use ErrorEvents instead</remarks>
     public delegate void ErrorEventHandler(Exception e, SocketError se, ServerStream ss, string explanation);
+    // FIXME: is this really the right way to notify of exceptions?
+    // And what if they are non-socket-errors?
+    public delegate void ErrorEvent(/*Severity sev, */ 
+        IServerSurrogate ss, string explanation, Exception e);
+
     /// <summary>Occurs whenever this client is updated.</summary>
     public delegate void UpdateEventDelegate(HPTimer hpTimer);
 
@@ -146,6 +153,9 @@ namespace GTClient
     /// <summary>Represents a message from the server.</summary>
     public class MessageIn
     {
+        /// <summary>The transport on which this message was received.</summary>
+        public ITransport transport;
+
         /// <summary>The channel that this message is on.</summary>
         public byte id;
 
@@ -165,17 +175,18 @@ namespace GTClient
         /// <param name="type">The type of message.</param>
         /// <param name="data">The data of the message.</param>
         /// <param name="ss">The server that sent the message.</param>
-        public MessageIn(byte id, MessageType type, byte[] data, ServerStream ss)
+        public MessageIn(byte id, MessageType type, byte[] data, ITransport transport, ServerStream ss)
         {
             this.id = id;
             this.type = type;
             this.data = data;
+            this.transport = transport;
             this.ss = ss;
         }
     }
 
     /// <summary>Represents a message going to the server.</summary>
-    internal class MessageOut
+    public class MessageOut
     {
         /// <summary>The channel that this message is on.</summary>
         public byte id;
@@ -972,284 +983,138 @@ namespace GTClient
 
 
     /// <summary>Controls the sending of messages to a particular server.</summary>
-    public class ServerStream
+    public class ServerStream : IServerSurrogate
     {
-        private const int bufferSize = 512;
-        private string address, port;
-        private TcpClient tcpClient;
-        private MemoryStream tcpIn;
-        private int tcpInBytesLeft;
-        private int tcpInMessageType;
-        private byte tcpInID;
-        private UdpClient udpClient;
-        private IPEndPoint endPoint;
+        public static int MessageHeaderByteSize = 8;
+
         private bool dead;
-        internal double NextPingTime = 0;
+        private string address;
+        private string port;
 
-        /// <summary>The last error encountered</summary>
-        public Exception LastError = null;
-        /// <summary>Occurs when there is an error.</summary>
-        public event ErrorEventHandler ErrorEvent;
-        internal ErrorEventHandler ErrorEventDelegate;
-
-        //used in various places to build up buffers of messages.  having it ready is fast.
-        private MemoryStream finalBuffer = new MemoryStream();
-
-        private List<MessageOut> MessageOutFreePool = new List<MessageOut>();
-        private List<MessageOut> MessageOutAwayPoolTCP = new List<MessageOut>();
-        private List<MessageOut> MessageOutAwayPoolUDP = new List<MessageOut>();
-
-        //If bits can't be written to the network now, try later
-        //We use this so that we don't have to block on the writing to the network
-        private List<byte[]> tcpOut = new List<byte[]>();
-        private List<byte[]> udpOut = new List<byte[]>();
-
-        /// <summary>The average amount of latency between this client and the server.</summary>
-        public float Delay = 20f;
+        internal double nextPingTime;
 
         /// <summary>The unique identity of the client for this server.
         /// This will be different for each server, and thus could be different for each connection.</summary>
         public int UniqueIdentity;
 
-        /// <summary>Messages from the Server.</summary>
+        /// <summary>Incoming messages from the server. As messages are read in from the
+        /// different transports, they are added to this list.  The different types of 
+        /// streams process this list to select messages corresponding to their particular 
+        /// type.</summary>
         internal List<MessageIn> messages;
 
-        /// <summary>What is the address of the server?  Thread-safe.</summary>
-        public string Address
+        /// <summary>Occurs when there is an error.</summary>
+        public event ErrorEventHandler ErrorEvent;
+        internal ErrorEventHandler ErrorEventDelegate;
+
+        private Dictionary<MessageProtocol, ITransport> transports;
+        private Dictionary<MessageProtocol, List<MessageOut>> messagePools;
+        // FIXME: Does maintaining a pool really buy us anything?
+        // Especially since this pool apparently grows without end?
+        private List<MessageOut> MessageOutFreePool = new List<MessageOut>();
+
+        /// <summary>Create a new SuperStream to handle a connection to a server. (blocks)</summary>
+        /// <param name="address">Who to try to connect to.</param>
+        /// <param name="port">Which port to connect to.</param>
+        internal ServerStream(string address, string port)
         {
-            get
-            {
-                return address;
-            }
+            dead = true;
+            this.address = address;
+            this.port = port;
+            Start();    // FIXME: starting should be *explicit*
         }
 
-        /// <summary>What is the TCP port of the server.  Thread-safe.</summary>
-        public string Port
+        /// <summary>
+        /// Start this instance.
+        /// </summary>
+        public void Start()
         {
-            get
+            if (!dead) { return; }
+            nextPingTime = 0;
+
+            messagePools = new Dictionary<MessageProtocol, List<MessageOut>>();
+            messages = new List<MessageIn>();
+
+            // FIXME: this should be configurable
+            if (transports == null)
             {
-                return port;
+                transports = new Dictionary<MessageProtocol, ITransport>();
+                AddTransport(new TcpTransport());
+                AddTransport(new UdpTransport());
             }
-        }
 
-        /// <summary>Is this connection dead?
-        /// If set to true, then this connection is killed.
-        /// If set to false while this connection is dead, then this connection will be reestablished.</summary>
-        public bool Dead
-        {
-            get
+            foreach (ITransport t in transports.Values)
             {
-                return dead;
+                t.Start();
             }
-            set
-            {
-                if (value)
-                {
-                    //kill the connection as best we can
-                    lock (this)
-                    {
-                        dead = true;
-
-                        try
-                        {
-                            tcpClient.Client.LingerState.Enabled = false;
-                            tcpClient.Client.ExclusiveAddressUse = false;
-                            tcpClient.Client.Close();
-                        }
-                        catch (Exception) { }
-
-                        try
-                        {
-                            udpClient.Client.LingerState.Enabled = false;
-                            udpClient.Client.ExclusiveAddressUse = false;
-                            udpClient.Client.Close();
-                        }
-                        catch (Exception) { }
-                    }
-                }
-                else if(dead)
-                {
-                    //we are dead, but they want us to live again.  Reconnect!
-                    Reconnect();
-                }
-            }
-        }
-
-        /// <summary>Reset the superstream and reconnect to the server (blocks)</summary>
-        private void Reconnect()
-        {
-            lock (this)
-            {
-                dead = true;
-
-                tcpIn = new MemoryStream();
-                messages = new List<MessageIn>();
-
-                IPHostEntry he = Dns.Resolve(address);
-                IPAddress[] addr = he.AddressList;
-
-                //try to connect to the address
-                Exception error = null;
-                for (int i = 0; i < addr.Length; i++)
-                {
-                    try
-                    {
-                        endPoint = new IPEndPoint(addr[0], Int32.Parse(port));
-                        tcpClient = new TcpClient();
-                        tcpClient.NoDelay = true;
-                        tcpClient.ReceiveTimeout = 1;
-                        tcpClient.SendTimeout = 1;
-                        tcpClient.Connect(endPoint);
-                        tcpClient.Client.Blocking = false;
-                        error = null;
-                        break;
-                    }
-                    catch (Exception e)
-                    {
-                        error = new Exception("There was a problem connecting to the server you specified. " +
-                        "The address or port you provided may be improper, the receiving server may be down, " +
-                        "full, or unavailable, or your system's host file may be corrupted. " +
-                        "See inner exception for details.", e);
-                    }
-                }
-
-                if (error != null)
-                    throw error;
-
-                Console.WriteLine("Address resolved and contacted.  Now connected to " + endPoint.ToString());
-
-                //prepare udp
-                udpClient = new UdpClient();
-                udpClient.DontFragment = true;
-                udpClient.Client.Blocking = false;
-                udpClient.Client.SendTimeout = 1;
-                udpClient.Client.ReceiveTimeout = 1;
-                udpClient.Client.Bind(new IPEndPoint(IPAddress.Any, 0));
-
-                //we are now good to go
-                dead = false;
-            }
+            dead = false;
 
             //request our id right away
             byte[] b = new byte[1];
             b[0] = 1;
-            Send(b, (byte)SystemMessageType.UniqueIDRequest, MessageType.System, MessageProtocol.Tcp, MessageAggregation.No, MessageOrder.None);
+            Send(b, (byte)SystemMessageType.UniqueIDRequest, MessageType.System, MessageProtocol.Tcp, 
+                MessageAggregation.No, MessageOrder.None);
         }
 
-        /// <summary>Send TCP message to server.</summary>
-        /// <param name="buffer">The message to send.</param>
-        private void SendTcpMessage(byte[] buffer)
+        public void Stop()
         {
-            if (TryAndFlushOldTcpBytesOut())
+            if (dead) { throw new InvalidOperationException("cannot be resurrected"); }
+            dead = true;
+            foreach (ITransport t in transports.Values)
             {
-                tcpOut.Add(buffer);
-                return;
+                t.Stop();
             }
-
-            SocketError error = SocketError.Success; //added
-            try
-            {
-                tcpClient.Client.Send(buffer, 0, buffer.Length, SocketFlags.None, out error);
-
-                switch (error)
-                {
-                    case SocketError.Success:
-                        return;
-                    case SocketError.WouldBlock:
-                        tcpOut.Add(buffer);
-                        LastError = null;
-                        if (ErrorEvent != null)
-                            ErrorEvent(null, error, this, "The TCP write buffer is full now, but the data will be saved and " +
-                                "sent soon.  Send less data to reduce perceived latency.");
-                        return;
-                    default:
-                        tcpOut.Add(buffer);
-                        LastError = null;
-                        if (ErrorEvent != null)
-                            ErrorEvent(null, error, this, "Failed to Send TCP Message.");
-                        dead = true;
-                        return;
-                }
-            }
-            catch (Exception e)
-            {
-                //something awful happened
-                tcpOut.Add(buffer);
-                LastError = e;
-                if (ErrorEvent != null)
-                    ErrorEvent(e, SocketError.NoRecovery, this, "Failed to Send to TCP.  See Exception for details.");
-                dead = true;
-            }
+            transports = null;
         }
 
-        /// <summary>Send UDP message to server.</summary>
-        /// <param name="buffer">The message to send.</param>
-        private void SendUdpMessage(byte[] buffer)
+        public void AddTransport(ITransport t)
         {
-            if (udpClient.Client.Connected)
+            // transports[t.Name] = t;
+            transports[t.MessageProtocol] = t;  // FIXME: this is to be replaced!
+            t.Server = this;
+        }
+
+        public virtual string Address
+        {
+            get { return address; }
+        }
+
+        public virtual string Port
+        {
+            get { return port; }
+        }
+
+        public virtual bool Dead
+        {
+            get { return dead; }
+        }
+
+        /// <summary>Average latency between the client and this particluar server.</summary>
+        public float Delay {
+            get
             {
-                //if there is old stuff to send yet, try the old stuff first
-                //before sending the new stuff
-                if (TryAndFlushOldUdpBytesOut())
+                float total = 0; int n = 0;
+                foreach (ITransport t in transports.Values)
                 {
-                    udpOut.Add(buffer);
-                    return;
+                    float d = t.Delay;
+                    if (d > 0) { total += d; n++; }
                 }
-                //if it's all clear, send the new stuff
-                
-                SocketError error = SocketError.Success; //added
-                try
-                {
-                    udpClient.Client.Send(buffer, 0, buffer.Length, SocketFlags.None, out error);
-                    switch (error)
-                    {
-                        case SocketError.Success:
-                            return;
-                        case SocketError.WouldBlock:
-                            tcpOut.Add(buffer);
-                            LastError = null;
-                            if (ErrorEvent != null)
-                                ErrorEvent(null, error, this, "The UDP write buffer is full now, but the data will be saved and " +
-                                    "sent soon.  Send less data to reduce perceived latency.");
-                            return;
-                        default:
-                            tcpOut.Add(buffer);
-                            LastError = null;
-                            if (ErrorEvent != null)
-                                ErrorEvent(null, error, this, "Failed to Send UDP Message.");
-                            return;
-                    }
-                }
-                catch (Exception e)
-                {
-                    //something awful happened
-                    udpOut.Add(buffer);
-                    LastError = e;
-                    if (ErrorEvent != null)
-                        ErrorEvent(e, SocketError.Fault, this, "Failed to Send UDP Message (" + buffer.Length +
-                            " bytes) because of an exception: " + buffer.ToString());
-                }
-                
-            }
-            else
-            {
-                //save this data to be sent later
-                udpOut.Add(buffer);
-                //request the server for the port to send to
-                byte[] data = BitConverter.GetBytes((short)(((IPEndPoint)udpClient.Client.LocalEndPoint).Port));
-                try
-                {
-                    Send(data, (byte)SystemMessageType.UDPPortRequest, MessageType.System, MessageProtocol.Tcp, MessageAggregation.No, MessageOrder.None);
-                }
-                catch (Exception e)
-                {
-                    //don't save this or die, but still throw an error
-                    LastError = e;
-                    if (ErrorEvent != null)
-                        ErrorEvent(e, SocketError.Fault, this, "Failed to Request UDP port from server.");
-                }
+                return n == 0 ? 0 : total / n;
             }
         }
+
+        /// <summary>Occurs when there is an error.</summary>
+        protected internal void NotifyError(object generator, Exception e, SocketError se, string explanation)
+        {
+            // FIXME: This should be logging
+            Console.WriteLine("Error[" + generator + "]: " + explanation + " (" + e + ", " + se + ")");
+            if (ErrorEvent != null)
+            {
+                ErrorEvent(e, se, this, explanation);
+            }
+        }
+
+
 
         /// <summary>Adds the message to a list, waiting to be sent out.</summary>
         /// <param name="data">The data that will wait</param>
@@ -1273,11 +1138,12 @@ namespace GTClient
                 message.ordering = ordering;
             }
 
-
-            if (protocol == MessageProtocol.Tcp)
-                MessageOutAwayPoolTCP.Add(message);
-            else
-                MessageOutAwayPoolUDP.Add(message);
+            List<MessageOut> mp;
+            messagePools.TryGetValue(protocol, out mp);
+            if(mp == null) {
+                mp = messagePools[protocol] = new List<MessageOut>();
+            }
+            mp.Add(message);
         }
 
         /// <summary>Send a message using these parameters.</summary>
@@ -1319,81 +1185,80 @@ namespace GTClient
                     return;
                 }
 
-                //pack main message into a buffer and send it right away
-                byte[] buffer = new byte[data.Length + 8];
-                buffer[0] = id;
-                buffer[1] = (byte)type;
-                BitConverter.GetBytes(data.Length).CopyTo(buffer, 4);
-                data.CopyTo(buffer, 8);
-
                 //Actually send the data.  Note that after this point, ordering and 
                 //aggregation are locked in / already decided.
                 //If you're here, then you're not aggregating and you're not concerned 
                 //about ordering.
-                if (protocol == MessageProtocol.Tcp)
-                    SendTcpMessage(buffer);
-                else
-                    SendUdpMessage(buffer);
+                SendMessage(transports[protocol], type, id, data);
             }
+        }
+
+        protected void WriteMessage(MemoryStream stream, MessageType type, byte id, byte[] data)
+        {
+            /*
+             * Messages have an 8-byte header (MessageHeaderByteSize):
+             * byte 0 is the channel id
+             * byte 1 is the message type
+             * bytes 2 and 3 are unused
+             * bytes 4-7 encode the message data length
+             */
+            stream.WriteByte(id);           // byte 0
+            stream.WriteByte((byte)type);   // byte 1
+            stream.WriteByte(0);            // byte 2
+            stream.WriteByte(0);            // byte 3
+            stream.Write(BitConverter.GetBytes(data.Length), 0, 4); // bytes 4-7
+            stream.Write(data, 0, data.Length);
+        }
+
+        internal void SendMessage(ITransport transport, MessageType type, byte id, byte[] data)
+        {
+            //pack main message into a buffer and send it right away
+            MemoryStream finalBuffer = new MemoryStream(transport.MaximumMessageSize);
+            WriteMessage(finalBuffer, type, id, data);
+            transport.SendMessage(finalBuffer.ToArray());
         }
 
         /// <summary>Flushes outgoing tcp or udp messages on this channel only</summary>
         internal void FlushOutgoingMessages(byte id, MessageProtocol protocol)
         {
-            const int maxSize = 512;
             MessageOut message;
             List<MessageOut> list;
             List<MessageOut> chosenMessages = new List<MessageOut>(8);
             byte[] buffer;
 
-            //get the correct list
-            if(protocol == MessageProtocol.Tcp)
-                list = (List<MessageOut>)this.MessageOutAwayPoolTCP;
-            else
-                list = (List<MessageOut>)this.MessageOutAwayPoolUDP;
+            ITransport t = transports[protocol];
+            messagePools.TryGetValue(protocol, out list);
+            if (list == null || list.Count == 0) { return; }
+            MemoryStream finalBuffer = new MemoryStream(t.MaximumMessageSize);
 
-            if (list.Count == 0)
-                return;
-
-            lock (finalBuffer)
+            while (true)
             {
-                while (true)
+                //Find first message in this channel
+                if ((message = FindFirstChannelMessageInList(id, list)) == null)
                 {
-                    //Find first message in this channel
-                    if ((message = FindFirstChannelMessageInList(id, list)) == null)
-                        break;
-
-                    //if packing a packet, and the packet is full
-                    if (protocol == MessageProtocol.Udp && (finalBuffer.Position + message.data.Length + 8 > maxSize))
-                        break;
-
-                    //remove this message
-                    list.Remove(message);
-
-                    //pack the message into the buffer
-                    buffer = new byte[message.data.Length + 8];
-                    buffer[0] = (byte)message.id;
-                    buffer[1] = (byte)message.type;
-                    BitConverter.GetBytes(message.data.Length).CopyTo(buffer, 4);
-                    message.data.CopyTo(buffer, 8);
-
-                    finalBuffer.Write(buffer, 0, buffer.Length);
-
-                    MessageOutFreePool.Add(message);
+                    break;
                 }
 
-                buffer = new byte[finalBuffer.Position];
-                finalBuffer.Position = 0;
-                finalBuffer.Read(buffer, 0, buffer.Length);
-                finalBuffer.Position = 0;
+                //if packing a packet, and the packet is full
+                if (t.MaximumMessageSize > 0 && 
+                    finalBuffer.Position + message.data.Length + MessageHeaderByteSize
+                        > t.MaximumMessageSize)
+                {
+                    break;
+                }
+
+                //remove this message
+                list.Remove(message);
+
+                //pack the message into the buffer
+                WriteMessage(finalBuffer, message.type, message.id, message.data);
+
+                MessageOutFreePool.Add(message);
             }
 
             //Actually send the data.  Note that after this point, ordering and 
             //aggregation are locked in / already decided.
-            if (protocol == MessageProtocol.Tcp)
-                SendTcpMessage(buffer);
-            if (protocol == MessageProtocol.Udp)
-                SendUdpMessage(buffer);
+            t.SendMessage(finalBuffer.ToArray());
 
             //if more messages to flush on this channel, repeat above process again
             if ((message = FindFirstChannelMessageInList(id, list)) != null)
@@ -1406,57 +1271,38 @@ namespace GTClient
             const int maxSize = 512;
             MessageOut message;
             List<MessageOut> list;
-            
             byte[] buffer;
 
-            //get the correct list
-            if(protocol == MessageProtocol.Tcp)
-                list = (List<MessageOut>)this.MessageOutAwayPoolTCP;
-            else
-                list = (List<MessageOut>)this.MessageOutAwayPoolUDP;
+            ITransport t = transports[protocol];
+            messagePools.TryGetValue(protocol, out list);
+            if (list == null || list.Count == 0) { return; }
+            MemoryStream finalBuffer = new MemoryStream(t.MaximumMessageSize);
 
-            //finalBuffer is a memory connection that we keep around so we don't have to recreate it each time
-            lock (finalBuffer)
+            while (true)
             {
-                while (true)
+                //if there are no more messages in the list
+                if ((message = FindFirstMessageInList(list)) == null)
+                    break;
+
+                //if packing a packet, and the packet is full
+                if (t.MaximumMessageSize > 0 &&
+                    finalBuffer.Position + message.data.Length + MessageHeaderByteSize
+                        > t.MaximumMessageSize)
                 {
-                    //if there are no more messages in the list
-                    if ((message = FindFirstMessageInList(list)) == null)
-                        break;
-
-                    //if we're packing a udp packet with messages, and it's full
-                    if (protocol == MessageProtocol.Udp && (finalBuffer.Position + message.data.Length + 8 < maxSize))
-                        break;
-
-                    //remove this message from the list of messages to be packed
-                    list.Remove(message);
-
-                    //pack the message into the buffer
-                    buffer = new byte[message.data.Length + 8];
-                    buffer[0] = (byte)message.id;
-                    buffer[1] = (byte)message.type;
-                    BitConverter.GetBytes(message.data.Length).CopyTo(buffer, 4);
-                    message.data.CopyTo(buffer, 8);
-
-                    finalBuffer.Write(buffer, 0, buffer.Length);
-
-                    MessageOutFreePool.Add(message);
+                    break;
                 }
 
-                //convert the memory connection into an array, and reset it back to position zero.
-                //TODO: check the size of the memory connection to make sure it has not become too large.
-                buffer = new byte[finalBuffer.Position];
-                finalBuffer.Position = 0;
-                finalBuffer.Read(buffer, 0, buffer.Length);
-                finalBuffer.Position = 0;
+                //remove this message from the list of messages to be packed
+                list.Remove(message);
+
+                WriteMessage(finalBuffer, message.type, message.id, message.data);
+
+                MessageOutFreePool.Add(message);
             }
 
             //Actually send the data.  Note that after this point, ordering and 
             //aggregation are locked in / already decided.
-            if (protocol == MessageProtocol.Tcp)
-                SendTcpMessage(buffer);
-            if (protocol == MessageProtocol.Udp)
-                SendUdpMessage(buffer);
+            t.SendMessage(finalBuffer.ToArray());
 
             //if there is more data to flush, do it
             if (list.Count > 0)
@@ -1487,100 +1333,16 @@ namespace GTClient
             return null;
         }
 
-        /// <summary> Flushes out old messages that couldn't be sent because of exceptions</summary>
-        /// <returns>True if there are bytes that still have to be sent out</returns>
-        private bool TryAndFlushOldTcpBytesOut()
+        internal void Add(MessageIn newMessage)
         {
-            byte[] b;
-            SocketError error = SocketError.Success;
-
-            try
+            if (newMessage.type == MessageType.System)
             {
-                while (tcpOut.Count > 0)
-                {
-                    b = tcpOut[0];
-                    tcpClient.Client.Send(b, 0, b.Length, SocketFlags.None, out error);
-
-                    switch (error)
-                    {
-                        case SocketError.Success:
-                            tcpOut.RemoveAt(0);
-                            break;
-                        case SocketError.WouldBlock:
-                            //don't die, but try again next time
-                            LastError = null;
-                            if (ErrorEvent != null)
-                                ErrorEvent(null, error, this, "The TCP write buffer is full now, but the data will be saved and " +
-                                    "sent soon.  Send less data to reduce perceived latency.");
-                            return true;
-                        default:
-                            //die, because something terrible happened
-                            dead = true;
-                            LastError = null;
-                            if (ErrorEvent != null)
-                                ErrorEvent(null, error, this, "Failed to Send TCP Message (" + b.Length + " bytes): " + b.ToString());
-                            return true;
-                    }
-                    
-
-                }
+                HandleSystemMessage(newMessage);
             }
-            catch (Exception e)
+            else
             {
-                dead = true;
-                LastError = e;
-                if (ErrorEvent != null)
-                    ErrorEvent(e, SocketError.NoRecovery, this, "Trying to send saved TCP data failed because of an exception.");
-                return true;
+                messages.Add(newMessage);
             }
-
-            return false;
-        }
-
-        /// <summary> Flushes out old messages that couldn't be sent because of exceptions</summary>
-        /// <returns>True if there are bytes that still have to be sent out</returns>
-        private bool TryAndFlushOldUdpBytesOut()
-        {
-            byte[] b;
-            SocketError error = SocketError.Success;
-
-            try
-            {
-                while (udpOut.Count > 0 && udpClient.Client.Connected)
-                {
-                    b = udpOut[0];
-                    udpClient.Client.Send(b, 0, b.Length, SocketFlags.None, out error);
-
-                    switch (error)
-                    {
-                        case SocketError.Success:
-                            udpOut.RemoveAt(0);
-                            break;
-                        case SocketError.WouldBlock:
-                            //don't die, but try again next time
-                            LastError = null;
-                            if (ErrorEvent != null)
-                                ErrorEvent(null, error, this, "The UDP write buffer is full now, but the data will be saved and " +
-                                    "sent soon.  Send less data to reduce perceived latency.");
-                            return true;
-                        default:
-                            //something terrible happened, but this is only UDP, so stick around.
-                            LastError = null;
-                            if (ErrorEvent != null)
-                                ErrorEvent(null, error, this, "Failed to Send UDP Message (" + b.Length + " bytes): " + b.ToString());
-                            return true;
-                    }
-                }
-            }
-            catch (Exception e)
-            {
-                LastError = e;
-                if (ErrorEvent != null)
-                    ErrorEvent(e, SocketError.NoRecovery, this, "Trying to send saved UDP data failed because of an exception.");
-                return true;
-            }
-
-            return false;
         }
 
         /// <summary>A single tick of the SuperStream.</summary>
@@ -1588,265 +1350,59 @@ namespace GTClient
         {
             lock (this)
             {
-                if (!tcpClient.Connected || dead)
+                if (dead) { return; }
+                foreach (ITransport t in transports.Values)
                 {
-                    dead = true;
-                    return;
+                    t.Update();
                 }
-
-                TryAndFlushOldTcpBytesOut();
-                TryAndFlushOldUdpBytesOut();
-
-                while (tcpClient.Available > 0)
-                {
-                    try
-                    {
-                        this.UpdateFromNetworkTcp();
-                    }
-                    catch (Exception e)
-                    {
-                        dead = true;
-                        LastError = e;
-                        if (ErrorEvent != null)
-                            ErrorEvent(e, SocketError.NoRecovery, this, "Updating from TCP failed because of an exception.");
-                    }
-                }
-
-                this.UpdateFromNetworkUdp();
             }
         }
 
-        /// <summary>Get data from the UDP connection and interpret them.</summary>
-        private void UpdateFromNetworkUdp()
-        {
-            byte[] buffer, data;
-            byte id, type;
-            int length, cursor;
-            IPEndPoint ep = null;
-
-            try
-            {
-                //while there are more packets to read
-                while (udpClient.Client.Available > 8)
-                {
-                    buffer = udpClient.Receive(ref ep);
-                    cursor = 0;
-
-                    //while there are more messages in this packet
-                    while (cursor < buffer.Length)
-                    {
-                        id = buffer[cursor + 0];
-                        type = buffer[cursor + 1];
-                        length = BitConverter.ToInt32(buffer, cursor + 4);
-                        data = new byte[length];
-                        Array.Copy(buffer, 8, data, 0, length);
-
-                        if (type == (byte)MessageType.System)
-                            HandleSystemMessage(id, data);
-                        else
-                            messages.Add(new MessageIn(id, (MessageType)type, data, this));
-
-                        cursor += length + 8;
-                    }
-                }
-            }
-            catch (SocketException e)
-            {
-                if (e.ErrorCode != 10035)
-                {
-                    LastError = e;
-                    if (ErrorEvent != null)
-                        ErrorEvent(e, SocketError.NoRecovery, this, "Updating from UDP failed because of a socket exception.");
-                }
-            }
-            catch (Exception e)
-            {
-                LastError = e;
-                if (ErrorEvent != null)
-                    ErrorEvent(e, SocketError.Fault, this, "UDP Data Interpretation Error.  There must have been a mistake in a message header. " +
-                        "Data has been lost.");
-                //Don't die on a mistake interpreting the data, because we can always 
-                //try to interpret more data starting from a new set of packets. 
-                //However, the data we were currently working on is lost.
-                return;
-            }
-        }
-
-        /// <summary>Get one message from the tcp connection and interpret it.</summary>
-        private void UpdateFromNetworkTcp()
-        {
-            byte[] buffer;
-            int size;
-            SocketError error;
-
-            if (tcpInMessageType < 1)
-            {
-                //restart the counters to listen for a new message.
-                if (tcpClient.Available < 8)
-                    return;
-
-                buffer = new byte[8];
-                size = tcpClient.Client.Receive(buffer, 0, 8, SocketFlags.None, out error);
-                switch (error)
-                {
-                    case SocketError.Success:
-                        break;
-                    default:
-                        LastError = null;
-                        if (ErrorEvent != null)
-                            ErrorEvent(null, error, this, "TCP Read Header Error.  See Exception for details.");
-                        dead = true;
-                        return;
-                }
-                byte id = buffer[0];
-                byte type = buffer[1];
-                int length = BitConverter.ToInt32(buffer, 4);
-
-                this.tcpInBytesLeft = length;
-                this.tcpInMessageType = type;
-                this.tcpInID = id;
-                tcpIn.Position = 0;
-            }
-
-            buffer = new byte[bufferSize];
-            int amountToRead = Math.Min(tcpInBytesLeft, bufferSize);
-
-            size = tcpClient.Client.Receive(buffer, 0, amountToRead, SocketFlags.None, out error);
-            switch (error)
-            {
-                case SocketError.Success:
-                    break;
-                default:
-                    LastError = null;
-                    if (ErrorEvent != null)
-                        ErrorEvent(null, error, this, "TCP Read Data Error.  See Exception for details.");
-                    dead = true;
-                    return;
-            }
-            tcpInBytesLeft -= size;
-            tcpIn.Write(buffer, 0, size);
-
-            if (tcpInBytesLeft == 0)
-            {
-                //We have the entire message.  Pass it along.
-                buffer = new byte[tcpIn.Position];
-                tcpIn.Position = 0;
-                tcpIn.Read(buffer, 0, buffer.Length);
-
-                if(tcpInMessageType == (byte)MessageType.System)
-                    HandleSystemMessage(tcpInID, buffer);
-                else
-                    messages.Add(new MessageIn(tcpInID, (MessageType)tcpInMessageType, buffer, this));
-
-                tcpInMessageType = 0;
-            }
-        }
 
         /// <summary>Deal with a system message in whatever way we need to.</summary>
         /// <param name="id">The channel it came alone.</param>
         /// <param name="buffer">The data that came along with it.</param>
-        private void HandleSystemMessage(byte id, byte[] buffer)
+        internal void HandleSystemMessage(MessageIn message)
         {
-            if (id == (byte)SystemMessageType.UniqueIDRequest)
+            switch ((SystemMessageType)message.id)
             {
-                UniqueIdentity = BitConverter.ToInt32(buffer, 0);
-            }
-            else if (id == (byte)SystemMessageType.UDPPortRequest)
-            {
-                //they want to receive udp messages on this port
-                short port = BitConverter.ToInt16(buffer, 0);
-                IPEndPoint remoteUdp = new IPEndPoint(((IPEndPoint)tcpClient.Client.RemoteEndPoint).Address, port);
-                udpClient.Connect(remoteUdp);
+                case SystemMessageType.UniqueIDRequest:
+                    UniqueIdentity = BitConverter.ToInt32(message.data, 0);
+                    break;
 
-                //they want the udp port.  Send it.
-                BitConverter.GetBytes(((short)((IPEndPoint)udpClient.Client.LocalEndPoint).Port)).CopyTo(buffer, 0);
-                Send(buffer, (byte)SystemMessageType.UDPPortResponse, MessageType.System, MessageProtocol.Tcp, MessageAggregation.No, MessageOrder.None);
-            }
-            else if (id == (byte)SystemMessageType.UDPPortResponse)
-            {
-                short port = BitConverter.ToInt16(buffer, 0);
-                IPEndPoint remoteUdp = new IPEndPoint(((IPEndPoint)tcpClient.Client.RemoteEndPoint).Address, port);
-                udpClient.Connect(remoteUdp);
-            }
-            else if (id == (byte)SystemMessageType.ServerPingAndMeasure)
-            {
-                this.Send(buffer, id, MessageType.System, MessageProtocol.Tcp, MessageAggregation.No, MessageOrder.None);
-            }
-            else if (id == (byte)SystemMessageType.ClientPingAndMeasure)
-            {
-                //record the difference; half of it is the latency between this client and the server
-                int newDelay = (System.Environment.TickCount - BitConverter.ToInt32(buffer, 0)) / 2;
-                this.Delay = this.Delay * 0.95f + newDelay * 0.05f;
+                case SystemMessageType.UDPPortRequest:
+                    Console.WriteLine("FIXME: UDPPortRequest");
+                    //    //they want to receive udp messages on this port
+                    //    short port = BitConverter.ToInt16(message.data, 0);
+                    //    IPEndPoint remoteUdp = new IPEndPoint(((IPEndPoint)tcpClient.Client.RemoteEndPoint).Address, port);
+                    //    udpClient.Connect(remoteUdp);
+
+                    //they want the udp port.  Send it.
+                    //BitConverter.GetBytes(((short)((IPEndPoint)udpClient.Client.LocalEndPoint).Port)).CopyTo(message.data, 0);
+                    SendMessage(message.transport, MessageType.System, (byte)SystemMessageType.UDPPortResponse, message.data);
+                    break;
+
+                case SystemMessageType.UDPPortResponse:
+                    Console.WriteLine("FIXME: UDPPortResponse");
+                    //short port = BitConverter.ToInt16(message.data, 0);
+                    //IPEndPoint remoteUdp = new IPEndPoint(((IPEndPoint)tcpClient.Client.RemoteEndPoint).Address, port);
+                    //udpClient.Connect(remoteUdp);
+                    break;
+
+                case SystemMessageType.ServerPingAndMeasure:
+                    SendMessage(message.transport, MessageType.System, message.id, message.data);
+                    break;
+
+                case SystemMessageType.ClientPingAndMeasure:
+                    //record the difference; half of it is the latency between this client and the server
+                    int newDelay = (System.Environment.TickCount - BitConverter.ToInt32(message.data, 0)) / 2;
+                    // NB: transport.Delay set may (and probably will) scale this value
+                    message.transport.Delay = newDelay;
+                    break;
             }
         }
 
-        /// <summary>Create a new SuperStream to handle a connection to a server. (blocks)</summary>
-        /// <param name="address">Who to try to connect to.</param>
-        /// <param name="port">Which port to connect to.</param>
-        internal ServerStream(string address, string port)
-        {
-            lock (this)
-            {
-                dead = true;
-
-                tcpIn = new MemoryStream();
-                messages = new List<MessageIn>();
-
-                this.address = address;
-                this.port = port;
-
-                IPHostEntry he = Dns.Resolve(address);
-                IPAddress[] addr = he.AddressList;
-
-                //try to connect to the address
-                Exception error = null;
-                for(int i = 0; i < addr.Length; i++)
-                {
-                    try
-                    {
-                        endPoint = new IPEndPoint(addr[0], Int32.Parse(port));
-                        tcpClient = new TcpClient();
-                        tcpClient.NoDelay = true;
-                        tcpClient.ReceiveTimeout = 1;
-                        tcpClient.SendTimeout = 1;
-                        tcpClient.Connect(endPoint);
-                        tcpClient.Client.Blocking = false;
-                        error = null;
-                        break;
-                    }
-                    catch (Exception e) 
-                    { 
-                        error = new Exception("There was a problem connecting to the server you specified. " +
-                        "The address or port you provided may be improper, the receiving server may be down, " + 
-                        "full, or unavailable, or your system's host file may be corrupted. " + 
-                        "See inner exception for details.", e); 
-                    }
-                }
-
-                if (error != null)
-                    throw error;
-
-                Console.WriteLine("Address resolved and contacted.  Now connected to " + endPoint.ToString());
-
-                //prepare udp
-                udpClient = new UdpClient();
-                udpClient.DontFragment = true;
-                udpClient.Client.Blocking = false;
-                udpClient.Client.SendTimeout = 1;
-                udpClient.Client.ReceiveTimeout = 1;
-                udpClient.Client.Bind(new IPEndPoint(IPAddress.Any, 0));
-
-                //we are now good to go
-                dead = false;
-            }
-
-            //request our id right away
-            byte[] b = new byte[1];
-            b[0] = 1;
-            Send(b, (byte)SystemMessageType.UniqueIDRequest, MessageType.System, MessageProtocol.Tcp, MessageAggregation.No, MessageOrder.None);
-
-        }
-
+        
         /// <summary>Ping the server to determine delay, as well as act as a keep-alive.</summary>
         internal void Ping()
         {
@@ -2281,14 +1837,15 @@ namespace GTClient
         /// <summary>One tick of the network beat.  Thread-safe.</summary>
         public void Update()
         {
+            Console.WriteLine("{0}: Update() called", this);
             timer.Update();
             lock (superStreams)
             {
                 foreach (ServerStream s in superStreams)
                 {
-                    if (s.NextPingTime < timer.TimeInMilliseconds)
+                    if (s.nextPingTime < timer.TimeInMilliseconds)
                     {
-                        s.NextPingTime = timer.TimeInMilliseconds + PingInterval;
+                        s.nextPingTime = timer.TimeInMilliseconds + PingInterval;
                         s.Ping();
                     }
 
@@ -2410,17 +1967,84 @@ namespace GTClient
                 //kill the connection
                 lock (this)
                 {
-                    KillAll();
+                    Stop();
                 }
             } 
         }
 
-        private void KillAll()
+        public void Stop()
         {
             for (int i = 0; i < superStreams.Count; i++)
             {
-                superStreams[i].Dead = true;
+                superStreams[i].Stop();
             }
+        }
+
+        public void Dispose()
+        {
+            for (int i = 0; i < superStreams.Count; i++)
+            {
+                // superStreams[i].Dispose();
+            }
+            superStreams = null;
+        }
+
+        public void Sleep(TimeSpan span)
+        {
+            Sleep(span.Milliseconds);
+        }
+
+        public void Sleep(int milliseconds)
+        {
+            // FIXME: this should do something smarter
+            // Socket.Select(listenList, null, null, 1000);
+            Thread.Sleep(milliseconds);
+        }
+
+
+        // See GTServer.Server.DumpMessage()
+        public static void DumpMessage(string prefix, byte id, MessageType type, byte[] buffer)
+        {
+            if (prefix != null)
+            {
+                Console.Write(prefix); Console.Write(" ");
+            }
+            else
+            {
+                Console.Write("  ");
+            }
+
+            switch (type)
+            {
+            case MessageType.String:
+                Console.WriteLine("String: '" + System.Text.ASCIIEncoding.ASCII.GetString(buffer) + "'");
+                break;
+            case MessageType.Binary:
+                Console.WriteLine("Binary: ");
+                for (int i = 0; i < buffer.Length; i++)
+                {
+                    Console.Write("    ");
+                    int rem = Math.Min(16, buffer.Length - i);
+                    for (int j = 0; j < 16; j++)
+                    {
+                        Console.Write(' ');
+                        Console.Write(buffer[i + j]);
+                    }
+                    i += rem;
+                }
+                break;
+
+            case MessageType.System:
+                Console.WriteLine("System: " + (SystemMessageType)buffer[0]);
+                break;
+            }
+        }
+
+        public static void DumpMessage(string prefix, byte[] buffer)
+        {
+            byte[] data = new byte[buffer.Length - 8];
+            Array.Copy(buffer, 8, data, 0, data.Length);
+            DumpMessage(prefix, buffer[0], (MessageType)buffer[1], data);
         }
     }
 }

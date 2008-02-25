@@ -2,6 +2,7 @@
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
     <StartAction>Project</StartAction>
     <StartProgram>C:\Program Files\NUnit 2.4.3\bin\nunit-console.exe</StartProgram>
-    <StartArguments>..\..\GTUnitTests.csproj</StartArguments>
+    <StartArguments>
+    </StartArguments>
   </PropertyGroup>
 </Project>

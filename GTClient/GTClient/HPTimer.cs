@@ -2,20 +2,13 @@ using System;
 using System.Runtime.InteropServices;
 using System.ComponentModel;
 using System.Threading;
+using System.Diagnostics;
 
 namespace GTClient
 {
     /// <summary>A high-resolution high-performance timer.</summary>
     public class HPTimer
     {
-        [DllImport("Kernel32.dll")]
-        private static extern bool QueryPerformanceCounter(
-            ref long lpPerformanceCount);
-
-        [DllImport("Kernel32.dll")]
-        private static extern bool QueryPerformanceFrequency(
-            ref long lpFrequency);
-
         private long startTime;
         private double freqInverse;
 
@@ -50,8 +43,11 @@ namespace GTClient
             Time = 0;
             Frequency = 0;
 
-            if (QueryPerformanceFrequency(ref Frequency) == false)
-                throw new Win32Exception("High-performance timer is not supported on this machine.");
+            if (!Stopwatch.IsHighResolution)
+            {
+                Console.WriteLine("warning: System.Diagnostics.Stopwatch is not high-resolution");
+            }
+            Frequency = Stopwatch.Frequency;
             freqInverse = 1d / (double)Frequency;
         }
 
@@ -61,13 +57,13 @@ namespace GTClient
             //begin on a new time slice
             Thread.Sleep(0);
 
-            QueryPerformanceCounter(ref startTime);
+            startTime = Stopwatch.GetTimestamp();
         }
 
         /// <summary>Updates the current values of the timer.</summary>
         public void Update()
         {
-            QueryPerformanceCounter(ref Time);
+            Time = Stopwatch.GetTimestamp();
 
             ElapsedInSeconds = (Time - startTime) * freqInverse;
             TimeInSeconds = Time * freqInverse;

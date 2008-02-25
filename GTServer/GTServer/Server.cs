@@ -7,6 +7,7 @@ using System.IO;
 using System.Threading;
 using System.Runtime.Serialization;
 using System.Runtime.Serialization.Formatters.Binary;
+using System.Diagnostics;
 
 namespace GTServer
 {
@@ -23,7 +24,8 @@ namespace GTServer
         ClientPingAndMeasure = 5
     }
 
-    /// <summary>The type of message</summary>
+    /// <summary>The type of message.  MessageType 0 has a special internal meaning and
+    /// should never be used.</summary>
     public enum MessageType
     {
         /// <summary>A byte array is sent as the payload of a message.</summary>
@@ -259,7 +261,10 @@ namespace GTServer
         private static Random random = new Random();
         private static BinaryFormatter formatter = new BinaryFormatter();
 
-        TcpListener bouncer;
+        private bool stopped = true;
+        private TcpListener bouncer;
+        private UdpMultiplexer udpMultiplexor;
+
         private int lastPingTime = 0;
         private int port;
 
@@ -267,11 +272,11 @@ namespace GTServer
         public Exception LastError = null;
 
         /// <summary>All of the clients that this server knows about.</summary>
-        public List<Client> ClientList = new List<Client>();
+        public List<Client> clientList = new List<Client>();
 
         /// <summary>All of the clientIDs that this server knows about.  
         /// Hide this so that users cannot cause mischief.  I accept that this list may 
-        /// not be accurate because the users have direct access to the ClientList.</summary>
+        /// not be accurate because the users have direct access to the clientList.</summary>
         private Dictionary<int, Client> clientIDs = new Dictionary<int, Client>();
 
         /// <summary>Time in milliseconds between keep-alive pings.</summary>
@@ -585,8 +590,6 @@ namespace GTServer
         public Server(int port)
         {
             this.port = port;
-            bouncer = new TcpListener(IPAddress.Any, port);
-            bouncer.Start(LISTENER_BACKLOG);
         }
 
         /// <summary>Creates a new Server object.</summary>
@@ -597,8 +600,6 @@ namespace GTServer
         {
             this.port = port;
             this.Interval = interval;
-            bouncer = new TcpListener(IPAddress.Any, port);
-            bouncer.Start(LISTENER_BACKLOG);
         }
 
 
@@ -611,7 +612,7 @@ namespace GTServer
             this.Interval = interval;
 
             Thread t = new Thread(new ThreadStart(StartListening));
-            t.Name = "Listening Thread";
+            t.Name = "Server Thread[" + this.ToString() + "]";
             t.IsBackground = true;
             t.Start();
             return t;
@@ -623,61 +624,42 @@ namespace GTServer
                 ErrorEvent(e, se, client, ex);
         }
 
+        public string ToString()
+        {
+            return "port=" + port + ", " + clientList.Count + " clients";
+        }
+
         /// <summary>One tick of the server, manually
         /// Use if not using Start
         /// </summary>
         public void Update()
         {
+            Console.WriteLine(this + ": Server.Update(): shall we take a turn about the room?");
 
             if (bouncer == null)
-                RestartBouncer();
+                RestartBouncers();
             else
             {
                 //add new clients
-                List<Client> listA = new List<Client>();
-                TcpClient connection;
-                while (bouncer.Pending())
-                {
-                    //let them join us
-                    try
-                    {
-                        connection = bouncer.AcceptTcpClient();
-                    }
-                    catch (Exception e)
-                    {
-                        LastError = e;
-                        if (ErrorEvent != null)
-                            ErrorEvent(e, SocketError.Fault, null, "An error occurred when trying to accept new client.");
-                        bouncer = null;
-                        break;
-                    }
+                CheckNewTcpClients();
 
-                    //set them up with a session
-                    Client client = new Client(connection, GenerateUniqueIdentity());
-                    ClientList.Add(client);
-                    client.MessageReceivedDelegate = new MessageHandler(client_MessageReceived);
-                    client.MessageReceived += client.MessageReceivedDelegate;
-                    client.ErrorEventDelegate = new ErrorClientHandler(ErrorClientHandlerMethod);
-                    client.ErrorEvent += client.ErrorEventDelegate;
-                    Console.WriteLine("Client created: " + client.UniqueIdentity);
-                    clientIDs.Add(client.UniqueIdentity, client);
-                    listA.Add(client);
-                }
-                if (listA.Count > 0 && ClientsJoined != null)
-                    ClientsJoined(listA);
-
+                Console.WriteLine(this + ": Server.Update(): checking udpMultiplexor");
+                udpMultiplexor.Update();
             }
+
 
             //ping, if needed
             if (lastPingTime + PingInterval < System.Environment.TickCount)
             {
+                Console.WriteLine(this + ": Server.Update(): pinging existing clients (" + clientList.Count + ")");
                 lastPingTime = System.Environment.TickCount;
-                foreach (Client c in ClientList)
+                foreach (Client c in clientList)
                     c.Ping();
             }
 
+            Console.WriteLine(this + ": Server.Update(): checking existing clients");
             //update all clients, reading from the network
-            foreach (Client c in ClientList)
+            foreach (Client c in clientList)
             {
                 c.Update();
             }
@@ -687,12 +669,13 @@ namespace GTServer
                 Tick();
 
             //remove dead clients
-            List<Client> listD = ClientList.FindAll(Client.isDead);
+            List<Client> listD = clientList.FindAll(Client.isDead);
             if (listD.Count > 0)
             {
+                Console.WriteLine(this + ": Server.Update(): removing seemingly dead clients");
                 foreach (Client c in listD)
                 {
-                    ClientList.Remove(c);
+                    clientList.Remove(c);
                     c.MessageReceived -= c.MessageReceivedDelegate;
                     c.ErrorEvent -= c.ErrorEventDelegate;
                     clientIDs.Remove(c.UniqueIdentity);
@@ -700,6 +683,42 @@ namespace GTServer
                 }
                 if (ClientsRemoved != null)
                     ClientsRemoved(listD);
+            }
+
+            Console.WriteLine(this + ": Server.Update(): done this turn");
+        }
+
+        private void CheckNewTcpClients()
+        {
+            List<Client> listA = new List<Client>();
+            TcpClient connection;
+            Console.WriteLine(this + ": checking TCP listening socket...");
+            while (bouncer.Pending())
+            {
+                //let them join us
+                try
+                {
+                    Console.WriteLine(this + ": accepting new TCP connection");
+                    connection = bouncer.AcceptTcpClient();
+                }
+                catch (Exception e)
+                {
+                    LastError = e;
+                    Console.WriteLine(this + ": EXCEPTION accepting new TCP connection: " + e);
+                    if (ErrorEvent != null)
+                        ErrorEvent(e, SocketError.Fault, null, "An error occurred when trying to accept new client.");
+                    bouncer = null;
+                    break;
+                }
+
+                //set them up with a session
+                Client client = CreateNewClient();
+                client.SetTcpHandle(connection);
+                listA.Add(client);
+            }
+            if (listA.Count > 0 && ClientsJoined != null)
+            {
+                ClientsJoined(listA);
             }
         }
 
@@ -709,9 +728,24 @@ namespace GTServer
         /// match a client, then it returns null.</returns>
         public Client GetClientFromUniqueIdentity(int uniqueIdentity)
         {
-            if (clientIDs.ContainsKey(uniqueIdentity))
-                return clientIDs[uniqueIdentity];
+            Client c;
+            if (clientIDs.TryGetValue(uniqueIdentity, out c))
+                return c;
             return null;
+        }
+
+        protected Client CreateNewClient()
+        {
+            Client client = new Client(this, GenerateUniqueIdentity());
+            client.MessageReceivedDelegate = new MessageHandler(client_MessageReceived);
+            client.MessageReceived += client.MessageReceivedDelegate;
+            client.ErrorEventDelegate = new ErrorClientHandler(ErrorClientHandlerMethod);
+            client.ErrorEvent += client.ErrorEventDelegate;
+
+            clientList.Add(client);
+            clientIDs.Add(client.UniqueIdentity, client);
+            Console.WriteLine(this + ": Created new client: " + client.UniqueIdentity);
+            return client;
         }
 
         /// <summary>Starts a new thread that listens for new clients or new data on the current thread.</summary>
@@ -720,45 +754,59 @@ namespace GTServer
             int oldTickCount;
             int newTickCount;
 
-            //start up the listener
-            RestartBouncer();
+            Start();
 
-            try
+            //check this server for new connections or new data forevermore
+            while (!stopped)
             {
-                //never die!
-                while (true)
+                try
                 {
-                    try
-                    {
-                        //check this server for new connections or new data forevermore
-                        while (true)
-                        {
-                            oldTickCount = System.Environment.TickCount;
+                    oldTickCount = System.Environment.TickCount;
 
+                    Console.WriteLine(this + ": Server.Update()");
+                    Update();
 
-                            Update();
+                    newTickCount = System.Environment.TickCount;
+                    int sleepCount = Math.Max(this.Interval - (newTickCount - oldTickCount), 0);
+                    Console.WriteLine(this + ": sleeping for " + sleepCount + " ticks");
 
-
-                            newTickCount = System.Environment.TickCount;
-                            int sleepCount = Math.Max(this.Interval - (newTickCount - oldTickCount), 0);
-                            Thread.Sleep(sleepCount);
-                        }
-                    }
-                    catch (ThreadAbortException t ) { throw t; }
-                    catch (Exception e)
-                    {
-                        LastError = e;
-                        if(ErrorEvent != null)
-                            ErrorEvent(e, SocketError.Fault, null, "An error occurred in the server.");
-                    }
+                    Sleep(sleepCount);
+                }
+                catch (ThreadAbortException) 
+                {
+                    Console.WriteLine(this + ": listening loop stopped");
+                    Stop();
+                    return;
+                }
+                catch (Exception e)
+                {
+                    Console.WriteLine(this + ": exception in listening loop: " + e);
+                    LastError = e;
+                    if(ErrorEvent != null)
+                        ErrorEvent(e, SocketError.Fault, null, "An error occurred in the server.");
                 }
             }
-            catch (ThreadAbortException) 
-            {
-                //we were told to die.  die gracefully.
-                KillAll();
-                KillBouncer();
-            }
+        }
+
+        public void Sleep(int milliseconds)
+        {
+            // FIXME: This should be more clever and use Socket.Select()
+            Thread.Sleep(milliseconds);
+        }
+
+        public void Start()
+        {
+            //start up the listeners
+            RestartBouncers();
+            stopped = false;
+        }
+
+        public void Stop()
+        {
+            // we were told to die.  die gracefully.
+            stopped = true;
+            KillBouncers();
+            KillAll();
         }
 
         /// <summary>Handle a message that was received by a client.</summary>
@@ -769,6 +817,9 @@ namespace GTServer
         /// <param name="protocol">How the message was sent</param>
         void client_MessageReceived(byte id, MessageType type, byte[] data, Client client, MessageProtocol protocol)
         {
+            Console.WriteLine("Server {0}: MessageReceived id:{1} type:{2} #bytes:{3} from:{4} protocol:{5}",
+                this, id, type, data.Length, client, protocol);
+            DumpMessage("client_MessageReceived", id, type, data);
             //sort to the correct message type
             switch (type)
             {
@@ -790,24 +841,38 @@ namespace GTServer
 
         private void KillAll()
         {
-            for (int i = 0; i < ClientList.Count; i++)
-                ClientList[i].Dead = true;
+            for (int i = 0; i < clientList.Count; i++) {
+                clientList[i].Dead = true;
+            }
         }
 
-        private void RestartBouncer()
+        private void RestartBouncers()
         {
-            try
+            RestartTcpBouncer();
+            RestartUdpMultiplexor();
+        }
+
+        private void RestartTcpBouncer()
+        {
+            if (bouncer != null)
             {
-                bouncer.Server.LingerState.Enabled = false;
-                bouncer.Server.Close();
+                try { bouncer.Stop(); }
+                catch (ThreadAbortException t) { throw t; }
+                catch (Exception e) {
+                    Console.WriteLine(this + ": exception closing TCP listening socket: " + e);
+                }
             }
-            catch (ThreadAbortException t) { throw t; }
-            catch (Exception) { }
 
             bouncer = null;
             try
             {
                 bouncer = new TcpListener(IPAddress.Any, this.port);
+                bouncer.Server.Blocking = false;
+                try { bouncer.Server.LingerState = new LingerOption(false, 0); }
+                catch (SocketException e)
+                {
+                    Console.WriteLine(this + ": exception setting TCP listening socket's Linger = false (ignored): " + e);
+                }
                 bouncer.Start(LISTENER_BACKLOG);
             }
             catch (ThreadAbortException t) { throw t; }
@@ -827,17 +892,59 @@ namespace GTServer
             }
         }
 
-        private void KillBouncer()
+        private void KillBouncers()
         {
             // don't throw any exceptions
             if (bouncer != null)
             {
-                try
-                {
-                    bouncer.Stop();
-                }
-                catch (Exception) { }
+                try { bouncer.Stop(); }
+                catch (Exception e) { Console.WriteLine("Exception stopping TCP listener: " + e); }
                 bouncer = null;
+            }
+            if (udpMultiplexor != null)
+            {
+                try { udpMultiplexor.Stop(); } 
+                catch (Exception e) { Console.WriteLine("Exception stopping UDP listener: " + e); }
+                try { udpMultiplexor.Dispose(); }
+                catch (Exception e) { Console.WriteLine("Exception disposing UDP listener: " + e); }
+                udpMultiplexor = null;
+            }
+        }
+
+        public void RestartUdpMultiplexor()
+        {
+            if (udpMultiplexor != null)
+            {
+                try { udpMultiplexor.Stop(); }
+                catch (Exception e) { Console.WriteLine("Exception stopping UDP listener: " + e); }
+                try { udpMultiplexor.Dispose(); }
+                catch (Exception e) { Console.WriteLine("Exception disposing UDP listener: " + e); }
+            }
+            udpMultiplexor = new UdpMultiplexer(port);
+            udpMultiplexor.SetDefaultMessageHandler(new MessageReceivedHandler(PreviouslyUnseenUdpMessage));
+            udpMultiplexor.Start();
+        }
+
+        public void PreviouslyUnseenUdpMessage(EndPoint ep, byte[] message)
+        {
+            Console.WriteLine(this + ": Incoming unaddressed message from " + ep);
+            if (message.Length < 5 || message[0] != '?')
+            {
+                Console.WriteLine(this + ": UDP: Undecipherable message");
+                return;
+            }
+            int clientId = BitConverter.ToInt32(message, 1);
+            Client c = GetClientFromUniqueIdentity(clientId);
+            if (c == null)
+            {
+                Console.WriteLine("Unknown client: " + clientId + " (remote: " + ep + ")");
+                c = CreateNewClient();
+                c.SetUdpHandle(new UdpHandle(ep, udpMultiplexor, c));
+            }
+            else
+            {
+                Console.WriteLine(this + ": UDP: found client: " + clientId + " (remote: " + ep + ")");
+                c.SetUdpHandle(new UdpHandle(ep, udpMultiplexor, c));
             }
         }
 
@@ -845,12 +952,15 @@ namespace GTServer
         /// <returns>The unique identity number</returns>
         public int GenerateUniqueIdentity()
         {
-            int number = random.Next(Int32.MinValue, Int32.MaxValue);
+            int clientId = 0;
+            DateTime timeStamp = DateTime.Now;
+            do
+            {
+                clientId = (timeStamp.Hour * 100 + timeStamp.Minute) * 100 + timeStamp.Second;
+                clientId = clientId * 1000 + random.Next(0, 1000);
 
-            while(clientIDs.ContainsKey(number))
-                number = random.Next(Int32.MinValue, Int32.MaxValue);
-
-            return number;
+            } while (clientIDs.ContainsKey(clientId));
+            return clientId;
         }
 
         #endregion
@@ -919,7 +1029,95 @@ namespace GTServer
         /// <summary>Represents a client using the server.</summary>
         public class Client
         {
+            #region Internal classes and structures
+
+            /// <summary>
+            /// Record information necessary for reading a message from the wire.
+            /// If <value>messageType</value> is 0, then this represents a header.
+            /// </summary>
+            class MessageInProgress
+            {
+                public int position;
+                public int bytesRemaining;
+                public byte[] message;
+
+                public byte messageType;    // start as a header
+                public byte id;
+
+                /// <summary>
+                /// Construct a Message-in-Progress for reading in a message header.
+                /// </summary>
+                /// <param name="headerSize"></param>
+                public MessageInProgress(int headerSize)
+                {
+                    this.messageType = 0;   // indicates a message header
+                    this.position = 0;
+                    this.id = 0;
+                    this.bytesRemaining = headerSize;
+                    this.message = new byte[headerSize];
+                }
+
+                /// <summary>
+                /// Construct a Message-in-Progress for a message body
+                /// </summary>
+                /// <param name="id">the channel id for the in-progress message</param>
+                /// <param name="messageType">the type of the in-progress message</param>
+                /// <param name="size">the size of the in-progress message</param>
+                public MessageInProgress(byte id, byte messageType, int size)
+                {
+                    this.id = id;
+                    this.messageType = messageType; // assert messageType != 0;
+                    this.bytesRemaining = size;
+                    this.position = 0;
+                    this.message = new byte[size];
+                }
+
+                /// <summary>
+                /// Distinguish between a message header and a message body
+                /// </summary>
+                /// <returns>true if this instance represents a message header</returns>
+                public bool IsMessageHeader()
+                {
+                    return messageType == 0;
+                }
+            }
+
+            #endregion
+
             #region Variables and Properties
+
+            /// <summary>All of the received Binary Messages that we have kept.</summary>
+            public List<byte[]> BinaryMessages;
+            /// <summary>All of the received Object Messages that we have kept.</summary>
+            public List<byte[]> ObjectMessages;
+            /// <summary>All of the received String Messages that we have kept.</summary>
+            public List<byte[]> StringMessages;
+
+            /// <summary>Triggered when a message is received.</summary>
+            public event MessageHandler MessageReceived;
+            internal MessageHandler MessageReceivedDelegate;
+
+            /// <summary>Triggered when an error occurs in this client.</summary>
+            public event ErrorClientHandler ErrorEvent;
+            internal ErrorClientHandler ErrorEventDelegate;
+
+            /// <summary>Last exception encountered.</summary>
+            public Exception LastError;
+
+            private int uniqueIdentity;
+            private Server server;
+            private float delay = 20;
+            private TcpClient tcpHandle;
+            private UdpHandle udpHandle;
+
+            private List<byte[]> tcpOut;
+            private List<byte[]> udpOut;
+            private bool dead;
+            private short udpPort = 0;
+            private const int bufferSize = 512;
+            private MemoryStream udpIn;
+
+            private MessageInProgress tcpInProgress;
 
             /// <summary>
             /// Is this client dead?
@@ -952,15 +1150,15 @@ namespace GTServer
             {
                 get
                 {
-                    return ((IPEndPoint)connection.Client.RemoteEndPoint).Address.ToString();
+                    return ((IPEndPoint)tcpHandle.Client.RemoteEndPoint).Address.ToString();
                 }
             }
-            /// <summary>Theremote computer's Port, or null if not set.</summary>
+            /// <summary>The remote computer's Port, or null if not set.</summary>
             public string RemotePort
             {
                 get
                 {
-                    return ((IPEndPoint)connection.Client.RemoteEndPoint).Port.ToString();
+                    return ((IPEndPoint)tcpHandle.Client.RemoteEndPoint).Port.ToString();
                 }
             }
             /// <summary>The unique id of this client</summary>
@@ -969,80 +1167,25 @@ namespace GTServer
                 get { return uniqueIdentity; }
             }
 
-            /// <summary>All of the received Binary Messages that we have kept.</summary>
-            public List<byte[]> BinaryMessages;
-            /// <summary>All of the received Object Messages that we have kept.</summary>
-            public List<byte[]> ObjectMessages;
-            /// <summary>All of the received String Messages that we have kept.</summary>
-            public List<byte[]> StringMessages;
-
-            /// <summary>Triggered when a message is received.</summary>
-            public event MessageHandler MessageReceived;
-            internal MessageHandler MessageReceivedDelegate;
-
-            /// <summary>Triggered when an error occurs in this client.</summary>
-            public event ErrorClientHandler ErrorEvent;
-            internal ErrorClientHandler ErrorEventDelegate;
-
-            /// <summary>Last exception encountered.</summary>
-            public Exception LastError;
-
-            #region Private Variables and Properties
-
-            private const int bufferSize = 512;
-            private TcpClient connection;
-            private UdpClient udpRoute;
-            private MemoryStream tcpIn;
-            private MemoryStream udpIn;
-            private List<byte[]> tcpOut;
-            private List<byte[]> udpOut;
-            private int tcpInBytesLeft;
-            private byte tcpInMessageType;
-            private byte tcpInID;
-            private bool dead;
-            private short udpPort = 0;
-            private int uniqueIdentity;
-            private float delay = 20;
-
-            #endregion
-
             #endregion
 
 
             #region Constructors and Destructors
 
             /// <summary>Creates a new Client to communicate with.</summary>
-            /// <param name="connection">The connection to communicate over.</param>
+            /// <param name="tcpHandle">The tcpHandle to communicate over.</param>
             /// <param name="id">The unique identity of this new Client.</param>
-            public Client(TcpClient connection, int id)
+            public Client(Server s, int id)
             {
-                lock (this)
-                {
-                    uniqueIdentity = id;
-                    tcpIn = new MemoryStream();
-                    udpIn = new MemoryStream();
-                    tcpOut = new List<byte[]>();
-                    udpOut = new List<byte[]>();
-                    BinaryMessages = new List<byte[]>();
-                    ObjectMessages = new List<byte[]>();
-                    StringMessages = new List<byte[]>();
-                    connection.NoDelay = true;
-                    connection.SendTimeout = 1;
-                    connection.ReceiveTimeout = 1;
-                    connection.Client.Blocking = false;
-                    this.connection = connection;
+                server = s;
+                uniqueIdentity = id;
+                tcpOut = new List<byte[]>();
+                udpOut = new List<byte[]>();
+                BinaryMessages = new List<byte[]>();
+                ObjectMessages = new List<byte[]>();
+                StringMessages = new List<byte[]>();
 
-                    //reserve a udp port
-                    udpRoute = new UdpClient();
-                    udpRoute.Client.Blocking = false;
-                    udpRoute.DontFragment = true;
-                    udpRoute.Client.SendTimeout = 1;
-                    udpRoute.Client.ReceiveTimeout = 1;
-                    udpRoute.Client.Bind(new IPEndPoint(IPAddress.Any, 0));
-                    udpPort = (short)((IPEndPoint)udpRoute.Client.LocalEndPoint).Port;
-
-                    dead = false;
-                }
+                dead = false;
             }
 
             #endregion
@@ -1062,24 +1205,34 @@ namespace GTServer
             /// <param name="c">The client to kill.</param>
             public static void Kill(Client c)
             {
-                lock (c) 
+                try { c.Stop(); }
+                catch { }
+            }
+
+            public void Stop()
+            {
+                dead = true;
+
+                try
                 {
-                    c.dead = true;
-
-                    try
-                    {
-                        c.connection.Client.LingerState.Enabled = false;
-                        c.connection.Client.Close();
-                    }
-                    catch (Exception) { }
-
-                    try
-                    {
-                        c.udpRoute.Client.LingerState.Enabled = false;
-                        c.udpRoute.Client.Close();
-                    }
-                    catch (Exception) { }
+                    if (tcpHandle != null) { tcpHandle.Close(); }
                 }
+                catch (Exception) { }
+                tcpHandle = null;
+
+                try
+                {
+                    //c.udpHandle.Client.LingerState.Enabled = false;
+                    //c.udpHandle.Client.Close();
+                    if (udpHandle != null) { udpHandle.Dispose(); }
+                }
+                catch (Exception) { }
+                udpHandle = null;
+            }
+
+            public string ToString()
+            {
+                return "Server.Client(" + uniqueIdentity + ")";
             }
 
             #region Internal
@@ -1091,6 +1244,8 @@ namespace GTServer
             /// <returns></returns>
             internal static byte[] FromMessageToBytes(byte[] data, byte id, MessageType type)
             {
+                DumpMessage("Server.FromMessageToBytes", id, type, data);
+
                 byte[] buffer = new byte[data.Length + 8];
                 buffer[0] = id;
                 buffer[1] = (byte)type;
@@ -1160,6 +1315,19 @@ namespace GTServer
 
             #endregion
 
+            internal void SetUdpHandle(UdpHandle h)
+            {
+                Console.WriteLine(this + ": set UDP handle: " + h);
+                udpHandle = h;
+            }
+
+            internal void SetTcpHandle(TcpClient c)
+            {
+                Console.WriteLine(this + ": set TCP handle: " + c.Client.RemoteEndPoint);
+                c.NoDelay = true;
+                c.Client.Blocking = false;
+                tcpHandle = c;
+            }
 
             #region Send
 
@@ -1280,62 +1448,46 @@ namespace GTServer
             {
                 if (this.dead) return;
 
-                if (udpRoute.Client.Connected)
+                SocketError error = SocketError.Success;
+                if (TryAndFlushOldUdpBytesOut())
                 {
-
-                    SocketError error = SocketError.Success;
-                    if (TryAndFlushOldUdpBytesOut())
-                    {
-                        udpOut.Add(buffer);
-                        return;
-                    }
-
-                    try
-                    {
-                        udpRoute.Client.Send(buffer, 0, buffer.Length, SocketFlags.None, out error);
-                        switch (error)
-                        {
-                            case SocketError.Success:
-                                return;
-                            case SocketError.WouldBlock:
-                                udpOut.Add(buffer);
-                                if (ErrorEvent != null)
-                                    ErrorEvent(null, error, this, "The TCP write buffer is full now, but the data will be saved and " +
-                                        "sent soon.  Send less data to reduce perceived latency.");
-                                return;
-                            default:
-                                udpOut.Add(buffer);
-                                if (ErrorEvent != null)
-                                    ErrorEvent(null, error, this, "Error occurred while trying to send TCP to client.");
-                                return;
-                        }
-                    }
-                    catch (Exception e)
-                    {
-                        udpOut.Add(buffer);
-                        LastError = e;
-                        if (ErrorEvent != null)
-                            ErrorEvent(e, SocketError.NoRecovery, this, "Exception occurred while trying to send TCP to client.");
-                    }
-                }
-                else
-                {
-                    //save this data to be sent later
+                    Console.WriteLine("{0}: SendUdpMessage({1} bytes): sending...", this, buffer.Length);
                     udpOut.Add(buffer);
-                    //request the client for the port to send to
-                    byte[] data = BitConverter.GetBytes((short)(((IPEndPoint)udpRoute.Client.LocalEndPoint).Port));
-                    try
+                    return;
+                }
+
+                try
+                {
+                    udpHandle.Send(buffer, 0, buffer.Length, out error);
+                    switch (error)
                     {
-                        Send(data, (byte)SystemMessageType.UDPPortRequest, MessageType.System, MessageProtocol.Tcp);
-                    }
-                    catch (Exception e)
-                    {
-                        //don't save this or die, but still throw an error
-                        LastError = e;
-                        if (ErrorEvent != null)
-                            ErrorEvent(e, SocketError.Fault, this, "Failed to Request UDP port from client.");
+                        case SocketError.Success:
+                            Console.WriteLine("{0}: SendMessage({1} bytes): success", this, buffer.Length);
+                            return;
+                        case SocketError.WouldBlock:
+                            Console.WriteLine("{0}: SendMessage({1} bytes): EWOULDBLOCK", this, buffer.Length);
+                            udpOut.Add(buffer);
+                            if (ErrorEvent != null)
+                                ErrorEvent(null, error, this, "The TCP write buffer is full now, but the data will be saved and " +
+                                    "sent soon.  Send less data to reduce perceived latency.");
+                            return;
+                        default:
+                            udpOut.Add(buffer);
+                            Console.WriteLine("{0}: SendMessage({1} bytes): ERROR: {2}", this, buffer.Length, error);
+                            if (ErrorEvent != null)
+                                ErrorEvent(null, error, this, "Error occurred while trying to send TCP to client.");
+                            return;
                     }
                 }
+                catch (Exception e)
+                {
+                    udpOut.Add(buffer);
+                    LastError = e;
+                    Console.WriteLine("{0}: SendMessage({1} bytes): EXCEPTION: {2}", this, buffer.Length, e);
+                    if (ErrorEvent != null)
+                        ErrorEvent(e, SocketError.NoRecovery, this, "Exception occurred while trying to send TCP to client.");
+                }
+                
             }
 
             /// <summary>Sends a message via TCP.
@@ -1344,10 +1496,11 @@ namespace GTServer
             /// <param name="buffer">Raw stuff to send.</param>
             internal void SendTcpMessage(byte[] buffer)
             {
-                if (this.dead) return;
+                if (dead || tcpHandle == null) { return; }
 
                 if (TryAndFlushOldTcpBytesOut())
                 {
+                    Console.WriteLine("{0}: SendTcpMessage({1} bytes): adding to outstanding bytes", this, buffer.Length);
                     tcpOut.Add(buffer);
                     return;
                 }
@@ -1355,18 +1508,21 @@ namespace GTServer
                 SocketError error = SocketError.Success;
                 try
                 {
-                    connection.Client.Send(buffer, 0, buffer.Length, SocketFlags.None, out error);
+                    tcpHandle.Client.Send(buffer, 0, buffer.Length, SocketFlags.None, out error);
                     switch (error)
                     {
                         case SocketError.Success:
+                            Console.WriteLine("{0}: SendMessage({1} bytes): success", this, buffer.Length);
                             return;
                         case SocketError.WouldBlock:
                             tcpOut.Add(buffer);
+                            Console.WriteLine("{0}: SendMessage({1} bytes): EWOULDBLOCK", this, buffer.Length);
                             if (ErrorEvent != null)
                                 ErrorEvent(null, error, this, "The TCP write buffer is full now, but the data will be saved and " +
                                     "sent soon.  Send less data to reduce perceived latency.");
                             return;
                         default:
+                            Console.WriteLine("{0}: SendMessage({1} bytes): ERROR: {2}", this, buffer.Length, error);
                             this.dead = true;
                             tcpOut.Add(buffer);
                             if (ErrorEvent != null)
@@ -1378,6 +1534,7 @@ namespace GTServer
                 {
                     this.dead = true;
                     tcpOut.Add(buffer);
+                    Console.WriteLine("{0}: SendMessage({1} bytes): EXCEPTION: {2}", this, buffer.Length, e);
                     LastError = e;
                     if (ErrorEvent != null)
                         ErrorEvent(e, SocketError.NoRecovery, this, "Exception occurred while trying to send TCP to client.");
@@ -1395,7 +1552,7 @@ namespace GTServer
                     while (udpOut.Count > 0)
                     {
                         b = udpOut[0];
-                        udpRoute.Client.Send(b, 0, b.Length, SocketFlags.None, out error);
+                        udpHandle.Send(b, 0, b.Length, out error);
 
                         switch (error)
                         {
@@ -1440,7 +1597,7 @@ namespace GTServer
                     while (tcpOut.Count > 0)
                     {
                         b = tcpOut[0];
-                        connection.Client.Send(b, 0, b.Length, SocketFlags.None, out error);
+                        tcpHandle.Client.Send(b, 0, b.Length, SocketFlags.None, out error);
 
                         switch (error)
                         {
@@ -1496,8 +1653,10 @@ namespace GTServer
                 {
                     //they want to receive udp messages on this port
                     short port = BitConverter.ToInt16(data, 0);
-                    IPEndPoint remoteUdp = new IPEndPoint(((IPEndPoint)connection.Client.RemoteEndPoint).Address, port);
-                    udpRoute.Connect(remoteUdp);
+                    // FIXME: the following is a *monstrous* hack
+                    IPEndPoint remoteUdp = new IPEndPoint(((IPEndPoint)tcpHandle.Client.RemoteEndPoint).Address, port);
+                    //udpHandle.Connect(remoteUdp);
+                    SetUdpHandle(new UdpHandle(remoteUdp, server.udpMultiplexor, this));
 
                     //they want the udp port.  Send it.
                     BitConverter.GetBytes(UdpPort).CopyTo(buffer, 0);
@@ -1505,10 +1664,12 @@ namespace GTServer
                 }
                 else if (id == (byte)SystemMessageType.UDPPortResponse)
                 {
+                    // We should never see this message as a server!
+                    Console.WriteLine("WARNING: Server should never receive UDPPortResponse messages!");
                     //they want to receive udp messages on this port
-                    short port = BitConverter.ToInt16(data, 0);
-                    IPEndPoint remoteUdp = new IPEndPoint(((IPEndPoint)connection.Client.RemoteEndPoint).Address, port);
-                    udpRoute.Connect(remoteUdp);
+                    //short port = BitConverter.ToInt16(data, 0);
+                    //IPEndPoint remoteUdp = new IPEndPoint(((IPEndPoint)tcpHandle.Client.RemoteEndPoint).Address, port);
+                    //udpHandle.Connect(remoteUdp);
                 }
                 else if (id == (byte)SystemMessageType.ServerPingAndMeasure)
                 {
@@ -1525,6 +1686,7 @@ namespace GTServer
             /// <summary>Send a ping to a client to see if it responds.</summary>
             internal void Ping()
             {
+                // FIXME: ping each of the transports...
                 byte[] buffer = BitConverter.GetBytes(System.Environment.TickCount);
                 Send(buffer, (byte)SystemMessageType.ServerPingAndMeasure, MessageType.System, MessageProtocol.Tcp);
             }
@@ -1539,36 +1701,9 @@ namespace GTServer
             {
                 lock (this)
                 {
-                    //if something went wrong at a lower level, die.
-                    if (!connection.Connected || dead)
-                    {
-                        dead = true;
-                        return;
-                    }
-
-                    //grab data if we can
-                    while (connection.Available > 0)
-                    {
-                        try
-                        {
-                            this.UpdateFromNetworkTcp();
-                        }
-                        catch(SocketException e)
-                        {
-                            dead = true;
-                            LastError = e;
-                            if (ErrorEvent != null)
-                                ErrorEvent(e, SocketError.NoRecovery, this, "Updating from TCP connection failed because of a socket exception.");
-                        }
-                        catch (Exception e)
-                        {
-                            LastError = e;
-                            if (ErrorEvent != null)
-                                ErrorEvent(e, SocketError.NoRecovery, this, "Exception occured (not socket exception).");
-                        }
-                    }
-
-                    this.UpdateFromNetworkUdp();
+                    if (dead) { return; }
+                    UpdateFromNetworkTcp();
+                    UpdateFromNetworkUdp();
                 }
             }
 
@@ -1578,17 +1713,18 @@ namespace GTServer
                 byte[] buffer, data;
                 int length, cursor;
                 byte id, type;
-                IPEndPoint ep = null;
 
+                if (udpHandle == null) { return; }
 
                 try
                 {
                     //while there are more packets to read
-                    while (udpRoute.Client.Available > 8)
+                    while (udpHandle.Available > 0)
                     {
                         //get a packet
-                        buffer = udpRoute.Receive(ref ep);
+                        buffer = udpHandle.Receive();
                         cursor = 0;
+                        Console.WriteLine("{0}: UpdateFromNetworkUdp(): received packet ({1} bytes)", this, buffer.Length);
 
                         //while there are more messages in this packet
                         while(cursor < buffer.Length)
@@ -1599,23 +1735,14 @@ namespace GTServer
                             data = new byte[length];
                             Array.Copy(buffer, 8, data, 0, length);
 
-                            MessageType typeForm = (MessageType)type;
-                            if (typeForm == MessageType.Session) //session messages are special!  Weee!
-                                data = ConvertIncomingSessionMessageToNormalForm(data);
-
-                            if (typeForm == MessageType.System)//system messages are special!  Weee!
-                                HandleSystemMessage(data, id);
-                            else
-                                MessageReceived(id, typeForm, data, this, MessageProtocol.Udp);
-
+                            PostNewlyReceivedMessage(id, (MessageType)type, data, MessageProtocol.Udp);
                             cursor += length + 8;
                         }
                     }
                 }
                 catch (SocketException e)
                 {
-                    //Exception 10035 means that a non-blocking port has nothing to read, which is okay.
-                    if (e.ErrorCode != 10035)
+                    if (e.SocketErrorCode == SocketError.WouldBlock)
                     {
                         LastError = e;
                         if (ErrorEvent != null)
@@ -1633,73 +1760,106 @@ namespace GTServer
             /// <summary>Gets one message from the tcp and interprets it.</summary>
             private void UpdateFromNetworkTcp()
             {
-                byte[] buffer;
-                int size;
-                SocketError error = SocketError.Success;
-
-                if (tcpInMessageType < 1)
+                if (tcpHandle == null) {
+                    Console.WriteLine(this + ": a pity: I have no tcpHandle");
+                    return; 
+                }
+                if (tcpHandle.Available > 0)
                 {
-                    //restart the counters to listen for a new message.
-                    if (connection.Available < 8)
-                        return;
+                    Console.WriteLine(this + ": there appears to be some data available!");
+                }
 
-                    buffer = new byte[8];
-                    size = connection.Client.Receive(buffer, 0, 8, SocketFlags.None, out error);
-                    switch (error)
+                SocketError error = SocketError.Success;
+                try
+                {
+                    while (tcpHandle.Available > 0)
                     {
+                        // This is a simple state machine: we're either:
+                        // (a) reading a message header (tcpInProgress.IsMessageHeader())
+                        // (b) reading a message body (!tcpInProgress.IsMessageHeader())
+                        // (c) finished and about to start reading in a header (tcpInProgress == null)
+
+                        if (tcpInProgress == null)
+                        {
+                            //restart the counters to listen for a new message.
+                            tcpInProgress = new MessageInProgress(8);
+                            // assert tcpInProgress.IsMessageHeader();
+                        }
+
+                        int size = tcpHandle.Client.Receive(tcpInProgress.message, tcpInProgress.position,
+                            tcpInProgress.bytesRemaining, SocketFlags.None, out error);
+                        switch (error)
+                        {
                         case SocketError.Success:
+                            // Console.WriteLine("{0}: UpdateFromNetworkTcp(): received header", this);
                             break;
                         default:
                             dead = true;
+                            Console.WriteLine("{0}: UpdateFromNetworkTcp(): ERROR reading from socket: {1}", this, error);
                             if (ErrorEvent != null)
                                 ErrorEvent(null, SocketError.Fault, this, "Error reading TCP data header.");
                             return;
+                        }
+
+                        tcpInProgress.position += size;
+                        tcpInProgress.bytesRemaining -= size;
+                        if (tcpInProgress.bytesRemaining == 0)
+                        {
+                            if (tcpInProgress.IsMessageHeader())
+                            {
+                                // byte 0: id
+                                // byte 1: message type
+                                // bytes 2,3: unused
+                                // bytes 4-7: message length
+                                tcpInProgress = new MessageInProgress(tcpInProgress.message[0], 
+                                    tcpInProgress.message[1], BitConverter.ToInt32(tcpInProgress.message, 4));
+                                // assert tcpInProgress.IsMessageHeader()
+                            }
+                            else
+                            {
+                                PostNewlyReceivedMessage(tcpInProgress.id, (MessageType)tcpInProgress.messageType, tcpInProgress.message, MessageProtocol.Tcp);
+                                tcpInProgress = null;
+                            }
+                        }
                     }
-                    byte id = buffer[0];
-                    byte type = buffer[1];
-                    int length = BitConverter.ToInt32(buffer, 4);
+                }
+                catch (SocketException e)
+                {   // FIXME: can this clause even happen?
+                    dead = true;
+                    LastError = e;
+                    Console.WriteLine("{0}: UpdateFromNetworkTcp(): SocketException reading from socket: {1}", this, e);
+                    if (ErrorEvent != null)
+                        ErrorEvent(e, SocketError.NoRecovery, this, "Updating from TCP connection failed because of a socket exception.");
+                }
+                catch (Exception e)
+                {
+                    LastError = e;
+                    Console.WriteLine("{0}: UpdateFromNetworkTcp(): EXCEPTION: {1}", this, e);
+                    if (ErrorEvent != null)
+                        ErrorEvent(e, SocketError.NoRecovery, this, "Exception occured (not socket exception).");
+                }
+            }
 
-                    this.tcpInBytesLeft = length;
-                    this.tcpInMessageType = type;
-                    this.tcpInID = id;
+            private void PostNewlyReceivedMessage(byte id, MessageType type, byte[] buffer, MessageProtocol messageProtocol)
+            {
+                Console.WriteLine("{0}: posting newly received message id:{1} type:{2} protocol:{3} #bytes:{4}",
+                    this, id, type, messageProtocol, buffer.Length);
+                Server.DumpMessage("Server.Client.PostNewlyReceivedMessage", id, type, buffer);
+
+                if (type == MessageType.Session)
+                {
+                    //session messages are special!  Weee!
+                    buffer = ConvertIncomingSessionMessageToNormalForm(buffer);
                 }
 
-                
-                int amountToRead = Math.Min(tcpInBytesLeft, bufferSize);
-                buffer = new byte[amountToRead];
-
-                size = connection.Client.Receive(buffer, 0, amountToRead, SocketFlags.None, out error);
-                switch (error)
+                if (type == MessageType.System)
                 {
-                    case SocketError.Success:
-                        break;
-                    default:
-                        dead = true;
-                        if (ErrorEvent != null)
-                            ErrorEvent(null, SocketError.Fault, this, "Error reading TCP data.");
-                        return;
+                    //System messages are special!  Yay!
+                    HandleSystemMessage(buffer, id);
                 }
-                tcpInBytesLeft -= size;
-                tcpIn.Write(buffer, 0, size);
-
-                if (tcpInBytesLeft == 0)
+                else
                 {
-                    //We have the entire message.  Pass it along.
-                    buffer = new byte[tcpIn.Position];
-                    tcpIn.Position = 0;
-                    tcpIn.Read(buffer, 0, buffer.Length);
-
-                    MessageType typeForm = (MessageType)tcpInMessageType;
-                    if (typeForm == MessageType.Session) //session messages are special!  Weee!
-                        buffer = ConvertIncomingSessionMessageToNormalForm(buffer);
-
-                    if (typeForm == MessageType.System)//System messages are special!  Yay!
-                        HandleSystemMessage(buffer, tcpInID);
-                    else
-                        MessageReceived(tcpInID, typeForm, buffer, this, MessageProtocol.Tcp);
-
-                    tcpInMessageType = 0;
-                    tcpIn.Position = 0;
+                    MessageReceived(id, type, buffer, this, messageProtocol);
                 }
             }
 
@@ -1712,6 +1872,53 @@ namespace GTServer
             }
 
             #endregion
+
         }
+
+        public static void DumpMessage(string prefix, byte[] buffer)
+        {
+            int length = BitConverter.ToInt32(buffer, 4);
+            byte[] data = new byte[length];
+            Array.Copy(buffer, 8, data, 0, data.Length);
+            DumpMessage(prefix, buffer[0], (MessageType)buffer[1], data);
+        }
+
+        public static void DumpMessage(string prefix, byte id, MessageType type, byte[] buffer)
+        {
+            if (prefix == null)
+            {
+                Console.Write("  ");
+            }
+            else
+            {
+                Console.Write(prefix);
+                Console.Write(" ");
+            }
+            switch (type)
+            {
+            case MessageType.String:
+                Console.WriteLine("String: '" + System.Text.ASCIIEncoding.ASCII.GetString(buffer) + "'");
+                break;
+            case MessageType.Binary:
+                Console.WriteLine("Binary: ");
+                for (int i = 0; i < buffer.Length; i++)
+                {
+                    Console.Write("    ");
+                    int rem = Math.Min(16, buffer.Length - i);
+                    for (int j = 0; j < 16; j++)
+                    {
+                        Console.Write(' ');
+                        Console.Write(buffer[i + j]);
+                    }
+                    i += rem;
+                }
+                break;
+
+            case MessageType.System:
+                Console.WriteLine("System: " + (SystemMessageType)buffer[0]);
+                break;
+            }
+        }
+
     }
 }

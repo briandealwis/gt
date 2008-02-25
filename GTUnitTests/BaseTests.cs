@@ -8,14 +8,28 @@ using GTServer;
  
 namespace GT.UnitTests.BaseTests
 {
+    /// <summary>Test basic converter functionality</summary>
+    [TestFixture]
+    public class BasicConversionTests
+    {
+        #region "Tests"
+        [Test]
+        public void TestConvert()
+        {
+        }
+        #endregion
+
+    }
+
     /// <summary>
-    /// A test unit test
+    /// Test basic GT functionality
     /// </summary>
     [TestFixture]
     public class StringStreamTests {
 
         private Boolean errorOccurred;
         private Boolean responseReceived;
+        private Client client;
 
         private static string EXPECTED_GREETING = "Hello!";
         private static string EXPECTED_RESPONSE = "Go Away!";
@@ -35,7 +49,19 @@ namespace GT.UnitTests.BaseTests
                 serverThread.Abort();
             }
             serverThread = null;
+            if (server != null)
+            {
+                server.Stop();
+            }
             server = null;
+
+            if (client != null)
+            {
+                client.Stop();
+                client.Dispose();
+            }
+            client = null;
+            Console.WriteLine(this + " TearDown() complete");
         }
 
         #region "Server Stuff"
@@ -54,8 +80,8 @@ namespace GT.UnitTests.BaseTests
             server = new Server(9999);
             server.StringMessageReceived += new StringMessageHandler(ServerStringMessageReceived);
             server.ErrorEvent += new GTServer.ErrorClientHandler(server_ErrorEvent);
-            //server.StartSeparateListeningThread(100);
-            Console.WriteLine("Server started: " + server.ToString());
+            serverThread = server.StartSeparateListeningThread(10);
+            Console.WriteLine("Server started: " + server.ToString() + " [" + serverThread.Name + "]");
         }
 
         private void ServerStringMessageReceived(byte[] b, byte id, Server.Client client, GTServer.MessageProtocol protocol)
@@ -83,19 +109,42 @@ namespace GT.UnitTests.BaseTests
         #endregion
 
         #region "Tests"
+
         [Test]
-        public void TestEchoString()
+        public void TestAssumptions()
+        {
+            Assert.AreNotEqual(0, GTClient.MessageType.Binary);
+            Assert.AreNotEqual(0, GTClient.MessageType.Object);
+            Assert.AreNotEqual(0, GTClient.MessageType.Session);
+            Assert.AreNotEqual(0, GTClient.MessageType.String);
+            Assert.AreNotEqual(0, GTClient.MessageType.System);
+            Assert.AreNotEqual(0, GTClient.MessageType.Tuple1D);
+            Assert.AreNotEqual(0, GTClient.MessageType.Tuple2D);
+            Assert.AreNotEqual(0, GTClient.MessageType.Tuple3D);
+
+            Assert.AreEqual((int)GTServer.MessageType.Binary, (int)GTClient.MessageType.Binary);
+            Assert.AreEqual((int)GTServer.MessageType.Object, (int)GTClient.MessageType.Object);
+            Assert.AreEqual((int)GTServer.MessageType.Session, (int)GTClient.MessageType.Session);
+            Assert.AreEqual((int)GTServer.MessageType.String, (int)GTClient.MessageType.String);
+            Assert.AreEqual((int)GTServer.MessageType.System, (int)GTClient.MessageType.System);
+            Assert.AreEqual((int)GTServer.MessageType.Tuple1D, (int)GTClient.MessageType.Tuple1D);
+            Assert.AreEqual((int)GTServer.MessageType.Tuple2D, (int)GTClient.MessageType.Tuple2D);
+            Assert.AreEqual((int)GTServer.MessageType.Tuple3D, (int)GTClient.MessageType.Tuple3D);
+        }
+
+        [Test]
+        public void EchoStringViaTCP()
         {
             StartExpectedResponseServer(EXPECTED_GREETING, EXPECTED_RESPONSE);
 
-            Client client = new Client();  //this is a client
+            client = new Client();  //this is a client
             client.ErrorEvent += new ErrorEventHandler(client_ErrorEvent);  //triggers if there is an error
             StringStream stream = client.GetStringStream("127.0.0.1", "9999", 0);  //connect here
             stream.StringNewMessageEvent += new StringNewMessage(ClientStringMessageReceivedEvent);
             Assert.IsFalse(errorOccurred);
 
             Console.WriteLine("Client: sending greeting: " + EXPECTED_GREETING);
-            stream.Send(EXPECTED_GREETING);  //send a string
+            stream.Send(EXPECTED_GREETING, GTClient.MessageProtocol.Tcp);  //send a string
             Assert.IsFalse(errorOccurred, "Client: error occurred while sending greeting");
 
             int repeats = 10;
@@ -103,13 +152,42 @@ namespace GT.UnitTests.BaseTests
             {
                 client.Update();  // let the client check the network
                 Assert.IsFalse(errorOccurred);
-                Thread.Sleep(10);
+                client.Sleep(10);
             }
             Assert.IsTrue(responseReceived, "Client: no response received from server");
             string s = stream.DequeueMessage(0);
             Assert.IsNotNull(s);
             Assert.AreEqual(s, EXPECTED_RESPONSE);
         }
+
+        [Test]
+        public void EchoStringViaUDP()
+        {
+            StartExpectedResponseServer(EXPECTED_GREETING, EXPECTED_RESPONSE);
+
+            client = new Client();  //this is a client
+            client.ErrorEvent += new ErrorEventHandler(client_ErrorEvent);  //triggers if there is an error
+            StringStream stream = client.GetStringStream("127.0.0.1", "9999", 0);  //connect here
+            stream.StringNewMessageEvent += new StringNewMessage(ClientStringMessageReceivedEvent);
+            Assert.IsFalse(errorOccurred);
+
+            Console.WriteLine("Client: sending greeting: " + EXPECTED_GREETING);
+            stream.Send(EXPECTED_GREETING, GTClient.MessageProtocol.Udp);  //send a string
+            Assert.IsFalse(errorOccurred, "Client: error occurred while sending greeting");
+
+            int repeats = 10;
+            while (!responseReceived && repeats-- > 0)
+            {
+                client.Update();  // let the client check the network
+                Assert.IsFalse(errorOccurred);
+                client.Sleep(1000);
+            }
+            Assert.IsTrue(responseReceived, "Client: no response received from server");
+            string s = stream.DequeueMessage(0);
+            Assert.IsNotNull(s);
+            Assert.AreEqual(s, EXPECTED_RESPONSE);
+        }
+
 
         void ClientStringMessageReceivedEvent(IStringStream stream)
         {

@@ -54,9 +54,12 @@
     <Compile Include="Delay.cs" />
     <Compile Include="Framed.cs" />
     <Compile Include="HPTimer.cs" />
+    <Compile Include="ITransport.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="SimpleSharedDictionary.cs" />
+    <Compile Include="TCPTransport.cs" />
     <Compile Include="TupleStream.cs" />
+    <Compile Include="UDPTransport.cs" />
   </ItemGroup>
   <Import Project="$(MSBuildBinPath)\Microsoft.CSharp.targets" />
   <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 

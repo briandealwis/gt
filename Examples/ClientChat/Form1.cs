@@ -18,8 +18,17 @@ namespace ClientChat
         public Form1()
         {
             c = new Client();
-            s = c.GetStringStream("127.0.0.1","9999",0);
-            session = c.GetSessionStream("127.0.0.1","9999",0);
+            InputDialog d = new InputDialog("Connection details", "Which server:port ?", "localhost:9999");
+            if (d.ShowDialog() != DialogResult.OK)
+            {
+                throw new InvalidOperationException();
+            }
+            string[] parts = d.Input.Split(':');
+            string host = parts[0];
+            string port = parts.Length > 1 ? parts[1] : "9999";
+
+            s = c.GetStringStream(host, port,0);
+            session = c.GetSessionStream(host, port, 0);
 
             InitializeComponent();
         }

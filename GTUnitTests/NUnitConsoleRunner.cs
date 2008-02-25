@@ -10,7 +10,8 @@ namespace GT.UnitTests.Runner
         [STAThread]
         static void Main(string[] args)
         {
-            NUnit.ConsoleRunner.Runner.Main(args);
+            NUnit.ConsoleRunner.Runner.Main(new string[] { "/nologo", "/wait", "..\\..\\GTUnitTests.csproj" });
+            // NUnit.Gui.AppEntry.Main(new string[] { "/noload", "/run", "/console", "GTUnitTests.exe" });
         }
     }
 }

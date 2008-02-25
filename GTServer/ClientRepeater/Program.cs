@@ -5,6 +5,7 @@ using GTServer;
 using System.IO;
 using System.Runtime.Serialization;
 using System.Runtime.Serialization.Formatters.Binary;
+using System.Net.Sockets;
 
 namespace ClientRepeater
 {
@@ -14,28 +15,49 @@ namespace ClientRepeater
 
         static void Main(string[] args)
         {
-            s = new Server(9999, 1);
+            int port = 9999;
+            if (args.Length > 1)
+            {
+                Console.WriteLine("Use: <ClientRepeater.exe> [port]");
+                Console.WriteLine("[port] defaults to {0} if not specified", port);
+                return;
+            }
+            else if (args.Length == 1)
+            {
+                port = Int32.Parse(args[0]);
+                if (port <= 0)
+                {
+                    Console.WriteLine("error: port must be greater than 0");
+                    return;
+                }
+            }
+            s = new Server(port, 1);
             s.MessageReceived += new MessageHandler(s_MessageReceived2);
             s.ClientsJoined += new ClientsJoinedHandler(s_ClientsJoined);
             s.ClientsRemoved += new ClientsRemovedHandler(s_ClientsRemoved);
-            //s.ErrorEvent += new ErrorClientHandler(s_ErrorEvent);
+            s.ErrorEvent += new ErrorClientHandler(s_ErrorEvent);
             s.StartListening();
         }
 
-        static void s_ErrorEvent(Exception e, System.Net.Sockets.SocketError se, Server.Client c, string explanation)
+        static void s_ErrorEvent(Exception e, SocketError se, Server.Client c, string explanation)
         {
-            throw new Exception("The method or operation is not implemented.");
+            Console.WriteLine(DateTime.Now + " Error[" + c + "]: " + explanation + " (" + e + ", " + se + ")");
+            if (se.Equals(SocketError.NoRecovery))  // FIXME: this test is bogus -- we need more information
+            {
+                List<Server.Client> removed = new List<Server.Client>();
+                removed.Add(c);
+                s_ClientsRemoved(removed);
+            }
         }
 
         static void s_ClientsJoined(List<Server.Client> list)
         {
             foreach (Server.Client client in list)
             {
-                //kill client
                 int clientId = client.UniqueIdentity;
+                Console.WriteLine(DateTime.Now + " Joined: " + clientId + " (" + client + ")");
 
-                //inform others client is gone
-                foreach (Server.Client c in s.ClientList)
+                foreach (Server.Client c in s.clientList)
                 {
                     c.Send(clientId, SessionAction.Joined, (byte)0);
                 }
@@ -48,10 +70,11 @@ namespace ClientRepeater
             {
                 //kill client
                 int clientId = client.UniqueIdentity;
+                Console.WriteLine(DateTime.Now + " Left: " + clientId + " (" + client + ")");
                 Server.Client.Kill(client);
 
                 //inform others client is gone
-                foreach (Server.Client c in s.ClientList)
+                foreach (Server.Client c in s.clientList)
                 {
                     c.Send(clientId, SessionAction.Left, (byte)0);
                 }
@@ -63,13 +86,13 @@ namespace ClientRepeater
             //repeat whatever we receive to everyone else
             List<MessageOut> list = new List<MessageOut>();
             list.Add(new MessageOut((byte)id, messageType, data));
-            s.Send(list, s.ClientList, protocol);
+            s.Send(list, s.clientList, protocol);
         }
 
         static void s_MessageReceived2(byte id, MessageType messageType, byte[] data, Server.Client client, MessageProtocol protocol)
         {
             //repeat whatever we receive to everyone else
-            foreach (Server.Client c in s.ClientList)
+            foreach (Server.Client c in s.clientList)
             {
                 c.Send(data, id, messageType, protocol);
             }
