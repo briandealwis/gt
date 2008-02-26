@@ -221,186 +221,95 @@ namespace GTClient
 
     #region Type Stream Interfaces
 
-    /// <summary>A connection of session events.</summary>
-    public interface ISessionStream
+    public interface IStream
     {
-        /// <summary>Send a session action to the server</summary>
-        /// <param name="action">The action</param>
-        void Send(SessionAction action);
-
-        /// <summary>Send a session action to the server</summary>
-        /// <param name="action">The action</param>
-        /// <param name="reli">How to send it</param>
-        void Send(SessionAction action, MessageProtocol reli);
-
-        /// <summary>Send a session action to the server</summary>
-        /// <param name="action">The action</param>
-        /// <param name="reli">How to send it</param>
-        /// <param name="aggr">Should the message be saved to be packed with others?</param>
-        /// <param name="ordering">In what order should this message be sent in relation to other aggregated messages</param>
-        void Send(SessionAction action, MessageProtocol reli, MessageAggregation aggr, MessageOrder ordering);
-
-        /// <summary>Take a SessionMessage off the queue of received messages.</summary>
-        /// <param name="index">Which one to take off, the higher number being newer messages.</param>
-        /// <returns>The message.</returns>
-        SessionMessage DequeueMessage(int index);
-
-        /// <summary>Received messages from the server.</summary>
-        List<MessageIn> Messages { get; }
-
         /// <summary>Average latency between the client and this particluar server.</summary>
         float Delay { get; }
-
-        /// <summary> Occurs when this connection receives a message. </summary>
-        event SessionNewMessage SessionNewMessageEvent;
 
         /// <summary> Get the unique identity of the client for this server.  This will be
         /// different for each server, and thus could be different for each connection. </summary>
         int UniqueIdentity { get; }
 
+        /// <summary>Occurs whenever this client is updated.</summary>
+        event UpdateEventDelegate UpdateEvent;
+
+    }
+    public interface IGenericStream<T,M> : IStream
+    {
+        /// <summary>Send an item to the server</summary>
+        /// <param name="item">The item</param>
+        void Send(T item);
+
+        /// <summary>Send an item to the server</summary>
+        /// <param name="item">The item</param>
+        /// <param name="reli">How to send it</param>
+        void Send(T item, MessageProtocol reli);
+
+        /// <summary>Send an item to the server</summary>
+        /// <param name="item">The item</param>
+        /// <param name="reli">How to send it</param>
+        /// <param name="aggr">Should the message be saved to be packed with others?</param>
+        /// <param name="ordering">In what order should this message be sent in relation to other aggregated messages</param>
+        void Send(T item, MessageProtocol reli, MessageAggregation aggr, MessageOrder ordering);
+
+        /// <summary>Take an item off the queue of received messages.</summary>
+        /// <param name="index">The message to take off, with a higher number indicating a newer message.</param>
+        /// <returns>The message.</returns>
+        M DequeueMessage(int index);
+
+        /// <summary>Received messages from the server.</summary>
+        List<MessageIn> Messages { get; }
+
         /// <summary>Flush all aggregated messages on this connection</summary>
         /// <param name="protocol"></param>
         void FlushAllOutgoingMessagesOnChannel(MessageProtocol protocol);
 
-        /// <summary>Occurs whenever this client is updated.</summary>
-        event UpdateEventDelegate UpdateEvent;
+        // FIXME: How can the new message event be brought in?
+        ///// <summary> Occurs when this connection receives a message. </summary>
+        //// event SessionNewMessage SessionNewMessageEvent;
+    }
+
+    /// <summary>A connection of session events.</summary>
+    public interface ISessionStream : IGenericStream<SessionAction,SessionMessage>
+    {
+        /// <summary> Occurs when this connection receives a message. </summary>
+        event SessionNewMessage SessionNewMessageEvent;
     }
 
     /// <summary>A connection of strings.</summary>
-    public interface IStringStream
+    public interface IStringStream : IGenericStream<string,string>
     {
-        /// <summary>Send a string to the server</summary>
-        /// <param name="s">The string</param>
-        void Send(string s);
-
-        /// <summary>Send a string to the server, specifying how.</summary>
-        /// <param name="s">The string to send.</param>
-        /// <param name="reli">What method to send it by.</param>
-        void Send(string s, MessageProtocol reli);
-
-        /// <summary>Send a string to the server, specifying how.</summary>
-        /// <param name="s">The string to send.</param>
-        /// <param name="reli">What method to send it by.</param>
-        /// <param name="aggr">Should the message be saved to be packed with others?</param>
-        /// <param name="ordering">In what order should this message be sent in relation to other aggregated messages.</param>
-        void Send(string s, MessageProtocol reli, MessageAggregation aggr, MessageOrder ordering);
-
         /// <summary>Take a String off the queue of received messages.</summary>
         /// <param name="index">Which message to take, with higher numbers being newer messages.</param>
         /// <returns>The message.</returns>
         string DequeueMessage(int index);
 
-        /// <summary>Received messages from the server.</summary>
-        List<MessageIn> Messages { get; }
-
-        /// <summary>Average latency between the client and this particluar server.</summary>
-        float Delay { get; }
-
         /// <summary> Occurs when this connection receives a message. </summary>
         event StringNewMessage StringNewMessageEvent;
-
-        /// <summary>Get the unique identity of the client for this server.
-        /// This will be different for each server, and thus could be different for each connection.</summary>
-        int UniqueIdentity { get; }
-
-        /// <summary>Flush all aggregated messages on this connection</summary>
-        /// <param name="protocol"></param>
-        void FlushAllOutgoingMessagesOnChannel(MessageProtocol protocol);
-
-        /// <summary>Occurs whenever this client is updated.</summary>
-        event UpdateEventDelegate UpdateEvent;
     }
 
     /// <summary>A connection of objects.</summary>
-    public interface IObjectStream
+    public interface IObjectStream : IGenericStream<object,object>
     {
-        /// <summary>Send an object.</summary>
-        /// <param name="o">The object to send.</param>
-        void Send(object o);
-
-        /// <summary>Send an object using the specified method.</summary>
-        /// <param name="o">The object to send.</param>
-        /// <param name="reli">How to send the object.</param>
-        void Send(object o, MessageProtocol reli);
-
-        /// <summary>Send an object using the specified method.</summary>
-        /// <param name="o">The object to send.</param>
-        /// <param name="reli">How to send the object.</param>
-        /// <param name="aggr">Should the message be saved to be packed with others?</param>
-        /// <param name="ordering">In what order should this message be sent in relation to other aggregated messages.</param>
-        void Send(object o, MessageProtocol reli, MessageAggregation aggr, MessageOrder ordering);
-
         /// <summary>Dequeues an object from the message list.</summary>
         /// <param name="index">Which to dequeue, where a higher number means a newer message.</param>
         /// <returns>The object that was there.</returns>
         object DequeueMessage(int index);
 
-        /// <summary>Received messages from the server.</summary>
-        List<MessageIn> Messages { get; }
-
-        /// <summary>Average latency between the client and this particluar server.</summary>
-        float Delay { get; }
-
         /// <summary> Occurs when this connection receives a message. </summary>
         event ObjectNewMessage ObjectNewMessageEvent;
-
-        /// <summary>Get the unique identity of the client for this server.
-        /// This will be different for each server, and thus could be different for each connection.
-        /// </summary>
-        int UniqueIdentity { get; }
-
-        /// <summary>Flush all aggregated messages on this connection</summary>
-        /// <param name="protocol"></param>
-        void FlushAllOutgoingMessagesOnChannel(MessageProtocol protocol);
-
-        /// <summary>Occurs whenever this client is updated.</summary>
-        event UpdateEventDelegate UpdateEvent;
     }
 
     /// <summary>A connection of byte arrays.</summary>
-    public interface IBinaryStream
+    public interface IBinaryStream : IGenericStream<byte[],byte[]>
     {
-        /// <summary>Send a byte array</summary>
-        /// <param name="b">The byte array to send</param>
-        void Send(byte[] b);
-
-        /// <summary>Send a byte array in the specified way</summary>
-        /// <param name="b">The byte array to send</param>
-        /// <param name="reli">The way to send it</param>
-        void Send(byte[] b, MessageProtocol reli);
-
-        /// <summary>Send a byte array in the specified way</summary>
-        /// <param name="b">The byte array to send</param>
-        /// <param name="reli">The way to send it</param>
-        /// <param name="aggr">Should the message be saved to be packed with others?</param>
-        /// <param name="ordering">In what order should this message be sent in relation to other aggregated messages</param>
-        void Send(byte[] b, MessageProtocol reli, MessageAggregation aggr, MessageOrder ordering);
-
         /// <summary>Takes a message from the message list</summary>
         /// <param name="index">The message to take, where a higher number means a newer message</param>
         /// <returns>The byte array of the message</returns>
         byte[] DequeueMessage(int index);
 
-        /// <summary>Received messages from the server.</summary>
-        List<MessageIn> Messages { get; }
-
-        /// <summary>Average latency between the client and this particluar server.</summary>
-        float Delay { get; }
-
         /// <summary> Occurs when this connection receives a message. </summary>
         event BinaryNewMessage BinaryNewMessageEvent;
-
-        /// <summary>Get the unique identity of the client for this server.
-        /// This will be different for each server, and thus could be different for each connection.
-        /// </summary>
-        int UniqueIdentity { get; }
-
-        /// <summary>Flush all aggregated messages on this connection</summary>
-        /// <param name="protocol"></param>
-        void FlushAllOutgoingMessagesOnChannel(MessageProtocol protocol);
-
-        /// <summary>Occurs whenever this client is updated.</summary>
-        event UpdateEventDelegate UpdateEvent;
     }
 
     #endregion
@@ -408,12 +317,10 @@ namespace GTClient
 
     #region Type Stream Implementations
 
-    /// <summary>A connection of session events.</summary>
-    public class SessionStream : ISessionStream
+    public abstract class AbstractBaseStream : IStream
     {
-        private List<MessageIn> messages;
-        private byte id;
-        internal ServerStream connection;
+        protected byte id;
+        protected internal ServerStream connection;
 
         /// <summary> Occurs when client is updated. </summary>
         public event UpdateEventDelegate UpdateEvent;
@@ -421,17 +328,8 @@ namespace GTClient
         /// <summary> This SessionStream's ID. </summary>
         public byte ID { get { return id; } }
 
-        /// <summary> This SessionStream uses this ServerStream. </summary>
-        public ServerStream Connection { get { return connection; } }
-
-        /// <summary> Occurs when this session receives a message. </summary>
-        public event SessionNewMessage SessionNewMessageEvent;
-
         /// <summary>Average latency between the client and this particluar server.</summary>
         public float Delay { get { return connection.Delay; } }
-
-        /// <summary>Received messages from the server.</summary>
-        public List<MessageIn> Messages { get { return messages; } }
 
         /// <summary> Get the unique identity of the client for this server.  This will be
         /// different for each server, and thus could be different for each connection. </summary>
@@ -446,29 +344,71 @@ namespace GTClient
             get { return connection.Port; }
         }
 
-        /// <summary>Create a SessionStream object.</summary>
-        /// <param name="stream">The SuperStream to use to actually send the messages.</param>
-        /// <param name="id">What channel this will be.</param>
-        internal SessionStream(ServerStream stream, byte id)
+        internal AbstractBaseStream(ServerStream stream, byte id)
         {
-            messages = new List<MessageIn>();
             this.connection = stream;
             this.id = id;
         }
 
-        /// <summary>Send a session action to the server.</summary>
-        /// <param name="action">The action.</param>
-        public void Send(SessionAction action)
+        internal virtual void Update(HPTimer hpTimer)
         {
-            Send(action, MessageProtocol.Tcp, MessageAggregation.No, MessageOrder.None);
+            if (UpdateEvent != null)
+                UpdateEvent(hpTimer);
+        }
+    }
+
+    public abstract class AbstractStream<T,M> : AbstractBaseStream, IGenericStream<T,M>
+    {
+        protected List<MessageIn> messages;
+
+        /// <summary>Received messages from the server.</summary>
+        public List<MessageIn> Messages { get { return messages; } }
+
+        /// <summary> This SessionStream uses this ServerStream. </summary>
+        /// <remarks>deprecated</remarks>
+        public ServerStream Connection { get { return connection; } }
+
+        /// <summary>Create a stream object.</summary>
+        /// <param name="stream">The SuperStream to use to actually send the messages.</param>
+        /// <param name="id">What channel this will be.</param>
+        internal AbstractStream(ServerStream stream, byte id) : base(stream, id)
+        {
+            messages = new List<MessageIn>();
         }
 
-        /// <summary>Send a session action to the server.</summary>
-        /// <param name="action">The action.</param>
-        /// <param name="reli">How to send it.</param>
-        public void Send(SessionAction action, MessageProtocol reli)
+        public void Send(T item)
         {
-            Send(action, reli, MessageAggregation.No, MessageOrder.None);
+            Send(item, MessageProtocol.Tcp, MessageAggregation.No, MessageOrder.None);
+        }
+
+        public void Send(T item, MessageProtocol reli)
+        {
+            Send(item, reli, MessageAggregation.No, MessageOrder.None);
+        }
+
+        public abstract void Send(T action, MessageProtocol reli, MessageAggregation aggr, MessageOrder ordering);
+
+        public abstract M DequeueMessage(int index);
+
+        /// <summary>Flush all aggregated messages on this connection</summary>
+        /// <param name="protocol"></param>
+        public virtual void FlushAllOutgoingMessagesOnChannel(MessageProtocol protocol)
+        {
+            connection.FlushOutgoingMessages(this.id, protocol);
+        }
+    }
+
+    /// <summary>A connection of session events.</summary>
+    public class SessionStream : AbstractStream<SessionAction,SessionMessage>, ISessionStream
+    {
+        /// <summary> Occurs when this session receives a message. </summary>
+        public event SessionNewMessage SessionNewMessageEvent;
+
+        /// <summary>Create a SessionStream object.</summary>
+        /// <param name="stream">The SuperStream to use to actually send the messages.</param>
+        /// <param name="id">What channel this will be.</param>
+        internal SessionStream(ServerStream stream, byte id) : base(stream, id)
+        {
         }
 
         /// <summary>Send a session action to the server.</summary>
@@ -476,7 +416,7 @@ namespace GTClient
         /// <param name="reli">How to send it.</param>
         /// <param name="aggr">Should the message be saved to be packed with others?</param>
         /// <param name="ordering">In what order should this message be sent in relation to other aggregated messages.</param>
-        public void Send(SessionAction action, MessageProtocol reli, MessageAggregation aggr, MessageOrder ordering)
+        override public void Send(SessionAction action, MessageProtocol reli, MessageAggregation aggr, MessageOrder ordering)
         {
             byte[] buffer = new byte[1];
             buffer[0] = (byte) action;
@@ -486,7 +426,7 @@ namespace GTClient
         /// <summary>Take a SessionMessage off the queue of received messages.</summary>
         /// <param name="index">Which one to take off, the higher number being newer messages.</param>
         /// <returns>The message.</returns>
-        public SessionMessage DequeueMessage(int index)
+        override public SessionMessage DequeueMessage(int index)
         {
             try
             {
@@ -523,95 +463,28 @@ namespace GTClient
                 SessionNewMessageEvent(this);
         }
 
-        /// <summary>Flush all aggregated messages on this connection</summary>
-        /// <param name="protocol"></param>
-        public void FlushAllOutgoingMessagesOnChannel(MessageProtocol protocol)
-        {
-            connection.FlushOutgoingMessages(this.id, protocol);
-        }
-
-        internal void Update(HPTimer hpTimer)
-        {
-            if (UpdateEvent != null)
-                UpdateEvent(hpTimer);
-        }
     }
 
     /// <summary>A connection of strings.</summary>
-    public class StringStream : IStringStream
+    public class StringStream : AbstractStream<string,string>, IStringStream
     {
-        private List<MessageIn> messages;
-        private byte id;
-        internal ServerStream connection;
-
-        /// <summary> Occurs when client is updated. </summary>
-        public event UpdateEventDelegate UpdateEvent;
-
-        /// <summary> This StringStream's ID. </summary>
-        public byte ID { get { return id; } }
-
-        /// <summary> This StringStream uses this ServerStream. </summary>
-        public ServerStream Connection { get { return connection; } }
-
         /// <summary> Occurs when this connection receives a message. </summary>
         public event StringNewMessage StringNewMessageEvent;
-
-        /// <summary>Average latency between the client and this particluar server.</summary>
-        public float Delay { get { return connection.Delay; } }
-
-        /// <summary>Received messages from the server.</summary>
-        public List<MessageIn> Messages { get { return messages; } }
-
-        /// <summary>Get the unique identity of the client for this server.
-        /// This will be different for each server, and thus could be different for each connection.</summary>
-        public int UniqueIdentity
-        {
-            get { return connection.UniqueIdentity; }
-        }
-
-        /// <summary>Get the connection's destination address</summary>
-        public string Address
-        {
-            get { return connection.Address; }
-        }
-
-        /// <summary>Get the connection's destination port</summary>
-        public string Port
-        {
-            get { return connection.Port; }
-        }
 
         /// <summary>Create a StringStream object.</summary>
         /// <param name="stream">The SuperStream to use to actually send the messages.</param>
         /// <param name="id">What channel this will be.</param>
-        internal StringStream(ServerStream stream, byte id)
+        internal StringStream(ServerStream stream, byte id) : base(stream, id)
         {
-            messages = new List<MessageIn>();
-            this.connection = stream;
-            this.id = id;
         }
 
-        /// <summary>Send a string to the server.</summary>
-        /// <param name="b">The string.</param>
-        public void Send(string b)
-        {
-            Send(b, MessageProtocol.Tcp);
-        }
-
-        /// <summary>Send a string to the server, specifying how.</summary>
-        /// <param name="b">The string to send.</param>
-        /// <param name="reli">What method to send it by.</param>
-        public void Send(string b, MessageProtocol reli)
-        {
-            Send(b, reli, MessageAggregation.No, MessageOrder.None);
-        }
-
+        
         /// <summary>Send a string to the server, specifying how.</summary>
         /// <param name="b">The string to send.</param>
         /// <param name="reli">What method to send it by.</param>
         /// <param name="aggr">Should the message be saved to be packed with others?</param>
         /// <param name="ordering">In what order should this message be sent in relation to other aggregated messages.</param>
-        public void Send(string b, MessageProtocol reli, MessageAggregation aggr, MessageOrder ordering)
+        override public void Send(string b, MessageProtocol reli, MessageAggregation aggr, MessageOrder ordering)
         {
             byte[] buffer = System.Text.ASCIIEncoding.ASCII.GetBytes(b);
             this.connection.Send(buffer, id, MessageType.String, reli, aggr, ordering);
@@ -620,7 +493,7 @@ namespace GTClient
         /// <summary>Take a String off the queue of received messages.</summary>
         /// <param name="index">Which message to take, with higher numbers being newer messages.</param>
         /// <returns>The message.</returns>
-        public string DequeueMessage(int index)
+        override public string DequeueMessage(int index)
         {
             try
             {
@@ -653,96 +526,21 @@ namespace GTClient
             if (StringNewMessageEvent != null)
                 StringNewMessageEvent(this);
         }
-
-        /// <summary>Flush all aggregated messages on this connection</summary>
-        /// <param name="protocol"></param>
-        public void FlushAllOutgoingMessagesOnChannel(MessageProtocol protocol)
-        {
-            connection.FlushOutgoingMessages(this.id, protocol);
-        }
-
-        internal void Update(HPTimer hpTimer)
-        {
-            if (UpdateEvent != null)
-                UpdateEvent(hpTimer);
-        }
     }
 
     /// <summary>A connection of Objects.</summary>
-    public class ObjectStream : IObjectStream
+    public class ObjectStream : AbstractStream<object,object>, IObjectStream
     {
-        private List<MessageIn> messages;
         private static BinaryFormatter formatter = new BinaryFormatter();
-        private byte id;
-        internal ServerStream connection;
-
-        /// <summary> Occurs when client is updated. </summary>
-        public event UpdateEventDelegate UpdateEvent;
-
-        /// <summary> This StringStream's ID. </summary>
-        public byte ID { get { return id; } }
-
-        /// <summary> This StringStream uses this ServerStream.</summary>
-        public ServerStream Connection { get { return connection; } }
 
         /// <summary> Occurs when this connection receives a message. </summary>
         public event ObjectNewMessage ObjectNewMessageEvent;
 
-        /// <summary>Average latency between the client and this particluar server.</summary>
-        public float Delay { get { return connection.Delay; } }
-
-        /// <summary>Received messages from the server.</summary>
-        public List<MessageIn> Messages
-        {
-            get
-            {
-                return messages;
-            }
-        }
-
-        /// <summary>Get the unique identity of the client for this server.
-        /// This will be different for each server, and thus could be different for each connection.
-        /// </summary>
-        public int UniqueIdentity
-        {
-            get { return connection.UniqueIdentity; }
-        }
-
-        /// <summary>Get the connection's destination address</summary>
-        public string Address
-        {
-            get { return connection.Address; }
-        }
-
-        /// <summary>Get the connection's destination port</summary>
-        public string Port
-        {
-            get { return connection.Port; }
-        }
-
         /// <summary>Create an ObjectStream object.</summary>
         /// <param name="stream">The SuperStream to use to actually send the objects.</param>
         /// <param name="id">The channel we will claim.</param>
-        internal ObjectStream(ServerStream stream, byte id)
+        internal ObjectStream(ServerStream stream, byte id) : base(stream,id)
         {
-            messages = new List<MessageIn>();
-            this.connection = stream;
-            this.id = id;
-        }
-
-        /// <summary>Send an object.</summary>
-        /// <param name="o">The object to send.</param>
-        public void Send(object o)
-        {
-            Send(o, MessageProtocol.Tcp);
-        }
-
-        /// <summary>Send an object using the specified method.</summary>
-        /// <param name="o">The object to send.</param>
-        /// <param name="reli">How to send the object.</param>
-        public void Send(object o, MessageProtocol reli)
-        {
-            Send(o, reli, MessageAggregation.No, MessageOrder.None);
         }
 
         /// <summary>Send an object using the specified method.</summary>
@@ -750,7 +548,7 @@ namespace GTClient
         /// <param name="reli">How to send the object.</param>
         /// <param name="aggr">Should the message be saved to be packed with others?</param>
         /// <param name="ordering">In what order should this message be sent in relation to other aggregated messages.</param>
-        public void Send(object o, MessageProtocol reli, MessageAggregation aggr, MessageOrder ordering)
+        override public void Send(object o, MessageProtocol reli, MessageAggregation aggr, MessageOrder ordering)
         {
             MemoryStream ms = new MemoryStream();
             formatter.Serialize(ms, o);
@@ -763,7 +561,7 @@ namespace GTClient
         /// <summary>Dequeues an object from the message list.</summary>
         /// <param name="index">Which to dequeue, where a higher number means a newer message.</param>
         /// <returns>The object that was there.</returns>
-        public object DequeueMessage(int index)
+        override public object DequeueMessage(int index)
         {
             try
             {
@@ -797,103 +595,23 @@ namespace GTClient
             if (ObjectNewMessageEvent != null)
                 ObjectNewMessageEvent(this);
         }
-
-        /// <summary>Flush all aggregated messages on this connection</summary>
-        /// <param name="protocol"></param>
-        public void FlushAllOutgoingMessagesOnChannel(MessageProtocol protocol)
-        {
-            connection.FlushOutgoingMessages(this.id, protocol);
-        }
-
-        internal void Update(HPTimer hpTimer)
-        {
-            if (UpdateEvent != null)
-                UpdateEvent(hpTimer);
-        }
     }
 
     /// <summary>A connection of byte arrays.</summary>
-    public class BinaryStream : IBinaryStream
+    public class BinaryStream : AbstractStream<byte[],byte[]>, IBinaryStream
     {
-        private List<MessageIn> messages;
-        private byte id;
-        internal ServerStream connection;
-
-        /// <summary> Occurs when client is updated. </summary>
-        public event UpdateEventDelegate UpdateEvent;
-
-        /// <summary> This StringStream's ID. </summary>
-        public byte ID { get { return id; } }
-
-        /// <summary> This StringStream uses this ServerStream.</summary>
-        public ServerStream Connection { get { return connection; } }
-
         /// <summary> Occurs when this connection receives a message. </summary>
         public event BinaryNewMessage BinaryNewMessageEvent;
-
-        /// <summary>Average latency between the client and this particluar server.</summary>
-        public float Delay { get { return connection.Delay; } }
-
-        /// <summary>Received messages from the server.</summary>
-        public List<MessageIn> Messages
-        {
-            get
-            {
-                return messages;
-            }
-        }
-
-        /// <summary>Get the unique identity of the client for this server.
-        /// This will be different for each server, and thus could be different for each connection.
-        /// </summary>
-        public int UniqueIdentity
-        {
-            get { return connection.UniqueIdentity; }
-        }
-
-        /// <summary>Get the connection's destination address</summary>
-        public string Address
-        {
-            get { return connection.Address; }
-        }
-
-        /// <summary>Get the connection's destination port</summary>
-        public string Port
-        {
-            get { return connection.Port; }
-        }
 
         /// <summary>Creates a BinaryStream object.</summary>
         /// <param name="stream">The SuperStream object on which to actually send the objects.</param>
         /// <param name="id">The channel to claim.</param>
-        internal BinaryStream(ServerStream stream, byte id)
+        internal BinaryStream(ServerStream stream, byte id) : base(stream, id)
         {
-            messages = new List<MessageIn>();
-            this.connection = stream;
-            this.id = id;
         }
 
-        /// <summary>Send a byte array.</summary>
-        /// <param name="b">The byte array to send.</param>
-        public void Send(byte[] b)
-        {
-            this.connection.Send(b, id, MessageType.Binary, MessageProtocol.Tcp, MessageAggregation.No, MessageOrder.None);
-        }
-
-        /// <summary>Send a byte array in the specified way.</summary>
-        /// <param name="b">The byte array to send.</param>
-        /// <param name="reli">The way to send it.</param>
-        public void Send(byte[] b, MessageProtocol reli)
-        {
-            this.connection.Send(b, id, MessageType.Binary, reli, MessageAggregation.No, MessageOrder.None);
-        }
-
-        /// <summary>Send a byte array in the specified way.</summary>
-        /// <param name="b">The byte array to send.</param>
-        /// <param name="reli">The way to send it.</param>
-        /// <param name="aggr">Should the message be saved to be packed with others?</param>
-        /// <param name="ordering">In what order should this message be sent in relation to other aggregated messages.</param>
-        public void Send(byte[] b, MessageProtocol reli, MessageAggregation aggr, MessageOrder ordering)
+        override public void Send(byte[] b, MessageProtocol reli, MessageAggregation aggr, 
+            MessageOrder ordering)
         {
             this.connection.Send(b, id, MessageType.Binary, reli, aggr, ordering);
         }
@@ -901,7 +619,7 @@ namespace GTClient
         /// <summary>Takes a message from the message list.</summary>
         /// <param name="index">The message to take, where a higher number means a newer message.</param>
         /// <returns>The byte array of the message.</returns>
-        public byte[] DequeueMessage(int index)
+        override public byte[] DequeueMessage(int index)
         {
             try
             {
@@ -934,53 +652,9 @@ namespace GTClient
             if (BinaryNewMessageEvent != null)
                     BinaryNewMessageEvent(this);
         }
-
-        /// <summary>Flush all aggregated messages on this connection</summary>
-        /// <param name="protocol"></param>
-        public void FlushAllOutgoingMessagesOnChannel(MessageProtocol protocol)
-        {
-            connection.FlushOutgoingMessages(this.id, protocol);
-        }
-
-        internal void Update(HPTimer hpTimer)
-        {
-            if (UpdateEvent != null)
-                UpdateEvent(hpTimer);
-        }
     }
 
     #endregion
-
-
-    #region Tuple Implementations
-
-    /// <summary>
-    /// Represents a tuple that automatically sends itself, and receives sends from others
-    /// </summary>
-    public abstract class StreamedTuple 
-    {
-        /// <summary>
-        /// The address that this tuple sends to
-        /// </summary>
-        abstract public string Address { get; }
-
-        /// <summary>
-        /// The port that this tuple sends to
-        /// </summary>
-        abstract public string Port { get; }
-
-        /// <summary>
-        /// The network connection of this tuple
-        /// </summary>
-        abstract public ServerStream Connection { get; }
-
-        abstract internal void Update(HPTimer hpTimer);
-
-        abstract internal void QueueMessage(MessageIn m);
-    }
-
-    #endregion
-
 
     /// <summary>Controls the sending of messages to a particular server.</summary>
     public class ServerStream : IServerSurrogate
@@ -1419,11 +1093,12 @@ namespace GTClient
         private Dictionary<byte, BinaryStream> binaryStreams;
         private Dictionary<byte, StringStream> stringStreams;
         private Dictionary<byte, SessionStream> sessionStreams;
-        private Dictionary<byte, StreamedTuple> oneTupleStreams;
-        private Dictionary<byte, StreamedTuple> twoTupleStreams;
-        private Dictionary<byte, StreamedTuple> threeTupleStreams;
+        private Dictionary<byte, AbstractStreamedTuple> oneTupleStreams;
+        private Dictionary<byte, AbstractStreamedTuple> twoTupleStreams;
+        private Dictionary<byte, AbstractStreamedTuple> threeTupleStreams;
         private List<ServerStream> superStreams;
         private HPTimer timer;
+        private bool running = false;
 
         /// <summary>Occurs when there are errors on the network.</summary>
         public event ErrorEventHandler ErrorEvent;
@@ -1443,13 +1118,11 @@ namespace GTClient
             binaryStreams = new Dictionary<byte, BinaryStream>();
             stringStreams = new Dictionary<byte, StringStream>();
             sessionStreams = new Dictionary<byte, SessionStream>();
-            oneTupleStreams = new Dictionary<byte, StreamedTuple>();
-            twoTupleStreams = new Dictionary<byte, StreamedTuple>();
-            threeTupleStreams = new Dictionary<byte, StreamedTuple>();
+            oneTupleStreams = new Dictionary<byte, AbstractStreamedTuple>();
+            twoTupleStreams = new Dictionary<byte, AbstractStreamedTuple>();
+            threeTupleStreams = new Dictionary<byte, AbstractStreamedTuple>();
             superStreams = new List<ServerStream>();
             timer = new HPTimer();
-            timer.Start();
-            timer.Update();
         }
 
         /// <summary>Get a streaming tuple that is automatically sent to the server every so often</summary>
@@ -1480,7 +1153,7 @@ namespace GTClient
             }
 
             StreamedTuple<A, B, C> bs = (StreamedTuple<A, B, C>)new StreamedTuple<A, B, C>(GetSuperStream(address, port), id, milliseconds);
-            threeTupleStreams.Add(id, (StreamedTuple)bs);
+            threeTupleStreams.Add(id, (AbstractStreamedTuple)bs);
             return bs;
         }
 
@@ -1511,7 +1184,7 @@ namespace GTClient
             }
 
             tuple = new StreamedTuple<A, B, C>(serverStream, id, milliseconds);
-            threeTupleStreams.Add(id, (StreamedTuple)tuple);
+            threeTupleStreams.Add(id, (AbstractStreamedTuple)tuple);
             return tuple;
         }
 
@@ -1541,7 +1214,7 @@ namespace GTClient
             }
 
             tuple = new StreamedTuple<A, B>(GetSuperStream(address, port), id, milliseconds);
-            twoTupleStreams.Add(id, (StreamedTuple)tuple);
+            twoTupleStreams.Add(id, (AbstractStreamedTuple)tuple);
             return tuple;
         }
 
@@ -1570,7 +1243,7 @@ namespace GTClient
             }
 
             tuple = new StreamedTuple<A, B>(serverStream, id, milliseconds);
-            threeTupleStreams.Add(id, (StreamedTuple)tuple);
+            threeTupleStreams.Add(id, (AbstractStreamedTuple)tuple);
             return tuple;
         }
 
@@ -1598,7 +1271,7 @@ namespace GTClient
             }
 
             tuple = new StreamedTuple<A>(GetSuperStream(address, port), id, milliseconds);
-            oneTupleStreams.Add(id, (StreamedTuple)tuple);
+            oneTupleStreams.Add(id, (AbstractStreamedTuple)tuple);
             return tuple;
         }
 
@@ -1838,26 +1511,29 @@ namespace GTClient
         public void Update()
         {
             Console.WriteLine("{0}: Update() called", this);
-            timer.Update();
-            lock (superStreams)
+            lock (this)
             {
+                if (!running) { Start(); }
+                timer.Update();
                 foreach (ServerStream s in superStreams)
                 {
-                    if (s.nextPingTime < timer.TimeInMilliseconds)
+                    try
                     {
-                        s.nextPingTime = timer.TimeInMilliseconds + PingInterval;
-                        s.Ping();
-                    }
-
-                    s.Update();
-                    lock (s.messages)
-                    {
-                        foreach (MessageIn m in s.messages)
+                        if (s.nextPingTime < timer.TimeInMilliseconds)
                         {
-                            try
+                            s.nextPingTime = timer.TimeInMilliseconds + PingInterval;
+                            s.Ping();
+                        }
+
+                        s.Update();
+                        lock (s.messages)
+                        {
+                            foreach (MessageIn m in s.messages)
                             {
-                                switch (m.type)
+                                try
                                 {
+                                    switch (m.type)
+                                    {
                                     case MessageType.Binary: binaryStreams[m.id].QueueMessage(m); break;
                                     case MessageType.Object: objectStreams[m.id].QueueMessage(m); break;
                                     case MessageType.Session: sessionStreams[m.id].QueueMessage(m); break;
@@ -1867,46 +1543,51 @@ namespace GTClient
                                     case MessageType.Tuple2D: twoTupleStreams[m.id].QueueMessage(m); break;
                                     case MessageType.Tuple3D: threeTupleStreams[m.id].QueueMessage(m); break;
                                     default:
+                                        Console.WriteLine("Client: WARNING: received message with unknown type (remote={0}, id={1}): type={2}",
+                                            m.transport, m.id, m.type);
                                         if (ErrorEvent != null)
                                             ErrorEvent(null, SocketError.Fault, s, "Received " + m.type + "message for connection " + m.id +
                                                 ", but that type does not exist.");
                                         break;
+                                    }
+                                }
+                                catch (KeyNotFoundException e)
+                                {
+                                    Console.WriteLine("Client: WARNING: received message with unmonitored id (remote={0}, type={1}): id={2}",
+                                        m.transport, m.type, m.id);
+                                    if (ErrorEvent != null)
+                                        ErrorEvent(e, SocketError.Fault, s, "Received " + m.type + "message for connection " + m.id +
+                                            ", but that id does not exist for that type.");
                                 }
                             }
-                            catch (KeyNotFoundException e)
-                            {
-                                if (ErrorEvent != null)
-                                    ErrorEvent(e, SocketError.Fault, s, "Received " + m.type + "message for connection " + m.id +
-                                        ", but that id does not exist for that type.");
-                            }
-                            catch (Exception e)
-                            {
-                                if (ErrorEvent != null)
-                                    ErrorEvent(e, SocketError.Fault, s, "Exception occurred when trying to queue message.");
-                            }
+                            s.messages.Clear();
                         }
-                        s.messages.Clear();
+                    }
+                    catch (Exception e)
+                    {
+                        Console.WriteLine("Client: ERROR: Exception occurred in Client.Update() processing stream {0}: {1}", s, e);
+                        if (ErrorEvent != null)
+                            ErrorEvent(e, SocketError.Fault, s, "Exception occurred when trying to queue message.");
                     }
                 }
+
+
+                //let each stream update itself
+                foreach (SessionStream s in sessionStreams.Values)
+                    s.Update(timer);
+                foreach (StringStream s in stringStreams.Values)
+                    s.Update(timer);
+                foreach (ObjectStream s in objectStreams.Values)
+                    s.Update(timer);
+                foreach (BinaryStream s in binaryStreams.Values)
+                    s.Update(timer);
+                foreach (AbstractStreamedTuple s in oneTupleStreams.Values)
+                    s.Update(timer);
+                foreach (AbstractStreamedTuple s in twoTupleStreams.Values)
+                    s.Update(timer);
+                foreach (AbstractStreamedTuple s in threeTupleStreams.Values)
+                    s.Update(timer);
             }
-
-            
-
-            //let each stream update itself
-            foreach (SessionStream s in sessionStreams.Values)
-                s.Update(timer);
-            foreach (StringStream s in stringStreams.Values)
-                s.Update(timer);
-            foreach (ObjectStream s in objectStreams.Values)
-                s.Update(timer);
-            foreach (BinaryStream s in binaryStreams.Values)
-                s.Update(timer);
-            foreach (StreamedTuple s in oneTupleStreams.Values)
-                s.Update(timer);
-            foreach (StreamedTuple s in twoTupleStreams.Values)
-                s.Update(timer);
-            foreach (StreamedTuple s in threeTupleStreams.Values)
-                s.Update(timer);
         }
 
         /// <summary>This is a placeholder for more possible system message handling.</summary>
@@ -1938,11 +1619,11 @@ namespace GTClient
         {
             double oldTime;
             double newTime;
-
+            Start();
             try
             {
                 //check for new data
-                while (true)
+                while (running)
                 {
                     timer.Update();
                     oldTime = timer.TimeInMilliseconds;
@@ -1954,34 +1635,46 @@ namespace GTClient
                     timer.Update();
                     newTime = timer.TimeInMilliseconds;
                     int sleepCount = (int)(this.ListeningInterval - (newTime - oldTime));
-                    if (sleepCount > 15)
-                    {
-                        Thread.Sleep(sleepCount);
-                    }
-                    else
-                        Thread.Sleep(0);
+                    Sleep(sleepCount);
                 }
             }
             catch (ThreadAbortException) //we were told to die.  die gracefully.
             {
                 //kill the connection
-                lock (this)
-                {
-                    Stop();
-                }
+                Stop();
             } 
+        }
+
+        public void Start()
+        {
+            lock (this)
+            {
+                if (running) { return; }
+                timer.Start();
+                timer.Update();
+                for (int i = 0; i < superStreams.Count; i++)
+                {
+                    superStreams[i].Start();
+                }
+                running = true;
+            }
         }
 
         public void Stop()
         {
-            for (int i = 0; i < superStreams.Count; i++)
+            lock (this)
             {
-                superStreams[i].Stop();
+                running = false;
+                for (int i = 0; i < superStreams.Count; i++)
+                {
+                    superStreams[i].Stop();
+                }
             }
         }
 
         public void Dispose()
         {
+            if (running) { Stop(); }
             for (int i = 0; i < superStreams.Count; i++)
             {
                 // superStreams[i].Dispose();

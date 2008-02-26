@@ -33,6 +33,8 @@ namespace GT.UnitTests.BaseTests
 
         private static string EXPECTED_GREETING = "Hello!";
         private static string EXPECTED_RESPONSE = "Go Away!";
+        private static int ServerSleepTime = 10;
+        private static int ClientSleepTime = 10;
 
         [SetUp]
         public void SetUp()
@@ -80,7 +82,7 @@ namespace GT.UnitTests.BaseTests
             server = new Server(9999);
             server.StringMessageReceived += new StringMessageHandler(ServerStringMessageReceived);
             server.ErrorEvent += new GTServer.ErrorClientHandler(server_ErrorEvent);
-            serverThread = server.StartSeparateListeningThread(10);
+            serverThread = server.StartSeparateListeningThread(ServerSleepTime);
             Console.WriteLine("Server started: " + server.ToString() + " [" + serverThread.Name + "]");
         }
 
@@ -152,7 +154,7 @@ namespace GT.UnitTests.BaseTests
             {
                 client.Update();  // let the client check the network
                 Assert.IsFalse(errorOccurred);
-                client.Sleep(10);
+                client.Sleep(ClientSleepTime);
             }
             Assert.IsTrue(responseReceived, "Client: no response received from server");
             string s = stream.DequeueMessage(0);
@@ -180,7 +182,7 @@ namespace GT.UnitTests.BaseTests
             {
                 client.Update();  // let the client check the network
                 Assert.IsFalse(errorOccurred);
-                client.Sleep(1000);
+                client.Sleep(ClientSleepTime);
             }
             Assert.IsTrue(responseReceived, "Client: no response received from server");
             string s = stream.DequeueMessage(0);

@@ -133,53 +133,37 @@ namespace GTClient
         }
     }
 
+    public abstract class AbstractStreamedTuple : AbstractBaseStream
+    {
+        protected bool changed;
+        protected int milliseconds;
+        protected long interval;
+        protected long lastTimeSent;
+
+        protected AbstractStreamedTuple(ServerStream s, byte id)
+            : base(s, id)
+        {
+            this.changed = false;
+            this.milliseconds = milliseconds;
+            this.interval = 9999999;
+        }
+
+        abstract internal void QueueMessage(MessageIn m);
+        abstract internal void Update(HPTimer hpTImer);
+    }
+
     /// <summary>A three-tuple that is automatically streamed to the other clients.</summary>
     /// <typeparam name="T">X value</typeparam>
     /// <typeparam name="K">Y value</typeparam>
     /// <typeparam name="J">Z value</typeparam>
-    public class StreamedTuple<T, K, J> : StreamedTuple
+    public class StreamedTuple<T, K, J> : AbstractStreamedTuple
         where T : IConvertible
         where K : IConvertible
         where J : IConvertible
     {
-        private bool changed;
-        private int milliseconds;
-        private long interval;
-        private long lastTimeSent;
-        private byte id;
         private T x;
         private K y;
         private J z;
-        internal ServerStream connection;
-
-        /// <summary> This StringStream's ID. </summary>
-        public byte ID { get { return id; } }
-
-        /// <summary> This StringStream uses this ServerStream.</summary>
-        public override ServerStream Connection { get { return connection; } }
-
-        /// <summary>Average latency between the client and this particluar server.</summary>
-        public float Delay { get { return connection.Delay; } }
-
-        /// <summary>Get the unique identity of the client for this server.
-        /// This will be different for each server, and thus could be different for each connection.
-        /// </summary>
-        public int UniqueIdentity
-        {
-            get { return connection.UniqueIdentity; }
-        }
-
-        /// <summary>Get the connection's destination address</summary>
-        public override string Address
-        {
-            get { return connection.Address; }
-        }
-
-        /// <summary>Get the connection's destination port</summary>
-        public override string Port
-        {
-            get { return connection.Port; }
-        }
 
         /// <summary>X value</summary>
         public T X { get { return x; } set { x = value; changed = true; } }
@@ -197,13 +181,8 @@ namespace GTClient
         /// <param name="connection">The stream to send the tuples on</param>
         /// <param name="id">the stream id</param>
         /// <param name="milliseconds">Send the tuple only once during this interval</param>
-        internal StreamedTuple(ServerStream connection, byte id, int milliseconds)
+        internal StreamedTuple(ServerStream connection, byte id, int milliseconds) : base(connection, id)
         {
-            this.changed = false;
-            this.milliseconds = milliseconds;
-            this.interval = 9999999;
-            this.id = id;
-            this.connection = connection;
         }
 
         internal override void QueueMessage(MessageIn message)
@@ -257,47 +236,12 @@ namespace GTClient
     /// <summary>A two-tuple that is automatically streamed to the other clients.</summary>
     /// <typeparam name="T">X value</typeparam>
     /// <typeparam name="K">Y value</typeparam>
-    public class StreamedTuple<T, K> : StreamedTuple
+    public class StreamedTuple<T, K> : AbstractStreamedTuple
         where T : IConvertible
         where K : IConvertible
     {
-        private bool changed;
-        private int milliseconds;
-        private long interval;
-        private long lastTimeSent;
-        private byte id;
         private T x;
         private K y;
-        internal ServerStream connection;
-
-        /// <summary> This StringStream's ID. </summary>
-        public byte ID { get { return id; } }
-
-        /// <summary> This StringStream uses this ServerStream.</summary>
-        public override ServerStream Connection { get { return connection; } }
-
-        /// <summary>Average latency between the client and this particluar server.</summary>
-        public float Delay { get { return connection.Delay; } }
-
-        /// <summary>Get the unique identity of the client for this server.
-        /// This will be different for each server, and thus could be different for each connection.
-        /// </summary>
-        public int UniqueIdentity
-        {
-            get { return connection.UniqueIdentity; }
-        }
-
-        /// <summary>Get the connection's destination address</summary>
-        public override string Address
-        {
-            get { return connection.Address; }
-        }
-
-        /// <summary>Get the connection's destination port</summary>
-        public override string Port
-        {
-            get { return connection.Port; }
-        }
 
         /// <summary>X value</summary>
         public T X { get { return x; } set { x = value; changed = true; } }
@@ -311,13 +255,8 @@ namespace GTClient
         /// <param name="connection">The stream to send the tuples on</param>
         /// <param name="id">the stream id</param>
         /// <param name="milliseconds">Send the tuple only once during this interval</param>
-        public StreamedTuple(ServerStream connection, byte id, int milliseconds)
+        public StreamedTuple(ServerStream connection, byte id, int milliseconds) : base(connection, id)
         {
-            this.changed = false;
-            this.milliseconds = milliseconds;
-            this.interval = 9999999;
-            this.id = id;
-            this.connection = connection;
         }
 
         internal override void QueueMessage(MessageIn message)
@@ -367,45 +306,10 @@ namespace GTClient
 
     /// <summary>A one-tuple that is automatically streamed to the other clients.</summary>
     /// <typeparam name="T">X value</typeparam>
-    public class StreamedTuple<T> : StreamedTuple
+    public class StreamedTuple<T> : AbstractStreamedTuple
         where T : IConvertible
     {
-        private bool changed;
-        private int milliseconds;
-        private long interval;
-        private long lastTimeSent;
-        private byte id;
         private T x;
-        internal ServerStream connection;
-
-        /// <summary> This StringStream's ID. </summary>
-        public byte ID { get { return id; } }
-
-        /// <summary> This StringStream uses this ServerStream.</summary>
-        public override ServerStream Connection { get { return connection; } }
-
-        /// <summary>Average latency between the client and this particluar server.</summary>
-        public float Delay { get { return connection.Delay; } }
-
-        /// <summary>Get the unique identity of the client for this server.
-        /// This will be different for each server, and thus could be different for each connection.
-        /// </summary>
-        public int UniqueIdentity
-        {
-            get { return connection.UniqueIdentity; }
-        }
-
-        /// <summary>Get the connection's destination address</summary>
-        public override string Address
-        {
-            get { return connection.Address; }
-        }
-
-        /// <summary>Get the connection's destination port</summary>
-        public override string Port
-        {
-            get { return connection.Port; }
-        }
 
         /// <summary>X value</summary>
         public T X { get { return x; } set { x = value; changed = true; } }
@@ -417,13 +321,8 @@ namespace GTClient
         /// <param name="connection">The stream to send the tuples on</param>
         /// <param name="id">the stream id</param>
         /// <param name="milliseconds">Send the tuple only once during this interval</param>
-        public StreamedTuple(ServerStream connection, byte id, int milliseconds)
+        public StreamedTuple(ServerStream connection, byte id, int milliseconds) : base(connection, id)
         {
-            this.changed = false;
-            this.milliseconds = milliseconds;
-            this.interval = 9999999;
-            this.id = id;
-            this.connection = connection;
         }
 
         internal override void QueueMessage(MessageIn message)

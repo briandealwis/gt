@@ -261,7 +261,7 @@ namespace GTServer
         private static Random random = new Random();
         private static BinaryFormatter formatter = new BinaryFormatter();
 
-        private bool stopped = true;
+        private bool running = false;
         private TcpListener bouncer;
         private UdpMultiplexer udpMultiplexor;
 
@@ -757,7 +757,7 @@ namespace GTServer
             Start();
 
             //check this server for new connections or new data forevermore
-            while (!stopped)
+            while (running)
             {
                 try
                 {
@@ -798,13 +798,13 @@ namespace GTServer
         {
             //start up the listeners
             RestartBouncers();
-            stopped = false;
+            running = true;
         }
 
         public void Stop()
         {
             // we were told to die.  die gracefully.
-            stopped = true;
+            running = false;
             KillBouncers();
             KillAll();
         }
@@ -1016,6 +1016,10 @@ namespace GTServer
         /// <param name="reli">How to send it</param>
         private void SendToList(byte[] buffer, List<Client> list, MessageProtocol reli)
         {
+            //if (!running)
+            //{
+            //    throw new InvalidStateException("Cannot send on a stopped server", this);
+            //}
             if (reli == MessageProtocol.Tcp)
                 foreach (Client c in list)
                     c.SendTcpMessage(buffer);
