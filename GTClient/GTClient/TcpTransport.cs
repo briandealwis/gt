@@ -5,7 +5,7 @@ using System.Collections.Generic;
 using System.Net;
 using GT.Common;
 
-namespace GTClient
+namespace GT.Clients
 {
     public class TcpTransport : BaseTransport
     {

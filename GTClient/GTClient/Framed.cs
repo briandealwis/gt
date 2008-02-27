@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Text;
 
-namespace GTClient
+namespace GT.Clients
 {
     /// <summary>Used to set a certain event to only occur every so often.  (Thread-safe)</summary>
     public class Frame

@@ -5,7 +5,7 @@ using System.IO;
 using System.Runtime.Serialization;
 using System.Runtime.Serialization.Formatters.Binary;
 
-namespace GTClient
+namespace GT.Clients
 {
     /// <summary>
     /// This is a very simple implementation of a shared dictionary.  It can be used

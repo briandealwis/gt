@@ -6,7 +6,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using GT.Common;
 
-namespace GTServer
+namespace GT.Servers
 {
     public delegate void MessageReceivedHandler(EndPoint ep, byte[] message);
 

@@ -4,8 +4,8 @@ using System.Threading;
 using System.Collections.Generic;
 using NUnit.Framework;
 using GT.Common;
-using GTClient;
-using GTServer;
+using GT.Clients;
+using GT.Servers;
  
 namespace GT.UnitTests.BaseTests
 {
@@ -85,7 +85,7 @@ namespace GT.UnitTests.BaseTests
             }
             server = new Server(9999);
             server.StringMessageReceived += new StringMessageHandler(ServerStringMessageReceived);
-            server.ErrorEvent += new GTServer.ErrorClientHandler(server_ErrorEvent);
+            server.ErrorEvent += new ErrorClientHandler(server_ErrorEvent);
             serverThread = server.StartSeparateListeningThread(ServerSleepTime);
             Console.WriteLine("Server started: " + server.ToString() + " [" + serverThread.Name + "]");
         }

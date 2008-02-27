@@ -10,7 +10,7 @@ using System.Runtime.Serialization.Formatters.Binary;
 using System.Diagnostics;
 using GT.Common;
 
-namespace GTServer
+namespace GT.Servers
 {
 
     #region Delegates

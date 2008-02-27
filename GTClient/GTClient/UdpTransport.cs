@@ -4,7 +4,7 @@ using System.Net;
 using System.Collections.Generic;
 using GT.Common;
 
-namespace GTClient
+namespace GT.Clients
 {
     public class UdpTransport : BaseTransport
     {

@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Text;
 using Lobby;
-using GTClient;
+using GT.Clients;
 
 namespace LobbyServerTest
 {

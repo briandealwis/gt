@@ -3,13 +3,13 @@ ChangeLog
 Breaking Changes:
 
   * As part of reorganizing the code, we've renamed the namespaces
-    (GTServer and GTClient -> GT.Server and GT.Client) and introduced
+    (GTServer and GTClient -> GT.Servers and GT.Clients) and introduced
     a new assembly to hold common components and useful new components
     (GT.Common).  <https://papyrus.usask.ca/trac/gt/ticket/7
 
       * Change all the uses
-	  'using GTServer;'  ->  'using GT.Server;'
-	  'using GTClient;'  ->  'using GT.Client;'
+	  'using GTServer;'  ->  'using GT.Servers;'
+	  'using GTClient;'  ->  'using GT.Clients;'
 
       * You will need to add the GTCommon project or DLL to your clients,
         and add 'using GT.Common;' to your namespaces.

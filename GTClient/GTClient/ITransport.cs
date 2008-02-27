@@ -4,7 +4,7 @@ using System.Collections.Generic;
 using System.Net;
 using GT.Common;
 
-namespace GTClient
+namespace GT.Clients
 {
     /// <summary>
     /// A standard interface for clients to reference a remote
