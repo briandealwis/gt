@@ -72,7 +72,13 @@ namespace ClientRepeater
                 //kill client
                 int clientId = client.UniqueIdentity;
                 Console.WriteLine(DateTime.Now + " Left: " + clientId + " (" + client + ")");
-                Server.Client.Kill(client);
+                try
+                {
+                    client.Dispose();
+                } catch(Exception e) {
+                    Console.WriteLine("{0} EXCEPTION: when stopping client {1} id#{2}: {3}",
+                        DateTime.Now, clientId, client, e);
+                }
 
                 //inform others client is gone
                 foreach (Server.Client c in s.clientList)

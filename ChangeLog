@@ -15,6 +15,11 @@ Breaking Changes:
         and add 'using GT.Common;' to your namespaces.
 	<https://papyrus.usask.ca/trac/gt/ticket/13>
 
+  * Server.Client has had some cleanup: the Dead property has been
+    made read-only, and the class now implements IDisposable.  Any
+    uses of Dead as a writable property should be changed to use
+    IDisposable.Dispose().
+
 New additions
 
   * Added a lifecycle protocol consisting of Start(), Stop(), and

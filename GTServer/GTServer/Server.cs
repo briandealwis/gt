@@ -497,20 +497,20 @@ namespace GT.Servers
                 Tick();
 
             //remove dead clients
-            List<Client> listD = clientList.FindAll(Client.isDead);
+            List<Client> listD = clientList.FindAll(Client.IsDead);
             if (listD.Count > 0)
             {
                 Console.WriteLine(this + ": Server.Update(): removing seemingly dead clients");
                 foreach (Client c in listD)
                 {
                     clientList.Remove(c);
-                    c.MessageReceived -= c.MessageReceivedDelegate;
-                    c.ErrorEvent -= c.ErrorEventDelegate;
                     clientIDs.Remove(c.UniqueIdentity);
-                    c.Dead = true;  //make sure it's gone
+                    c.Dispose();  //make sure it's gone
                 }
                 if (ClientsRemoved != null)
+                {
                     ClientsRemoved(listD);
+                }
             }
 
             Console.WriteLine(this + ": Server.Update(): done this turn");
@@ -680,8 +680,14 @@ namespace GT.Servers
         private void KillAll()
         {
             for (int i = 0; i < clientList.Count; i++) {
-                clientList[i].Dead = true;
+                try {
+                    clientList[i].Dispose();
+                } catch(Exception e) {
+                    Console.WriteLine("{0} EXCEPTION while disposing client: {1}",
+                        DateTime.Now, e);
+                }
             }
+            clientList = new List<Client>();
         }
 
         private void RestartBouncers()
@@ -869,7 +875,7 @@ namespace GT.Servers
         #endregion
 
         /// <summary>Represents a client using the server.</summary>
-        public class Client
+        public class Client : IDisposable
         {
             #region Internal classes and structures
 
@@ -962,13 +968,6 @@ namespace GT.Servers
             public bool Dead
             {
                 get { return dead; }
-                set 
-                { 
-                    if (value) Kill(this);
-                    else if (ErrorEvent != null)
-                        ErrorEvent(null, SocketError.Fault, this, 
-                            "You should not resurrect clients on server side.  Make the client responsible for reconnecting.");
-                }
             }
 
             /// <summary>Average amount of latency between the server and this particular client.</summary>
@@ -976,6 +975,7 @@ namespace GT.Servers
             {
                 get { return delay; }
             }
+
             /// <summary>The UDP port in use, 0 if not set.</summary>
             public short UdpPort
             {
@@ -1027,33 +1027,35 @@ namespace GT.Servers
             #endregion
 
 
-            #region Static
+            #region Predicates
 
-            /// <summary>Is this Client dead?  (Thread-safe)</summary>
+            /// <summary>Is this Client dead?  This function is intended for use as a predicate
+            /// such as in <c>List.FindAll()</c>.</summary>
             /// <param name="c">The client to check.</param>
-            /// <returns>True if the Client is dead.</returns>
-            public static bool isDead(Client c)
+            /// <returns>True if the client <c>c</c> </c>is dead.</returns>
+            internal static bool IsDead(Client c)
             {
-                lock (c) { return c.dead; }
+                return c.Dead;
             }
 
-            /// <summary>Kills a client and makes it dead.</summary>
-            /// <param name="c">The client to kill.</param>
-            public static void Kill(Client c)
-            {
-                try { c.Stop(); }
-                catch { }
-            }
+            #endregion
 
-            public void Stop()
+            #region Lifecycle
+
+            public void Dispose()
             {
                 dead = true;
+                MessageReceived -= MessageReceivedDelegate;
+                ErrorEvent -= ErrorEventDelegate;
 
                 try
                 {
                     if (tcpHandle != null) { tcpHandle.Close(); }
                 }
-                catch (Exception) { }
+                catch (Exception e) {
+                    Console.WriteLine("{0} Warning: exception when closing client TCP socket: {1}",
+                        DateTime.Now, e);
+                }
                 tcpHandle = null;
 
                 try
@@ -1062,16 +1064,21 @@ namespace GT.Servers
                     //c.udpHandle.Client.Close();
                     if (udpHandle != null) { udpHandle.Dispose(); }
                 }
-                catch (Exception) { }
+                catch (Exception e) {
+                    Console.WriteLine("{0} Warning: exception when closing client UDP handle: {1}",
+                        DateTime.Now, e);
+                }
                 udpHandle = null;
             }
+
+            #endregion
 
             override public string ToString()
             {
                 return "Server.Client(" + uniqueIdentity + ")";
             }
 
-            #region Internal
+            #region Marshalling and Unmarshalling
 
             /// <summary>Add the id and the data type to the front of a raw binary data</summary>
             /// <param name="data"></param>
@@ -1146,8 +1153,6 @@ namespace GT.Servers
 
                 return buffer;
             }
-
-            #endregion
 
             #endregion
 
