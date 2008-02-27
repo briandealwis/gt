@@ -8,107 +8,50 @@ using System.Threading;
 using System.Runtime.Serialization;
 using System.Runtime.Serialization.Formatters.Binary;
 using System.Diagnostics;
+using GT.Common;
 
 namespace GTServer
 {
-
-    #region Enumerations
-
-    /// <summary>Internal message types for SystemMessages to have.</summary>
-    internal enum SystemMessageType
-    {
-        UniqueIDRequest = 1,
-        UDPPortRequest = 2,
-        UDPPortResponse = 3,
-        ServerPingAndMeasure = 4,
-        ClientPingAndMeasure = 5
-    }
-
-    /// <summary>The type of message.  MessageType 0 has a special internal meaning and
-    /// should never be used.</summary>
-    public enum MessageType
-    {
-        /// <summary>A byte array is sent as the payload of a message.</summary>
-        Binary = 1,
-        /// <summary>An object is sent as the payload of a message.</summary>
-        Object = 2,
-        /// <summary>A string is sent as the payload of a message.</summary>
-        String = 3,
-        /// <summary>This is used by the system to communicate internally.</summary>
-        System = 4,
-        /// <summary>A session action is sent as the payload of a message.</summary>
-        Session = 5,
-        /// <summary>This message refers to a streaming 1-tuple</summary>
-        Tuple1D = 6,
-        /// <summary>This message refers to a streaming 2-tuple</summary>
-        Tuple2D = 7,
-        /// <summary>This message refers to a streaming 3-tuple</summary>
-        Tuple3D = 8
-    }
-
-    /// <summary>What protocol should we use for this message.</summary>
-    public enum MessageProtocol
-    {
-        /// <summary>Completely reliable, but slow.</summary>
-        Tcp = 1,
-        /// <summary>Completely unreliable, but fast.</summary>
-        Udp = 2
-    }
-
-    /// <summary>Session action performed.  We can add a lot more to this list.</summary>
-    public enum SessionAction
-    {
-        /// <summary>This client is joining this session.</summary>
-        Joined = 1,
-        /// <summary>This client is part of this session.</summary>
-        Lives = 2,
-        /// <summary>This client is inactive.</summary>
-        Inactive = 3,
-        /// <summary>This client is leaving this session.</summary>
-        Left = 4
-    }
-
-    #endregion
 
     #region Delegates
 
     /// <summary>Handles a tick event, which is one loop of the server</summary>
     public delegate void TickHandler();
 
-    /// <summary>Handles a Message event, when a message arrives</summary>
-    /// <param name="id">The id of the channel the message was sent along</param>
-    /// <param name="type">The type of message sent</param>
+    /// <summary>Handles a Message event, when a data arrives</summary>
+    /// <param name="id">The id of the channel the data was sent along</param>
+    /// <param name="type">The type of data sent</param>
     /// <param name="data">The data sent</param>
-    /// <param name="client">Who sent the message</param>
-    /// <param name="protocol">How the message was sent</param>
+    /// <param name="client">Who sent the data</param>
+    /// <param name="protocol">How the data was sent</param>
     public delegate void MessageHandler(byte id, MessageType type, byte[] data, Server.Client client, MessageProtocol protocol);
 
     /// <summary>Handles a SessionMessage event, when a SessionMessage arrives.</summary>
     /// <param name="e">The action performed.</param>
-    /// <param name="id">The id of the channel the message was sent along.</param>
-    /// <param name="client">Who sent the message.</param>
-    /// <param name="protocol">How the message was sent</param>
+    /// <param name="id">The id of the channel the data was sent along.</param>
+    /// <param name="client">Who sent the data.</param>
+    /// <param name="protocol">How the data was sent</param>
     public delegate void SessionMessageHandler(SessionAction e, byte id, Server.Client client, MessageProtocol protocol);
 
     /// <summary>Handles a StringMessage event, when a StringMessage arrives.</summary>
     /// <param name="s">The string sent.</param>
-    /// <param name="id">The id of the channel the message was sent along.</param>
-    /// <param name="client">Who sent the message.</param>
-    /// <param name="protocol">How the message was sent</param>
+    /// <param name="id">The id of the channel the data was sent along.</param>
+    /// <param name="client">Who sent the data.</param>
+    /// <param name="protocol">How the data was sent</param>
     public delegate void StringMessageHandler(byte[] s, byte id, Server.Client client, MessageProtocol protocol);
 
     /// <summary>Handles a ObjectMessage event, when a ObjectMessage arrives.</summary>
     /// <param name="o">The object sent.</param>
-    /// <param name="id">The id of the channel the message was sent along.</param>
-    /// <param name="client">Who sent the message.</param>
-    /// <param name="protocol">How the message was sent</param>
+    /// <param name="id">The id of the channel the data was sent along.</param>
+    /// <param name="client">Who sent the data.</param>
+    /// <param name="protocol">How the data was sent</param>
     public delegate void ObjectMessageHandler(byte[] o, byte id, Server.Client client, MessageProtocol protocol);
 
     /// <summary>Handles a BinaryMessage event, when a BinaryMessage arrives.</summary>
     /// <param name="b">The byte array sent.</param>
-    /// <param name="id">The id of the channel the message was sent along.</param>
-    /// <param name="client">Who sent the message.</param>
-    /// <param name="protocol">How the message was sent</param>
+    /// <param name="id">The id of the channel the data was sent along.</param>
+    /// <param name="client">Who sent the data.</param>
+    /// <param name="protocol">How the data was sent</param>
     public delegate void BinaryMessageHandler(byte[] b, byte id, Server.Client client, MessageProtocol protocol);
 
     /// <summary>Handles when clients leave the server.</summary>
@@ -129,125 +72,6 @@ namespace GTServer
 
     #endregion
 
-    #region Helper Classes
-
-    /// <summary>An outbound message</summary>
-    public class MessageOut
-    {
-        /// <summary>The channel that this message is on.</summary>
-        public byte id;
-
-        /// <summary>The type of message.</summary>
-        public MessageType type;
-
-        /// <summary>The data of the message.</summary>
-        public byte[] data;
-
-        /// <summary>Creates a new outbound message.</summary>
-        /// <param name="id">The channel that this message is on.</param>
-        /// <param name="type">The type of message.</param>
-        /// <param name="data">The data of the message.</param>
-        public MessageOut(byte id, MessageType type, byte[] data)
-        {
-            this.id = id;
-            this.type = type;
-            this.data = data;
-        }
-
-        /// <summary>Creates a new outbound message.</summary>
-        /// <param name="id">The channel that this message is on.</param>
-        /// <param name="s">TThe string to send.</param>
-        public MessageOut(byte id, string s)
-        {
-            this.data = Server.StringToBytes(s);
-            this.id = id;
-            this.type = MessageType.String;
-        }
-
-        /// <summary>Creates a new outbound message.</summary>
-        /// <param name="id">The channel that this message is on.</param>
-        /// <param name="client">The client doing the action.</param>
-        /// <param name="action">The action being done.</param>
-        public MessageOut(byte id, Server.Client client, SessionAction action)
-        {
-            this.data = new byte[5];
-            BitConverter.GetBytes(client.UniqueIdentity).CopyTo(this.data, 0);
-            this.data[4] = (byte)action;
-            this.id = id;
-            this.type = MessageType.Session;
-        }
-    }
-
-    /// <summary>Represents a 1-tuple.</summary>
-    /// <typeparam name="T">The type of the tuple parameter T.</typeparam>
-    public class RemoteTuple<T>
-    {
-        /// <summary>The value of this tuple.</summary>
-        protected T x;
-        /// <summary>A value of this tuple.</summary>
-        public T X { get { return x; } set { x = value; } }
-        /// <summary>Constructor.</summary>
-        public RemoteTuple() { }
-        /// <summary>Constructor.</summary>
-        public RemoteTuple(T x)
-        {
-            this.x = x;
-        }
-    }
-
-    /// <summary>Represents a 1-tuple.</summary>
-    /// <typeparam name="T">The type of the tuple parameter T.</typeparam>
-    /// <typeparam name="K">The type of the tuple parameter T.</typeparam>
-    public class RemoteTuple<T, K>
-    {
-        /// <summary>A value of this tuple.</summary>
-        protected T x;
-        /// <summary>A value of this tuple.</summary>
-        public T X { get { return x; } set { x = value; } }
-        /// <summary>A value of this tuple.</summary>
-        protected K y;
-        /// <summary>A value of this tuple.</summary>
-        public K Y { get { return y; } set { y = value; } }
-        /// <summary>Constructor.</summary>
-        public RemoteTuple() { }
-        /// <summary>Constructor.</summary>
-        public RemoteTuple(T x, K y)
-        {
-            this.x = x;
-            this.y = y;
-        }
-    }
-
-    /// <summary>Represents a 1-tuple.</summary>
-    /// <typeparam name="T">The type of the tuple parameter T.</typeparam>
-    /// <typeparam name="K">The type of the tuple parameter K.</typeparam>
-    /// <typeparam name="J">The type of the tuple parameter J.</typeparam>
-    public class RemoteTuple<T, K, J> 
-    {
-        /// <summary>A value of this tuple.</summary>
-        protected T x;
-        /// <summary>A value of this tuple.</summary>
-        public T X { get { return x; } set { x = value; } }
-        /// <summary>A value of this tuple.</summary>
-        protected K y;
-        /// <summary>A value of this tuple.</summary>
-        public K Y { get { return y; } set { y = value; } }
-        /// <summary>A value of this tuple.</summary>
-        protected J z;
-        /// <summary>A value of this tuple.</summary>
-        public J Z { get { return z; } set { z = value; } }
-        /// <summary>Constructor.</summary>
-        public RemoteTuple() { }
-        /// <summary>Constructor.</summary>
-        public RemoteTuple(T x, K y, J z)
-        {
-            this.x = x;
-            this.y = y;
-            this.z = z;
-        }
-    }
-
-    #endregion
 
     /// <summary>Represents a server.</summary>
     public class Server
@@ -292,27 +116,27 @@ namespace GTServer
         /// <summary>Invoked each cycle of the server.</summary>
         public event TickHandler Tick;
 
-        /// <summary>Invoked each time a message is received.</summary>
+        /// <summary>Invoked each time a data is received.</summary>
         public event MessageHandler MessageReceived;
 
-        /* Note: the specialized message handlers are provided the message payloads
+        /* Note: the specialized data handlers are provided the data payloads
          * as raw uninterpreted byte arrays so as to avoid introducing latency
          * from unneeded latency.  If your server needs to use
-         * the message content, then the server should perform the interpretation. */
+         * the data content, then the server should perform the interpretation. */
 
-        /// <summary>Invoked each time a session message is received.</summary>
+        /// <summary>Invoked each time a session data is received.</summary>
         public event SessionMessageHandler SessionMessageReceived;
 
-        /// <summary>Invoked each time a string message is received.
+        /// <summary>Invoked each time a string data is received.
         /// Strings are encoded as bytes and can be decoded using variants of BytesToString().</summary>
         public event StringMessageHandler StringMessageReceived;
 
-        /// <summary>Invoked each time a object message is received.
+        /// <summary>Invoked each time a object data is received.
         /// Objects are encoded as bytes and can be decoded using variants of BytesToObject().</summary>
         /// FIXME: document the format.</summary>
         public event ObjectMessageHandler ObjectMessageReceived;
 
-        /// <summary>Invoked each time a binary message is received.</summary>
+        /// <summary>Invoked each time a binary data is received.</summary>
         public event BinaryMessageHandler BinaryMessageReceived;
 
         /// <summary>Invoked each time a client disconnects.</summary>
@@ -809,18 +633,18 @@ namespace GTServer
             KillAll();
         }
 
-        /// <summary>Handle a message that was received by a client.</summary>
-        /// <param name="id">Channel of the message.</param>
+        /// <summary>Handle a data that was received by a client.</summary>
+        /// <param name="id">Channel of the data.</param>
         /// <param name="type">Type of Message sent.</param>
         /// <param name="data">The data of the Message.</param>
         /// <param name="client">Which client sent it.</param>
-        /// <param name="protocol">How the message was sent</param>
+        /// <param name="protocol">How the data was sent</param>
         void client_MessageReceived(byte id, MessageType type, byte[] data, Client client, MessageProtocol protocol)
         {
             Console.WriteLine("Server {0}: MessageReceived id:{1} type:{2} #bytes:{3} from:{4} protocol:{5}",
                 this, id, type, data.Length, client, protocol);
-            DumpMessage("client_MessageReceived", id, type, data);
-            //sort to the correct message type
+            DebugUtils.DumpMessage("client_MessageReceived", id, type, data);
+            //sort to the correct data type
             switch (type)
             {
                 case MessageType.Binary:
@@ -967,7 +791,7 @@ namespace GTServer
 
         #region List Sending
 
-        /// <summary>Sends a byte array as a message on the id binary channel to many clients in an efficient way.</summary>
+        /// <summary>Sends a byte array as a data on the id binary channel to many clients in an efficient way.</summary>
         /// <param name="buffer">The byte array to send</param>
         /// <param name="id">The id of the channel to send it on</param>
         /// <param name="list">The list of clients to send it to</param>
@@ -978,7 +802,7 @@ namespace GTServer
             SendToList(data, list, reli);
         }
 
-        /// <summary>Sends a string as a message on the id binary channel to many clients in an efficient way.</summary>
+        /// <summary>Sends a string as a data on the id binary channel to many clients in an efficient way.</summary>
         /// <param name="s">The byte array to send</param>
         /// <param name="id">The id of the channel to send it on</param>
         /// <param name="list">The list of clients to send it to</param>
@@ -989,7 +813,7 @@ namespace GTServer
             SendToList(data, list, reli);
         }
 
-        /// <summary>Sends a byte array as a message on the id binary channel to many clients in an efficient way.</summary>
+        /// <summary>Sends a byte array as a data on the id binary channel to many clients in an efficient way.</summary>
         /// <param name="o">The byte array to send</param>
         /// <param name="id">The id of the channel to send it on</param>
         /// <param name="list">The list of clients to send it to</param>
@@ -1004,7 +828,7 @@ namespace GTServer
         /// <param name="messagesOut">The list of messages</param>
         /// <param name="list">The list of clients</param>
         /// <param name="reli">How to send them</param>
-        public void Send(List<MessageOut> messagesOut, List<Client> list, MessageProtocol reli)
+        public void Send(List<Message> messagesOut, List<Client> list, MessageProtocol reli)
         {
             byte[] data = Client.FromMessageToBytes(messagesOut);
             SendToList(data, list, reli);
@@ -1036,53 +860,47 @@ namespace GTServer
             #region Internal classes and structures
 
             /// <summary>
-            /// Record information necessary for reading a message from the wire.
+            /// Record information necessary for reading a data from the wire.
             /// If <value>messageType</value> is 0, then this represents a header.
             /// </summary>
-            class MessageInProgress
+            class MessageInProgress : Message
             {
                 public int position;
                 public int bytesRemaining;
-                public byte[] message;
-
-                public byte messageType;    // start as a header
-                public byte id;
 
                 /// <summary>
-                /// Construct a Message-in-Progress for reading in a message header.
+                /// Construct a Message-in-Progress for reading in a data header.
                 /// </summary>
                 /// <param name="headerSize"></param>
-                public MessageInProgress(int headerSize)
+                public MessageInProgress(int headerSize) 
+                    : base(0, 0, new byte[headerSize])
                 {
-                    this.messageType = 0;   // indicates a message header
+                    // assert messageType == 0;  // indicates a data header
                     this.position = 0;
-                    this.id = 0;
                     this.bytesRemaining = headerSize;
-                    this.message = new byte[headerSize];
                 }
 
                 /// <summary>
-                /// Construct a Message-in-Progress for a message body
+                /// Construct a Message-in-Progress for a data body
                 /// </summary>
-                /// <param name="id">the channel id for the in-progress message</param>
-                /// <param name="messageType">the type of the in-progress message</param>
-                /// <param name="size">the size of the in-progress message</param>
+                /// <param name="id">the channel id for the in-progress data</param>
+                /// <param name="messageType">the type of the in-progress data</param>
+                /// <param name="size">the size of the in-progress data</param>
                 public MessageInProgress(byte id, byte messageType, int size)
+                    : base(id, (MessageType)messageType, new byte[size])
                 {
-                    this.id = id;
-                    this.messageType = messageType; // assert messageType != 0;
-                    this.bytesRemaining = size;
+                    // assert messageType != 0;
                     this.position = 0;
-                    this.message = new byte[size];
+                    this.bytesRemaining = size;
                 }
 
                 /// <summary>
-                /// Distinguish between a message header and a message body
+                /// Distinguish between a data header and a data body
                 /// </summary>
-                /// <returns>true if this instance represents a message header</returns>
+                /// <returns>true if this instance represents a data header</returns>
                 public bool IsMessageHeader()
                 {
-                    return messageType == 0;
+                    return type == 0;
                 }
             }
 
@@ -1097,7 +915,7 @@ namespace GTServer
             /// <summary>All of the received String Messages that we have kept.</summary>
             public List<byte[]> StringMessages;
 
-            /// <summary>Triggered when a message is received.</summary>
+            /// <summary>Triggered when a data is received.</summary>
             public event MessageHandler MessageReceived;
             internal MessageHandler MessageReceivedDelegate;
 
@@ -1241,14 +1059,14 @@ namespace GTServer
 
             #region Internal
 
-            /// <summary>Add the id and the message type to the front of a raw binary message</summary>
+            /// <summary>Add the id and the data type to the front of a raw binary data</summary>
             /// <param name="data"></param>
             /// <param name="id"></param>
             /// <param name="type"></param>
             /// <returns></returns>
             internal static byte[] FromMessageToBytes(byte[] data, byte id, MessageType type)
             {
-                DumpMessage("Server.FromMessageToBytes", id, type, data);
+                DebugUtils.DumpMessage("Server.FromMessageToBytes", id, type, data);
 
                 byte[] buffer = new byte[data.Length + 8];
                 buffer[0] = id;
@@ -1258,7 +1076,7 @@ namespace GTServer
                 return buffer;
             }
 
-            /// <summary>Give bytes to be sent a message header and return as bytes</summary>
+            /// <summary>Give bytes to be sent a data header and return as bytes</summary>
             /// <param name="data"></param>
             /// <param name="id"></param>
             /// <returns></returns>
@@ -1267,7 +1085,7 @@ namespace GTServer
                 return FromMessageToBytes(data, id, MessageType.Binary);
             }
 
-            /// <summary>Give a string to be sent a message header and return as bytes</summary>
+            /// <summary>Give a string to be sent a data header and return as bytes</summary>
             /// <param name="s"></param>
             /// <param name="id"></param>
             /// <returns></returns>
@@ -1277,7 +1095,7 @@ namespace GTServer
                 return FromMessageToBytes(buffer, id, MessageType.String);
             }
 
-            /// <summary>Give an object to be sent a message header and return as bytes</summary>
+            /// <summary>Give an object to be sent a data header and return as bytes</summary>
             /// <param name="o"></param>
             /// <param name="id"></param>
             /// <returns></returns>
@@ -1292,20 +1110,20 @@ namespace GTServer
             }
 
             /// <summary>Convert a list of messages into the raw bytes that will be sent into the network.
-            /// The bytes include the 2 byte message headers.</summary>
+            /// The bytes include the 2 byte data headers.</summary>
             /// <param name="messagesOut"></param>
             /// <returns></returns>
-            internal static byte[] FromMessageToBytes(List<MessageOut> messagesOut)
+            internal static byte[] FromMessageToBytes(List<Message> messagesOut)
             {
                 int sizeMax = 0;
                 int size = 0;
 
-                foreach (MessageOut message in messagesOut)
+                foreach (Message message in messagesOut)
                     sizeMax += message.data.Length + 8;
 
                 byte[] buffer = new byte[sizeMax];
                 byte[] data;
-                foreach (MessageOut message in messagesOut)
+                foreach (Message message in messagesOut)
                 {
                     data = FromMessageToBytes(message.data, message.id, message.type);
                     data.CopyTo(buffer, size);
@@ -1339,7 +1157,7 @@ namespace GTServer
             /// <param name="clientId">Client who is doing the action.</param>
             /// <param name="e">SessionEvent data to send.</param>
             /// <param name="id">Channel to send on.</param>
-            /// <param name="protocol">What protocol the message should use.</param>
+            /// <param name="protocol">What protocol the data should use.</param>
             public void Send(int clientId, SessionAction e, byte id, MessageProtocol protocol)
             {
                 //Session messages are unique in that we ALWAYS want to know who the action refers to, 
@@ -1353,7 +1171,7 @@ namespace GTServer
             /// <summary>Send byte array.</summary>
             /// <param name="buffer">Binary data to send.</param>
             /// <param name="id">Channel to send on.</param>
-            /// <param name="protocol">What protocol the message should use.</param>
+            /// <param name="protocol">What protocol the data should use.</param>
             public void Send(byte[] buffer, byte id, MessageProtocol protocol)
             {
                 this.Send(buffer, id, MessageType.Binary, protocol);
@@ -1362,7 +1180,7 @@ namespace GTServer
             /// <summary>Send object.</summary>
             /// <param name="o">Object data to send.</param>
             /// <param name="id">Channel to send on.</param>
-            /// <param name="protocol">What protocol the message should use.</param>
+            /// <param name="protocol">What protocol the data should use.</param>
             public void Send(Object o, byte id, MessageProtocol protocol)
             {
                 MemoryStream ms = new MemoryStream();
@@ -1376,7 +1194,7 @@ namespace GTServer
             /// <summary>Send string.</summary>
             /// <param name="s">String data to send.</param>
             /// <param name="id">Channel to send on.</param>
-            /// <param name="protocol">What protocol the message should use.</param>
+            /// <param name="protocol">What protocol the data should use.</param>
             public void Send(String s, byte id, MessageProtocol protocol)
             {
                 byte[] buffer = System.Text.ASCIIEncoding.ASCII.GetBytes(s);
@@ -1416,14 +1234,14 @@ namespace GTServer
                 this.Send(s, id, MessageProtocol.Tcp);
             }
 
-            /// <summary>Sends a raw byte array of any message type using these parameters.  
+            /// <summary>Sends a raw byte array of any data type using these parameters.  
             /// This can be used to manipulate received messages without converting it to another 
             /// format, for example, a string or an object.  Using this method, received messages 
             /// can be repeated, compared, or passed along faster than otherwise.</summary>
             /// <param name="data">Raw bytes to be sent.</param>
             /// <param name="id">The channel to send on.</param>
-            /// <param name="type">The raw message type.</param>
-            /// <param name="protocol">What protocol the message should use.</param>
+            /// <param name="type">The raw data type.</param>
+            /// <param name="protocol">What protocol the data should use.</param>
             public void Send(byte[] data, byte id, MessageType type, MessageProtocol protocol)
             {
                 lock (this)
@@ -1445,7 +1263,7 @@ namespace GTServer
                 }
             }
 
-            /// <summary>Sends a message via UDP.
+            /// <summary>Sends a data via UDP.
             /// We don't care if it doesn't get through.</summary>
             /// <param name="buffer">Raw stuff to send.</param>
             internal void SendUdpMessage(byte[] buffer)
@@ -1494,7 +1312,7 @@ namespace GTServer
                 
             }
 
-            /// <summary>Sends a message via TCP.
+            /// <summary>Sends a data via TCP.
             /// We DO care if it doesn't get through; we throw an exception.
             /// </summary>
             /// <param name="buffer">Raw stuff to send.</param>
@@ -1640,8 +1458,8 @@ namespace GTServer
                 return false;
             }
 
-            /// <summary>Handles a system message in that it takes the information and does something with it.</summary>
-            /// <param name="data">The message we received.</param>
+            /// <summary>Handles a system data in that it takes the information and does something with it.</summary>
+            /// <param name="data">The data we received.</param>
             /// <param name="id">What channel it came in on.</param>
             private void HandleSystemMessage(byte[] data, byte id)
             {
@@ -1668,7 +1486,7 @@ namespace GTServer
                 }
                 else if (id == (byte)SystemMessageType.UDPPortResponse)
                 {
-                    // We should never see this message as a server!
+                    // We should never see this data as a server!
                     Console.WriteLine("WARNING: Server should never receive UDPPortResponse messages!");
                     //they want to receive udp messages on this port
                     //short port = BitConverter.ToInt16(data, 0);
@@ -1761,7 +1579,7 @@ namespace GTServer
                 }
             }
 
-            /// <summary>Gets one message from the tcp and interprets it.</summary>
+            /// <summary>Gets one data from the tcp and interprets it.</summary>
             private void UpdateFromNetworkTcp()
             {
                 if (tcpHandle == null) {
@@ -1779,18 +1597,18 @@ namespace GTServer
                     while (tcpHandle.Available > 0)
                     {
                         // This is a simple state machine: we're either:
-                        // (a) reading a message header (tcpInProgress.IsMessageHeader())
-                        // (b) reading a message body (!tcpInProgress.IsMessageHeader())
+                        // (a) reading a data header (tcpInProgress.IsMessageHeader())
+                        // (b) reading a data body (!tcpInProgress.IsMessageHeader())
                         // (c) finished and about to start reading in a header (tcpInProgress == null)
 
                         if (tcpInProgress == null)
                         {
-                            //restart the counters to listen for a new message.
+                            //restart the counters to listen for a new data.
                             tcpInProgress = new MessageInProgress(8);
                             // assert tcpInProgress.IsMessageHeader();
                         }
 
-                        int size = tcpHandle.Client.Receive(tcpInProgress.message, tcpInProgress.position,
+                        int size = tcpHandle.Client.Receive(tcpInProgress.data, tcpInProgress.position,
                             tcpInProgress.bytesRemaining, SocketFlags.None, out error);
                         switch (error)
                         {
@@ -1812,16 +1630,16 @@ namespace GTServer
                             if (tcpInProgress.IsMessageHeader())
                             {
                                 // byte 0: id
-                                // byte 1: message type
+                                // byte 1: data type
                                 // bytes 2,3: unused
-                                // bytes 4-7: message length
-                                tcpInProgress = new MessageInProgress(tcpInProgress.message[0], 
-                                    tcpInProgress.message[1], BitConverter.ToInt32(tcpInProgress.message, 4));
+                                // bytes 4-7: data length
+                                tcpInProgress = new MessageInProgress(tcpInProgress.data[0], 
+                                    tcpInProgress.data[1], BitConverter.ToInt32(tcpInProgress.data, 4));
                                 // assert tcpInProgress.IsMessageHeader()
                             }
                             else
                             {
-                                PostNewlyReceivedMessage(tcpInProgress.id, (MessageType)tcpInProgress.messageType, tcpInProgress.message, MessageProtocol.Tcp);
+                                PostNewlyReceivedMessage(tcpInProgress.id, (MessageType)tcpInProgress.type, tcpInProgress.data, MessageProtocol.Tcp);
                                 tcpInProgress = null;
                             }
                         }
@@ -1837,6 +1655,9 @@ namespace GTServer
                 }
                 catch (Exception e)
                 {
+                    // We shouldn't catch ThreadAbortExceptions!  (FIXME: should we really be
+                    // catching anything other than SocketExceptions from here?)
+                    if (e is ThreadAbortException) { throw e; }
                     LastError = e;
                     Console.WriteLine("{0}: UpdateFromNetworkTcp(): EXCEPTION: {1}", this, e);
                     if (ErrorEvent != null)
@@ -1848,7 +1669,7 @@ namespace GTServer
             {
                 Console.WriteLine("{0}: posting newly received message id:{1} type:{2} protocol:{3} #bytes:{4}",
                     this, id, type, messageProtocol, buffer.Length);
-                Server.DumpMessage("Server.Client.PostNewlyReceivedMessage", id, type, buffer);
+                DebugUtils.DumpMessage("Server.Client.PostNewlyReceivedMessage", id, type, buffer);
 
                 if (type == MessageType.Session)
                 {
@@ -1878,51 +1699,5 @@ namespace GTServer
             #endregion
 
         }
-
-        public static void DumpMessage(string prefix, byte[] buffer)
-        {
-            int length = BitConverter.ToInt32(buffer, 4);
-            byte[] data = new byte[length];
-            Array.Copy(buffer, 8, data, 0, data.Length);
-            DumpMessage(prefix, buffer[0], (MessageType)buffer[1], data);
-        }
-
-        public static void DumpMessage(string prefix, byte id, MessageType type, byte[] buffer)
-        {
-            if (prefix == null)
-            {
-                Console.Write("  ");
-            }
-            else
-            {
-                Console.Write(prefix);
-                Console.Write(" ");
-            }
-            switch (type)
-            {
-            case MessageType.String:
-                Console.WriteLine("String: '" + System.Text.ASCIIEncoding.ASCII.GetString(buffer) + "'");
-                break;
-            case MessageType.Binary:
-                Console.WriteLine("Binary: ");
-                for (int i = 0; i < buffer.Length; i++)
-                {
-                    Console.Write("    ");
-                    int rem = Math.Min(16, buffer.Length - i);
-                    for (int j = 0; j < 16; j++)
-                    {
-                        Console.Write(' ');
-                        Console.Write(buffer[i + j]);
-                    }
-                    i += rem;
-                }
-                break;
-
-            case MessageType.System:
-                Console.WriteLine("System: " + (SystemMessageType)buffer[0]);
-                break;
-            }
-        }
-
     }
 }

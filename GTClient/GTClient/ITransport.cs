@@ -2,6 +2,7 @@ using System;
 using System.Net.Sockets;
 using System.Collections.Generic;
 using System.Net;
+using GT.Common;
 
 namespace GTClient
 {

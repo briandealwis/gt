@@ -2,6 +2,7 @@ using System;
 using System.Net.Sockets;
 using System.Net;
 using System.Collections.Generic;
+using GT.Common;
 
 namespace GTClient
 {
@@ -120,7 +121,7 @@ namespace GTClient
             {
                 throw new NotSupportedException("ERROR: UdpTransport's should always be connected");
             }
-            Client.DumpMessage("UDPTransport.SendMessage", buffer);
+            DebugUtils.DumpMessage("UDPTransport.SendMessage", buffer);
 
             //if there is old stuff to send yet, try the old stuff first
             //before sending the new stuff
@@ -261,7 +262,7 @@ namespace GTClient
 
                         Console.WriteLine("{0}: Update(): received message id:{1} type:{2} #bytes:{3}",
                             this, id, (MessageType)type, length);
-                        Client.DumpMessage("UDPTransport.Update", id, (MessageType)type, data);
+                        DebugUtils.DumpMessage("UDPTransport.Update", id, (MessageType)type, data);
                         server.Add(new MessageIn(id, (MessageType)type, data, this, server));
 
                         cursor += length + 8;

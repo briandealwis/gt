@@ -88,6 +88,10 @@
     </Compile>
   </ItemGroup>
   <ItemGroup>
+    <ProjectReference Include="..\..\GTCommon\GTCommon.csproj">
+      <Project>{EEC385BF-261C-4F5B-A602-D3ECDFC2AC30}</Project>
+      <Name>GTCommon</Name>
+    </ProjectReference>
     <ProjectReference Include="..\..\GTClient\GTClient\GTClient.csproj">
       <Project>{621EB577-E34F-4833-A978-9DCA342D9F6C}</Project>
       <Name>GTClient</Name>

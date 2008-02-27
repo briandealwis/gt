@@ -45,6 +45,10 @@
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>
   <ItemGroup>
+    <ProjectReference Include="..\..\GTCommon\GTCommon.csproj">
+      <Project>{EEC385BF-261C-4F5B-A602-D3ECDFC2AC30}</Project>
+      <Name>GTCommon</Name>
+    </ProjectReference>
     <ProjectReference Include="..\GTServer\GTServer.csproj">
       <Project>{709C5E40-E732-4196-A2F0-5B72206B7179}</Project>
       <Name>GTServer</Name>

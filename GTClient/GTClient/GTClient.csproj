@@ -57,9 +57,15 @@
     <Compile Include="ITransport.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="SimpleSharedDictionary.cs" />
-    <Compile Include="TCPTransport.cs" />
+    <Compile Include="TcpTransport.cs" />
     <Compile Include="TupleStream.cs" />
-    <Compile Include="UDPTransport.cs" />
+    <Compile Include="UdpTransport.cs" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\GTCommon\GTCommon.csproj">
+      <Project>{EEC385BF-261C-4F5B-A602-D3ECDFC2AC30}</Project>
+      <Name>GTCommon</Name>
+    </ProjectReference>
   </ItemGroup>
   <Import Project="$(MSBuildBinPath)\Microsoft.CSharp.targets" />
   <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 

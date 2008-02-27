@@ -6,6 +6,7 @@ using System.IO;
 using System.Runtime.Serialization;
 using System.Runtime.Serialization.Formatters.Binary;
 using System.Net.Sockets;
+using GT.Common;
 
 namespace ClientRepeater
 {
@@ -81,15 +82,17 @@ namespace ClientRepeater
             }
         }
 
-        static void s_MessageReceived(byte id, MessageType messageType, byte[] data, Server.Client client, MessageProtocol protocol)
+        static void s_MessageReceived(byte id, MessageType messageType, byte[] data, Server.Client client, 
+            MessageProtocol protocol)
         {
             //repeat whatever we receive to everyone else
-            List<MessageOut> list = new List<MessageOut>();
-            list.Add(new MessageOut((byte)id, messageType, data));
+            List<Message> list = new List<Message>();
+            list.Add(new Message((byte)id, messageType, data));
             s.Send(list, s.clientList, protocol);
         }
 
-        static void s_MessageReceived2(byte id, MessageType messageType, byte[] data, Server.Client client, MessageProtocol protocol)
+        static void s_MessageReceived2(byte id, MessageType messageType, byte[] data, Server.Client client, 
+            MessageProtocol protocol)
         {
             //repeat whatever we receive to everyone else
             foreach (Server.Client c in s.clientList)

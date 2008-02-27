@@ -4,6 +4,7 @@ using System.Net;
 using System.IO;
 using System.Collections.Generic;
 using System.Diagnostics;
+using GT.Common;
 
 namespace GTServer
 {
@@ -66,7 +67,7 @@ namespace GTServer
                     int rc = udpClient.Client.ReceiveFrom(buffer, ref remote);
                     MessageReceivedHandler h;
                     Console.WriteLine(this + ": received " + rc + " bytes from " + remote);
-                    Server.DumpMessage("UDP received", buffer);
+                    DebugUtils.DumpMessage("UDP received", buffer);
                     if (!handlers.TryGetValue(remote, out h) || h == null)
                     {
                         h = defaultHandler;

@@ -7,95 +7,10 @@ using System.Text;
 using System.IO;
 using System.Runtime.Serialization;
 using System.Runtime.Serialization.Formatters.Binary;
+using GT.Common;
 
 namespace GTClient
 {
-    #region Enumerations
-
-    /// <summary>Internal message types for SystemMessages to have.</summary>
-    internal enum SystemMessageType
-    {
-        UniqueIDRequest = 1,
-        UDPPortRequest = 2,
-        UDPPortResponse = 3,
-        ServerPingAndMeasure = 4,
-        ClientPingAndMeasure = 5
-    }
-
-    /// <summary>Possible message types for Messages to have.</summary>
-    public enum MessageType
-    {
-        /// <summary>This message is a byte array</summary>
-        Binary = 1,
-        /// <summary>This message is an object</summary>
-        Object = 2,
-        /// <summary>This message is a string</summary>
-        String = 3,
-        /// <summary>This message is for the system, and special</summary>
-        System = 4,
-        /// <summary>This message refers to a session</summary>
-        Session = 5,
-        /// <summary>This message refers to a streaming 1-tuple</summary>
-        Tuple1D = 6,
-        /// <summary>This message refers to a streaming 2-tuple</summary>
-        Tuple2D = 7,
-        /// <summary>This message refers to a streaming 3-tuple</summary>
-        Tuple3D = 8
-    }
-
-    /// <summary>Possible ways messages can be sent.</summary>
-    public enum MessageProtocol
-    {
-        /// <summary>This message will be sent via TCP, and is very reliable.</summary>
-        Tcp = 1,
-        /// <summary>This message will be sent via UDP, and is not reliable at all.</summary>
-        Udp = 2
-    }
-
-    /// <summary>Should this message be aggregated?</summary>
-    public enum MessageAggregation
-    {
-        /// <summary>This message will be saved, and sent dependant on the specified message ordering</summary>
-        Yes,
-        /// <summary>This message will be sent immediately</summary>
-        No
-    }
-
-    /// <summary>Which messages should be sent before this one?</summary>
-    public enum MessageOrder
-    {
-        /// <summary>This message will flush all other saved-to-be-aggregated messages out beforehand</summary>
-        All,
-        /// <summary>This message will flush all other saved-to-be-aggregated messages on this channel out beforehand</summary>
-        AllChannel,
-        /// <summary>This message will be sent immediately, without worrying about any saved-to-be-aggregated messages</summary>
-        None
-    }
-
-    /// <summary>Should receiving clients keep old messages?</summary>
-    public enum MessageTimeliness
-    {
-        /// <summary>Throw away old messages</summary>
-        RealTime,
-        /// <summary>Keep old messages</summary>
-        NonRealTime
-    }
-
-    /// <summary>Session action performed.  We can add a lot more to this list.</summary>
-    public enum SessionAction
-    {
-        /// <summary>This client is joining this session.</summary>
-        Joined = 1,
-        /// <summary>This client is part of this session.</summary>
-        Lives = 2,
-        /// <summary>This client is inactive.</summary>
-        Inactive = 3,
-        /// <summary>This client is leaving this session.</summary>
-        Left = 4
-    }
-
-    #endregion
-
 
     #region Delegates
 
@@ -151,19 +66,10 @@ namespace GTClient
     }
 
     /// <summary>Represents a message from the server.</summary>
-    public class MessageIn
+    public class MessageIn : Message
     {
         /// <summary>The transport on which this message was received.</summary>
         public ITransport transport;
-
-        /// <summary>The channel that this message is on.</summary>
-        public byte id;
-
-        /// <summary>The type of message.</summary>
-        public MessageType type;
-
-        /// <summary>The data of the message.</summary>
-        public byte[] data;
 
         /// <summary>The server that sent the message.</summary>
         public ServerStream ss;
@@ -176,27 +82,15 @@ namespace GTClient
         /// <param name="data">The data of the message.</param>
         /// <param name="ss">The server that sent the message.</param>
         public MessageIn(byte id, MessageType type, byte[] data, ITransport transport, ServerStream ss)
+            : base(id, type, data)
         {
-            this.id = id;
-            this.type = type;
-            this.data = data;
             this.transport = transport;
             this.ss = ss;
         }
     }
 
-    /// <summary>Represents a message going to the server.</summary>
-    public class MessageOut
+    public class MessageOut : Message
     {
-        /// <summary>The channel that this message is on.</summary>
-        public byte id;
-
-        /// <summary>The type of message.</summary>
-        public MessageType type;
-
-        /// <summary>The data of the message.</summary>
-        public byte[] data;
-
         /// <summary>The ordering of the message.</summary>
         public MessageOrder ordering;
 
@@ -208,10 +102,8 @@ namespace GTClient
         /// <param name="data">The data of the message.</param>
         /// <param name="ordering">The ordering of the message.</param>
         public MessageOut(byte id, MessageType type, byte[] data, MessageOrder ordering)
+            : base(id, type, data)
         {
-            this.id = id;
-            this.type = type;
-            this.data = data;
             this.ordering = ordering;
         }
     }
@@ -1692,52 +1584,6 @@ namespace GTClient
             // FIXME: this should do something smarter
             // Socket.Select(listenList, null, null, 1000);
             Thread.Sleep(milliseconds);
-        }
-
-
-        // See GTServer.Server.DumpMessage()
-        public static void DumpMessage(string prefix, byte id, MessageType type, byte[] buffer)
-        {
-            if (prefix != null)
-            {
-                Console.Write(prefix); Console.Write(" ");
-            }
-            else
-            {
-                Console.Write("  ");
-            }
-
-            switch (type)
-            {
-            case MessageType.String:
-                Console.WriteLine("String: '" + System.Text.ASCIIEncoding.ASCII.GetString(buffer) + "'");
-                break;
-            case MessageType.Binary:
-                Console.WriteLine("Binary: ");
-                for (int i = 0; i < buffer.Length; i++)
-                {
-                    Console.Write("    ");
-                    int rem = Math.Min(16, buffer.Length - i);
-                    for (int j = 0; j < 16; j++)
-                    {
-                        Console.Write(' ');
-                        Console.Write(buffer[i + j]);
-                    }
-                    i += rem;
-                }
-                break;
-
-            case MessageType.System:
-                Console.WriteLine("System: " + (SystemMessageType)buffer[0]);
-                break;
-            }
-        }
-
-        public static void DumpMessage(string prefix, byte[] buffer)
-        {
-            byte[] data = new byte[buffer.Length - 8];
-            Array.Copy(buffer, 8, data, 0, data.Length);
-            DumpMessage(prefix, buffer[0], (MessageType)buffer[1], data);
         }
     }
 }

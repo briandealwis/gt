@@ -3,6 +3,7 @@ using System.Net.Sockets;
 using System.Threading;
 using System.Collections.Generic;
 using NUnit.Framework;
+using GT.Common;
 using GTClient;
 using GTServer;
  
@@ -48,7 +49,10 @@ namespace GT.UnitTests.BaseTests
         {
             if (serverThread != null)
             {
+                // Killing the serverThread when it uses StartListener() automatically
+                // stops the server too
                 serverThread.Abort();
+                serverThread.Join();
             }
             serverThread = null;
             if (server != null)
@@ -86,7 +90,7 @@ namespace GT.UnitTests.BaseTests
             Console.WriteLine("Server started: " + server.ToString() + " [" + serverThread.Name + "]");
         }
 
-        private void ServerStringMessageReceived(byte[] b, byte id, Server.Client client, GTServer.MessageProtocol protocol)
+        private void ServerStringMessageReceived(byte[] b, byte id, Server.Client client, MessageProtocol protocol)
         {
             string s = Server.BytesToString(b);
             if (!s.Equals(EXPECTED_GREETING))
@@ -113,28 +117,6 @@ namespace GT.UnitTests.BaseTests
         #region "Tests"
 
         [Test]
-        public void TestAssumptions()
-        {
-            Assert.AreNotEqual(0, GTClient.MessageType.Binary);
-            Assert.AreNotEqual(0, GTClient.MessageType.Object);
-            Assert.AreNotEqual(0, GTClient.MessageType.Session);
-            Assert.AreNotEqual(0, GTClient.MessageType.String);
-            Assert.AreNotEqual(0, GTClient.MessageType.System);
-            Assert.AreNotEqual(0, GTClient.MessageType.Tuple1D);
-            Assert.AreNotEqual(0, GTClient.MessageType.Tuple2D);
-            Assert.AreNotEqual(0, GTClient.MessageType.Tuple3D);
-
-            Assert.AreEqual((int)GTServer.MessageType.Binary, (int)GTClient.MessageType.Binary);
-            Assert.AreEqual((int)GTServer.MessageType.Object, (int)GTClient.MessageType.Object);
-            Assert.AreEqual((int)GTServer.MessageType.Session, (int)GTClient.MessageType.Session);
-            Assert.AreEqual((int)GTServer.MessageType.String, (int)GTClient.MessageType.String);
-            Assert.AreEqual((int)GTServer.MessageType.System, (int)GTClient.MessageType.System);
-            Assert.AreEqual((int)GTServer.MessageType.Tuple1D, (int)GTClient.MessageType.Tuple1D);
-            Assert.AreEqual((int)GTServer.MessageType.Tuple2D, (int)GTClient.MessageType.Tuple2D);
-            Assert.AreEqual((int)GTServer.MessageType.Tuple3D, (int)GTClient.MessageType.Tuple3D);
-        }
-
-        [Test]
         public void EchoStringViaTCP()
         {
             StartExpectedResponseServer(EXPECTED_GREETING, EXPECTED_RESPONSE);
@@ -146,7 +128,7 @@ namespace GT.UnitTests.BaseTests
             Assert.IsFalse(errorOccurred);
 
             Console.WriteLine("Client: sending greeting: " + EXPECTED_GREETING);
-            stream.Send(EXPECTED_GREETING, GTClient.MessageProtocol.Tcp);  //send a string
+            stream.Send(EXPECTED_GREETING, MessageProtocol.Tcp);  //send a string
             Assert.IsFalse(errorOccurred, "Client: error occurred while sending greeting");
 
             int repeats = 10;
@@ -174,7 +156,7 @@ namespace GT.UnitTests.BaseTests
             Assert.IsFalse(errorOccurred);
 
             Console.WriteLine("Client: sending greeting: " + EXPECTED_GREETING);
-            stream.Send(EXPECTED_GREETING, GTClient.MessageProtocol.Udp);  //send a string
+            stream.Send(EXPECTED_GREETING, MessageProtocol.Udp);  //send a string
             Assert.IsFalse(errorOccurred, "Client: error occurred while sending greeting");
 
             int repeats = 10;

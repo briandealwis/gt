@@ -3,6 +3,7 @@ using System.Net.Sockets;
 using System.IO;
 using System.Collections.Generic;
 using System.Net;
+using GT.Common;
 
 namespace GTClient
 {
@@ -134,7 +135,7 @@ namespace GTClient
         /// <param name="buffer">The message to send.</param>
         public override void SendMessage(byte[] buffer)
         {
-            Client.DumpMessage("TCPTransport.SendMessage", buffer);
+            DebugUtils.DumpMessage("TCPTransport.SendMessage", buffer);
             if (FlushRemainingBytes())
             {
                 Console.WriteLine("{0}: SendMessage({1} bytes): outstanding bytes; adding message to queue", this, buffer.Length);
@@ -300,7 +301,7 @@ namespace GTClient
 
                 Console.WriteLine("{0}: Update(): received message id:{1} type:{2} #bytes:{3}", 
                     this, tcpInID, (MessageType)tcpInMessageType, buffer.Length);
-                Client.DumpMessage("TCPTransport.Update", tcpInID, (MessageType)tcpInMessageType, buffer);
+                DebugUtils.DumpMessage("TCPTransport.Update", tcpInID, (MessageType)tcpInMessageType, buffer);
                 server.Add(new MessageIn(tcpInID, (MessageType)tcpInMessageType, buffer, this, server));
 
                 tcpInMessageType = 0;
