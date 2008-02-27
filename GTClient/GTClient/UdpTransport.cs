@@ -118,7 +118,10 @@ namespace GT.Clients
 
         public override void SendMessage(byte[] buffer)
         {
-            if (!udpClient.Client.Connected)
+            if (!Started)
+            {
+                throw new InvalidStateException("Cannot send on a stopped client", this);
+            } else if (!udpClient.Client.Connected)
             {
                 throw new NotSupportedException("ERROR: UdpTransport's should always be connected");
             }

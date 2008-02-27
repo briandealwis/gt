@@ -724,7 +724,9 @@ namespace GT.Clients
         {
             lock (this)
             {
-                if (!Started) { return; }
+                if (!Started) { 
+                    throw new InvalidStateException("Cannot send on a stopped client", this); 
+                }
 
                 if (aggr == MessageAggregation.Yes)
                 {

@@ -135,6 +135,11 @@ namespace GT.Clients
         /// <param name="buffer">The message to send.</param>
         public override void SendMessage(byte[] buffer)
         {
+            if (!Started)
+            {
+                throw new InvalidStateException("Cannot send on a stopped client", this);
+            }
+
             DebugUtils.DumpMessage("TCPTransport.SendMessage", buffer);
             if (FlushRemainingBytes())
             {
@@ -218,8 +223,6 @@ namespace GT.Clients
                             Restart();
                             return true;
                     }
-
-
                 }
             }
             catch (Exception e)

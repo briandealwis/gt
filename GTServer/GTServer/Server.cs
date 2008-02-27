@@ -860,16 +860,14 @@ namespace GT.Servers
         /// <param name="reli">How to send it</param>
         private void SendToList(byte[] buffer, List<Client> list, MessageProtocol reli)
         {
-            //if (!running)
-            //{
-            //    throw new InvalidStateException("Cannot send on a stopped server", this);
-            //}
-            if (reli == MessageProtocol.Tcp)
-                foreach (Client c in list)
-                    c.SendTcpMessage(buffer);
-            else
-                foreach (Client c in list)
-                    c.SendUdpMessage(buffer);
+            if (!running)
+            {
+                throw new InvalidStateException("Cannot send on a stopped server", this);
+            }
+            foreach (Client c in list)
+            {
+                c.SendMessage(buffer, reli);
+            }
         }
 
         #endregion
@@ -1060,8 +1058,6 @@ namespace GT.Servers
 
                 try
                 {
-                    //c.udpHandle.Client.LingerState.Enabled = false;
-                    //c.udpHandle.Client.Close();
                     if (udpHandle != null) { udpHandle.Dispose(); }
                 }
                 catch (Exception e) {
@@ -1274,13 +1270,22 @@ namespace GT.Servers
                     BitConverter.GetBytes(data.Length).CopyTo(buffer, 4);
                     data.CopyTo(buffer, 8);
 
-
-                    if (protocol == MessageProtocol.Tcp)
-                        SendTcpMessage(buffer);
-                    else
-                        SendUdpMessage(buffer);
+                    SendMessage(buffer, protocol);
                 }
             }
+
+            public void SendMessage(byte[] message, MessageProtocol protocol)
+            {
+                if (protocol == MessageProtocol.Tcp)
+                {
+                    SendTcpMessage(message);
+                }
+                else
+                {
+                    SendUdpMessage(message);
+                }
+            }
+
 
             /// <summary>Sends a data via UDP.
             /// We don't care if it doesn't get through.</summary>
