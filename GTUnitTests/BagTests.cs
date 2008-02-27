@@ -1,7 +1,8 @@
 using System;
 using NUnit.Framework;
+using GT.Common;
 
-namespace GT.Common
+namespace GT.UnitTests
 {
     [TestFixture]
     public class BagTests
