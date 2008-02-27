@@ -7,7 +7,7 @@
     <ProjectGuid>{709C5E40-E732-4196-A2F0-5B72206B7179}</ProjectGuid>
     <OutputType>Library</OutputType>
     <AppDesignerFolder>Properties</AppDesignerFolder>
-    <RootNamespace>GTServer</RootNamespace>
+    <RootNamespace>GT.Server</RootNamespace>
     <AssemblyName>GTServer</AssemblyName>
     <SccProjectName>
     </SccProjectName>

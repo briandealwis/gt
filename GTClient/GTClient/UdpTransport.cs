@@ -27,22 +27,22 @@ namespace GT.Clients
 
         public override string Name { get { return "UDP"; } }
 
-        public override bool Dead
+        public override bool Started
         {
-            get { return udpClient == null; }
+            get { return udpClient != null; }
         }
 
         // FIXME: Stop-gap measure until we have QoS descriptors
         public override MessageProtocol MessageProtocol { get { return MessageProtocol.Udp; } }
 
         public override void Start() {
-            if (!Dead) { return; }
+            if (Started) { return; }
             //we are dead, but they want us to live again.  Reconnect!
             Reconnect();
         }
 
         public override void Stop() {
-            if (Dead) { return; }
+            if (!Started) { return; }
             //kill the connection as best we can
             lock (this)
             {
@@ -108,6 +108,7 @@ namespace GT.Clients
 
         protected void SendIdentification()
         {
+            // FIXME: need a proper way of doing a handshake!
             Console.WriteLine("{0}: sending identification (id={1})", this, server.UniqueIdentity);
             byte[] startMessage = new byte[5];
             startMessage[0] = (byte)'?'; // FIXME: use ASCII encoder, just in case?

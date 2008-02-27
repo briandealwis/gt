@@ -16,27 +16,27 @@ namespace GT.Clients
         string Port { get; }
 
         /// <summary>Is this connection dead?</summary>
-        bool Dead { get; }
+        bool Started { get; }
     }
 
-    public interface ITransport : IServerSurrogate
+    public interface ITransport : IServerSurrogate, ILifecycle
     {
         /// <summary>
         /// A simple identifier for this transport
         /// </summary>
         string Name { get; }
 
-        /// <summary>Is this connection dead (stopped)?</summary>
-        bool Dead { get; }
-
-        float Delay { get; set; }
-        ServerStream Server { get; set; }
+        /// <summary>Has this transport been started?</summary>
+        bool Started { get; }
 
         void Start();
         void Stop();
 
-        /*FIXME: Stop-gap solution until we have proper QoS descriptors */
+        /* FIXME: Stop-gap solution until we have proper QoS descriptors */
         MessageProtocol MessageProtocol { get; }
+
+        float Delay { get; set; }
+        ServerStream Server { get; set; }
 
         /// <summary>
         /// Send the given message to the server.
@@ -60,9 +60,11 @@ namespace GT.Clients
         public float delay = 20f;
 
 
-        public abstract bool Dead { get; }
+        public abstract bool Started { get; }
         public abstract void Start();
         public abstract void Stop();
+        public void Dispose() { /* empty implementation */ }
+
         public abstract void SendMessage(byte[] buffer);
         public abstract void Update();
         public abstract int MaximumMessageSize { get; }

@@ -31,22 +31,22 @@ namespace GT.Clients
 
         public override string Name { get { return "TCP"; } }
 
-        public override bool Dead
+        public override bool Started
         {
-            get { return tcpClient == null; }
+            get { return tcpClient != null; }
         }
 
         // FIXME: Stop-gap measure until we have QoS descriptors
         public override MessageProtocol MessageProtocol { get { return MessageProtocol.Tcp; } }
 
         public override void Start() {
-            if(!Dead) { return; }
+            if(Started) { return; }
             //we are dead, but they want us to live again.  Reconnect!
             Reconnect();
         }
 
         public override void Stop() {
-            if (Dead) { return; }
+            if (!Started) { return; }
             //kill the connection as best we can
             lock (this)
             {

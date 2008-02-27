@@ -144,7 +144,7 @@ namespace GT.Servers
             mux.SetMessageHandler(ep, new MessageReceivedHandler(ReceivedMessage));
         }
 
-        public string ToString()
+        override public string ToString()
         {
             return "UDP[" + Remote + "]";
         }

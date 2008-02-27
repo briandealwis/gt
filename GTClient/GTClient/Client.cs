@@ -553,7 +553,7 @@ namespace GT.Clients
     {
         public static int MessageHeaderByteSize = 8;
 
-        private bool dead;
+        private bool started;
         private string address;
         private string port;
 
@@ -584,7 +584,7 @@ namespace GT.Clients
         /// <param name="port">Which port to connect to.</param>
         internal ServerStream(string address, string port)
         {
-            dead = true;
+            started = false;
             this.address = address;
             this.port = port;
             Start();    // FIXME: starting should be *explicit*
@@ -595,7 +595,7 @@ namespace GT.Clients
         /// </summary>
         public void Start()
         {
-            if (!dead) { return; }
+            if (Started) { return; }
             nextPingTime = 0;
 
             messagePools = new Dictionary<MessageProtocol, List<MessageOut>>();
@@ -613,8 +613,9 @@ namespace GT.Clients
             {
                 t.Start();
             }
-            dead = false;
+            started = true;
 
+            // FIXME: This is bogus and should be changed.
             //request our id right away
             byte[] b = new byte[1];
             b[0] = 1;
@@ -624,8 +625,7 @@ namespace GT.Clients
 
         public void Stop()
         {
-            if (dead) { throw new InvalidOperationException("cannot be resurrected"); }
-            dead = true;
+            started = false;
             foreach (ITransport t in transports.Values)
             {
                 t.Stop();
@@ -650,9 +650,9 @@ namespace GT.Clients
             get { return port; }
         }
 
-        public virtual bool Dead
+        public virtual bool Started
         {
-            get { return dead; }
+            get { return started; }
         }
 
         /// <summary>Average latency between the client and this particluar server.</summary>
@@ -724,8 +724,7 @@ namespace GT.Clients
         {
             lock (this)
             {
-                if (dead)
-                    return;
+                if (!Started) { return; }
 
                 if (aggr == MessageAggregation.Yes)
                 {
@@ -781,6 +780,9 @@ namespace GT.Clients
             //pack main message into a buffer and send it right away
             MemoryStream finalBuffer = new MemoryStream(transport.MaximumMessageSize);
             WriteMessage(finalBuffer, type, id, data);
+
+            // and be sure to catch exceptions; log and remove transport if unable to be started
+            // if(!transport.Started) { transport.Start(); }
             transport.SendMessage(finalBuffer.ToArray());
         }
 
@@ -916,7 +918,7 @@ namespace GT.Clients
         {
             lock (this)
             {
-                if (dead) { return; }
+                if (!Started) { return; }
                 foreach (ITransport t in transports.Values)
                 {
                     t.Update();
@@ -979,7 +981,7 @@ namespace GT.Clients
     }
 
     /// <summary>Represents a client that can connect to multiple servers.</summary>
-    public class Client
+    public class Client : ILifecycle
     {
         private Dictionary<byte, ObjectStream> objectStreams;
         private Dictionary<byte, BinaryStream> binaryStreams;
@@ -990,7 +992,7 @@ namespace GT.Clients
         private Dictionary<byte, AbstractStreamedTuple> threeTupleStreams;
         private List<ServerStream> superStreams;
         private HPTimer timer;
-        private bool running = false;
+        private bool started = false;
 
         /// <summary>Occurs when there are errors on the network.</summary>
         public event ErrorEventHandler ErrorEvent;
@@ -1405,7 +1407,7 @@ namespace GT.Clients
             Console.WriteLine("{0}: Update() called", this);
             lock (this)
             {
-                if (!running) { Start(); }
+                if (!started) { Start(); }
                 timer.Update();
                 foreach (ServerStream s in superStreams)
                 {
@@ -1515,14 +1517,14 @@ namespace GT.Clients
             try
             {
                 //check for new data
-                while (running)
+                while (started)
                 {
                     timer.Update();
                     oldTime = timer.TimeInMilliseconds;
 
-
+                    // lock(this) {
                     this.Update();
-
+                    // }
 
                     timer.Update();
                     newTime = timer.TimeInMilliseconds;
@@ -1541,14 +1543,14 @@ namespace GT.Clients
         {
             lock (this)
             {
-                if (running) { return; }
+                if (started) { return; }
                 timer.Start();
                 timer.Update();
                 for (int i = 0; i < superStreams.Count; i++)
                 {
                     superStreams[i].Start();
                 }
-                running = true;
+                started = true;
             }
         }
 
@@ -1556,22 +1558,36 @@ namespace GT.Clients
         {
             lock (this)
             {
-                running = false;
+                if (!started) { return; }
+                started = false;
                 for (int i = 0; i < superStreams.Count; i++)
                 {
                     superStreams[i].Stop();
                 }
+                // timer.Stop();
             }
         }
 
         public void Dispose()
         {
-            if (running) { Stop(); }
-            for (int i = 0; i < superStreams.Count; i++)
+            lock (this)
             {
-                // superStreams[i].Dispose();
+                Stop();
+                if (superStreams != null)
+                {
+                    //for (int i = 0; i < superStreams.Count; i++)
+                    //{
+                    //    superStreams[i].Dispose();
+                    //}
+                }
+                superStreams = null;
+                timer = null;
             }
-            superStreams = null;
+        }
+
+        public bool Started
+        {
+            get { return started; }
         }
 
         public void Sleep(TimeSpan span)

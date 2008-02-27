@@ -74,7 +74,7 @@ namespace GT.Servers
 
 
     /// <summary>Represents a server.</summary>
-    public class Server
+    public class Server : ILifecycle
     {
         #region Variables and Properties
 
@@ -448,7 +448,11 @@ namespace GT.Servers
                 ErrorEvent(e, se, client, ex);
         }
 
-        public string ToString()
+        /// <summary>
+        /// Create a descriptive string representation 
+        /// </summary>
+        /// <returns>a descriptive string representation</returns>
+        override public string ToString()
         {
             return "port=" + port + ", " + clientList.Count + " clients";
         }
@@ -631,6 +635,16 @@ namespace GT.Servers
             running = false;
             KillBouncers();
             KillAll();
+        }
+
+        public void Dispose()
+        {
+            Stop();
+        }
+
+        public bool Started
+        {
+            get { return running; }
         }
 
         /// <summary>Handle a data that was received by a client.</summary>
@@ -1052,7 +1066,7 @@ namespace GT.Servers
                 udpHandle = null;
             }
 
-            public string ToString()
+            override public string ToString()
             {
                 return "Server.Client(" + uniqueIdentity + ")";
             }

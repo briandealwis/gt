@@ -7,7 +7,7 @@
     <ProjectGuid>{621EB577-E34F-4833-A978-9DCA342D9F6C}</ProjectGuid>
     <OutputType>Library</OutputType>
     <AppDesignerFolder>Properties</AppDesignerFolder>
-    <RootNamespace>GTClient</RootNamespace>
+    <RootNamespace>GT.Client</RootNamespace>
     <AssemblyName>GTClient</AssemblyName>
     <SccProjectName>
     </SccProjectName>
