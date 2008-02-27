@@ -1,0 +1,52 @@
+ChangeLog
+
+Breaking Changes:
+
+  * As part of reorganizing the code, we've renamed the namespaces
+    (GTServer and GTClient -> GT.Server and GT.Client) and introduced
+    a new assembly to hold common components and useful new components
+    (GT.Common).  <https://papyrus.usask.ca/trac/gt/ticket/7
+
+      * Change all the uses
+	  'using GTServer;'  ->  'using GT.Server;'
+	  'using GTClient;'  ->  'using GT.Client;'
+
+      * You will need to add the GTCommon project or DLL to your clients,
+        and add 'using GT.Common;' to your namespaces.
+	<https://papyrus.usask.ca/trac/gt/ticket/13>
+
+New additions
+
+  * Added a lifecycle protocol consisting of Start(), Stop(), and
+    Dispose() methods, and a Running read-only property.  These methods
+    have been added to most GT user-visible objects to respectively
+    start, stop, and dispose of any system object. 
+    
+      * Client.StartListening() and Server.StartListening() both
+        automatically Start() and Stop() their respective instances.
+	This ensures that the clients and servers are closed in
+	their normal usage.
+	<https://papyrus.usask.ca/trac/gt/ticket/22>
+
+      * Client.Update() and Server.Update() will automagically
+	call Start() if their instance has not already been started.
+	This behaviour is deprecated and will be removed in a future
+	release.
+
+  * Added Client.Sleep() and Server.Sleep() methods: these new methods
+    provide a much more efficient way of servicing incoming messages
+    while sleeping and greatly improve the fairness of servicing
+    GT requests.
+
+  * Began creating unit tests using NUnit <http://nunit.org>
+
+Re-organized source code
+
+  * Separated example programs from the core client and server
+    components <https://papyrus.usask.ca/trac/gt/ticket/10>
+
+  * Created GT.Common and corresponding assembly to hold types common
+    to the client and server; this is a breaking change for clients
+    <https://papyrus.usask.ca/trac/gt/ticket/13
+
+
