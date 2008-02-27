@@ -3,7 +3,6 @@ using System.Resources;
 using System.Drawing;
 using System.Collections;
 using System.Windows.Forms;
-using System.Resources;
 using System.ComponentModel;
 
 namespace ClientChat
