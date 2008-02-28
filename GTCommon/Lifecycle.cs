@@ -6,8 +6,10 @@ namespace GT.Common
     /// Defines methods for starting, stopping, and disposing of an instance.
     /// A stopped instance may be started again.  A disposed instance can never
     /// be restarted.  A stopped instance can be stopped multiple times.
+    /// To properly support IDisposable, an instance can be disposed whether it
+    /// is started or stopped.
     /// </summary>
-    public interface ILifecycle : IDisposable
+    public interface IStartable : IDisposable
     {
         /// <summary>
         /// Start the instance.  Starting an instance may throw an exception on error.

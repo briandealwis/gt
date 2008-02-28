@@ -19,7 +19,7 @@ namespace GT.Clients
         bool Started { get; }
     }
 
-    public interface ITransport : IServerSurrogate, ILifecycle
+    public interface IClientTransport : IServerSurrogate, IStartable
     {
         /// <summary>
         /// A simple identifier for this transport
@@ -46,10 +46,10 @@ namespace GT.Clients
 
         void Update();
 
-        int MaximumMessageSize { get; }
+        int MaximumPacketSize { get; }
     }
 
-    public abstract class BaseTransport : ITransport
+    public abstract class BaseClientTransport : IClientTransport
     {
         protected ServerStream server;
         protected string address, port;
@@ -67,7 +67,7 @@ namespace GT.Clients
 
         public abstract void SendMessage(byte[] buffer);
         public abstract void Update();
-        public abstract int MaximumMessageSize { get; }
+        public abstract int MaximumPacketSize { get; }
         public abstract string Name { get; }
 
         // FIXME: Stop-gap measure until we have QoS descriptors
@@ -87,7 +87,7 @@ namespace GT.Clients
         /// </summary>
         protected List<MessageOut> MessageOutAwayPool = new List<MessageOut>();
 
-        protected BaseTransport() {}
+        protected BaseClientTransport() {}
 
         public ServerStream Server
         {

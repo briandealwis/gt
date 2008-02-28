@@ -8,15 +8,15 @@ using GT.Common;
 
 namespace GT.Servers
 {
-    public delegate void MessageReceivedHandler(EndPoint ep, byte[] message);
+    public delegate void NetPacketReceivedHandler(EndPoint ep, byte[] message);
 
     public class UdpMultiplexer : IDisposable
     {
         protected readonly int port;
         protected UdpClient udpClient;
-        protected Dictionary<EndPoint,MessageReceivedHandler> handlers = 
-            new Dictionary<EndPoint,MessageReceivedHandler>();
-        protected MessageReceivedHandler defaultHandler;
+        protected Dictionary<EndPoint,NetPacketReceivedHandler> handlers = 
+            new Dictionary<EndPoint,NetPacketReceivedHandler>();
+        protected NetPacketReceivedHandler defaultHandler;
 
         // theoretical maximum is 65535 bytes; practical limit is 65507
         // <http://en.wikipedia.org/wiki/User_Datagram_Protocol>
@@ -27,6 +27,10 @@ namespace GT.Servers
             this.port = port;
         }
 
+        public int MaximumPacketSize {
+            get { return udpClient.Client.SendBufferSize; }
+        }
+
         public void Start()
         {
             udpClient = new UdpClient(port);
@@ -34,24 +38,24 @@ namespace GT.Servers
             // udp sockets don't support LingerState/SO_LINGER
         }
 
-        public void SetDefaultMessageHandler(MessageReceivedHandler handler)
+        public void SetDefaultMessageHandler(NetPacketReceivedHandler handler)
         {
             defaultHandler = handler;
         }
 
-        public MessageReceivedHandler RemoveDefaultMessageHandler() {
-            MessageReceivedHandler old = defaultHandler;
+        public NetPacketReceivedHandler RemoveDefaultMessageHandler() {
+            NetPacketReceivedHandler old = defaultHandler;
             defaultHandler = null;
             return old;
         }
 
-        public void SetMessageHandler(EndPoint ep, MessageReceivedHandler handler)
+        public void SetMessageHandler(EndPoint ep, NetPacketReceivedHandler handler)
         {
             handlers[ep] = handler;
         }
 
-        public MessageReceivedHandler RemoveMessageHandler(EndPoint ep) {
-            MessageReceivedHandler hdl;
+        public NetPacketReceivedHandler RemoveMessageHandler(EndPoint ep) {
+            NetPacketReceivedHandler hdl;
             if (handlers == null || !handlers.TryGetValue(ep, out hdl)) { return null; }
             handlers.Remove(ep);
             return hdl;
@@ -65,7 +69,7 @@ namespace GT.Servers
                 try
                 {
                     int rc = udpClient.Client.ReceiveFrom(buffer, ref remote);
-                    MessageReceivedHandler h;
+                    NetPacketReceivedHandler h;
                     Console.WriteLine(this + ": received " + rc + " bytes from " + remote);
                     DebugUtils.DumpMessage("UDP received", buffer);
                     if (!handlers.TryGetValue(remote, out h) || h == null)
@@ -141,7 +145,7 @@ namespace GT.Servers
             lastMessage = new Stopwatch();
             messages = new List<byte[]>();
 
-            mux.SetMessageHandler(ep, new MessageReceivedHandler(ReceivedMessage));
+            mux.SetMessageHandler(ep, new NetPacketReceivedHandler(ReceivedMessage));
         }
 
         override public string ToString()
@@ -152,6 +156,11 @@ namespace GT.Servers
         public EndPoint Remote
         {
             get { return remote; }
+        }
+
+        public int MaximumPacketSize
+        {
+            get { return mux.MaximumPacketSize; }
         }
 
         public void Dispose()

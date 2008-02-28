@@ -69,7 +69,7 @@ namespace GT.Clients
     public class MessageIn : Message
     {
         /// <summary>The transport on which this message was received.</summary>
-        public ITransport transport;
+        public IClientTransport transport;
 
         /// <summary>The server that sent the message.</summary>
         public ServerStream ss;
@@ -81,7 +81,7 @@ namespace GT.Clients
         /// <param name="type">The type of message.</param>
         /// <param name="data">The data of the message.</param>
         /// <param name="ss">The server that sent the message.</param>
-        public MessageIn(byte id, MessageType type, byte[] data, ITransport transport, ServerStream ss)
+        public MessageIn(byte id, MessageType type, byte[] data, IClientTransport transport, ServerStream ss)
             : base(id, type, data)
         {
             this.transport = transport;
@@ -573,7 +573,7 @@ namespace GT.Clients
         public event ErrorEventHandler ErrorEvent;
         internal ErrorEventHandler ErrorEventDelegate;
 
-        private Dictionary<MessageProtocol, ITransport> transports;
+        private Dictionary<MessageProtocol, IClientTransport> transports;
         private Dictionary<MessageProtocol, List<MessageOut>> messagePools;
         // FIXME: Does maintaining a pool really buy us anything?
         // Especially since this pool apparently grows without end?
@@ -604,12 +604,12 @@ namespace GT.Clients
             // FIXME: this should be configurable
             if (transports == null)
             {
-                transports = new Dictionary<MessageProtocol, ITransport>();
-                AddTransport(new TcpTransport());
-                AddTransport(new UdpTransport());
+                transports = new Dictionary<MessageProtocol, IClientTransport>();
+                AddTransport(new TcpClientTransport());
+                AddTransport(new UdpClientTransport());
             }
 
-            foreach (ITransport t in transports.Values)
+            foreach (IClientTransport t in transports.Values)
             {
                 t.Start();
             }
@@ -626,14 +626,14 @@ namespace GT.Clients
         public void Stop()
         {
             started = false;
-            foreach (ITransport t in transports.Values)
+            foreach (IClientTransport t in transports.Values)
             {
                 t.Stop();
             }
             transports = null;
         }
 
-        public void AddTransport(ITransport t)
+        public void AddTransport(IClientTransport t)
         {
             // transports[t.Name] = t;
             transports[t.MessageProtocol] = t;  // FIXME: this is to be replaced!
@@ -660,7 +660,7 @@ namespace GT.Clients
             get
             {
                 float total = 0; int n = 0;
-                foreach (ITransport t in transports.Values)
+                foreach (IClientTransport t in transports.Values)
                 {
                     float d = t.Delay;
                     if (d > 0) { total += d; n++; }
@@ -777,10 +777,10 @@ namespace GT.Clients
             stream.Write(data, 0, data.Length);
         }
 
-        internal void SendMessage(ITransport transport, MessageType type, byte id, byte[] data)
+        internal void SendMessage(IClientTransport transport, MessageType type, byte id, byte[] data)
         {
             //pack main message into a buffer and send it right away
-            MemoryStream finalBuffer = new MemoryStream(transport.MaximumMessageSize);
+            MemoryStream finalBuffer = new MemoryStream(transport.MaximumPacketSize);
             WriteMessage(finalBuffer, type, id, data);
 
             // and be sure to catch exceptions; log and remove transport if unable to be started
@@ -796,10 +796,10 @@ namespace GT.Clients
             List<MessageOut> chosenMessages = new List<MessageOut>(8);
             byte[] buffer;
 
-            ITransport t = transports[protocol];
+            IClientTransport t = transports[protocol];
             messagePools.TryGetValue(protocol, out list);
             if (list == null || list.Count == 0) { return; }
-            MemoryStream finalBuffer = new MemoryStream(t.MaximumMessageSize);
+            MemoryStream finalBuffer = new MemoryStream(t.MaximumPacketSize);
 
             while (true)
             {
@@ -810,9 +810,9 @@ namespace GT.Clients
                 }
 
                 //if packing a packet, and the packet is full
-                if (t.MaximumMessageSize > 0 && 
+                if (t.MaximumPacketSize > 0 && 
                     finalBuffer.Position + message.data.Length + MessageHeaderByteSize
-                        > t.MaximumMessageSize)
+                        > t.MaximumPacketSize)
                 {
                     break;
                 }
@@ -843,10 +843,10 @@ namespace GT.Clients
             List<MessageOut> list;
             byte[] buffer;
 
-            ITransport t = transports[protocol];
+            IClientTransport t = transports[protocol];
             messagePools.TryGetValue(protocol, out list);
             if (list == null || list.Count == 0) { return; }
-            MemoryStream finalBuffer = new MemoryStream(t.MaximumMessageSize);
+            MemoryStream finalBuffer = new MemoryStream(t.MaximumPacketSize);
 
             while (true)
             {
@@ -855,9 +855,9 @@ namespace GT.Clients
                     break;
 
                 //if packing a packet, and the packet is full
-                if (t.MaximumMessageSize > 0 &&
+                if (t.MaximumPacketSize > 0 &&
                     finalBuffer.Position + message.data.Length + MessageHeaderByteSize
-                        > t.MaximumMessageSize)
+                        > t.MaximumPacketSize)
                 {
                     break;
                 }
@@ -921,7 +921,7 @@ namespace GT.Clients
             lock (this)
             {
                 if (!Started) { return; }
-                foreach (ITransport t in transports.Values)
+                foreach (IClientTransport t in transports.Values)
                 {
                     t.Update();
                 }
@@ -983,7 +983,7 @@ namespace GT.Clients
     }
 
     /// <summary>Represents a client that can connect to multiple servers.</summary>
-    public class Client : ILifecycle
+    public class Client : IStartable
     {
         private Dictionary<byte, ObjectStream> objectStreams;
         private Dictionary<byte, BinaryStream> binaryStreams;

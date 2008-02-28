@@ -74,7 +74,7 @@ namespace GT.Servers
 
 
     /// <summary>Represents a server.</summary>
-    public class Server : ILifecycle
+    public class Server : IStartable
     {
         #region Variables and Properties
 
@@ -454,7 +454,7 @@ namespace GT.Servers
         /// <returns>a descriptive string representation</returns>
         override public string ToString()
         {
-            return "port=" + port + ", " + clientList.Count + " clients";
+            return "Server(port=" + port + ", " + clientList.Count + " clients)";
         }
 
         /// <summary>One tick of the server, manually
@@ -541,7 +541,7 @@ namespace GT.Servers
 
                 //set them up with a session
                 Client client = CreateNewClient();
-                client.SetTcpHandle(connection);
+                client.AddTransport(new TcpServerTransport(connection));
                 listA.Add(client);
             }
             if (listA.Count > 0 && ClientsJoined != null)
@@ -765,30 +765,30 @@ namespace GT.Servers
                 catch (Exception e) { Console.WriteLine("Exception disposing UDP listener: " + e); }
             }
             udpMultiplexor = new UdpMultiplexer(port);
-            udpMultiplexor.SetDefaultMessageHandler(new MessageReceivedHandler(PreviouslyUnseenUdpMessage));
+            udpMultiplexor.SetDefaultMessageHandler(new NetPacketReceivedHandler(PreviouslyUnseenUdpEndpoint));
             udpMultiplexor.Start();
         }
 
-        public void PreviouslyUnseenUdpMessage(EndPoint ep, byte[] message)
+        public void PreviouslyUnseenUdpEndpoint(EndPoint ep, byte[] packet)
         {
-            Console.WriteLine(this + ": Incoming unaddressed message from " + ep);
-            if (message.Length < 5 || message[0] != '?')
+            Console.WriteLine(this + ": Incoming unaddressed packet from " + ep);
+            if (packet.Length < 5 || packet[0] != '?')
             {
-                Console.WriteLine(this + ": UDP: Undecipherable message");
+                Console.WriteLine(this + ": UDP: Undecipherable packet");
                 return;
             }
-            int clientId = BitConverter.ToInt32(message, 1);
+            int clientId = BitConverter.ToInt32(packet, 1);
             Client c = GetClientFromUniqueIdentity(clientId);
             if (c == null)
             {
                 Console.WriteLine("Unknown client: " + clientId + " (remote: " + ep + ")");
                 c = CreateNewClient();
-                c.SetUdpHandle(new UdpHandle(ep, udpMultiplexor, c));
+                c.AddTransport(new UdpServerTransport(new UdpHandle(ep, udpMultiplexor, c)));
             }
             else
             {
                 Console.WriteLine(this + ": UDP: found client: " + clientId + " (remote: " + ep + ")");
-                c.SetUdpHandle(new UdpHandle(ep, udpMultiplexor, c));
+                c.AddTransport(new UdpServerTransport(new UdpHandle(ep, udpMultiplexor, c)));
             }
         }
 
@@ -875,55 +875,6 @@ namespace GT.Servers
         /// <summary>Represents a client using the server.</summary>
         public class Client : IDisposable
         {
-            #region Internal classes and structures
-
-            /// <summary>
-            /// Record information necessary for reading a data from the wire.
-            /// If <value>messageType</value> is 0, then this represents a header.
-            /// </summary>
-            class MessageInProgress : Message
-            {
-                public int position;
-                public int bytesRemaining;
-
-                /// <summary>
-                /// Construct a Message-in-Progress for reading in a data header.
-                /// </summary>
-                /// <param name="headerSize"></param>
-                public MessageInProgress(int headerSize) 
-                    : base(0, 0, new byte[headerSize])
-                {
-                    // assert messageType == 0;  // indicates a data header
-                    this.position = 0;
-                    this.bytesRemaining = headerSize;
-                }
-
-                /// <summary>
-                /// Construct a Message-in-Progress for a data body
-                /// </summary>
-                /// <param name="id">the channel id for the in-progress data</param>
-                /// <param name="messageType">the type of the in-progress data</param>
-                /// <param name="size">the size of the in-progress data</param>
-                public MessageInProgress(byte id, byte messageType, int size)
-                    : base(id, (MessageType)messageType, new byte[size])
-                {
-                    // assert messageType != 0;
-                    this.position = 0;
-                    this.bytesRemaining = size;
-                }
-
-                /// <summary>
-                /// Distinguish between a data header and a data body
-                /// </summary>
-                /// <returns>true if this instance represents a data header</returns>
-                public bool IsMessageHeader()
-                {
-                    return type == 0;
-                }
-            }
-
-            #endregion
-
             #region Variables and Properties
 
             /// <summary>All of the received Binary Messages that we have kept.</summary>
@@ -947,17 +898,12 @@ namespace GT.Servers
             private int uniqueIdentity;
             private Server server;
             private float delay = 20;
-            private TcpClient tcpHandle;
-            private UdpHandle udpHandle;
+            private Dictionary<MessageProtocol, IServerTransport> transports =
+                new Dictionary<MessageProtocol, IServerTransport>();
 
-            private List<byte[]> tcpOut;
-            private List<byte[]> udpOut;
             private bool dead;
             private short udpPort = 0;
             private const int bufferSize = 512;
-            private MemoryStream udpIn;
-
-            private MessageInProgress tcpInProgress;
 
             /// <summary>
             /// Is this client dead?
@@ -984,7 +930,8 @@ namespace GT.Servers
             {
                 get
                 {
-                    return ((IPEndPoint)tcpHandle.Client.RemoteEndPoint).Address.ToString();
+                    throw new NotImplementedException();
+                    //return ((IPEndPoint)tcpHandle.Client.RemoteEndPoint).Address.ToString();
                 }
             }
             /// <summary>The remote computer's Port, or null if not set.</summary>
@@ -992,7 +939,8 @@ namespace GT.Servers
             {
                 get
                 {
-                    return ((IPEndPoint)tcpHandle.Client.RemoteEndPoint).Port.ToString();
+                    throw new NotImplementedException();
+                    //return ((IPEndPoint)tcpHandle.Client.RemoteEndPoint).Port.ToString();
                 }
             }
             /// <summary>The unique id of this client</summary>
@@ -1013,8 +961,6 @@ namespace GT.Servers
             {
                 server = s;
                 uniqueIdentity = id;
-                tcpOut = new List<byte[]>();
-                udpOut = new List<byte[]>();
                 BinaryMessages = new List<byte[]>();
                 ObjectMessages = new List<byte[]>();
                 StringMessages = new List<byte[]>();
@@ -1045,26 +991,6 @@ namespace GT.Servers
                 dead = true;
                 MessageReceived -= MessageReceivedDelegate;
                 ErrorEvent -= ErrorEventDelegate;
-
-                try
-                {
-                    if (tcpHandle != null) { tcpHandle.Close(); }
-                }
-                catch (Exception e) {
-                    Console.WriteLine("{0} Warning: exception when closing client TCP socket: {1}",
-                        DateTime.Now, e);
-                }
-                tcpHandle = null;
-
-                try
-                {
-                    if (udpHandle != null) { udpHandle.Dispose(); }
-                }
-                catch (Exception e) {
-                    Console.WriteLine("{0} Warning: exception when closing client UDP handle: {1}",
-                        DateTime.Now, e);
-                }
-                udpHandle = null;
             }
 
             #endregion
@@ -1152,18 +1078,11 @@ namespace GT.Servers
 
             #endregion
 
-            internal void SetUdpHandle(UdpHandle h)
+            internal void AddTransport(IServerTransport t)
             {
-                Console.WriteLine(this + ": set UDP handle: " + h);
-                udpHandle = h;
-            }
-
-            internal void SetTcpHandle(TcpClient c)
-            {
-                Console.WriteLine(this + ": set TCP handle: " + c.Client.RemoteEndPoint);
-                c.NoDelay = true;
-                c.Client.Blocking = false;
-                tcpHandle = c;
+                Console.WriteLine("{0}: added new transport: {1}", this, t);
+                t.MessageReceivedEvent += new MessageReceivedHandler(PostNewlyReceivedMessage);
+                transports[t.MessageProtocol] = t;
             }
 
             #region Send
@@ -1262,7 +1181,9 @@ namespace GT.Servers
                 lock (this)
                 {
                     if (dead)
-                        return;
+                    {
+                        throw new InvalidStateException("cannot send on a disposed client!", this);
+                    }
 
                     byte[] buffer = new byte[data.Length + 8];
                     buffer[0] = id;
@@ -1276,211 +1197,15 @@ namespace GT.Servers
 
             public void SendMessage(byte[] message, MessageProtocol protocol)
             {
-                if (protocol == MessageProtocol.Tcp)
+                IServerTransport t;
+                if (!transports.TryGetValue(protocol, out t))
                 {
-                    SendTcpMessage(message);
+                    throw new NotSupportedException("Cannot find matching transport: " + protocol);
                 }
-                else
-                {
-                    SendUdpMessage(message);
-                }
+                t.SendMessage(message);
             }
 
 
-            /// <summary>Sends a data via UDP.
-            /// We don't care if it doesn't get through.</summary>
-            /// <param name="buffer">Raw stuff to send.</param>
-            internal void SendUdpMessage(byte[] buffer)
-            {
-                if (this.dead) return;
-
-                SocketError error = SocketError.Success;
-                if (TryAndFlushOldUdpBytesOut())
-                {
-                    Console.WriteLine("{0}: SendUdpMessage({1} bytes): sending...", this, buffer.Length);
-                    udpOut.Add(buffer);
-                    return;
-                }
-
-                try
-                {
-                    udpHandle.Send(buffer, 0, buffer.Length, out error);
-                    switch (error)
-                    {
-                        case SocketError.Success:
-                            Console.WriteLine("{0}: SendMessage({1} bytes): success", this, buffer.Length);
-                            return;
-                        case SocketError.WouldBlock:
-                            Console.WriteLine("{0}: SendMessage({1} bytes): EWOULDBLOCK", this, buffer.Length);
-                            udpOut.Add(buffer);
-                            if (ErrorEvent != null)
-                                ErrorEvent(null, error, this, "The TCP write buffer is full now, but the data will be saved and " +
-                                    "sent soon.  Send less data to reduce perceived latency.");
-                            return;
-                        default:
-                            udpOut.Add(buffer);
-                            Console.WriteLine("{0}: SendMessage({1} bytes): ERROR: {2}", this, buffer.Length, error);
-                            if (ErrorEvent != null)
-                                ErrorEvent(null, error, this, "Error occurred while trying to send TCP to client.");
-                            return;
-                    }
-                }
-                catch (Exception e)
-                {
-                    udpOut.Add(buffer);
-                    LastError = e;
-                    Console.WriteLine("{0}: SendMessage({1} bytes): EXCEPTION: {2}", this, buffer.Length, e);
-                    if (ErrorEvent != null)
-                        ErrorEvent(e, SocketError.NoRecovery, this, "Exception occurred while trying to send TCP to client.");
-                }
-                
-            }
-
-            /// <summary>Sends a data via TCP.
-            /// We DO care if it doesn't get through; we throw an exception.
-            /// </summary>
-            /// <param name="buffer">Raw stuff to send.</param>
-            internal void SendTcpMessage(byte[] buffer)
-            {
-                if (dead || tcpHandle == null) { return; }
-
-                if (TryAndFlushOldTcpBytesOut())
-                {
-                    Console.WriteLine("{0}: SendTcpMessage({1} bytes): adding to outstanding bytes", this, buffer.Length);
-                    tcpOut.Add(buffer);
-                    return;
-                }
-
-                SocketError error = SocketError.Success;
-                try
-                {
-                    tcpHandle.Client.Send(buffer, 0, buffer.Length, SocketFlags.None, out error);
-                    switch (error)
-                    {
-                        case SocketError.Success:
-                            Console.WriteLine("{0}: SendMessage({1} bytes): success", this, buffer.Length);
-                            return;
-                        case SocketError.WouldBlock:
-                            tcpOut.Add(buffer);
-                            Console.WriteLine("{0}: SendMessage({1} bytes): EWOULDBLOCK", this, buffer.Length);
-                            if (ErrorEvent != null)
-                                ErrorEvent(null, error, this, "The TCP write buffer is full now, but the data will be saved and " +
-                                    "sent soon.  Send less data to reduce perceived latency.");
-                            return;
-                        default:
-                            Console.WriteLine("{0}: SendMessage({1} bytes): ERROR: {2}", this, buffer.Length, error);
-                            this.dead = true;
-                            tcpOut.Add(buffer);
-                            if (ErrorEvent != null)
-                                ErrorEvent(null, error, this, "Error occurred while trying to send TCP to client.");
-                            return;
-                    }
-                }
-                catch (Exception e)
-                {
-                    this.dead = true;
-                    tcpOut.Add(buffer);
-                    Console.WriteLine("{0}: SendMessage({1} bytes): EXCEPTION: {2}", this, buffer.Length, e);
-                    LastError = e;
-                    if (ErrorEvent != null)
-                        ErrorEvent(e, SocketError.NoRecovery, this, "Exception occurred while trying to send TCP to client.");
-                }
-            }
-
-            /// <summary> Flushes out old messages that couldn't be sent because of exceptions</summary>
-            /// <returns>True if there are bytes that still have to be sent out</returns>
-            internal bool TryAndFlushOldUdpBytesOut()
-            {
-                byte[] b;
-                SocketError error = SocketError.Success;
-                try
-                {
-                    while (udpOut.Count > 0)
-                    {
-                        b = udpOut[0];
-                        udpHandle.Send(b, 0, b.Length, out error);
-
-                        switch (error)
-                        {
-                            case SocketError.Success:
-                                udpOut.RemoveAt(0);
-                                break;
-                            case SocketError.WouldBlock:
-                                //don't die, but try again next time
-                                LastError = null;
-                                if (ErrorEvent != null)
-                                    ErrorEvent(null, error, this, "The UDP write buffer is full now, but the data will be saved and " +
-                                        "sent soon.  Send less data to reduce perceived latency.");
-                                return true;
-                            default:
-                                //something terrible happened, but this is only UDP, so stick around.
-                                LastError = null;
-                                if (ErrorEvent != null)
-                                    ErrorEvent(null, error, this, "Failed to Send UDP Message (" + b.Length + " bytes): " + b.ToString());
-                                return true;
-                        }
-                    }
-                }
-                catch (Exception e)
-                {
-                    LastError = e;
-                    if (ErrorEvent != null)
-                        ErrorEvent(e, SocketError.NoRecovery, this, "Trying to send saved UDP data failed because of an exception.");
-                    return true;
-                }
-                return false;
-            }
-
-            /// <summary> Flushes out old messages that couldn't be sent because of exceptions</summary>
-            /// <returns>True if there are bytes that still have to be sent out</returns>
-            internal bool TryAndFlushOldTcpBytesOut()
-            {
-                byte[] b;
-                SocketError error = SocketError.Success;
-
-                try
-                {
-                    while (tcpOut.Count > 0)
-                    {
-                        b = tcpOut[0];
-                        tcpHandle.Client.Send(b, 0, b.Length, SocketFlags.None, out error);
-
-                        switch (error)
-                        {
-                            case SocketError.Success:
-                                tcpOut.RemoveAt(0);
-                                break;
-                            case SocketError.WouldBlock:
-                                //don't die, but try again next time
-                                LastError = null;
-                                if (ErrorEvent != null)
-                                    ErrorEvent(null, error, this, "The TCP write buffer is full now, but the data will be saved and " +
-                                        "sent soon.  Send less data to reduce perceived latency.");
-                                return true;
-                            default:
-                                //die, because something terrible happened
-                                dead = true;
-                                LastError = null;
-                                if (ErrorEvent != null)
-                                    ErrorEvent(null, error, this, "Failed to Send TCP Message (" + b.Length + " bytes): " + b.ToString());
-
-                                return true;
-                        }
-
-
-                    }
-                }
-                catch (Exception e)
-                {
-                    dead = true;
-                    LastError = e;
-                    if (ErrorEvent != null)
-                        ErrorEvent(e, SocketError.NoRecovery, this, "Trying to send saved TCP data failed because of an exception.");
-                    return true;
-                }
-
-                return false;
-            }
 
             /// <summary>Handles a system data in that it takes the information and does something with it.</summary>
             /// <param name="data">The data we received.</param>
@@ -1500,12 +1225,19 @@ namespace GT.Servers
                     //they want to receive udp messages on this port
                     short port = BitConverter.ToInt16(data, 0);
                     // FIXME: the following is a *monstrous* hack
-                    IPEndPoint remoteUdp = new IPEndPoint(((IPEndPoint)tcpHandle.Client.RemoteEndPoint).Address, port);
+                    IPEndPoint remoteUdp = null;
+                    foreach (IServerTransport t in transports.Values)
+                    {
+                        if (t is TcpServerTransport)
+                        {
+                            remoteUdp = new IPEndPoint(((TcpServerTransport)t).Address, port);
+                        }
+                    }
                     //udpHandle.Connect(remoteUdp);
-                    SetUdpHandle(new UdpHandle(remoteUdp, server.udpMultiplexor, this));
+                    AddTransport(new UdpServerTransport(new UdpHandle(remoteUdp, server.udpMultiplexor, this)));
 
                     //they want the udp port.  Send it.
-                    BitConverter.GetBytes(UdpPort).CopyTo(buffer, 0);
+                    BitConverter.GetBytes(port).CopyTo(buffer, 0);
                     Send(buffer, (byte)SystemMessageType.UDPPortResponse, MessageType.System, MessageProtocol.Tcp);
                 }
                 else if (id == (byte)SystemMessageType.UDPPortResponse)
@@ -1533,8 +1265,11 @@ namespace GT.Servers
             internal void Ping()
             {
                 // FIXME: ping each of the transports...
-                byte[] buffer = BitConverter.GetBytes(System.Environment.TickCount);
-                Send(buffer, (byte)SystemMessageType.ServerPingAndMeasure, MessageType.System, MessageProtocol.Tcp);
+                //byte[] buffer = BitConverter.GetBytes(System.Environment.TickCount);
+                //foreach (IServerTransport t in transports.Values)
+                //{
+                //    t.Send(buffer, (byte)SystemMessageType.ServerPingAndMeasure, MessageType.System, MessageProtocol.Tcp);
+                //}
             }
 
             #endregion
@@ -1548,146 +1283,13 @@ namespace GT.Servers
                 lock (this)
                 {
                     if (dead) { return; }
-                    UpdateFromNetworkTcp();
-                    UpdateFromNetworkUdp();
+                    foreach (IServerTransport t in transports.Values)
+                    {
+                        t.Update();
+                    }
                 }
             }
 
-            /// <summary>Gets available data from UDP.</summary>
-            private void UpdateFromNetworkUdp()
-            {
-                byte[] buffer, data;
-                int length, cursor;
-                byte id, type;
-
-                if (udpHandle == null) { return; }
-
-                try
-                {
-                    //while there are more packets to read
-                    while (udpHandle.Available > 0)
-                    {
-                        //get a packet
-                        buffer = udpHandle.Receive();
-                        cursor = 0;
-                        Console.WriteLine("{0}: UpdateFromNetworkUdp(): received packet ({1} bytes)", this, buffer.Length);
-
-                        //while there are more messages in this packet
-                        while(cursor < buffer.Length)
-                        {
-                            id = buffer[cursor];
-                            type = buffer[cursor + 1];
-                            length = BitConverter.ToInt32(buffer, cursor + 4);
-                            data = new byte[length];
-                            Array.Copy(buffer, 8, data, 0, length);
-
-                            PostNewlyReceivedMessage(id, (MessageType)type, data, MessageProtocol.Udp);
-                            cursor += length + 8;
-                        }
-                    }
-                }
-                catch (SocketException e)
-                {
-                    if (e.SocketErrorCode == SocketError.WouldBlock)
-                    {
-                        LastError = e;
-                        if (ErrorEvent != null)
-                            ErrorEvent(e, SocketError.NoRecovery, this, "Updating from UDP connection failed because of an exception");
-                    }
-                }
-                catch (Exception e)
-                {
-                    LastError = e;
-                    if (ErrorEvent != null)
-                        ErrorEvent(e, SocketError.Fault, this, "Error in interpretting UDP data.  This data has been lost.");
-                }
-            }
-
-            /// <summary>Gets one data from the tcp and interprets it.</summary>
-            private void UpdateFromNetworkTcp()
-            {
-                if (tcpHandle == null) {
-                    Console.WriteLine(this + ": a pity: I have no tcpHandle");
-                    return; 
-                }
-                if (tcpHandle.Available > 0)
-                {
-                    Console.WriteLine(this + ": there appears to be some data available!");
-                }
-
-                SocketError error = SocketError.Success;
-                try
-                {
-                    while (tcpHandle.Available > 0)
-                    {
-                        // This is a simple state machine: we're either:
-                        // (a) reading a data header (tcpInProgress.IsMessageHeader())
-                        // (b) reading a data body (!tcpInProgress.IsMessageHeader())
-                        // (c) finished and about to start reading in a header (tcpInProgress == null)
-
-                        if (tcpInProgress == null)
-                        {
-                            //restart the counters to listen for a new data.
-                            tcpInProgress = new MessageInProgress(8);
-                            // assert tcpInProgress.IsMessageHeader();
-                        }
-
-                        int size = tcpHandle.Client.Receive(tcpInProgress.data, tcpInProgress.position,
-                            tcpInProgress.bytesRemaining, SocketFlags.None, out error);
-                        switch (error)
-                        {
-                        case SocketError.Success:
-                            // Console.WriteLine("{0}: UpdateFromNetworkTcp(): received header", this);
-                            break;
-                        default:
-                            dead = true;
-                            Console.WriteLine("{0}: UpdateFromNetworkTcp(): ERROR reading from socket: {1}", this, error);
-                            if (ErrorEvent != null)
-                                ErrorEvent(null, SocketError.Fault, this, "Error reading TCP data header.");
-                            return;
-                        }
-
-                        tcpInProgress.position += size;
-                        tcpInProgress.bytesRemaining -= size;
-                        if (tcpInProgress.bytesRemaining == 0)
-                        {
-                            if (tcpInProgress.IsMessageHeader())
-                            {
-                                // byte 0: id
-                                // byte 1: data type
-                                // bytes 2,3: unused
-                                // bytes 4-7: data length
-                                tcpInProgress = new MessageInProgress(tcpInProgress.data[0], 
-                                    tcpInProgress.data[1], BitConverter.ToInt32(tcpInProgress.data, 4));
-                                // assert tcpInProgress.IsMessageHeader()
-                            }
-                            else
-                            {
-                                PostNewlyReceivedMessage(tcpInProgress.id, (MessageType)tcpInProgress.type, tcpInProgress.data, MessageProtocol.Tcp);
-                                tcpInProgress = null;
-                            }
-                        }
-                    }
-                }
-                catch (SocketException e)
-                {   // FIXME: can this clause even happen?
-                    dead = true;
-                    LastError = e;
-                    Console.WriteLine("{0}: UpdateFromNetworkTcp(): SocketException reading from socket: {1}", this, e);
-                    if (ErrorEvent != null)
-                        ErrorEvent(e, SocketError.NoRecovery, this, "Updating from TCP connection failed because of a socket exception.");
-                }
-                catch (Exception e)
-                {
-                    // We shouldn't catch ThreadAbortExceptions!  (FIXME: should we really be
-                    // catching anything other than SocketExceptions from here?)
-                    if (e is ThreadAbortException) { throw e; }
-                    LastError = e;
-                    Console.WriteLine("{0}: UpdateFromNetworkTcp(): EXCEPTION: {1}", this, e);
-                    if (ErrorEvent != null)
-                        ErrorEvent(e, SocketError.NoRecovery, this, "Exception occured (not socket exception).");
-                }
-            }
 
             private void PostNewlyReceivedMessage(byte id, MessageType type, byte[] buffer, MessageProtocol messageProtocol)
             {

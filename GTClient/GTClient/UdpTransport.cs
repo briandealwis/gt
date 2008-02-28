@@ -6,7 +6,7 @@ using GT.Common;
 
 namespace GT.Clients
 {
-    public class UdpTransport : BaseTransport
+    public class UdpClientTransport : BaseClientTransport
     {
         /// <summary>
         /// Allow setting a cap on the maximum UDP message size
@@ -21,7 +21,7 @@ namespace GT.Clients
         //We use this so that we don't have to block on the writing to the network
         protected List<byte[]> udpOut = new List<byte[]>();
 
-        public UdpTransport() : base()
+        public UdpClientTransport() : base()
         {
         }
 
@@ -293,7 +293,7 @@ namespace GT.Clients
             }
         }
 
-        public override int MaximumMessageSize
+        public override int MaximumPacketSize
         {
             get
             {

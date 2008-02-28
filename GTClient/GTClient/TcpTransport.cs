@@ -7,10 +7,10 @@ using GT.Common;
 
 namespace GT.Clients
 {
-    public class TcpTransport : BaseTransport
+    public class TcpClientTransport : BaseClientTransport
     {
         /// <summary>
-        /// Allow setting a cap on the maximum UDP message size
+        /// Allow setting a cap on the maximum TCP message size
         /// as compared to the OS value normally used.
         /// 512 is the historical value supported by GT.
         /// </summary>
@@ -26,7 +26,7 @@ namespace GT.Clients
         //We use this so that we don't have to block on the writing to the network
         protected List<byte[]> tcpOut = new List<byte[]>();
 
-        public TcpTransport() : base() {
+        public TcpClientTransport() : base() {
         }
 
         public override string Name { get { return "TCP"; } }
@@ -68,7 +68,7 @@ namespace GT.Clients
             Stop(); Start();
         }
 
-        public override int MaximumMessageSize
+        public override int MaximumPacketSize
         {
             get
             {
@@ -276,7 +276,7 @@ namespace GT.Clients
                 tcpIn.Position = 0;
             }
 
-            buffer = new byte[MaximumMessageSize];
+            buffer = new byte[MaximumPacketSize];
             int amountToRead = Math.Min(tcpInBytesLeft, buffer.Length);
 
             size = tcpClient.Client.Receive(buffer, 0, amountToRead, SocketFlags.None, out error);
