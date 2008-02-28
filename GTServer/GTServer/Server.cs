@@ -73,7 +73,7 @@ namespace GT.Servers
     #endregion
 
 
-    /// <summary>Represents a server.</summary>
+    /// <summary>Represents traditional server.</summary>
     public class Server : IStartable
     {
         #region Variables and Properties
@@ -877,13 +877,6 @@ namespace GT.Servers
         {
             #region Variables and Properties
 
-            /// <summary>All of the received Binary Messages that we have kept.</summary>
-            public List<byte[]> BinaryMessages;
-            /// <summary>All of the received Object Messages that we have kept.</summary>
-            public List<byte[]> ObjectMessages;
-            /// <summary>All of the received String Messages that we have kept.</summary>
-            public List<byte[]> StringMessages;
-
             /// <summary>Triggered when a data is received.</summary>
             public event MessageHandler MessageReceived;
             internal MessageHandler MessageReceivedDelegate;
@@ -902,12 +895,9 @@ namespace GT.Servers
                 new Dictionary<MessageProtocol, IServerTransport>();
 
             private bool dead;
-            private short udpPort = 0;
-            private const int bufferSize = 512;
 
             /// <summary>
             /// Is this client dead?
-            /// If set to true, kills client.
             /// </summary>
             public bool Dead
             {
@@ -920,29 +910,6 @@ namespace GT.Servers
                 get { return delay; }
             }
 
-            /// <summary>The UDP port in use, 0 if not set.</summary>
-            public short UdpPort
-            {
-                get { return udpPort; }
-            }
-            /// <summary>The remote computer's IP address, or null if not set.</summary>
-            public string RemoteIP
-            {
-                get
-                {
-                    throw new NotImplementedException();
-                    //return ((IPEndPoint)tcpHandle.Client.RemoteEndPoint).Address.ToString();
-                }
-            }
-            /// <summary>The remote computer's Port, or null if not set.</summary>
-            public string RemotePort
-            {
-                get
-                {
-                    throw new NotImplementedException();
-                    //return ((IPEndPoint)tcpHandle.Client.RemoteEndPoint).Port.ToString();
-                }
-            }
             /// <summary>The unique id of this client</summary>
             public int UniqueIdentity
             {
@@ -955,16 +922,12 @@ namespace GT.Servers
             #region Constructors and Destructors
 
             /// <summary>Creates a new Client to communicate with.</summary>
-            /// <param name="tcpHandle">The tcpHandle to communicate over.</param>
+            /// <param name="s">The associated server instance.</param>
             /// <param name="id">The unique identity of this new Client.</param>
             public Client(Server s, int id)
             {
                 server = s;
                 uniqueIdentity = id;
-                BinaryMessages = new List<byte[]>();
-                ObjectMessages = new List<byte[]>();
-                StringMessages = new List<byte[]>();
-
                 dead = false;
             }
 
