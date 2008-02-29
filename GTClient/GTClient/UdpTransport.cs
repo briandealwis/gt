@@ -116,7 +116,7 @@ namespace GT.Clients
             udpClient.Send(startMessage, startMessage.Length);
         }
 
-        public override void SendMessage(byte[] buffer)
+        public override void SendPacket(byte[] buffer)
         {
             if (!Started)
             {

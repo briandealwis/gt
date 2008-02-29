@@ -133,7 +133,7 @@ namespace GT.Clients
 
         /// <summary>Send a message to server.</summary>
         /// <param name="buffer">The message to send.</param>
-        public override void SendMessage(byte[] buffer)
+        public override void SendPacket(byte[] buffer)
         {
             if (!Started)
             {

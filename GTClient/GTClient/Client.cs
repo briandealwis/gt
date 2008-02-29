@@ -785,7 +785,7 @@ namespace GT.Clients
 
             // and be sure to catch exceptions; log and remove transport if unable to be started
             // if(!transport.Started) { transport.Start(); }
-            transport.SendMessage(finalBuffer.ToArray());
+            transport.SendPacket(finalBuffer.ToArray());
         }
 
         /// <summary>Flushes outgoing tcp or udp messages on this channel only</summary>
@@ -799,7 +799,7 @@ namespace GT.Clients
             IClientTransport t = transports[protocol];
             messagePools.TryGetValue(protocol, out list);
             if (list == null || list.Count == 0) { return; }
-            MemoryStream finalBuffer = new MemoryStream(t.MaximumPacketSize);
+            MemoryStream packet = new MemoryStream(t.MaximumPacketSize);
 
             while (true)
             {
@@ -811,7 +811,7 @@ namespace GT.Clients
 
                 //if packing a packet, and the packet is full
                 if (t.MaximumPacketSize > 0 && 
-                    finalBuffer.Position + message.data.Length + MessageHeaderByteSize
+                    packet.Position + message.data.Length + MessageHeaderByteSize
                         > t.MaximumPacketSize)
                 {
                     break;
@@ -821,14 +821,14 @@ namespace GT.Clients
                 list.Remove(message);
 
                 //pack the message into the buffer
-                WriteMessage(finalBuffer, message.type, message.id, message.data);
+                WriteMessage(packet, message.type, message.id, message.data);
 
                 MessageOutFreePool.Add(message);
             }
 
             //Actually send the data.  Note that after this point, ordering and 
             //aggregation are locked in / already decided.
-            t.SendMessage(finalBuffer.ToArray());
+            t.SendPacket(packet.ToArray());
 
             //if more messages to flush on this channel, repeat above process again
             if ((message = FindFirstChannelMessageInList(id, list)) != null)
@@ -846,7 +846,7 @@ namespace GT.Clients
             IClientTransport t = transports[protocol];
             messagePools.TryGetValue(protocol, out list);
             if (list == null || list.Count == 0) { return; }
-            MemoryStream finalBuffer = new MemoryStream(t.MaximumPacketSize);
+            MemoryStream packet = new MemoryStream(t.MaximumPacketSize);
 
             while (true)
             {
@@ -856,7 +856,7 @@ namespace GT.Clients
 
                 //if packing a packet, and the packet is full
                 if (t.MaximumPacketSize > 0 &&
-                    finalBuffer.Position + message.data.Length + MessageHeaderByteSize
+                    packet.Position + message.data.Length + MessageHeaderByteSize
                         > t.MaximumPacketSize)
                 {
                     break;
@@ -865,14 +865,14 @@ namespace GT.Clients
                 //remove this message from the list of messages to be packed
                 list.Remove(message);
 
-                WriteMessage(finalBuffer, message.type, message.id, message.data);
+                WriteMessage(packet, message.type, message.id, message.data);
 
                 MessageOutFreePool.Add(message);
             }
 
             //Actually send the data.  Note that after this point, ordering and 
             //aggregation are locked in / already decided.
-            t.SendMessage(finalBuffer.ToArray());
+            t.SendPacket(packet.ToArray());
 
             //if there is more data to flush, do it
             if (list.Count > 0)

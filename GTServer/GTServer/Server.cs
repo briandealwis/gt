@@ -933,7 +933,6 @@ namespace GT.Servers
 
             #endregion
 
-
             #region Predicates
 
             /// <summary>Is this Client dead?  This function is intended for use as a predicate
@@ -1165,7 +1164,7 @@ namespace GT.Servers
                 {
                     throw new NotSupportedException("Cannot find matching transport: " + protocol);
                 }
-                t.SendMessage(message);
+                t.SendPacket(message);
             }
 
 

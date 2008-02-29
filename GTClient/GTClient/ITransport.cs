@@ -41,8 +41,8 @@ namespace GT.Clients
         /// <summary>
         /// Send the given message to the server.
         /// </summary>
-        /// <param name="buffer"></param>
-        void SendMessage(byte[] buffer);
+        /// <param name="packet">the packet of message(s) to send</param>
+        void SendPacket(byte[] packet);
 
         void Update();
 
@@ -65,7 +65,7 @@ namespace GT.Clients
         public abstract void Stop();
         public void Dispose() { /* empty implementation */ }
 
-        public abstract void SendMessage(byte[] buffer);
+        public abstract void SendPacket(byte[] buffer);
         public abstract void Update();
         public abstract int MaximumPacketSize { get; }
         public abstract string Name { get; }
