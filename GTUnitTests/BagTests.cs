@@ -77,7 +77,7 @@ namespace GT.UnitTests
             Bag<string> b = new Bag<string>();
             b.Add("foo");
             try { b.CopyTo(new string[0], 0); }
-            catch (Exception) { return; }
+            catch (IndexOutOfRangeException) { return; }
             Assert.Fail(); 
         }
     }

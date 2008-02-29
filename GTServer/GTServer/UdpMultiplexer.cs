@@ -10,8 +10,9 @@ namespace GT.Servers
 {
     public delegate void NetPacketReceivedHandler(EndPoint ep, byte[] message);
 
-    public class UdpMultiplexer : IDisposable
+    public class UdpMultiplexer : IStartable
     {
+        protected readonly IPAddress address;
         protected readonly int port;
         protected UdpClient udpClient;
         protected Dictionary<EndPoint,NetPacketReceivedHandler> handlers = 
@@ -22,8 +23,9 @@ namespace GT.Servers
         // <http://en.wikipedia.org/wiki/User_Datagram_Protocol>
         protected byte[] buffer = new byte[65535];
 
-        public UdpMultiplexer(int port)
+        public UdpMultiplexer(IPAddress address, int port)
         {
+            this.address = address;
             this.port = port;
         }
 
@@ -31,11 +33,35 @@ namespace GT.Servers
             get { return udpClient.Client.SendBufferSize; }
         }
 
+        public IPEndPoint LocalEndPoint
+        {
+            get { return new IPEndPoint(address, port); }
+        }
+        
+        public bool Started
+        {
+            get { return udpClient != null; }
+        }
+
         public void Start()
         {
-            udpClient = new UdpClient(port);
+            udpClient = new UdpClient(new IPEndPoint(address, port));
             udpClient.Client.Blocking = false;
             // udp sockets don't support LingerState/SO_LINGER
+        }
+
+        public void Stop()
+        {
+            if (udpClient == null) { return; }
+            udpClient.Close();
+            udpClient = null;
+        }
+
+        public void Dispose()
+        {
+            defaultHandler = null;
+            handlers = null;
+            udpClient = null;
         }
 
         public void SetDefaultMessageHandler(NetPacketReceivedHandler handler)
@@ -113,35 +139,19 @@ namespace GT.Servers
             }
         }
 
-        public void Stop()
-        {
-            if (udpClient == null) { return; }
-            udpClient.Close();
-            udpClient = null;
-        }
-
-        public void Dispose()
-        {
-            defaultHandler = null;
-            handlers = null;
-            udpClient = null;
-        }
-
     }
 
     public class UdpHandle : IDisposable
     {
         protected EndPoint remote;
         protected UdpMultiplexer mux;
-        protected Server.Client client;
         protected Stopwatch lastMessage;
         protected List<byte[]> messages;
 
-        public UdpHandle(EndPoint ep, UdpMultiplexer udpMux, Server.Client cli)
+        public UdpHandle(EndPoint ep, UdpMultiplexer udpMux)
         {
             remote = ep;
             mux = udpMux;
-            client = cli;
             lastMessage = new Stopwatch();
             messages = new List<byte[]>();
 
@@ -150,12 +160,12 @@ namespace GT.Servers
 
         override public string ToString()
         {
-            return "UDP[" + Remote + "]";
+            return "UDP[" + RemoteEndPoint + "]";
         }
 
-        public EndPoint Remote
+        public IPEndPoint RemoteEndPoint
         {
-            get { return remote; }
+            get { return (IPEndPoint)remote; }
         }
 
         public int MaximumPacketSize

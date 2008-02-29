@@ -78,16 +78,12 @@ namespace GT.Servers
     {
         #region Variables and Properties
 
-        /// <summary>The listening backlog to use for the server socket.  Historically
-        /// the maximum was 5; some newer OS' support up to 128.</summary>
-        public static int LISTENER_BACKLOG = 10;
-
         private static Random random = new Random();
         private static BinaryFormatter formatter = new BinaryFormatter();
 
         private bool running = false;
-        private TcpListener bouncer;
-        private UdpMultiplexer udpMultiplexor;
+
+        private List<IAcceptor> acceptors = new List<IAcceptor>();
 
         private int lastPingTime = 0;
         private int port;
@@ -102,6 +98,11 @@ namespace GT.Servers
         /// Hide this so that users cannot cause mischief.  I accept that this list may 
         /// not be accurate because the users have direct access to the clientList.</summary>
         private Dictionary<int, Client> clientIDs = new Dictionary<int, Client>();
+
+        /// <summary>
+        /// Any newly-added clients since last update.
+        /// </summary>
+        private List<Client> listA = new List<Client>();
 
         /// <summary>Time in milliseconds between keep-alive pings.</summary>
         public int PingInterval = 10000;
@@ -462,45 +463,40 @@ namespace GT.Servers
         /// </summary>
         public void Update()
         {
-            Console.WriteLine(this + ": Server.Update(): shall we take a turn about the room?");
+            Console.WriteLine(DateTime.Now + " " + this + ": Server.Update(): shall we take a turn about the room?");
 
-            if (bouncer == null)
-                RestartBouncers();
-            else
-            {
-                //add new clients
-                CheckNewTcpClients();
+            if (!Started) { Start(); }
 
-                Console.WriteLine(this + ": Server.Update(): checking udpMultiplexor");
-                udpMultiplexor.Update();
+            listA.Clear();
+            foreach(BaseAcceptor acc in acceptors) {
+                Console.WriteLine(DateTime.Now + " {0}: Update(): checking {1}", this, acc);
+                acc.Update();
             }
-
+            if (listA.Count > 0 && ClientsJoined != null)
+            {
+                ClientsJoined(listA);
+            }
 
             //ping, if needed
             if (lastPingTime + PingInterval < System.Environment.TickCount)
             {
-                Console.WriteLine(this + ": Server.Update(): pinging existing clients (" + clientList.Count + ")");
+                Console.WriteLine(this + ": Update(): pinging existing clients (" + clientList.Count + ")");
                 lastPingTime = System.Environment.TickCount;
-                foreach (Client c in clientList)
-                    c.Ping();
+                foreach (Client c in clientList) { c.Ping(); }
             }
 
-            Console.WriteLine(this + ": Server.Update(): checking existing clients");
+            Console.WriteLine(this + ": Update(): checking existing clients");
             //update all clients, reading from the network
-            foreach (Client c in clientList)
-            {
-                c.Update();
-            }
+            foreach (Client c in clientList) { c.Update(); }
 
             //if anyone is listening, tell them we're done one cycle
-            if (Tick != null)
-                Tick();
+            if (Tick != null) { Tick(); }
 
             //remove dead clients
             List<Client> listD = clientList.FindAll(Client.IsDead);
             if (listD.Count > 0)
             {
-                Console.WriteLine(this + ": Server.Update(): removing seemingly dead clients");
+                Console.WriteLine(this + ": Update(): removing seemingly dead clients");
                 foreach (Client c in listD)
                 {
                     clientList.Remove(c);
@@ -513,41 +509,23 @@ namespace GT.Servers
                 }
             }
 
-            Console.WriteLine(this + ": Server.Update(): done this turn");
+            Console.WriteLine(this + ": Update(): done this turn");
         }
 
-        private void CheckNewTcpClients()
+        protected void NewClient(IServerTransport t, int clientId)
         {
-            List<Client> listA = new List<Client>();
-            TcpClient connection;
-            Console.WriteLine(this + ": checking TCP listening socket...");
-            while (bouncer.Pending())
+            Client c = GetClientFromUniqueIdentity(clientId);
+            if (c == null)
             {
-                //let them join us
-                try
-                {
-                    Console.WriteLine(this + ": accepting new TCP connection");
-                    connection = bouncer.AcceptTcpClient();
-                }
-                catch (Exception e)
-                {
-                    LastError = e;
-                    Console.WriteLine(this + ": EXCEPTION accepting new TCP connection: " + e);
-                    if (ErrorEvent != null)
-                        ErrorEvent(e, SocketError.Fault, null, "An error occurred when trying to accept new client.");
-                    bouncer = null;
-                    break;
-                }
-
-                //set them up with a session
-                Client client = CreateNewClient();
-                client.AddTransport(new TcpServerTransport(connection));
-                listA.Add(client);
+                Console.WriteLine("Unknown client: " + clientId + " from " + t);
+                c = CreateNewClient();
+                listA.Add(c);
             }
-            if (listA.Count > 0 && ClientsJoined != null)
+            else
             {
-                ClientsJoined(listA);
+                Console.WriteLine(this + ": UDP: found client: " + clientId + " from " + t);
             }
+            c.AddTransport(t);
         }
 
         /// <summary>Returns the client matching that unique identity number.</summary>
@@ -624,8 +602,16 @@ namespace GT.Servers
 
         public void Start()
         {
-            //start up the listeners
-            RestartBouncers();
+            if (acceptors.Count == 0)
+            {
+                acceptors.Add(new TcpAcceptor(IPAddress.Any, port));
+                acceptors.Add(new UdpAcceptor(IPAddress.Any, port));
+            }
+            foreach (IAcceptor acc in acceptors)
+            {
+                acc.NewClientEvent += new NewClientHandler(NewClient);
+                acc.Start();
+            }
             running = true;
         }
 
@@ -633,13 +619,21 @@ namespace GT.Servers
         {
             // we were told to die.  die gracefully.
             running = false;
-            KillBouncers();
+            foreach (IAcceptor acc in acceptors)
+            {
+                acc.Stop();
+            }
             KillAll();
         }
 
         public void Dispose()
         {
             Stop();
+            foreach (IAcceptor acc in acceptors)
+            {
+                acc.Dispose();
+            }
+            acceptors = null;
         }
 
         public bool Started
@@ -688,108 +682,6 @@ namespace GT.Servers
                 }
             }
             clientList = new List<Client>();
-        }
-
-        private void RestartBouncers()
-        {
-            RestartTcpBouncer();
-            RestartUdpMultiplexor();
-        }
-
-        private void RestartTcpBouncer()
-        {
-            if (bouncer != null)
-            {
-                try { bouncer.Stop(); }
-                catch (ThreadAbortException t) { throw t; }
-                catch (Exception e) {
-                    Console.WriteLine(this + ": exception closing TCP listening socket: " + e);
-                }
-            }
-
-            bouncer = null;
-            try
-            {
-                bouncer = new TcpListener(IPAddress.Any, this.port);
-                bouncer.Server.Blocking = false;
-                try { bouncer.Server.LingerState = new LingerOption(false, 0); }
-                catch (SocketException e)
-                {
-                    Console.WriteLine(this + ": exception setting TCP listening socket's Linger = false (ignored): " + e);
-                }
-                bouncer.Start(LISTENER_BACKLOG);
-            }
-            catch (ThreadAbortException t) { throw t; }
-            catch (SocketException e)
-            {
-                LastError = e;
-                if (ErrorEvent != null)
-                    ErrorEvent(e, SocketError.Fault, null, "A socket exception occurred when we tried to start listening for incoming connections.");
-                bouncer = null;
-            }
-            catch (Exception e)
-            {
-                LastError = e;
-                if (ErrorEvent != null)
-                    ErrorEvent(e, SocketError.Fault, null, "A non-socket exception occurred when we tried to start listening for incoming connections.");
-                bouncer = null;
-            }
-        }
-
-        private void KillBouncers()
-        {
-            // don't throw any exceptions
-            if (bouncer != null)
-            {
-                try { bouncer.Stop(); }
-                catch (Exception e) { Console.WriteLine("Exception stopping TCP listener: " + e); }
-                bouncer = null;
-            }
-            if (udpMultiplexor != null)
-            {
-                try { udpMultiplexor.Stop(); } 
-                catch (Exception e) { Console.WriteLine("Exception stopping UDP listener: " + e); }
-                try { udpMultiplexor.Dispose(); }
-                catch (Exception e) { Console.WriteLine("Exception disposing UDP listener: " + e); }
-                udpMultiplexor = null;
-            }
-        }
-
-        public void RestartUdpMultiplexor()
-        {
-            if (udpMultiplexor != null)
-            {
-                try { udpMultiplexor.Stop(); }
-                catch (Exception e) { Console.WriteLine("Exception stopping UDP listener: " + e); }
-                try { udpMultiplexor.Dispose(); }
-                catch (Exception e) { Console.WriteLine("Exception disposing UDP listener: " + e); }
-            }
-            udpMultiplexor = new UdpMultiplexer(port);
-            udpMultiplexor.SetDefaultMessageHandler(new NetPacketReceivedHandler(PreviouslyUnseenUdpEndpoint));
-            udpMultiplexor.Start();
-        }
-
-        public void PreviouslyUnseenUdpEndpoint(EndPoint ep, byte[] packet)
-        {
-            Console.WriteLine(this + ": Incoming unaddressed packet from " + ep);
-            if (packet.Length < 5 || packet[0] != '?')
-            {
-                Console.WriteLine(this + ": UDP: Undecipherable packet");
-                return;
-            }
-            int clientId = BitConverter.ToInt32(packet, 1);
-            Client c = GetClientFromUniqueIdentity(clientId);
-            if (c == null)
-            {
-                Console.WriteLine("Unknown client: " + clientId + " (remote: " + ep + ")");
-                c = CreateNewClient();
-                c.AddTransport(new UdpServerTransport(new UdpHandle(ep, udpMultiplexor, c)));
-            }
-            else
-            {
-                Console.WriteLine(this + ": UDP: found client: " + clientId + " (remote: " + ep + ")");
-                c.AddTransport(new UdpServerTransport(new UdpHandle(ep, udpMultiplexor, c)));
-            }
         }
 
         /// <summary>Generates a unique identity number that clients can use to identify each other.</summary>
@@ -1196,7 +1088,15 @@ namespace GT.Servers
                         }
                     }
                     //udpHandle.Connect(remoteUdp);
-                    AddTransport(new UdpServerTransport(new UdpHandle(remoteUdp, server.udpMultiplexor, this)));
+                    foreach (IAcceptor acc in server.acceptors)
+                    {
+                        if (acc is UdpAcceptor)
+                        {
+                            AddTransport(new UdpServerTransport(new UdpHandle(remoteUdp, ((UdpAcceptor)acc).udpMultiplexer)));
+                            break;
+                        }
+
+                    }
 
                     //they want the udp port.  Send it.
                     BitConverter.GetBytes(port).CopyTo(buffer, 0);
