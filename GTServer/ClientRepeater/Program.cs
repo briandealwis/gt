@@ -1,12 +1,12 @@
 using System;
 using System.Collections.Generic;
 using System.Text;
-using GT.Servers;
+using GT;
 using System.IO;
 using System.Runtime.Serialization;
 using System.Runtime.Serialization.Formatters.Binary;
 using System.Net.Sockets;
-using GT.Common;
+using GT;
 
 namespace ClientRepeater
 {

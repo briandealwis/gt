@@ -4,7 +4,7 @@ using System.Text;
 using System.Drawing;
 using System.Windows.Forms;
 using System.ComponentModel;
-using GT.Clients;
+using GT;
 
 namespace Lobby
 {

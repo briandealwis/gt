@@ -1,5 +1,5 @@
 using System.Diagnostics;
-namespace GT.Common
+namespace GT
 {
     #region Message Classes
 

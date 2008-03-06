@@ -2,7 +2,7 @@ using System;
 using System.IO;
 using System.Text;
 
-namespace GT.Common
+namespace GT
 {
     public class DebugUtils
     {

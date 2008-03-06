@@ -1,7 +1,7 @@
 using System;
 using System.Runtime.Serialization;
 
-namespace GT.Common
+namespace GT
 {
 
     public class GTException : Exception

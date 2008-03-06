@@ -1,6 +1,7 @@
 using System;
 using NUnit.Framework;
-using GT.Common;
+using GT;
+using GT.Utils;
 
 namespace GT.UnitTests
 {

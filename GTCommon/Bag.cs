@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Text;
 
-namespace GT.Common
+namespace GT.Utils
 {
     #region Utility Classes
 

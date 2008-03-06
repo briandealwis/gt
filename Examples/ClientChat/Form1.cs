@@ -5,8 +5,8 @@ using System.Data;
 using System.Drawing;
 using System.Text;
 using System.Windows.Forms;
-using GT.Clients;
-using GT.Common;
+using GT;
+using GT;
 
 namespace ClientChat
 {

@@ -3,9 +3,9 @@ using System.Net.Sockets;
 using System.Threading;
 using System.Collections.Generic;
 using NUnit.Framework;
-using GT.Common;
-using GT.Clients;
-using GT.Servers;
+using GT;
+using GT;
+using GT;
 using System.IO;
 using System.Net;
  
@@ -561,7 +561,7 @@ namespace GT.UnitTests.BaseTests
             StartExpectedResponseServer(EXPECTED_GREETING, EXPECTED_RESPONSE);
 
             client = new Client();  //this is a client
-            client.ErrorEvent += new GT.Clients.ErrorEventHandler(client_ErrorEvent);  //triggers if there is an error
+            client.ErrorEvent += new GT.ErrorEventHandler(client_ErrorEvent);  //triggers if there is an error
             StringStream stream = client.GetStringStream("127.0.0.1", "9999", 0);  //connect here
             stream.StringNewMessageEvent += new StringNewMessage(ClientStringMessageReceivedEvent);
             Assert.IsFalse(errorOccurred);
@@ -589,7 +589,7 @@ namespace GT.UnitTests.BaseTests
             StartExpectedResponseServer(EXPECTED_GREETING, EXPECTED_RESPONSE);
 
             client = new Client();  //this is a client
-            client.ErrorEvent += new GT.Clients.ErrorEventHandler(client_ErrorEvent);  //triggers if there is an error
+            client.ErrorEvent += new GT.ErrorEventHandler(client_ErrorEvent);  //triggers if there is an error
             StringStream stream = client.GetStringStream("127.0.0.1", "9999", 0);  //connect here
             stream.StringNewMessageEvent += new StringNewMessage(ClientStringMessageReceivedEvent);
             Assert.IsFalse(errorOccurred);

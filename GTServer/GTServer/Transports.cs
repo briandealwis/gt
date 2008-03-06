@@ -1,9 +1,9 @@
 using System;
 using System.Net.Sockets;
 using System.Net;
-using GT.Common;
+using GT;
 
-namespace GT.Servers
+namespace GT
 {
     public interface IServerTransport : ITransport, IDisposable
     {

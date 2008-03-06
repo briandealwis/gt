@@ -2,11 +2,11 @@ using System;
 using System.Net.Sockets;
 using System.Net;
 using System.Collections.Generic;
-using GT.Common;
+using GT;
 using System.IO;
 using System.Diagnostics;
 
-namespace GT.Clients
+namespace GT
 {
     public class UdpClientTransport : BaseClientTransport
     {

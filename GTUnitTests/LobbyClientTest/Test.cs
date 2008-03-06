@@ -2,7 +2,7 @@ using System;
 using System.Windows.Forms;
 using System.Collections.Generic;
 using System.Text;
-using GT.Clients;
+using GT;
 using Lobby;
 using System.Threading;
 

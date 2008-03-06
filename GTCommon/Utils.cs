@@ -1,6 +1,6 @@
 using System;
 using System.Collections.Generic;
-namespace GT.Common
+namespace GT
 {
 
     /// <summary>

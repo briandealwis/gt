@@ -1,7 +1,7 @@
 using System.Diagnostics;
 using System;
 using System.IO;
-namespace GT.Common
+namespace GT
 {
 
     public delegate void PacketReceivedHandler(byte[] buffer, int offset, int count, ITransport transport);

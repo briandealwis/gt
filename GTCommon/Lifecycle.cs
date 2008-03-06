@@ -1,6 +1,6 @@
 using System;
 
-namespace GT.Common
+namespace GT
 {
     /// <summary>
     /// Defines methods for starting, stopping, and disposing of an instance.
