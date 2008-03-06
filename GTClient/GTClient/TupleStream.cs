@@ -80,7 +80,7 @@ namespace GT.Clients
             this.interval = 9999999;
         }
 
-        abstract internal void QueueMessage(MessageIn m);
+        abstract internal void QueueMessage(Message m);
         abstract internal void Update(HPTimer hpTImer);
     }
 
@@ -117,22 +117,22 @@ namespace GT.Clients
         {
         }
 
-        internal override void QueueMessage(MessageIn message)
+        internal override void QueueMessage(Message message)
         {
             int clientID, cursor, length;
             RemoteTuple<T, K, J> tuple = new RemoteTuple<T, K, J>();
 
-            tuple.X = StreamedTupleUtilities.Converter<T>(message.data, 0, out length);
-            cursor = length;
-            tuple.Y = StreamedTupleUtilities.Converter<K>(message.data, cursor, out length);
-            cursor += length;
-            tuple.Z = StreamedTupleUtilities.Converter<J>(message.data, cursor, out length);
-            cursor += length;
+            //tuple.X = StreamedTupleUtilities.Converter<T>(message.data, 0, out length);
+            //cursor = length;
+            //tuple.Y = StreamedTupleUtilities.Converter<K>(message.data, cursor, out length);
+            //cursor += length;
+            //tuple.Z = StreamedTupleUtilities.Converter<J>(message.data, cursor, out length);
+            //cursor += length;
 
-            clientID = BitConverter.ToInt32(message.data, cursor);
+            //clientID = BitConverter.ToInt32(message.data, cursor);
 
-            if (StreamedTupleReceived != null)
-                StreamedTupleReceived(tuple, clientID);
+            //if (StreamedTupleReceived != null)
+            //    StreamedTupleReceived(tuple, clientID);
         }
 
         internal override void Update(HPTimer hpTimer)
@@ -160,7 +160,8 @@ namespace GT.Clients
                 ms.Read(b, 0, b.Length);
 
                 changed = false;
-                connection.Send(b, id, MessageType.Tuple3D, MessageProtocol.Tcp, MessageAggregation.No, MessageOrder.None);
+                //connection.Send(b, id, MessageType.Tuple3D, MessageProtocol.Tcp, MessageAggregation.No, MessageOrder.None);
+                throw new InvalidProgramException("FIXME");
             }
         }
     }
@@ -191,21 +192,21 @@ namespace GT.Clients
         {
         }
 
-        internal override void QueueMessage(MessageIn message)
+        internal override void QueueMessage(Message message)
         {
             int clientID, cursor, length;
 
             RemoteTuple<T, K> tuple = new RemoteTuple<T, K>();
 
-            tuple.X = StreamedTupleUtilities.Converter<T>(message.data, 0, out length);
-            cursor = length;
-            tuple.Y = StreamedTupleUtilities.Converter<K>(message.data, cursor, out length);
-            cursor += length;
+            //tuple.X = StreamedTupleUtilities.Converter<T>(message.data, 0, out length);
+            //cursor = length;
+            //tuple.Y = StreamedTupleUtilities.Converter<K>(message.data, cursor, out length);
+            //cursor += length;
 
-            clientID = BitConverter.ToInt32(message.data, cursor);
+            //clientID = BitConverter.ToInt32(message.data, cursor);
 
-            if (StreamedTupleReceived != null)
-                StreamedTupleReceived(tuple, clientID);
+            //if (StreamedTupleReceived != null)
+            //    StreamedTupleReceived(tuple, clientID);
         }
 
         internal override void Update(HPTimer hpTimer)
@@ -231,7 +232,8 @@ namespace GT.Clients
                 ms.Read(b, 0, b.Length);
 
                 changed = false;
-                connection.Send(b, id, MessageType.Tuple2D, MessageProtocol.Tcp, MessageAggregation.No, MessageOrder.None);
+                //connection.Send(b, id, MessageType.Tuple2D, MessageProtocol.Tcp, MessageAggregation.No, MessageOrder.None);
+                throw new InvalidProgramException("FIXME");
             }
         }
     }
@@ -257,19 +259,19 @@ namespace GT.Clients
         {
         }
 
-        internal override void QueueMessage(MessageIn message)
+        internal override void QueueMessage(Message message)
         {
             int clientID, cursor, length;
 
             RemoteTuple<T> tuple = new RemoteTuple<T>();
 
-            tuple.X = StreamedTupleUtilities.Converter<T>(message.data, 0, out length);
-            cursor = length;
+            //tuple.X = StreamedTupleUtilities.Converter<T>(message.data, 0, out length);
+            //cursor = length;
 
-            clientID = BitConverter.ToInt32(message.data, cursor);
+            //clientID = BitConverter.ToInt32(message.data, cursor);
 
-            if (StreamedTupleReceived != null)
-                StreamedTupleReceived(tuple, clientID);
+            //if (StreamedTupleReceived != null)
+            //    StreamedTupleReceived(tuple, clientID);
         }
 
         internal override void Update(HPTimer hpTimer)
@@ -293,7 +295,8 @@ namespace GT.Clients
                 ms.Read(b, 0, b.Length);
 
                 changed = false;
-                connection.Send(b, id, MessageType.Tuple1D, MessageProtocol.Tcp, MessageAggregation.No, MessageOrder.None);
+                //connection.Send(b, id, MessageType.Tuple1D, MessageProtocol.Tcp, MessageAggregation.No, MessageOrder.None);
+                throw new InvalidProgramException("FIXME");
             }
         }
     }

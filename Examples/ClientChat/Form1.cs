@@ -6,6 +6,7 @@ using System.Drawing;
 using System.Text;
 using System.Windows.Forms;
 using GT.Clients;
+using GT.Common;
 
 namespace ClientChat
 {

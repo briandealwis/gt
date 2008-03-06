@@ -8,18 +8,10 @@ namespace GT.Common
     {
         public static void DumpMessage(string prefix, byte[] buffer)
         {
-            int length = BitConverter.ToInt32(buffer, 4);
-            byte[] data = new byte[length];
-            Array.Copy(buffer, 8, data, 0, data.Length);
-            DumpMessage(prefix, buffer[0], (MessageType)buffer[1], data);
+            DumpMessage(prefix, buffer, 0, buffer.Length);
         }
 
         public static void DumpMessage(string prefix, Message m)
-        {
-            DumpMessage(prefix, m.id, m.type, m.data);
-        }
-
-        public static void DumpMessage(string prefix, byte id, MessageType type, byte[] buffer)
         {
             if (prefix == null)
             {
@@ -30,13 +22,14 @@ namespace GT.Common
                 Write(prefix);
                 Write(" ");
             }
-            switch (type)
+            switch (m.type)
             {
             case MessageType.String:
-                WriteLine("String: '" + System.Text.ASCIIEncoding.ASCII.GetString(buffer) + "'");
+                WriteLine("String: '" + ((StringMessage)m).text + "'");
                 break;
             case MessageType.Binary:
                 WriteLine("Binary: ");
+                byte[] buffer = ((BinaryMessage)m).data;
                 for (int i = 0; i < buffer.Length; i++)
                 {
                     Write("    ");
@@ -50,13 +43,81 @@ namespace GT.Common
                 }
                 break;
 
+            case MessageType.Object:
+                WriteLine("Object: " + ((ObjectMessage)m).obj);
+                break;
+
+            case MessageType.Session:
+                WriteLine("Session: client " + ((SessionMessage)m).ClientId + " " + ((SessionMessage)m).Action);
+                break;
+
             case MessageType.System:
-                WriteLine("System: " + (SystemMessageType)buffer[0]);
+                WriteLine("System: " + ((SystemMessage)m).id);
                 break;
             }
         }
 
-        public static TextWriter writer = new ConsoleWriter();
+        public static void DumpMessage(string prefix, byte[] buffer, int offset, int count)
+        {
+            if (prefix == null)
+            {
+                Write("  ");
+            }
+            else
+            {
+                Write(prefix);
+                Write(": ");
+            }
+            Write("type=" + ((MessageType)buffer[offset + 1]).ToString());
+            if (((MessageType)buffer[offset + 1]) == MessageType.System) {
+                Write("{" + ((SystemMessageType)buffer[offset]).ToString() + "}");
+            } else {
+                Write(" id=" + buffer[offset]);
+            }
+            WriteLine(" #bytes:" + count);
+            if (count > 50) { throw new Exception("WHOAH!"); }
+            for (int i = offset; i < count; i++)
+            {
+                Write("    ");
+                int rem = Math.Min(16, count - i);
+                for (int j = 0; j < rem; j++)
+                {
+                    Write(' ');
+                    Write(Convert.ToString((int)buffer[i + j], 16));
+                }
+                Write("   ");
+                for (int j = 0; j < rem; j++)
+                {
+                    char ch = (char)buffer[i + j];
+                    if (Char.IsLetterOrDigit(ch) || Char.IsPunctuation(ch) || Char.IsSeparator(ch) ||
+                        Char.IsSymbol(ch))
+                    {
+                        Write(ch);
+                    }
+                    else { Write('.'); }
+                }
+                WriteLine("");
+                i += rem;
+            }
+        }
+
+        public static bool Verbose
+        {
+            get { return writer != null; }
+            set
+            {
+                if (value)
+                {
+                    writer = new ConsoleWriter();
+                }
+                else
+                {
+                    writer = null;
+                }
+            }
+        }
+
+        public static TextWriter writer = null;
 
         public static void Write(char ch)
         {
@@ -70,7 +131,7 @@ namespace GT.Common
             writer.Write(text);
         }
 
-        protected static void WriteLine(string text)
+        public static void WriteLine(string text)
         {
             if (writer == null) { return; }
             writer.WriteLine(text);
@@ -79,9 +140,20 @@ namespace GT.Common
 
     internal class ConsoleWriter : TextWriter
     {
+
+        override public void Write(char ch)
+        {
+            Console.Write(ch);
+        }
+        
         override public void Write(string text)
         {
             Console.Write(text);
+        }
+
+        override public void WriteLine(string text)
+        {
+            Console.WriteLine(text);
         }
 
         public override Encoding Encoding

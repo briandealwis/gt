@@ -8,6 +8,7 @@ using System.IO;
 using System.Runtime.Serialization;
 using System.Runtime.Serialization.Formatters.Binary;
 using GT.Common;
+using System.Diagnostics;
 
 namespace GT.Clients
 {
@@ -43,73 +44,6 @@ namespace GT.Clients
     public delegate void UpdateEventDelegate(HPTimer hpTimer);
 
     #endregion
-
-
-    #region Helper Classes
-
-    /// <summary>A message from a session about id</summary>
-    public class SessionMessage
-    {
-        /// <summary>What id did.</summary>
-        public SessionAction Action;
-        /// <summary>Who is doing it.</summary>
-        public int ClientId;
-
-        /// <summary>Create a new SessionMessage</summary>
-        /// <param name="clientId">What id did.</param>
-        /// <param name="e">Who is doing it.</param>
-        internal SessionMessage(int clientId, SessionAction e)
-        {
-            this.ClientId = clientId;
-            this.Action = e;
-        }
-    }
-
-    /// <summary>Represents a message from the server.</summary>
-    public class MessageIn : Message
-    {
-        /// <summary>The transport on which this message was received.</summary>
-        public IClientTransport transport;
-
-        /// <summary>The server that sent the message.</summary>
-        public ServerStream ss;
-
-        /// <summary>
-        /// Creates a new message.
-        /// </summary>
-        /// <param name="id">The channel that this message is on.</param>
-        /// <param name="type">The type of message.</param>
-        /// <param name="data">The data of the message.</param>
-        /// <param name="ss">The server that sent the message.</param>
-        public MessageIn(byte id, MessageType type, byte[] data, IClientTransport transport, ServerStream ss)
-            : base(id, type, data)
-        {
-            this.transport = transport;
-            this.ss = ss;
-        }
-    }
-
-    public class MessageOut : Message
-    {
-        /// <summary>The ordering of the message.</summary>
-        public MessageOrder ordering;
-
-        /// <summary>
-        /// Creates a new message.
-        /// </summary>
-        /// <param name="id">The channel that this message is on.</param>
-        /// <param name="type">The type of message.</param>
-        /// <param name="data">The data of the message.</param>
-        /// <param name="ordering">The ordering of the message.</param>
-        public MessageOut(byte id, MessageType type, byte[] data, MessageOrder ordering)
-            : base(id, type, data)
-        {
-            this.ordering = ordering;
-        }
-    }
-
-    #endregion
-
 
     #region Type Stream Interfaces
 
@@ -150,7 +84,7 @@ namespace GT.Clients
         M DequeueMessage(int index);
 
         /// <summary>Received messages from the server.</summary>
-        List<MessageIn> Messages { get; }
+        List<Message> Messages { get; }
 
         /// <summary>Flush all aggregated messages on this connection</summary>
         /// <param name="protocol"></param>
@@ -251,10 +185,10 @@ namespace GT.Clients
 
     public abstract class AbstractStream<T,M> : AbstractBaseStream, IGenericStream<T,M>
     {
-        protected List<MessageIn> messages;
+        protected List<Message> messages;
 
         /// <summary>Received messages from the server.</summary>
-        public List<MessageIn> Messages { get { return messages; } }
+        public List<Message> Messages { get { return messages; } }
 
         /// <summary> This SessionStream uses this ServerStream. </summary>
         /// <remarks>deprecated</remarks>
@@ -265,7 +199,7 @@ namespace GT.Clients
         /// <param name="id">What channel this will be.</param>
         internal AbstractStream(ServerStream stream, byte id) : base(stream, id)
         {
-            messages = new List<MessageIn>();
+            messages = new List<Message>();
         }
 
         public void Send(T item)
@@ -310,9 +244,7 @@ namespace GT.Clients
         /// <param name="ordering">In what order should this message be sent in relation to other aggregated messages.</param>
         override public void Send(SessionAction action, MessageProtocol reli, MessageAggregation aggr, MessageOrder ordering)
         {
-            byte[] buffer = new byte[1];
-            buffer[0] = (byte) action;
-            this.connection.Send(buffer, id, MessageType.Session, reli, aggr, ordering);
+            this.connection.Send(new SessionMessage(id, UniqueIdentity, action), reli, aggr, ordering);
         }
 
         /// <summary>Take a SessionMessage off the queue of received messages.</summary>
@@ -322,19 +254,17 @@ namespace GT.Clients
         {
             try
             {
-                byte[] b;
+                SessionMessage m;
                 if (index >= messages.Count)
                     return null;
 
                 lock (messages)
                 {
-                    b = messages[index].data;
+                    m = ((SessionMessage)messages[index]);
                     messages.RemoveAt(index);
                 }
 
-                int id = BitConverter.ToInt32(b, 0);
-
-                return new SessionMessage(id, (SessionAction)b[4]);
+                return m;
             }
             catch (IndexOutOfRangeException)
             {
@@ -348,7 +278,7 @@ namespace GT.Clients
 
         /// <summary>Queue a message in the list, triggering events</summary>
         /// <param name="message">The message to be queued.</param>
-        internal void QueueMessage(MessageIn message)
+        internal void QueueMessage(Message message)
         {
             messages.Add(message);
             if(SessionNewMessageEvent != null)
@@ -378,8 +308,7 @@ namespace GT.Clients
         /// <param name="ordering">In what order should this message be sent in relation to other aggregated messages.</param>
         override public void Send(string b, MessageProtocol reli, MessageAggregation aggr, MessageOrder ordering)
         {
-            byte[] buffer = System.Text.ASCIIEncoding.ASCII.GetBytes(b);
-            this.connection.Send(buffer, id, MessageType.String, reli, aggr, ordering);
+            this.connection.Send(new StringMessage(id, b), reli, aggr, ordering);
         }
 
         /// <summary>Take a String off the queue of received messages.</summary>
@@ -389,16 +318,16 @@ namespace GT.Clients
         {
             try
             {
-                string s;
+                StringMessage m;
                 if (index >= messages.Count)
                     return null;
 
                 lock (messages)
                 {
-                    s = System.Text.ASCIIEncoding.ASCII.GetString(messages[index].data);
+                    m = (StringMessage)messages[index];
                     messages.RemoveAt(index);
                 }
-                return s;
+                return m.text;
             }
             catch (IndexOutOfRangeException)
             {
@@ -412,7 +341,7 @@ namespace GT.Clients
 
         /// <summary>Queue a message in the list, triggering events</summary>
         /// <param name="message">The message to be queued.</param>
-        internal void QueueMessage(MessageIn message)
+        internal void QueueMessage(Message message)
         {
             messages.Add(message);
             if (StringNewMessageEvent != null)
@@ -442,12 +371,7 @@ namespace GT.Clients
         /// <param name="ordering">In what order should this message be sent in relation to other aggregated messages.</param>
         override public void Send(object o, MessageProtocol reli, MessageAggregation aggr, MessageOrder ordering)
         {
-            MemoryStream ms = new MemoryStream();
-            formatter.Serialize(ms, o);
-            byte[] buffer = new byte[ms.Position];
-            ms.Position = 0;
-            ms.Read(buffer, 0, buffer.Length);
-            this.connection.Send(buffer, id, MessageType.Object, reli, aggr, ordering);
+            this.connection.Send(new ObjectMessage(id, o), reli, aggr, ordering);
         }
 
         /// <summary>Dequeues an object from the message list.</summary>
@@ -457,17 +381,16 @@ namespace GT.Clients
         {
             try
             {
+                ObjectMessage m;
                 if (index >= messages.Count)
                     return null;
 
-                MemoryStream ms = new MemoryStream();
                 lock (messages)
                 {
-                    ms.Write(messages[index].data, 0, messages[index].data.Length);
+                    m = (ObjectMessage)messages[index];
                     messages.RemoveAt(index);
                 }
-                ms.Position = 0;
-                return formatter.Deserialize(ms);
+                return m.obj;
             }
             catch (IndexOutOfRangeException)
             {
@@ -481,7 +404,7 @@ namespace GT.Clients
 
         /// <summary>Queue a message in the list, triggering events</summary>
         /// <param name="message">The message to be queued.</param>
-        internal void QueueMessage(MessageIn message)
+        internal void QueueMessage(Message message)
         {
             messages.Add(message);
             if (ObjectNewMessageEvent != null)
@@ -505,7 +428,7 @@ namespace GT.Clients
         override public void Send(byte[] b, MessageProtocol reli, MessageAggregation aggr, 
             MessageOrder ordering)
         {
-            this.connection.Send(b, id, MessageType.Binary, reli, aggr, ordering);
+            this.connection.Send(new BinaryMessage(id, b), reli, aggr, ordering);
         }
 
         /// <summary>Takes a message from the message list.</summary>
@@ -515,16 +438,16 @@ namespace GT.Clients
         {
             try
             {
-                byte[] b;
+                BinaryMessage m;
                 if (index >= messages.Count)
                     return null;
 
                 lock (messages)
                 {
-                    b = messages[index].data;
+                    m = (BinaryMessage)messages[index];
                     messages.RemoveAt(index);
                 }
-                return b;
+                return m.data;
             }
             catch (IndexOutOfRangeException)
             {
@@ -538,7 +461,7 @@ namespace GT.Clients
 
         /// <summary>Queue a message in the list, triggering events</summary>
         /// <param name="message">The message to be queued.</param>
-        internal void QueueMessage(MessageIn message)
+        internal void QueueMessage(Message message)
         {
             messages.Add(message);
             if (BinaryNewMessageEvent != null)
@@ -551,8 +474,7 @@ namespace GT.Clients
     /// <summary>Controls the sending of messages to a particular server.</summary>
     public class ServerStream : IServerSurrogate
     {
-        public static int MessageHeaderByteSize = 8;
-
+        private Client owner;
         private bool started;
         private string address;
         private string port;
@@ -567,24 +489,22 @@ namespace GT.Clients
         /// different transports, they are added to this list.  The different types of 
         /// streams process this list to select messages corresponding to their particular 
         /// type.</summary>
-        internal List<MessageIn> messages;
+        internal List<Message> messages;
 
         /// <summary>Occurs when there is an error.</summary>
         public event ErrorEventHandler ErrorEvent;
         internal ErrorEventHandler ErrorEventDelegate;
 
         private Dictionary<MessageProtocol, IClientTransport> transports;
-        private Dictionary<MessageProtocol, List<MessageOut>> messagePools;
-        // FIXME: Does maintaining a pool really buy us anything?
-        // Especially since this pool apparently grows without end?
-        private List<MessageOut> MessageOutFreePool = new List<MessageOut>();
+        private Dictionary<MessageProtocol, List<Message>> messagePools;
 
         /// <summary>Create a new SuperStream to handle a connection to a server. (blocks)</summary>
         /// <param name="address">Who to try to connect to.</param>
         /// <param name="port">Which port to connect to.</param>
-        internal ServerStream(string address, string port)
+        internal ServerStream(Client owner, string address, string port)
         {
             started = false;
+            this.owner = owner;
             this.address = address;
             this.port = port;
             Start();    // FIXME: starting should be *explicit*
@@ -598,8 +518,8 @@ namespace GT.Clients
             if (Started) { return; }
             nextPingTime = 0;
 
-            messagePools = new Dictionary<MessageProtocol, List<MessageOut>>();
-            messages = new List<MessageIn>();
+            messagePools = new Dictionary<MessageProtocol, List<Message>>();
+            messages = new List<Message>();
 
             // FIXME: this should be configurable
             if (transports == null)
@@ -617,9 +537,7 @@ namespace GT.Clients
 
             // FIXME: This is bogus and should be changed.
             //request our id right away
-            byte[] b = new byte[1];
-            b[0] = 1;
-            Send(b, (byte)SystemMessageType.UniqueIDRequest, MessageType.System, MessageProtocol.Tcp, 
+            Send(new SystemMessage(SystemMessageType.UniqueIDRequest), MessageProtocol.Tcp, 
                 MessageAggregation.No, MessageOrder.None);
         }
 
@@ -637,6 +555,7 @@ namespace GT.Clients
         {
             // transports[t.Name] = t;
             transports[t.MessageProtocol] = t;  // FIXME: this is to be replaced!
+            t.PacketReceivedEvent += new PacketReceivedHandler(MessageReceived);
             t.Server = this;
         }
 
@@ -660,12 +579,25 @@ namespace GT.Clients
             get
             {
                 float total = 0; int n = 0;
-                foreach (IClientTransport t in transports.Values)
+                foreach (ITransport t in transports.Values)
                 {
                     float d = t.Delay;
                     if (d > 0) { total += d; n++; }
                 }
                 return n == 0 ? 0 : total / n;
+            }
+        }
+
+        protected void MessageReceived(byte[] buffer, int offset, int count, ITransport transport)
+        {
+            Message msg = owner.Marshaller.Unmarshal(new MemoryStream(buffer, offset, count, false), transport);
+            if (msg.type == MessageType.System)
+            {
+                HandleSystemMessage((SystemMessage)msg, transport);
+            }
+            else
+            {
+                messages.Add(msg);
             }
         }
 
@@ -688,28 +620,18 @@ namespace GT.Clients
         /// <param name="type">The type of data this is</param>
         /// <param name="ordering">The ordering of how it will be sent</param>
         /// <param name="protocol">How it should be sent out</param>
-        private void Aggregate(byte[] data, byte id, MessageType type, 
+        private void Aggregate(Message msg, 
             MessageProtocol protocol, MessageOrder ordering)
         {
-            MessageOut message;
-            if (MessageOutFreePool.Count < 1)
-                message = new MessageOut(id, type, data, ordering);
-            else
-            {
-                message = MessageOutFreePool[0];
-                MessageOutFreePool.Remove(message);
-                message.data = data;
-                message.id = id;
-                message.type = type;
-                message.ordering = ordering;
-            }
-
-            List<MessageOut> mp;
+            List<Message> mp;
             messagePools.TryGetValue(protocol, out mp);
             if(mp == null) {
-                mp = messagePools[protocol] = new List<MessageOut>();
+                mp = messagePools[protocol] = new List<Message>();
             }
-            mp.Add(message);
+            // FIXME: presumably there is some maximum size or waiting time
+            // before aggregated messages are flushed?
+            // FIXME: what about QoS.Freshness -- where only the latest should be sent?
+            mp.Add(msg);
         }
 
         /// <summary>Send a message using these parameters.</summary>
@@ -719,7 +641,7 @@ namespace GT.Clients
         /// <param name="protocol">How to send it.</param>
         /// <param name="aggr">Should this data be aggregated?</param>
         /// <param name="ordering">What data should be sent before this?</param>
-        internal void Send(byte[] data, byte id, MessageType type, MessageProtocol protocol, 
+        internal void Send(Message msg, MessageProtocol protocol, 
             MessageAggregation aggr, MessageOrder ordering)
         {
             lock (this)
@@ -731,7 +653,7 @@ namespace GT.Clients
                 if (aggr == MessageAggregation.Yes)
                 {
                     //Wait to send this data, hopefully to pack it with later data.
-                    Aggregate(data, id, type, protocol, ordering);
+                    Aggregate(msg, protocol, ordering);
                     return;
                 }
 
@@ -739,7 +661,7 @@ namespace GT.Clients
                 {
                     //Make sure ALL messages on the CLIENT are sent,
                     //then send this one.
-                    Aggregate(data, id, type, protocol, ordering);
+                    Aggregate(msg, protocol, ordering);
                     FlushOutgoingMessages(protocol);
                     return;
                 }
@@ -747,8 +669,8 @@ namespace GT.Clients
                 {
                     //Make sure ALL other messages on this CHANNEL are sent,
                     //then send this one.
-                    Aggregate(data, id, type, protocol, ordering);
-                    FlushOutgoingMessages(id, protocol);
+                    Aggregate(msg, protocol, ordering);
+                    FlushOutgoingMessages(msg.id, protocol);
                     return;
                 }
 
@@ -756,165 +678,84 @@ namespace GT.Clients
                 //aggregation are locked in / already decided.
                 //If you're here, then you're not aggregating and you're not concerned 
                 //about ordering.
-                SendMessage(transports[protocol], type, id, data);
+                SendMessage(transports[protocol], msg);
             }
         }
 
-        protected void WriteMessage(MemoryStream stream, MessageType type, byte id, byte[] data)
-        {
-            /*
-             * Messages have an 8-byte header (MessageHeaderByteSize):
-             * byte 0 is the channel id
-             * byte 1 is the message type
-             * bytes 2 and 3 are unused
-             * bytes 4-7 encode the message data length
-             */
-            stream.WriteByte(id);           // byte 0
-            stream.WriteByte((byte)type);   // byte 1
-            stream.WriteByte(0);            // byte 2
-            stream.WriteByte(0);            // byte 3
-            stream.Write(BitConverter.GetBytes(data.Length), 0, 4); // bytes 4-7
-            stream.Write(data, 0, data.Length);
-        }
-
-        internal void SendMessage(IClientTransport transport, MessageType type, byte id, byte[] data)
+        protected void SendMessage(IClientTransport transport, Message msg)
         {
             //pack main message into a buffer and send it right away
-            MemoryStream finalBuffer = new MemoryStream(transport.MaximumPacketSize);
-            WriteMessage(finalBuffer, type, id, data);
+            Stream packet = transport.GetPacketStream();
+            owner.Marshaller.Marshal(msg, packet, transport);
 
             // and be sure to catch exceptions; log and remove transport if unable to be started
             // if(!transport.Started) { transport.Start(); }
-            transport.SendPacket(finalBuffer.ToArray());
+            transport.SendPacket(packet);
         }
 
-        /// <summary>Flushes outgoing tcp or udp messages on this channel only</summary>
+        /// <summary>Flushes outgoing messages on this channel only</summary>
         internal void FlushOutgoingMessages(byte id, MessageProtocol protocol)
         {
-            MessageOut message;
-            List<MessageOut> list;
-            List<MessageOut> chosenMessages = new List<MessageOut>(8);
-            byte[] buffer;
+            IClientTransport t = transports[protocol];  // will throw exception if not found
+            Debug.Assert(t.MaximumPacketSize > 0);
 
-            IClientTransport t = transports[protocol];
+            List<Message> list;
             messagePools.TryGetValue(protocol, out list);
             if (list == null || list.Count == 0) { return; }
-            MemoryStream packet = new MemoryStream(t.MaximumPacketSize);
-
-            while (true)
-            {
-                //Find first message in this channel
-                if ((message = FindFirstChannelMessageInList(id, list)) == null)
-                {
-                    break;
-                }
-
-                //if packing a packet, and the packet is full
-                if (t.MaximumPacketSize > 0 && 
-                    packet.Position + message.data.Length + MessageHeaderByteSize
-                        > t.MaximumPacketSize)
-                {
-                    break;
-                }
-
-                //remove this message
-                list.Remove(message);
-
-                //pack the message into the buffer
-                WriteMessage(packet, message.type, message.id, message.data);
-
-                MessageOutFreePool.Add(message);
-            }
-
-            //Actually send the data.  Note that after this point, ordering and 
-            //aggregation are locked in / already decided.
-            t.SendPacket(packet.ToArray());
-
-            //if more messages to flush on this channel, repeat above process again
-            if ((message = FindFirstChannelMessageInList(id, list)) != null)
-                FlushOutgoingMessages(id, protocol);
+            FlushOutgoingMessages(t, 
+                new PredicateListProcessor<Message>(list, 
+                    new Predicate<Message>(new SpecificChannelMessageProcessor(id).Matches)));
         }
 
-        /// <summary>Flushes outgoing tcp or udp messages</summary>
+        /// <summary>Flushes outgoing messages</summary>
         private void FlushOutgoingMessages(MessageProtocol protocol)
         {
-            const int maxSize = 512;
-            MessageOut message;
-            List<MessageOut> list;
+            List<Message> list;
             byte[] buffer;
 
             IClientTransport t = transports[protocol];
+            Debug.Assert(t.MaximumPacketSize > 0);
+
             messagePools.TryGetValue(protocol, out list);
             if (list == null || list.Count == 0) { return; }
-            MemoryStream packet = new MemoryStream(t.MaximumPacketSize);
+            FlushOutgoingMessages(t, new SequentialListProcessor<Message>(list));
+        }
 
-            while (true)
+        private void FlushOutgoingMessages(IClientTransport transport, IProcessingQueue<Message> elements)
+        {
+            while (!elements.Empty)
             {
+                Message message;
+                Stream packet = transport.GetPacketStream();
                 //if there are no more messages in the list
-                if ((message = FindFirstMessageInList(list)) == null)
-                    break;
-
-                //if packing a packet, and the packet is full
-                if (t.MaximumPacketSize > 0 &&
-                    packet.Position + message.data.Length + MessageHeaderByteSize
-                        > t.MaximumPacketSize)
+                while((message = elements.Current) != null) 
                 {
-                    break;
+                    long previousLength = packet.Length;
+                    try
+                    {
+                        owner.Marshaller.Marshal(message, packet, transport);
+                    }
+                    catch (ArgumentException) { }
+
+                    //if packing a packet, and the packet is full
+                    if (packet.Length >= transport.MaximumPacketSize)
+                    {
+                        // we're too big: go back to previous length, send this, and cause
+                        // the last message to be remarshalled
+                        packet.SetLength(previousLength);
+                        break;
+                    }
+                    // successfully marshalled: remove the message and find the next
+                    elements.Remove();
                 }
+                if(packet.Length == 0) { break; }
 
-                //remove this message from the list of messages to be packed
-                list.Remove(message);
-
-                WriteMessage(packet, message.type, message.id, message.data);
-
-                MessageOutFreePool.Add(message);
-            }
-
-            //Actually send the data.  Note that after this point, ordering and 
-            //aggregation are locked in / already decided.
-            t.SendPacket(packet.ToArray());
-
-            //if there is more data to flush, do it
-            if (list.Count > 0)
-                FlushOutgoingMessages(protocol);
-        }
-
-        /// <summary>Return the first message of a certain channel in a list</summary>
-        /// <param name="id">The channel id</param>
-        /// <param name="list">The list</param>
-        /// <returns>The first message of this channel</returns>
-        private MessageOut FindFirstChannelMessageInList(byte id, List<MessageOut> list)
-        {
-            foreach (MessageOut message in list)
-            {
-                if (message.id == id)
-                    return message;
-            }
-            return null;
-        }
-
-        /// <summary>Return the first message in a list of messages</summary>
-        /// <param name="list">The list</param>
-        /// <returns>The first message</returns>
-        private MessageOut FindFirstMessageInList(List<MessageOut> list)
-        {
-            if (list.Count > 0)
-                return list[0];
-            return null;
-        }
-
-        internal void Add(MessageIn newMessage)
-        {
-            if (newMessage.type == MessageType.System)
-            {
-                HandleSystemMessage(newMessage);
-            }
-            else
-            {
-                messages.Add(newMessage);
+                //Actually send the data.  Note that after this point, ordering and 
+                //aggregation are locked in / already decided.
+                transport.SendPacket(packet);
             }
         }
-
+    
         /// <summary>A single tick of the SuperStream.</summary>
         internal void Update()
         {
@@ -928,47 +769,32 @@ namespace GT.Clients
             }
         }
 
-
         /// <summary>Deal with a system message in whatever way we need to.</summary>
         /// <param name="id">The channel it came alone.</param>
         /// <param name="buffer">The data that came along with it.</param>
-        internal void HandleSystemMessage(MessageIn message)
+        internal void HandleSystemMessage(SystemMessage message, ITransport transport)
         {
             switch ((SystemMessageType)message.id)
             {
-                case SystemMessageType.UniqueIDRequest:
-                    UniqueIdentity = BitConverter.ToInt32(message.data, 0);
-                    break;
+            case SystemMessageType.UniqueIDRequest:
+                UniqueIdentity = BitConverter.ToInt32(message.data, 0);
+                break;
 
-                case SystemMessageType.UDPPortRequest:
-                    Console.WriteLine("FIXME: UDPPortRequest");
-                    //    //they want to receive udp messages on this port
-                    //    short port = BitConverter.ToInt16(message.data, 0);
-                    //    IPEndPoint remoteUdp = new IPEndPoint(((IPEndPoint)tcpClient.Client.RemoteEndPoint).Address, port);
-                    //    udpClient.Connect(remoteUdp);
+            case SystemMessageType.PingRequest:
+                SendMessage((IClientTransport)transport, new SystemMessage(SystemMessageType.PingResponse, message.data));
+                break;
 
-                    //they want the udp port.  Send it.
-                    //BitConverter.GetBytes(((short)((IPEndPoint)udpClient.Client.LocalEndPoint).Port)).CopyTo(message.data, 0);
-                    SendMessage(message.transport, MessageType.System, (byte)SystemMessageType.UDPPortResponse, message.data);
-                    break;
+            case SystemMessageType.PingResponse:
+                //record the difference; half of it is the latency between this client and the server
+                int newDelay = (System.Environment.TickCount - BitConverter.ToInt32(message.data, 0)) / 2;
+                // NB: transport.Delay set may (and probably will) scale this value
+                transport.Delay = newDelay;
+                break;
 
-                case SystemMessageType.UDPPortResponse:
-                    Console.WriteLine("FIXME: UDPPortResponse");
-                    //short port = BitConverter.ToInt16(message.data, 0);
-                    //IPEndPoint remoteUdp = new IPEndPoint(((IPEndPoint)tcpClient.Client.RemoteEndPoint).Address, port);
-                    //udpClient.Connect(remoteUdp);
-                    break;
-
-                case SystemMessageType.ServerPingAndMeasure:
-                    SendMessage(message.transport, MessageType.System, message.id, message.data);
-                    break;
-
-                case SystemMessageType.ClientPingAndMeasure:
-                    //record the difference; half of it is the latency between this client and the server
-                    int newDelay = (System.Environment.TickCount - BitConverter.ToInt32(message.data, 0)) / 2;
-                    // NB: transport.Delay set may (and probably will) scale this value
-                    message.transport.Delay = newDelay;
-                    break;
+            default:
+                Debug.WriteLine("ServerStream.HandleSystemMessage(): Unknown message type: " +
+                    (SystemMessageType)message.id);
+                break;
             }
         }
 
@@ -976,9 +802,25 @@ namespace GT.Clients
         /// <summary>Ping the server to determine delay, as well as act as a keep-alive.</summary>
         internal void Ping()
         {
-            byte[] buffer = BitConverter.GetBytes(System.Environment.TickCount);
-            Send(buffer, (byte)SystemMessageType.ClientPingAndMeasure, MessageType.System, MessageProtocol.Tcp, 
-                MessageAggregation.No, MessageOrder.None);
+            foreach (IClientTransport t in transports.Values)
+            {
+                SendMessage(t, new SystemMessage(SystemMessageType.PingRequest,
+                    BitConverter.GetBytes(System.Environment.TickCount)));
+            }
+        }
+    }
+
+    internal class SpecificChannelMessageProcessor {
+        protected byte soughtChannel;
+
+        internal SpecificChannelMessageProcessor(byte channel)
+        {
+            this.soughtChannel = channel;
+        }
+
+        internal bool Matches(Message element)
+        {
+            return element.id == soughtChannel;
         }
     }
 
@@ -995,6 +837,9 @@ namespace GT.Clients
         private List<ServerStream> superStreams;
         private HPTimer timer;
         private bool started = false;
+
+        private IMarshaller marshaller = new DotNetSerializingMarshaller();
+
 
         /// <summary>Occurs when there are errors on the network.</summary>
         public event ErrorEventHandler ErrorEvent;
@@ -1019,6 +864,11 @@ namespace GT.Clients
             threeTupleStreams = new Dictionary<byte, AbstractStreamedTuple>();
             superStreams = new List<ServerStream>();
             timer = new HPTimer();
+        }
+
+        public IMarshaller Marshaller
+        {
+            get { return marshaller; }
         }
 
         /// <summary>Get a streaming tuple that is automatically sent to the server every so often</summary>
@@ -1238,7 +1088,7 @@ namespace GT.Clients
                     return s;
                 }
             }
-            ServerStream mySS = new ServerStream(address, port);
+            ServerStream mySS = new ServerStream(this, address, port);
             mySS.ErrorEventDelegate = new ErrorEventHandler(mySS_ErrorEvent);
             mySS.ErrorEvent += mySS.ErrorEventDelegate;
             superStreams.Add(mySS);
@@ -1406,7 +1256,7 @@ namespace GT.Clients
         /// <summary>One tick of the network beat.  Thread-safe.</summary>
         public void Update()
         {
-            Console.WriteLine("{0}: Update() called", this);
+            DebugUtils.WriteLine(this + ": Update() started");
             lock (this)
             {
                 if (!started) { Start(); }
@@ -1424,7 +1274,7 @@ namespace GT.Clients
                         s.Update();
                         lock (s.messages)
                         {
-                            foreach (MessageIn m in s.messages)
+                            foreach (Message m in s.messages)
                             {
                                 try
                                 {
@@ -1439,8 +1289,8 @@ namespace GT.Clients
                                     case MessageType.Tuple2D: twoTupleStreams[m.id].QueueMessage(m); break;
                                     case MessageType.Tuple3D: threeTupleStreams[m.id].QueueMessage(m); break;
                                     default:
-                                        Console.WriteLine("Client: WARNING: received message with unknown type (remote={0}, id={1}): type={2}",
-                                            m.transport, m.id, m.type);
+                                        Console.WriteLine("Client: WARNING: received message (id={0}) with unknown type: {1}",
+                                            m.id, m.type);
                                         if (ErrorEvent != null)
                                             ErrorEvent(null, SocketError.Fault, s, "Received " + m.type + "message for connection " + m.id +
                                                 ", but that type does not exist.");
@@ -1449,8 +1299,8 @@ namespace GT.Clients
                                 }
                                 catch (KeyNotFoundException e)
                                 {
-                                    Console.WriteLine("Client: WARNING: received message with unmonitored id (remote={0}, type={1}): id={2}",
-                                        m.transport, m.type, m.id);
+                                    Console.WriteLine("Client: WARNING: received message with unmonitored id (type={0}): id={1}",
+                                        m.type, m.id);
                                     if (ErrorEvent != null)
                                         ErrorEvent(e, SocketError.Fault, s, "Received " + m.type + "message for connection " + m.id +
                                             ", but that id does not exist for that type.");
@@ -1484,11 +1334,12 @@ namespace GT.Clients
                 foreach (AbstractStreamedTuple s in threeTupleStreams.Values)
                     s.Update(timer);
             }
+            DebugUtils.WriteLine(this + ": Update() finished");
         }
 
         /// <summary>This is a placeholder for more possible system message handling.</summary>
         /// <param name="m">The message we're handling.</param>
-        private void HandleSystemMessage(MessageIn m)
+        private void HandleSystemMessage(Message m)
         {
             //this should definitely not happen!  No good code leads to this point.  This should be only a placeholder.
             Console.WriteLine("Client handled System Message.");

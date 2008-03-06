@@ -20,6 +20,37 @@ Breaking Changes:
     uses of Dead as a writable property should be changed to use
     IDisposable.Dispose().
 
+  * Exposed fields have been made into properties and some have been
+    renamed to better conform to C#/.NET naming guidelines.
+	Server.clientList -> Server.Clients
+
+  * Some delegates have had their signatures changed to use the least
+    specific collection classes possible
+	ClientsRemovedHandler uses ICollection
+	ClientsJoinedHandler uses ICollection
+
+  * The marshalling code has been separated and servers and clients
+    now deal in more abstract Messages.
+      * delegate MessageHandler has a different calling convention
+
+  * Specialized GT exceptions have been created to represent different
+    insurpassable communications conditions in GT.  These exceptions
+    inherit from GTException.
+
+      CannotConnectToRemoteException: a client experienced some problem
+	connecting to a specified server.  It may be that there was
+	a mistake in the identifying information for the server,
+	the server may be down or unavailable, or there are routing
+	difficulties (such as firewalls) that prevent connecting.
+	Potentially thrown on Client.Start().  This exception may
+	also be thrown on Send() for short-lived transports where
+	connections are opened periodically rather that being
+	long-lived (e.g., HTTP and SMTP),
+
+      NoMatchingTransport: no transport could be found that supported
+        the required QoS specifications.  Potentially thrown by the
+	various flavours of Send().
+
 New additions
 
   * Added a lifecycle protocol consisting of Start(), Stop(), and

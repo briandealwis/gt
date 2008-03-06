@@ -96,8 +96,8 @@ namespace GT.Servers
                 {
                     int rc = udpClient.Client.ReceiveFrom(buffer, ref remote);
                     NetPacketReceivedHandler h;
-                    Console.WriteLine(this + ": received " + rc + " bytes from " + remote);
-                    DebugUtils.DumpMessage("UDP received", buffer);
+                    DebugUtils.WriteLine(this + ": received " + rc + " bytes from " + remote);
+                    DebugUtils.DumpMessage("UDP-Mux received", buffer, 0, rc);
                     if (!handlers.TryGetValue(remote, out h) || h == null)
                     {
                         h = defaultHandler;
@@ -109,12 +109,12 @@ namespace GT.Servers
                         }
                         else
                         {
-                            Console.WriteLine(this + ": no handler found; using default");
+                            DebugUtils.WriteLine(this + ": no handler found; using default");
                         }
                     }
                     else
                     {
-                        Console.WriteLine(this + ": found handler: " + h);
+                        DebugUtils.WriteLine(this + ": found handler: " + h);
                     }
                     h.Invoke(remote, new MemoryStream(buffer, 0, rc).ToArray());
                 }

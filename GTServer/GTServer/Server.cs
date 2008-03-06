@@ -19,48 +19,42 @@ namespace GT.Servers
     public delegate void TickHandler();
 
     /// <summary>Handles a Message event, when a data arrives</summary>
-    /// <param name="id">The id of the channel the data was sent along</param>
-    /// <param name="type">The type of data sent</param>
-    /// <param name="data">The data sent</param>
+    /// <param name="m">The incoming message.</param>
     /// <param name="client">Who sent the data</param>
     /// <param name="protocol">How the data was sent</param>
-    public delegate void MessageHandler(byte id, MessageType type, byte[] data, Server.Client client, MessageProtocol protocol);
+    public delegate void MessageHandler(Message m, Server.Client client, MessageProtocol protocol);
 
     /// <summary>Handles a SessionMessage event, when a SessionMessage arrives.</summary>
-    /// <param name="e">The action performed.</param>
-    /// <param name="id">The id of the channel the data was sent along.</param>
+    /// <param name="m">The incoming message.</param>
     /// <param name="client">Who sent the data.</param>
     /// <param name="protocol">How the data was sent</param>
-    public delegate void SessionMessageHandler(SessionAction e, byte id, Server.Client client, MessageProtocol protocol);
+    public delegate void SessionMessageHandler(Message m, Server.Client client, MessageProtocol protocol);
 
     /// <summary>Handles a StringMessage event, when a StringMessage arrives.</summary>
-    /// <param name="s">The string sent.</param>
-    /// <param name="id">The id of the channel the data was sent along.</param>
+    /// <param name="m">The incoming message.</param>
     /// <param name="client">Who sent the data.</param>
     /// <param name="protocol">How the data was sent</param>
-    public delegate void StringMessageHandler(byte[] s, byte id, Server.Client client, MessageProtocol protocol);
+    public delegate void StringMessageHandler(Message m, Server.Client client, MessageProtocol protocol);
 
     /// <summary>Handles a ObjectMessage event, when a ObjectMessage arrives.</summary>
-    /// <param name="o">The object sent.</param>
-    /// <param name="id">The id of the channel the data was sent along.</param>
+    /// <param name="m">The incoming message.</param>
     /// <param name="client">Who sent the data.</param>
     /// <param name="protocol">How the data was sent</param>
-    public delegate void ObjectMessageHandler(byte[] o, byte id, Server.Client client, MessageProtocol protocol);
+    public delegate void ObjectMessageHandler(Message m, Server.Client client, MessageProtocol protocol);
 
     /// <summary>Handles a BinaryMessage event, when a BinaryMessage arrives.</summary>
-    /// <param name="b">The byte array sent.</param>
-    /// <param name="id">The id of the channel the data was sent along.</param>
+    /// <param name="m">The incoming message.</param>
     /// <param name="client">Who sent the data.</param>
     /// <param name="protocol">How the data was sent</param>
-    public delegate void BinaryMessageHandler(byte[] b, byte id, Server.Client client, MessageProtocol protocol);
+    public delegate void BinaryMessageHandler(Message m, Server.Client client, MessageProtocol protocol);
 
     /// <summary>Handles when clients leave the server.</summary>
     /// <param name="list">The clients who've left.</param>
-    public delegate void ClientsRemovedHandler(List<Server.Client> list);
+    public delegate void ClientsRemovedHandler(ICollection<Server.Client> list);
 
     /// <summary>Handles when clients join the server.</summary>
     /// <param name="list">The clients who've joined.</param>
-    public delegate void ClientsJoinedHandler(List<Server.Client> list);
+    public delegate void ClientsJoinedHandler(ICollection<Server.Client> list);
 
     /// <summary>Handles when there is an internal error that the application should know about.</summary>
     /// <param name="e">The exception that occurred</param>
@@ -84,6 +78,7 @@ namespace GT.Servers
         private bool running = false;
 
         private List<IAcceptor> acceptors = new List<IAcceptor>();
+        private IMarshaller marshaller = new DotNetSerializingMarshaller();
 
         private int lastPingTime = 0;
         private int port;
@@ -91,24 +86,21 @@ namespace GT.Servers
         /// <summary>Last exception encountered.</summary>
         public Exception LastError = null;
 
-        /// <summary>All of the clients that this server knows about.</summary>
-        public List<Client> clientList = new List<Client>();
-
         /// <summary>All of the clientIDs that this server knows about.  
         /// Hide this so that users cannot cause mischief.  I accept that this list may 
         /// not be accurate because the users have direct access to the clientList.</summary>
         private Dictionary<int, Client> clientIDs = new Dictionary<int, Client>();
+        private ICollection<Client> newlyAddedClients = new List<Client>();
 
-        /// <summary>
-        /// Any newly-added clients since last update.
-        /// </summary>
-        private List<Client> listA = new List<Client>();
+        public ICollection<Client> Clients { get { return clientIDs.Values; } }
 
         /// <summary>Time in milliseconds between keep-alive pings.</summary>
         public int PingInterval = 10000;
 
         /// <summary>Time in milliseconds between server ticks.</summary>
         public int Interval = 10;
+
+        public IMarshaller Marshaller { get { return marshaller; } }
 
         #endregion
 
@@ -455,7 +447,7 @@ namespace GT.Servers
         /// <returns>a descriptive string representation</returns>
         override public string ToString()
         {
-            return "Server(port=" + port + ", " + clientList.Count + " clients)";
+            return "Server(port=" + port + ", " + Clients.Count + " clients)";
         }
 
         /// <summary>One tick of the server, manually
@@ -463,43 +455,42 @@ namespace GT.Servers
         /// </summary>
         public void Update()
         {
-            Console.WriteLine(DateTime.Now + " " + this + ": Server.Update(): shall we take a turn about the room?");
+            DebugUtils.WriteLine(">>>> Server.Update() started");
 
             if (!Started) { Start(); }
 
-            listA.Clear();
+            newlyAddedClients.Clear();
             foreach(BaseAcceptor acc in acceptors) {
-                Console.WriteLine(DateTime.Now + " {0}: Update(): checking {1}", this, acc);
+                DebugUtils.WriteLine("Server.Update(): checking acceptor " + acc);
                 acc.Update();
             }
-            if (listA.Count > 0 && ClientsJoined != null)
+            if (newlyAddedClients.Count > 0 && ClientsJoined != null)
             {
-                ClientsJoined(listA);
+                ClientsJoined(newlyAddedClients);
             }
 
             //ping, if needed
             if (lastPingTime + PingInterval < System.Environment.TickCount)
             {
-                Console.WriteLine(this + ": Update(): pinging existing clients (" + clientList.Count + ")");
+                DebugUtils.WriteLine("Server.Update(): pinging clients");
                 lastPingTime = System.Environment.TickCount;
-                foreach (Client c in clientList) { c.Ping(); }
+                foreach (Client c in Clients) { c.Ping(); }
             }
 
-            Console.WriteLine(this + ": Update(): checking existing clients");
+            DebugUtils.WriteLine("Server.Update(): Clients.Update()");
             //update all clients, reading from the network
-            foreach (Client c in clientList) { c.Update(); }
+            foreach (Client c in Clients) { c.Update(); }
 
             //if anyone is listening, tell them we're done one cycle
             if (Tick != null) { Tick(); }
 
             //remove dead clients
-            List<Client> listD = clientList.FindAll(Client.IsDead);
+            List<Client> listD = FindAll(Clients, Client.IsDead);
             if (listD.Count > 0)
             {
-                Console.WriteLine(this + ": Update(): removing seemingly dead clients");
+                DebugUtils.WriteLine("Server.Update(): removing dead clients");
                 foreach (Client c in listD)
                 {
-                    clientList.Remove(c);
                     clientIDs.Remove(c.UniqueIdentity);
                     c.Dispose();  //make sure it's gone
                 }
@@ -509,7 +500,20 @@ namespace GT.Servers
                 }
             }
 
-            Console.WriteLine(this + ": Update(): done this turn");
+            DebugUtils.WriteLine("<<<< Server.Update() finished");
+        }
+
+        private List<T> FindAll<T>(ICollection<T> list, Predicate<T> pred)
+        {
+            List<T> results = new List<T>();
+            foreach (T t in list)
+            {
+                if (pred(t))
+                {
+                    results.Add(t);
+                }
+            }
+            return results;
         }
 
         protected void NewClient(IServerTransport t, int clientId)
@@ -517,13 +521,13 @@ namespace GT.Servers
             Client c = GetClientFromUniqueIdentity(clientId);
             if (c == null)
             {
-                Console.WriteLine("Unknown client: " + clientId + " from " + t);
+                Console.WriteLine("{0}: unknown client: {1} from {2}", this, clientId, t);
                 c = CreateNewClient();
-                listA.Add(c);
+                newlyAddedClients.Add(c);
             }
             else
             {
-                Console.WriteLine(this + ": UDP: found client: " + clientId + " from " + t);
+                Console.WriteLine("{0}: found client {1} from {2}", this, clientId, t);
             }
             c.AddTransport(t);
         }
@@ -548,9 +552,7 @@ namespace GT.Servers
             client.ErrorEventDelegate = new ErrorClientHandler(ErrorClientHandlerMethod);
             client.ErrorEvent += client.ErrorEventDelegate;
 
-            clientList.Add(client);
             clientIDs.Add(client.UniqueIdentity, client);
-            Console.WriteLine(this + ": Created new client: " + client.UniqueIdentity);
             return client;
         }
 
@@ -567,26 +569,25 @@ namespace GT.Servers
             {
                 try
                 {
+                    // tick count is in milliseconds
                     oldTickCount = System.Environment.TickCount;
 
-                    Console.WriteLine(this + ": Server.Update()");
                     Update();
 
                     newTickCount = System.Environment.TickCount;
                     int sleepCount = Math.Max(this.Interval - (newTickCount - oldTickCount), 0);
-                    Console.WriteLine(this + ": sleeping for " + sleepCount + " ticks");
 
                     Sleep(sleepCount);
                 }
                 catch (ThreadAbortException) 
                 {
-                    Console.WriteLine(this + ": listening loop stopped");
+                    Console.WriteLine("{0}: listening loop stopped", this);
                     Stop();
                     return;
                 }
                 catch (Exception e)
                 {
-                    Console.WriteLine(this + ": exception in listening loop: " + e);
+                    Console.WriteLine("{0}: exception in listening loop: {1}", this, e);
                     LastError = e;
                     if(ErrorEvent != null)
                         ErrorEvent(e, SocketError.Fault, null, "An error occurred in the server.");
@@ -596,6 +597,8 @@ namespace GT.Servers
 
         public void Sleep(int milliseconds)
         {
+            Trace.TraceInformation("{0}: sleeping for {1}ms", this, milliseconds);
+
             // FIXME: This should be more clever and use Socket.Select()
             Thread.Sleep(milliseconds);
         }
@@ -647,41 +650,40 @@ namespace GT.Servers
         /// <param name="data">The data of the Message.</param>
         /// <param name="client">Which client sent it.</param>
         /// <param name="protocol">How the data was sent</param>
-        void client_MessageReceived(byte id, MessageType type, byte[] data, Client client, MessageProtocol protocol)
+        void client_MessageReceived(Message m, Client client, MessageProtocol protocol)
         {
-            Console.WriteLine("Server {0}: MessageReceived id:{1} type:{2} #bytes:{3} from:{4} protocol:{5}",
-                this, id, type, data.Length, client, protocol);
-            DebugUtils.DumpMessage("client_MessageReceived", id, type, data);
+            DebugUtils.DumpMessage(this + ": MessageReceived from " + client, m);
+            //send to this
+            if (MessageReceived != null) MessageReceived(m, client, protocol);
+
             //sort to the correct data type
-            switch (type)
+            switch (m.type)
             {
                 case MessageType.Binary:
-                    if (BinaryMessageReceived != null) BinaryMessageReceived(data, id, client, protocol); break;
+                    if (BinaryMessageReceived != null) BinaryMessageReceived(m, client, protocol); break;
                 case MessageType.Object:
-                    if (ObjectMessageReceived != null) ObjectMessageReceived(data, id, client, protocol); break;
+                    if (ObjectMessageReceived != null) ObjectMessageReceived(m, client, protocol); break;
                 case MessageType.Session:
-                    if (SessionMessageReceived != null) SessionMessageReceived((SessionAction)data[4], id, client, protocol); break;
+                    if (SessionMessageReceived != null) SessionMessageReceived(m, client, protocol); break;
                 case MessageType.String:
-                    if (StringMessageReceived != null) StringMessageReceived(data, id, client, protocol); break;
+                    if (StringMessageReceived != null) StringMessageReceived(m, client, protocol); break;
                 default:
                     break;
             }
 
-            //send to this
-            if (MessageReceived != null) MessageReceived(id, type, data, client, protocol);
         }
 
         private void KillAll()
         {
-            for (int i = 0; i < clientList.Count; i++) {
+            foreach(Client c in Clients) {
                 try {
-                    clientList[i].Dispose();
+                    c.Dispose();
                 } catch(Exception e) {
                     Console.WriteLine("{0} EXCEPTION while disposing client: {1}",
                         DateTime.Now, e);
                 }
             }
-            clientList = new List<Client>();
+            clientIDs.Clear();
         }
 
         /// <summary>Generates a unique identity number that clients can use to identify each other.</summary>
@@ -701,64 +703,76 @@ namespace GT.Servers
 
         #endregion
 
-        #region List Sending
+        #region Sending
 
-        /// <summary>Sends a byte array as a data on the id binary channel to many clients in an efficient way.</summary>
+        /// <summary>Sends a byte array on channel <c>id</c> to many clients in an efficient manner.</summary>
         /// <param name="buffer">The byte array to send</param>
-        /// <param name="id">The id of the channel to send it on</param>
+        /// <param name="id">The channel id to be sent on</param>
         /// <param name="list">The list of clients to send it to</param>
         /// <param name="reli">How to send it</param>
-        public void Send(byte[] buffer, byte id, List<Client> list, MessageProtocol reli)
+        public void Send(byte[] buffer, byte id, ICollection<Client> list, MessageProtocol reli)
         {
-            byte[] data = Client.FromMessageToBytes(buffer, id);
-            SendToList(data, list, reli);
+            List<Message> messages = new List<Message>(1);
+            messages.Add(new BinaryMessage(id, buffer));
+            Send(messages, list, reli);
         }
 
-        /// <summary>Sends a string as a data on the id binary channel to many clients in an efficient way.</summary>
+        /// <summary>Sends a string on channel <c>id</c> to many clients in an efficient manner.</summary>
         /// <param name="s">The byte array to send</param>
-        /// <param name="id">The id of the channel to send it on</param>
+        /// <param name="id">The channel id to be sent on</param>
         /// <param name="list">The list of clients to send it to</param>
         /// <param name="reli">How to send it</param>
-        public void Send(string s, byte id, List<Client> list, MessageProtocol reli)
+        public void Send(string s, byte id, ICollection<Client> list, MessageProtocol reli)
         {
-            byte[] data = Client.FromMessageToBytes(s, id);
-            SendToList(data, list, reli);
+            List<Message> messages = new List<Message>(1);
+            messages.Add(new StringMessage(id, s));
+            Send(messages, list, reli);
         }
 
-        /// <summary>Sends a byte array as a data on the id binary channel to many clients in an efficient way.</summary>
-        /// <param name="o">The byte array to send</param>
-        /// <param name="id">The id of the channel to send it on</param>
+        /// <summary>Sends an object on channel <c>id</c> to many clients in an efficient manner.</summary>
+        /// <param name="o">The bject to send</param>
+        /// <param name="id">The channel id to be sent on</param>
         /// <param name="list">The list of clients to send it to</param>
         /// <param name="reli">How to send it</param>
-        public void Send(object o, byte id, List<Client> list, MessageProtocol reli)
+        public void Send(object o, byte id, ICollection<Client> list, MessageProtocol reli)
         {
-            byte[] data = Client.FromMessageToBytes(o, id);
-            SendToList(data, list, reli);
+            List<Message> messages = new List<Message>(1);
+            messages.Add(new ObjectMessage(id, o));
+            Send(messages, list, reli);
         }
 
-        /// <summary>Packs a series of messages together, then sends them to a list of clients in an efficient way.</summary>
-        /// <param name="messagesOut">The list of messages</param>
-        /// <param name="list">The list of clients</param>
-        /// <param name="reli">How to send them</param>
-        public void Send(List<Message> messagesOut, List<Client> list, MessageProtocol reli)
+        public void Send(Message message, ICollection<Client> list, MessageProtocol reli)
         {
-            byte[] data = Client.FromMessageToBytes(messagesOut);
-            SendToList(data, list, reli);
-        }
-
-        /// <summary>Sends raw binary data to each client in the list.  This is private for a very good reason.</summary>
-        /// <param name="buffer">The raw data</param>
-        /// <param name="list">Who to send it to</param>
-        /// <param name="reli">How to send it</param>
-        private void SendToList(byte[] buffer, List<Client> list, MessageProtocol reli)
-        {
-            if (!running)
-            {
-                throw new InvalidStateException("Cannot send on a stopped server", this);
-            }
             foreach (Client c in list)
             {
-                c.SendMessage(buffer, reli);
+                try
+                {
+                    c.Send(message, reli);
+                }
+                catch (Exception e)
+                {
+                    ErrorClientHandlerMethod(e, SocketError.Fault, c, "exception when sending");
+                }
+            }
+        }
+
+        /// <summary>Sends a collection of messages in an efficient way to a list of clients.</summary>
+        /// <param name="messages">The list of messages</param>
+        /// <param name="list">The list of clients</param>
+        /// <param name="reli">How to send them</param>
+        public void Send(IList<Message> messages, ICollection<Client> list, MessageProtocol reli)
+        {
+            if (!running) { throw new InvalidStateException("Cannot send on a stopped server", this); }
+            foreach (Client c in list)
+            {
+                try
+                {
+                    c.Send(messages, reli);
+                }
+                catch (Exception e)
+                {
+                    ErrorClientHandlerMethod(e, SocketError.Fault, c, "exception when sending");
+                }
             }
         }
 
@@ -768,7 +782,7 @@ namespace GT.Servers
         public class Client : IDisposable
         {
             #region Variables and Properties
-
+            
             /// <summary>Triggered when a data is received.</summary>
             public event MessageHandler MessageReceived;
             internal MessageHandler MessageReceivedDelegate;
@@ -782,7 +796,6 @@ namespace GT.Servers
 
             private int uniqueIdentity;
             private Server server;
-            private float delay = 20;
             private Dictionary<MessageProtocol, IServerTransport> transports =
                 new Dictionary<MessageProtocol, IServerTransport>();
 
@@ -799,7 +812,16 @@ namespace GT.Servers
             /// <summary>Average amount of latency between the server and this particular client.</summary>
             public float Delay
             {
-                get { return delay; }
+                get
+                {
+                    float total = 0; int n = 0;
+                    foreach (ITransport t in transports.Values)
+                    {
+                        float d = t.Delay;
+                        if (d > 0) { total += d; n++; }
+                    }
+                    return n == 0 ? 0 : total / n;
+                }
             }
 
             /// <summary>The unique id of this client</summary>
@@ -854,92 +876,48 @@ namespace GT.Servers
                 return "Server.Client(" + uniqueIdentity + ")";
             }
 
-            #region Marshalling and Unmarshalling
-
-            /// <summary>Add the id and the data type to the front of a raw binary data</summary>
-            /// <param name="data"></param>
-            /// <param name="id"></param>
-            /// <param name="type"></param>
-            /// <returns></returns>
-            internal static byte[] FromMessageToBytes(byte[] data, byte id, MessageType type)
-            {
-                DebugUtils.DumpMessage("Server.FromMessageToBytes", id, type, data);
-
-                byte[] buffer = new byte[data.Length + 8];
-                buffer[0] = id;
-                buffer[1] = (byte)type;
-                BitConverter.GetBytes(data.Length).CopyTo(buffer, 4);
-                data.CopyTo(buffer, 8);
-                return buffer;
-            }
-
-            /// <summary>Give bytes to be sent a data header and return as bytes</summary>
-            /// <param name="data"></param>
-            /// <param name="id"></param>
-            /// <returns></returns>
-            internal static byte[] FromMessageToBytes(byte[] data, byte id)
-            {
-                return FromMessageToBytes(data, id, MessageType.Binary);
-            }
-
-            /// <summary>Give a string to be sent a data header and return as bytes</summary>
-            /// <param name="s"></param>
-            /// <param name="id"></param>
-            /// <returns></returns>
-            internal static byte[] FromMessageToBytes(string s, byte id)
-            {
-                byte[] buffer = System.Text.ASCIIEncoding.ASCII.GetBytes(s);
-                return FromMessageToBytes(buffer, id, MessageType.String);
-            }
-
-            /// <summary>Give an object to be sent a data header and return as bytes</summary>
-            /// <param name="o"></param>
-            /// <param name="id"></param>
-            /// <returns></returns>
-            internal static byte[] FromMessageToBytes(object o, byte id)
-            {
-                MemoryStream ms = new MemoryStream();
-                Server.formatter.Serialize(ms, o);
-                byte[] buffer = new byte[ms.Position];
-                ms.Position = 0;
-                ms.Read(buffer, 0, buffer.Length);
-                return FromMessageToBytes(buffer, id, MessageType.Object);
-            }
-
-            /// <summary>Convert a list of messages into the raw bytes that will be sent into the network.
-            /// The bytes include the 2 byte data headers.</summary>
-            /// <param name="messagesOut"></param>
-            /// <returns></returns>
-            internal static byte[] FromMessageToBytes(List<Message> messagesOut)
-            {
-                int sizeMax = 0;
-                int size = 0;
-
-                foreach (Message message in messagesOut)
-                    sizeMax += message.data.Length + 8;
-
-                byte[] buffer = new byte[sizeMax];
-                byte[] data;
-                foreach (Message message in messagesOut)
-                {
-                    data = FromMessageToBytes(message.data, message.id, message.type);
-                    data.CopyTo(buffer, size);
-                    size += data.Length;
-                }
-
-                return buffer;
-            }
-
-            #endregion
 
             internal void AddTransport(IServerTransport t)
             {
-                Console.WriteLine("{0}: added new transport: {1}", this, t);
-                t.MessageReceivedEvent += new MessageReceivedHandler(PostNewlyReceivedMessage);
+                DebugUtils.Write(this + ": added new transport: " + t);
+                t.PacketReceivedEvent += new PacketReceivedHandler(PostNewlyReceivedPacket);
                 transports[t.MessageProtocol] = t;
             }
 
             #region Send
+
+            /// <summary>Send a byte array on the channel <c>id</c>.</summary>
+            /// <param name="buffer">The byte array to send</param>
+            /// <param name="id">The channel id to be sent on</param>
+            /// <param name="reli">How to send it</param>
+            public void Send(byte[] buffer, byte id, MessageProtocol reli)
+            {
+                List<Message> messages = new List<Message>(1);
+                messages.Add(new BinaryMessage(id, buffer));
+                Send(messages, reli);
+            }
+
+            /// <summary>Send a string on channel <c>id</c>.</summary>
+            /// <param name="s">The string to send</param>
+            /// <param name="id">The channel id to be sent on</param>
+            /// <param name="reli">How to send it</param>
+            public void Send(string s, byte id, MessageProtocol reli)
+            {
+                List<Message> messages = new List<Message>(1);
+                messages.Add(new StringMessage(id, s));
+                Send(messages, reli);
+            }
+
+            /// <summary>Sends an bject on channel <c>id</c>.</summary>
+            /// <param name="o">The object to send</param>
+            /// <param name="id">The channel id to be sent on</param>
+            /// <param name="reli">How to send it</param>
+            public void Send(object o, byte id, MessageProtocol reli)
+            {
+                List<Message> messages = new List<Message>(1);
+                messages.Add(new ObjectMessage(id, o));
+                Send(messages, reli);
+            }
 
             /// <summary>Send SessionAction.</summary>
             /// <param name="clientId">Client who is doing the action.</param>
@@ -948,62 +926,18 @@ namespace GT.Servers
             /// <param name="protocol">What protocol the data should use.</param>
             public void Send(int clientId, SessionAction e, byte id, MessageProtocol protocol)
             {
-                //Session messages are unique in that we ALWAYS want to know who the action refers to, 
-                //therefore we built it into the system.
-                byte[] buffer = new byte[5];
-                BitConverter.GetBytes(clientId).CopyTo(buffer, 0);
-                buffer[4] = (byte)e;
-                this.Send(buffer, id, MessageType.Session, protocol);
+                List<Message> messages = new List<Message>(1);
+                messages.Add(new SessionMessage(id, clientId, e));
+                Send(messages, protocol);
             }
 
-            /// <summary>Send byte array.</summary>
-            /// <param name="buffer">Binary data to send.</param>
-            /// <param name="id">Channel to send on.</param>
-            /// <param name="protocol">What protocol the data should use.</param>
-            public void Send(byte[] buffer, byte id, MessageProtocol protocol)
-            {
-                this.Send(buffer, id, MessageType.Binary, protocol);
-            }
-
-            /// <summary>Send object.</summary>
-            /// <param name="o">Object data to send.</param>
-            /// <param name="id">Channel to send on.</param>
-            /// <param name="protocol">What protocol the data should use.</param>
-            public void Send(Object o, byte id, MessageProtocol protocol)
-            {
-                MemoryStream ms = new MemoryStream();
-                Server.formatter.Serialize(ms, o);
-                byte[] buffer = new byte[ms.Position];
-                ms.Position = 0;
-                ms.Read(buffer, 0, buffer.Length);
-                this.Send(buffer, id, MessageType.Object, protocol);
-            }
-
-            /// <summary>Send string.</summary>
-            /// <param name="s">String data to send.</param>
-            /// <param name="id">Channel to send on.</param>
-            /// <param name="protocol">What protocol the data should use.</param>
-            public void Send(String s, byte id, MessageProtocol protocol)
-            {
-                byte[] buffer = System.Text.ASCIIEncoding.ASCII.GetBytes(s);
-                this.Send(buffer, id, MessageType.String, protocol);
-            }
-
-            /// <summary>Send SessionAction.</summary>
-            /// <param name="clientId">client who is doing the action.</param>
-            /// <param name="s">SessionEvent data to send.</param>
-            /// <param name="id">Channel to send on.</param>
-            public void Send(int clientId, SessionAction s, byte id)
-            {
-                this.Send(clientId, s, id, MessageProtocol.Tcp);
-            }
 
             /// <summary>Send byte array.</summary>
             /// <param name="buffer">Binary data to send.</param>
             /// <param name="id">Channel to send on.</param>
             public void Send(byte[] buffer, byte id)
             {
-                this.Send(buffer, id, MessageType.Binary, MessageProtocol.Tcp);
+                Send(buffer, id, MessageProtocol.Tcp);
             }
 
             /// <summary>Send object.</summary>
@@ -1011,7 +945,7 @@ namespace GT.Servers
             /// <param name="id">Channel to send on.</param>
             public void Send(Object o, byte id)
             {
-                this.Send(o, id, MessageProtocol.Tcp);
+                Send(o, id, MessageProtocol.Tcp);
             }
 
             /// <summary>Send string.</summary>
@@ -1019,18 +953,23 @@ namespace GT.Servers
             /// <param name="id">Channel to send on.</param>
             public void Send(String s, byte id)
             {
-                this.Send(s, id, MessageProtocol.Tcp);
+                Send(s, id, MessageProtocol.Tcp);
+            }
+
+            public void Send(Message message, MessageProtocol protocol)
+            {
+                List<Message> messages = new List<Message>(1);
+                messages.Add(message);
+                Send(messages, protocol);
             }
 
             /// <summary>Sends a raw byte array of any data type using these parameters.  
             /// This can be used to manipulate received messages without converting it to another 
             /// format, for example, a string or an object.  Using this method, received messages 
             /// can be repeated, compared, or passed along faster than otherwise.</summary>
-            /// <param name="data">Raw bytes to be sent.</param>
-            /// <param name="id">The channel to send on.</param>
-            /// <param name="type">The raw data type.</param>
+            /// <param name="messages">The messages to go across.</param>
             /// <param name="protocol">What protocol the data should use.</param>
-            public void Send(byte[] data, byte id, MessageType type, MessageProtocol protocol)
+            public void Send(IList<Message> messages, MessageProtocol protocol)
             {
                 lock (this)
                 {
@@ -1038,25 +977,45 @@ namespace GT.Servers
                     {
                         throw new InvalidStateException("cannot send on a disposed client!", this);
                     }
-
-                    byte[] buffer = new byte[data.Length + 8];
-                    buffer[0] = id;
-                    buffer[1] = (byte)type;
-                    BitConverter.GetBytes(data.Length).CopyTo(buffer, 4);
-                    data.CopyTo(buffer, 8);
-
-                    SendMessage(buffer, protocol);
+                    IServerTransport t = FindTransport(protocol);
+                    Stream ms = t.GetPacketStream();
+                    int packetStart = (int)ms.Position;
+                    while (messages.Count > 0)
+                    {
+                        Message m = messages[0];
+                        int packetEnd = (int)ms.Position;
+                        server.Marshaller.Marshal(m, ms, t);
+                        bool dontRemove = false;
+                        if (ms.Position - packetStart > t.MaximumPacketSize) // uh oh, rewind and redo
+                        {
+                            ms.SetLength(packetEnd);
+                            dontRemove = true;  // need to redo it
+                            ms.Position = packetStart;
+                            t.SendPacket(ms);
+                            
+                            ms = t.GetPacketStream();
+                            packetStart = (int)ms.Position;
+                        }
+                        else { messages.RemoveAt(0); }
+                    }
+                    if (ms.Position - packetStart != 0)
+                    {
+                        ms.Position = packetStart;
+                        t.SendPacket(ms);
+                    }
                 }
             }
 
-            public void SendMessage(byte[] message, MessageProtocol protocol)
+            #endregion
+
+            protected IServerTransport FindTransport(MessageProtocol protocol)
             {
                 IServerTransport t;
                 if (!transports.TryGetValue(protocol, out t))
                 {
-                    throw new NotSupportedException("Cannot find matching transport: " + protocol);
+                    throw new NoMatchingTransport("Cannot find matching transport: " + protocol);
                 }
-                t.SendPacket(message);
+                return t;
             }
 
 
@@ -1064,78 +1023,48 @@ namespace GT.Servers
             /// <summary>Handles a system data in that it takes the information and does something with it.</summary>
             /// <param name="data">The data we received.</param>
             /// <param name="id">What channel it came in on.</param>
-            private void HandleSystemMessage(byte[] data, byte id)
+            private void HandleSystemMessage(SystemMessage m, ITransport t)
             {
-                byte[] buffer = new byte[4];
-
-                if (id == (byte)SystemMessageType.UniqueIDRequest)
-                {
+                switch((SystemMessageType)m.id) {
+                case SystemMessageType.UniqueIDRequest:
                     //they want to know their own id
-                    BitConverter.GetBytes(UniqueIdentity).CopyTo(buffer, 0);
-                    Send(buffer, (byte)SystemMessageType.UniqueIDRequest, MessageType.System, MessageProtocol.Tcp);
-                }
-                else if (id == (byte)SystemMessageType.UDPPortRequest)
-                {
-                    //they want to receive udp messages on this port
-                    short port = BitConverter.ToInt16(data, 0);
-                    // FIXME: the following is a *monstrous* hack
-                    IPEndPoint remoteUdp = null;
-                    foreach (IServerTransport t in transports.Values)
-                    {
-                        if (t is TcpServerTransport)
-                        {
-                            remoteUdp = new IPEndPoint(((TcpServerTransport)t).Address, port);
-                        }
-                    }
-                    //udpHandle.Connect(remoteUdp);
-                    foreach (IAcceptor acc in server.acceptors)
-                    {
-                        if (acc is UdpAcceptor)
-                        {
-                            AddTransport(new UdpServerTransport(new UdpHandle(remoteUdp, ((UdpAcceptor)acc).udpMultiplexer)));
-                            break;
-                        }
+                    Send(new SystemMessage(SystemMessageType.UniqueIDRequest, 
+                        BitConverter.GetBytes(UniqueIdentity)), t.MessageProtocol);
+                    break;
 
-                    }
-
-                    //they want the udp port.  Send it.
-                    BitConverter.GetBytes(port).CopyTo(buffer, 0);
-                    Send(buffer, (byte)SystemMessageType.UDPPortResponse, MessageType.System, MessageProtocol.Tcp);
-                }
-                else if (id == (byte)SystemMessageType.UDPPortResponse)
-                {
-                    // We should never see this data as a server!
-                    Console.WriteLine("WARNING: Server should never receive UDPPortResponse messages!");
-                    //they want to receive udp messages on this port
-                    //short port = BitConverter.ToInt16(data, 0);
-                    //IPEndPoint remoteUdp = new IPEndPoint(((IPEndPoint)tcpHandle.Client.RemoteEndPoint).Address, port);
-                    //udpHandle.Connect(remoteUdp);
-                }
-                else if (id == (byte)SystemMessageType.ServerPingAndMeasure)
-                {
+                case SystemMessageType.PingResponse:
                     //record the difference; half of it is the latency between this client and the server
-                    int newDelay = (System.Environment.TickCount - BitConverter.ToInt32(data, 0)) / 2;
-                    this.delay = this.delay * 0.95f + newDelay * 0.05f;
-                }
-                else if (id == (byte)SystemMessageType.ClientPingAndMeasure)
-                {
-                    Send(data, (byte)SystemMessageType.ClientPingAndMeasure, MessageType.System, MessageProtocol.Tcp);
+                    int newDelay = (System.Environment.TickCount - BitConverter.ToInt32(m.data, 0)) / 2;
+                    t.Delay = newDelay;
+                    break;
+
+                case SystemMessageType.PingRequest:
+                    SendMessage((IServerTransport)t, new SystemMessage(SystemMessageType.PingResponse, m.data));
+                    break;
                 }
             }
 
             /// <summary>Send a ping to a client to see if it responds.</summary>
             internal void Ping()
             {
-                // FIXME: ping each of the transports...
-                //byte[] buffer = BitConverter.GetBytes(System.Environment.TickCount);
-                //foreach (IServerTransport t in transports.Values)
-                //{
-                //    t.Send(buffer, (byte)SystemMessageType.ServerPingAndMeasure, MessageType.System, MessageProtocol.Tcp);
-                //}
+                byte[] buffer = BitConverter.GetBytes(System.Environment.TickCount);
+                foreach (IServerTransport t in transports.Values)
+                {
+                    SendMessage(t, new SystemMessage(SystemMessageType.PingRequest,
+                        BitConverter.GetBytes(System.Environment.TickCount)));
+                }
             }
 
-            #endregion
+            protected void SendMessage(IServerTransport transport, Message msg)
+            {
+                //pack main message into a buffer and send it right away
+                Stream packet = transport.GetPacketStream();
+                server.Marshaller.Marshal(msg, packet, transport);
 
+                // and be sure to catch exceptions; log and remove transport if unable to be started
+                // if(!transport.Started) { transport.Start(); }
+                transport.SendPacket(packet);
+            }
 
             #region Receive
 
@@ -1153,26 +1082,23 @@ namespace GT.Servers
             }
 
 
-            private void PostNewlyReceivedMessage(byte id, MessageType type, byte[] buffer, MessageProtocol messageProtocol)
+            private void PostNewlyReceivedPacket(byte[] buffer, int offset, int count, ITransport t)
             {
-                Console.WriteLine("{0}: posting newly received message id:{1} type:{2} protocol:{3} #bytes:{4}",
-                    this, id, type, messageProtocol, buffer.Length);
-                DebugUtils.DumpMessage("Server.Client.PostNewlyReceivedMessage", id, type, buffer);
+                Stream stream = new MemoryStream(buffer, offset, count, false);
+                while (stream.Position < stream.Length)
+                {
+                    Message m = server.Marshaller.Unmarshal(stream, t);
+                    //DebugUtils.DumpMessage("Server.Client.PostNewlyReceivedMessage", m);
 
-                if (type == MessageType.Session)
-                {
-                    //session messages are special!  Weee!
-                    buffer = ConvertIncomingSessionMessageToNormalForm(buffer);
-                }
-
-                if (type == MessageType.System)
-                {
-                    //System messages are special!  Yay!
-                    HandleSystemMessage(buffer, id);
-                }
-                else
-                {
-                    MessageReceived(id, type, buffer, this, messageProtocol);
+                    if (m.type == MessageType.System)
+                    {
+                        //System messages are special!  Yay!
+                        HandleSystemMessage((SystemMessage)m, t);
+                    }
+                    else
+                    {
+                        MessageReceived(m, this, t.MessageProtocol);
+                    }
                 }
             }
 

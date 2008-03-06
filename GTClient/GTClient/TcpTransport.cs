@@ -4,6 +4,8 @@ using System.IO;
 using System.Collections.Generic;
 using System.Net;
 using GT.Common;
+using System.Diagnostics;
+using System.Threading;
 
 namespace GT.Clients
 {
@@ -17,16 +19,16 @@ namespace GT.Clients
         public static int CappedMessageSize = 512;
 
         protected TcpClient tcpClient;
-        protected MemoryStream tcpIn;
-        protected int tcpInBytesLeft;
-        protected int tcpInMessageType;
-        protected byte tcpInID;
+        protected PacketInProgress incomingInProgress;
+        protected PacketInProgress outgoingInProgress;
 
         //If bits can't be written to the network now, try later
         //We use this so that we don't have to block on the writing to the network
-        protected List<byte[]> tcpOut = new List<byte[]>();
+        protected List<byte[]> outstanding = new List<byte[]>();
 
-        public TcpClientTransport() : base() {
+        public TcpClientTransport() {
+            PacketHeaderSize = 4;   // 4 bytes for packet length
+
         }
 
         public override string Name { get { return "TCP"; } }
@@ -91,7 +93,9 @@ namespace GT.Clients
             {
                 if (tcpClient != null) { return; }
 
-                tcpIn = new MemoryStream();
+                incomingInProgress = null;
+                outgoingInProgress = null;
+
                 IPHostEntry he = Dns.GetHostEntry(address);
                 IPAddress[] addr = he.AddressList;
                 TcpClient client = null;
@@ -114,15 +118,11 @@ namespace GT.Clients
                     }
                     catch (Exception e)
                     {
-                        error = new Exception("There was a problem connecting to the server you specified. " +
-                        "The address or port you provided may be improper, the receiving server may be down, " +
-                        "full, or unavailable, or your system's host file may be corrupted. " +
-                        "See inner exception for details.", e);
+                        error = new CannotConnectToRemoteException(e);
                     }
                 }
 
-                if (error != null)
-                    throw error;
+                if (error != null) { throw error; }
 
                 Console.WriteLine("Address resolved and contacted.  Now connected to " + endPoint.ToString());
 
@@ -133,95 +133,91 @@ namespace GT.Clients
 
         /// <summary>Send a message to server.</summary>
         /// <param name="buffer">The message to send.</param>
-        public override void SendPacket(byte[] buffer)
+        public override void SendPacket(byte[] buffer, int offset, int length)
         {
             if (!Started)
             {
                 throw new InvalidStateException("Cannot send on a stopped client", this);
             }
 
-            DebugUtils.DumpMessage("TCPTransport.SendMessage", buffer);
-            if (FlushRemainingBytes())
-            {
-                Console.WriteLine("{0}: SendMessage({1} bytes): outstanding bytes; adding message to queue", this, buffer.Length);
-                tcpOut.Add(buffer); // FIXME: this means buffer isn't sent until next send, even if there is capacity!
-                return;
-            }
+            DebugUtils.DumpMessage(this.ToString(), buffer);
+            byte[] wireFormat = new byte[length + 4];
+            BitConverter.GetBytes(length).CopyTo(wireFormat, 0);
+            Array.Copy(buffer, offset, wireFormat, 4, length);
 
-            SocketError error = SocketError.Success; //added
-            try
-            {
-                Console.WriteLine("{0}: SendMessage({1} bytes): sending bytes...", this, buffer.Length);
-                tcpClient.Client.Send(buffer, 0, buffer.Length, SocketFlags.None, out error);
-
-                switch (error)
-                {
-                    case SocketError.Success:
-                        Console.WriteLine("{0}: SendMessage({1} bytes): success", this, buffer.Length);
-                        return;
-                    case SocketError.WouldBlock:
-                        tcpOut.Add(buffer);
-                        LastError = null;
-                        Console.WriteLine("{0}: SendMessage({1} bytes): EWOULDBLOCK: adding to outstanding bytes", this, buffer.Length);
-                        // FIXME: this should *not* be sent as an error!
-                        NotifyError(null, error,
-                            "The TCP write buffer is full now, but the data will be saved and " +
-                            "sent soon.  Send less data to reduce perceived latency.");
-                        return;
-                    default:
-                        tcpOut.Add(buffer);
-                        LastError = null;
-                        Console.WriteLine("{0}: SendMessage({1} bytes): ERROR sending: {2}", this, buffer.Length, error);
-                        NotifyError(null, error, "Failed to Send TCP Message.");
-                        Restart();
-                        return;
-                }
-            }
-            catch (Exception e)
-            {
-                //something awful happened
-                tcpOut.Add(buffer);
-                LastError = e;
-                Console.WriteLine("{0}: SendMessage({1} bytes): EXCEPTION sending: {2}", this, buffer.Length, e);
-                NotifyError(e, SocketError.NoRecovery, "Failed to Send to TCP.  See Exception for details.");
-                Restart();
-            }
+            outstanding.Add(wireFormat);
+            FlushOutstandingPackets();        
         }
 
+        /// <summary>Send a message to server.</summary>
+        /// <param name="buffer">The message to send.</param>
+        public override void SendPacket(Stream output)
+        {
+            if (!Started)
+            {
+                throw new InvalidStateException("Cannot send on a stopped client", this);
+            }
+            if (!(output is MemoryStream))
+            {
+                throw new ArgumentException("Transport provided different stream!");
+            }
+            DebugUtils.DumpMessage(this + ": SendPacket(stream)", ((MemoryStream)output).ToArray());
+            MemoryStream ms = (MemoryStream)output;
+            ms.Position = 0;
+            byte[] lb = BitConverter.GetBytes((int)(ms.Length - PacketHeaderSize));
+            Debug.Assert(lb.Length == 4);
+            ms.Write(lb, 0, lb.Length);
+
+            //FIXME: should use a PacketInProgress with the stream length
+            outstanding.Add(ms.ToArray());
+            FlushOutstandingPackets();
+        }
 
         /// <summary> Flushes out old messages that couldn't be sent because of exceptions</summary>
         /// <returns>True if there are bytes that still have to be sent out</returns>
-        protected virtual bool FlushRemainingBytes()
+        protected virtual bool FlushOutstandingPackets()
         {
-            byte[] b;
             SocketError error = SocketError.Success;
 
             try
             {
-                while (tcpOut.Count > 0)
+                while (outstanding.Count > 0)
                 {
-                    b = tcpOut[0];
-                    tcpClient.Client.Send(b, 0, b.Length, SocketFlags.None, out error);
+                    if (outgoingInProgress == null)
+                    {
+                        //Console.WriteLine("Cli.Flush: " + outstanding[0].Length + " bytes");
+                        outgoingInProgress = new PacketInProgress(outstanding[0]);
+                    }
+                    int bytesSent = tcpClient.Client.Send(outgoingInProgress.data, outgoingInProgress.position, 
+                        outgoingInProgress.bytesRemaining, SocketFlags.None, out error);
+                    //Console.WriteLine("  position=" + outgoingInProgress.position + " bR=" + outgoingInProgress.bytesRemaining
+                    //    + ": sent " + bytesSent);
 
                     switch (error)
                     {
-                        case SocketError.Success:
-                            tcpOut.RemoveAt(0);
-                            break;
-                        case SocketError.WouldBlock:
-                            //don't die, but try again next time
-                            LastError = null;
-                            // FIXME: this should *not* be sent as an error!
-                            NotifyError(null, error, 
-                                "The TCP write buffer is full now, but the data will be saved and " +
-                                "sent soon.  Send less data to reduce perceived latency.");
-                            return true;
-                        default:
-                            //die, because something terrible happened
-                            LastError = null;
-                            NotifyError(null, error, "Failed to Send TCP Message (" + b.Length + " bytes): " + b.ToString());
-                            Restart();
-                            return true;
+                    case SocketError.Success:
+                        outgoingInProgress.Advance(bytesSent);
+                        if (outgoingInProgress.bytesRemaining == 0)
+                        {
+                            outstanding.RemoveAt(0);
+                            outgoingInProgress = null;
+                        }
+                        break;
+                    case SocketError.WouldBlock:
+                        //don't die, but try again next time
+                        LastError = null;
+                        // FIXME: this should *not* be sent as an error!
+                        NotifyError(null, error,
+                            "The TCP write buffer is full now, but the data will be saved and " +
+                            "sent soon.  Send less data to reduce perceived latency.");
+                        return true;
+                    default:
+                        //die, because something terrible happened
+                        LastError = null;
+                        NotifyError(null, error, "Failed to Send TCP Message (" + outgoingInProgress.Length + " bytes): " + 
+                            outgoingInProgress.data.ToString());
+                        Restart();
+                        return true;
                     }
                 }
             }
@@ -236,80 +232,99 @@ namespace GT.Clients
             return false;
         }
 
-        /// <summary>Get one message from the tcp connection and interpret it.</summary>
-        public override void Update()
+        /// <summary>Gets one data from the tcp and interprets it.</summary>
+        override public void Update()
         {
-            byte[] buffer;
-            int size;
-            SocketError error;
-
-            // FIXME: if a socket is closed prematurely then we may never
-            // get >= 8 bytes.  This should be reimplemented as a state
-            // machine.
-            if (tcpInMessageType < 1)
-            {
-                //restart the counters to listen for a new message.
-                if (tcpClient.Available < 8)
-                    return;
-
-                buffer = new byte[8];
-                size = tcpClient.Client.Receive(buffer, 0, 8, SocketFlags.None, out error);
-                switch (error)
-                {
-                    case SocketError.Success:
-                        Console.WriteLine("{0}: Update(): read header ({1} bytes)", this, size);
-                        break;
-                    default:
-                        LastError = null;
-                        Console.WriteLine("{0}: Update(): error reading header: {1}", this, error);
-                        NotifyError(null, error, "TCP Read Header Error.  See error for details.");
-                        Restart();
-                        return;
-                }
-                byte id = buffer[0];
-                byte type = buffer[1];
-                int length = BitConverter.ToInt32(buffer, 4);
-
-                this.tcpInBytesLeft = length;
-                this.tcpInMessageType = type;
-                this.tcpInID = id;
-                tcpIn.Position = 0;
-            }
-
-            buffer = new byte[MaximumPacketSize];
-            int amountToRead = Math.Min(tcpInBytesLeft, buffer.Length);
-
-            size = tcpClient.Client.Receive(buffer, 0, amountToRead, SocketFlags.None, out error);
-            switch (error)
-            {
-                case SocketError.Success:
-                    Console.WriteLine("{0}: Update(): read body ({1} bytes)", this, size);
-                    break;
-                default:
-                    LastError = null;
-                    Console.WriteLine("{0}: Update(): ERROR reading body: {1}", this, error);
-                    NotifyError(null, error, "TCP Read Data Error.  See Exception for details.");
-                    Restart();
-                    return;
-            }
-            tcpInBytesLeft -= size;
-            tcpIn.Write(buffer, 0, size);
-
-            if (tcpInBytesLeft == 0)
-            {
-                //We have the entire message.  Pass it along.
-                buffer = new byte[tcpIn.Position];
-                tcpIn.Position = 0;
-                tcpIn.Read(buffer, 0, buffer.Length);
-
-                Console.WriteLine("{0}: Update(): received message id:{1} type:{2} #bytes:{3}", 
-                    this, tcpInID, (MessageType)tcpInMessageType, buffer.Length);
-                DebugUtils.DumpMessage("TCPTransport.Update", tcpInID, (MessageType)tcpInMessageType, buffer);
-                server.Add(new MessageIn(tcpInID, (MessageType)tcpInMessageType, buffer, this, server));
-
-                tcpInMessageType = 0;
-            }
+            if (!Started) { throw new InvalidStateException("Cannot update: instance is dead"); }
+            CheckIncomingPackets();
+            FlushOutstandingPackets();
         }
 
+        /// <summary>Get one packet from the tcp connection and interpret it.</summary>
+
+        virtual protected void CheckIncomingPackets()
+        {
+            //if (tcpClient.Available > 0)
+            //{
+            //    Console.WriteLine(this + ": there appears to be some data available!");
+            //}
+
+            SocketError error = SocketError.Success;
+            try
+            {
+                while (tcpClient.Available > 0)
+                {
+                    // This is a simple state machine: we're either:
+                    // (a) reading a data header (incomingInProgress.IsMessageHeader())
+                    // (b) reading a data body (!incomingInProgress.IsMessageHeader())
+                    // (c) finished and about to start reading in a header (incomingInProgress == null)
+
+                    if (incomingInProgress == null)
+                    {
+                        //restart the counters to listen for a new data.
+                        incomingInProgress = new PacketInProgress(4, true);
+                        // assert incomingInProgress.IsMessageHeader();
+                    }
+
+                    int bytesReceived = tcpClient.Client.Receive(incomingInProgress.data, incomingInProgress.position,
+                        incomingInProgress.bytesRemaining, SocketFlags.None, out error);
+                    switch (error)
+                    {
+                    case SocketError.Success:
+                        // Console.WriteLine("{0}: CheckIncomingPacket(): received header", this);
+                        break;
+                    case SocketError.WouldBlock:
+                        // Console.WriteLine("{0}: CheckIncomingPacket(): would block", this);
+                        return;
+
+                    default:
+                        //dead = true;
+                        Console.WriteLine("{0}: CheckIncomingPacket(): ERROR reading from socket: {1}", this, error);
+                        NotifyError(null, SocketError.Fault, "Error reading TCP data header.");
+                        return;
+                    }
+                    if (bytesReceived == 0)
+                    {
+                        // socket has been closed
+                        // Stop(); // ??  Or should we try to reconnect?
+                        return;
+                    }
+
+                    incomingInProgress.Advance(bytesReceived);
+                    if (incomingInProgress.bytesRemaining == 0)
+                    {
+                        if (incomingInProgress.IsMessageHeader())
+                        {
+                            incomingInProgress = new PacketInProgress(BitConverter.ToInt32(incomingInProgress.data,0), false);
+                            // assert incomingInProgress.IsMessageHeader()
+                        }
+                        else
+                        {
+                            DebugUtils.DumpMessage(this + ": CheckIncomingMessage", incomingInProgress.data);
+
+                            NotifyPacketReceived(incomingInProgress.data, 0, incomingInProgress.data.Length);
+                            incomingInProgress = null;
+                        }
+                    }
+                }
+            }
+            catch (SocketException e)
+            {   // FIXME: can this clause even happen?
+                //dead = true;
+                LastError = e;
+                Console.WriteLine("{0}: UpdateFromNetworkTcp(): SocketException reading from socket: {1}", this, e);
+                //if (ErrorEvent != null)
+                //    ErrorEvent(e, SocketError.NoRecovery, this, "Updating from TCP connection failed because of a socket exception.");
+            }
+            catch (Exception e)
+            {
+                // We shouldn't catch ThreadAbortExceptions!  (FIXME: should we really be
+                // catching anything other than SocketExceptions from here?)
+                if (e is ThreadAbortException) { throw e; }
+                LastError = e;
+                Console.WriteLine("{0}: UpdateFromNetworkTcp(): EXCEPTION: {1}", this, e);
+                NotifyError(e, SocketError.NoRecovery, "Exception occured (not socket exception).");
+            }
+        }
     }
 }

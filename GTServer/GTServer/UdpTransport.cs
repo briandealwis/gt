@@ -70,15 +70,34 @@ namespace GT.Servers
         /// <summary>Sends a data via UDP.
         /// We don't care if it doesn't get through.</summary>
         /// <param name="buffer">Raw stuff to send.</param>
-        override public void SendPacket(byte[] buffer)
+        override public void SendPacket(byte[] buffer, int offset, int length)
         {
             if (Dead) { throw new InvalidStateException("Cannot send: instance is dead"); }
-            DebugUtils.DumpMessage(this + ": SendMessage", buffer);
+            DebugUtils.DumpMessage(this + "SendPacket", buffer);
+            if (offset != 0 || length != buffer.Length)
+            {
+                byte[] newBuffer = new byte[length];
+                Array.Copy(buffer, offset, newBuffer, 0, length);
+                buffer = newBuffer;
+            }
             outstanding.Add(buffer);
-            FlushOutgoingPackets();
+            FlushOutstandingPackets();
         }
 
-        virtual protected void FlushOutgoingPackets()
+        /// <summary>Send a message to server.</summary>
+        /// <param name="buffer">The message to send.</param>
+        public override void SendPacket(Stream output)
+        {
+            if (Dead) { throw new InvalidStateException("Cannot send on a stopped client", this); }
+            if (!(output is MemoryStream))
+            {
+                throw new ArgumentException("Transport provided different stream!");
+            }
+            outstanding.Add(((MemoryStream)output).ToArray());
+            FlushOutstandingPackets();
+        }
+
+        virtual protected void FlushOutstandingPackets()
         {
             SocketError error = SocketError.Success;
             while (outstanding.Count > 0)
@@ -116,7 +135,7 @@ namespace GT.Servers
             if (Dead) { throw new InvalidStateException("Cannot send: is dead"); }
 
             CheckIncomingPackets();
-            FlushOutgoingPackets();
+            FlushOutstandingPackets();
         }
 
         virtual protected void CheckIncomingPackets()
@@ -128,21 +147,7 @@ namespace GT.Servers
                 {
                     //get a packet
                     byte[] buffer = handle.Receive();
-                    int cursor = 0;
-                    DebugUtils.DumpMessage(this + ": Update()", buffer);
-
-                    //while there are more messages in this packet
-                    while (cursor < buffer.Length)
-                    {
-                        byte id = buffer[cursor];
-                        int type = buffer[cursor + 1];
-                        int length = BitConverter.ToInt32(buffer, cursor + 4);
-                        byte[] data = new byte[length];
-                        Array.Copy(buffer, 8, data, 0, length);
-
-                        NotifyMessageReceived(id, (MessageType)type, data, MessageProtocol.Udp);
-                        cursor += length + 8;
-                    }
+                    NotifyPacketReceived(buffer, 0, buffer.Length);
                 }
             }
             catch (SocketException e)

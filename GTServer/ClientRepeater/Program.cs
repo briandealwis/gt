@@ -33,7 +33,7 @@ namespace ClientRepeater
                 }
             }
             s = new Server(port, 1);
-            s.MessageReceived += new MessageHandler(s_MessageReceived2);
+            s.MessageReceived += new MessageHandler(s_MessageReceived);
             s.ClientsJoined += new ClientsJoinedHandler(s_ClientsJoined);
             s.ClientsRemoved += new ClientsRemovedHandler(s_ClientsRemoved);
             s.ErrorEvent += new ErrorClientHandler(s_ErrorEvent);
@@ -51,21 +51,21 @@ namespace ClientRepeater
             }
         }
 
-        static void s_ClientsJoined(List<Server.Client> list)
+        static void s_ClientsJoined(ICollection<Server.Client> list)
         {
             foreach (Server.Client client in list)
             {
                 int clientId = client.UniqueIdentity;
                 Console.WriteLine(DateTime.Now + " Joined: " + clientId + " (" + client + ")");
 
-                foreach (Server.Client c in s.clientList)
+                foreach (Server.Client c in s.Clients)
                 {
-                    c.Send(clientId, SessionAction.Joined, (byte)0);
+                        c.Send(clientId, SessionAction.Joined, (byte)0, MessageProtocol.Tcp);
                 }
             }
         }
 
-        static void s_ClientsRemoved(List<Server.Client> list)
+        static void s_ClientsRemoved(ICollection<Server.Client> list)
         {
             foreach (Server.Client client in list)
             {
@@ -81,30 +81,18 @@ namespace ClientRepeater
                 }
 
                 //inform others client is gone
-                foreach (Server.Client c in s.clientList)
+                foreach (Server.Client c in s.Clients)
                 {
-                    c.Send(clientId, SessionAction.Left, (byte)0);
+                    c.Send(clientId, SessionAction.Left, (byte)0, MessageProtocol.Tcp);
                 }
             }
         }
 
-        static void s_MessageReceived(byte id, MessageType messageType, byte[] data, Server.Client client, 
+        static void s_MessageReceived(Message m, Server.Client client, 
             MessageProtocol protocol)
         {
             //repeat whatever we receive to everyone else
-            List<Message> list = new List<Message>();
-            list.Add(new Message((byte)id, messageType, data));
-            s.Send(list, s.clientList, protocol);
-        }
-
-        static void s_MessageReceived2(byte id, MessageType messageType, byte[] data, Server.Client client, 
-            MessageProtocol protocol)
-        {
-            //repeat whatever we receive to everyone else
-            foreach (Server.Client c in s.clientList)
-            {
-                c.Send(data, id, messageType, protocol);
-            }
+            s.Send(m, s.Clients, protocol);
         }
     }
 }

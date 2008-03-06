@@ -10,10 +10,8 @@ namespace GT.Common
     public enum SystemMessageType
     {
         UniqueIDRequest = 1,
-        UDPPortRequest = 2,
-        UDPPortResponse = 3,
-        ServerPingAndMeasure = 4,
-        ClientPingAndMeasure = 5
+        PingRequest = 4,
+        PingResponse = 5
     }
 
     /// <summary>Possible message types for Messages to have.</summary>

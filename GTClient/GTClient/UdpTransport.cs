@@ -3,6 +3,8 @@ using System.Net.Sockets;
 using System.Net;
 using System.Collections.Generic;
 using GT.Common;
+using System.IO;
+using System.Diagnostics;
 
 namespace GT.Clients
 {
@@ -19,11 +21,9 @@ namespace GT.Clients
 
         //If bits can't be written to the network now, try later
         //We use this so that we don't have to block on the writing to the network
-        protected List<byte[]> udpOut = new List<byte[]>();
+        protected List<byte[]> outstanding = new List<byte[]>();
 
-        public UdpClientTransport() : base()
-        {
-        }
+        public UdpClientTransport() { }
 
         public override string Name { get { return "UDP"; } }
 
@@ -89,15 +89,14 @@ namespace GT.Clients
                     }
                     catch (Exception e)
                     {
-                        error = new Exception("There was a problem connecting to the server you specified. " +
-                        "The address or port you provided may be improper, the receiving server may be down, " +
-                        "full, or unavailable, or your system's host file may be corrupted. " +
-                        "See inner exception for details.", e);
+                        error = e;
                     }
                 }
 
                 if (error != null)
-                    throw error;
+                {
+                    throw new CannotConnectToRemoteException(error);
+                }
 
                 //we are now good to go
                 udpClient = client;
@@ -109,14 +108,14 @@ namespace GT.Clients
         protected void SendIdentification()
         {
             // FIXME: need a proper way of doing a handshake!
-            Console.WriteLine("{0}: sending identification (id={1})", this, server.UniqueIdentity);
+            DebugUtils.WriteLine(this + ": sending identification id=" + server.UniqueIdentity);
             byte[] startMessage = new byte[5];
             startMessage[0] = (byte)'?'; // FIXME: use ASCII encoder, just in case?
             BitConverter.GetBytes(server.UniqueIdentity).CopyTo(startMessage, 1);
             udpClient.Send(startMessage, startMessage.Length);
         }
 
-        public override void SendPacket(byte[] buffer)
+        public override void SendPacket(byte[] buffer, int offset, int length)
         {
             if (!Started)
             {
@@ -125,93 +124,35 @@ namespace GT.Clients
             {
                 throw new NotSupportedException("ERROR: UdpTransport's should always be connected");
             }
-            DebugUtils.DumpMessage("UDPTransport.SendMessage", buffer);
-
-            //if there is old stuff to send yet, try the old stuff first
-            //before sending the new stuff
-            if (FlushRemainingBytes())
+            DebugUtils.DumpMessage(this + "SendPacket", buffer);
+            if (offset != 0 || length != buffer.Length)
             {
-                Console.WriteLine("{0}: SendMessage({1} bytes): flushing remaining bytes", this, buffer.Length);
-                udpOut.Add(buffer); // FIXME: this means <buffer> isn't sent now!  Even if there is capacity!
-                return;
+                byte[] newBuffer = new byte[length];
+                Array.Copy(buffer, offset, newBuffer, 0, length);
+                buffer = newBuffer;
             }
-            //if it's all clear, send the new stuff
-
-            SocketError error = SocketError.Success; //added
-            try
-            {
-                udpClient.Client.Send(buffer, 0, buffer.Length, SocketFlags.None, out error);
-                switch (error)
-                {
-                    case SocketError.Success:
-                        Console.WriteLine("{0}: SendMessage({1} bytes): success", this, buffer.Length);
-                        return;
-                    case SocketError.WouldBlock:
-                        udpOut.Add(buffer);
-                        LastError = null;
-                        Console.WriteLine("{0}: SendMessage({1} bytes): EWOULDBLOCK", this, buffer.Length);
-                        // FIXME: This should not be an error!
-                        // FIXME: Does UDP ever cause a WouldBlock?
-                        NotifyError(null, error, "The UDP write buffer is full now, but the data will be saved and " +
-                                "sent soon.  Send less data to reduce perceived latency.");
-                        return;
-                    default:
-                        udpOut.Add(buffer);
-                        LastError = null;
-                        Console.WriteLine("{0}: SendMessage({1} bytes): ERROR: {2}", this, buffer.Length, error);
-                        NotifyError(null, error, "Failed to Send UDP Message.");
-                        return;
-                }
-            }
-            catch (Exception e)
-            {
-                //something awful happened
-                udpOut.Add(buffer);
-                LastError = e;
-                Console.WriteLine("{0}: SendMessage({1} bytes): Exception: {2}", this, buffer.Length, e);
-                NotifyError(e, SocketError.Fault, "Failed to Send UDP Message (" + buffer.Length +
-                        " bytes) because of an exception: " + buffer.ToString());
-            }
-
-            // FIXME: This should no longer be necessary
-            //}
-            //else
-            //{
-            //    //save this data to be sent later
-            //    udpOut.Add(buffer);
-            //    //request the server for the port to send to
-            //    byte[] data = BitConverter.GetBytes((short)(((IPEndPoint)udpClient.Client.LocalEndPoint).Port));
-            //    try
-            //    {
-            //        server.Send(data, (byte)SystemMessageType.UDPPortRequest, MessageType.System, MessageProtocol.Tcp, MessageAggregation.No, MessageOrder.None);
-            //    }
-            //    catch (Exception e)
-            //    {
-            //        //don't save this or die, but still throw an error
-            //        LastError = e;
-            //        NotifyError(e, SocketError.Fault, "Failed to Request UDP port from server.");
-            //    }
-            //}
+            outstanding.Add(buffer);
+            FlushOutstandingPackets();        
         }
 
         /// <summary> Flushes out old messages that couldn't be sent because of exceptions</summary>
         /// <returns>True if there are bytes that still have to be sent out</returns>
-        protected virtual bool FlushRemainingBytes()
+        protected virtual bool FlushOutstandingPackets()
         {
             byte[] b;
             SocketError error = SocketError.Success;
 
             try
             {
-                while (udpOut.Count > 0 && udpClient.Client.Connected)
+                while (outstanding.Count > 0 && udpClient.Client.Connected)
                 {
-                    b = udpOut[0];
+                    b = outstanding[0];
                     udpClient.Client.Send(b, 0, b.Length, SocketFlags.None, out error);
 
                     switch (error)
                     {
                         case SocketError.Success:
-                            udpOut.RemoveAt(0);
+                            outstanding.RemoveAt(0);
                             break;
                         case SocketError.WouldBlock:
                             //don't die, but try again next time
@@ -242,35 +183,17 @@ namespace GT.Clients
         /// <summary>Get data from the UDP connection and interpret them.</summary>
         public override void Update()
         {
-            byte[] buffer, data;
-            byte id, type;
-            int length, cursor;
-            IPEndPoint ep = null;
-
             try
             {
                 //while there are more packets to read
                 while (udpClient.Client.Available > 8)
                 {
-                    buffer = udpClient.Receive(ref ep);
-                    cursor = 0;
+                    IPEndPoint ep = null;
+                    byte[] buffer = udpClient.Receive(ref ep);
 
-                    //while there are more messages in this packet
-                    while (cursor < buffer.Length)
-                    {
-                        id = buffer[cursor + 0];
-                        type = buffer[cursor + 1];
-                        length = BitConverter.ToInt32(buffer, cursor + 4);
-                        data = new byte[length];
-                        Array.Copy(buffer, 8, data, 0, length);
-
-                        Console.WriteLine("{0}: Update(): received message id:{1} type:{2} #bytes:{3}",
-                            this, id, (MessageType)type, length);
-                        DebugUtils.DumpMessage("UDPTransport.Update", id, (MessageType)type, data);
-                        server.Add(new MessageIn(id, (MessageType)type, data, this, server));
-
-                        cursor += length + 8;
-                    }
+                    DebugUtils.DumpMessage(this + ": Update()", buffer);
+                    Debug.Assert(ep.Equals(udpClient.Client.RemoteEndPoint));
+                    NotifyPacketReceived(buffer, 0, buffer.Length);
                 }
             }
             catch (SocketException e)
@@ -307,6 +230,29 @@ namespace GT.Clients
                     return CappedMessageSize;
                 }
             }
+        }
+
+        override public Stream GetPacketStream()
+        {
+            MemoryStream ms = new MemoryStream();
+            return ms;
+        }
+
+        /// <summary>Send a message to server.</summary>
+        /// <param name="buffer">The message to send.</param>
+        public override void SendPacket(Stream ms)
+        {
+            if (!Started)
+            {
+                throw new InvalidStateException("Cannot send on a stopped client", this);
+            }
+            if (!(ms is MemoryStream))
+            {
+                throw new ArgumentException("Transport provided different stream!");
+            }
+            MemoryStream output = (MemoryStream)ms;
+            outstanding.Add(output.ToArray());
+            FlushOutstandingPackets();
         }
 
     }

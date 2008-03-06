@@ -3,6 +3,7 @@ using System.Net.Sockets;
 using System.Collections.Generic;
 using System.Net;
 using GT.Common;
+using System.IO;
 
 namespace GT.Clients
 {
@@ -19,73 +20,24 @@ namespace GT.Clients
         bool Started { get; }
     }
 
-    public interface IClientTransport : IServerSurrogate, IStartable
+    public interface IClientTransport : ITransport, IServerSurrogate, IStartable
     {
-        /// <summary>
-        /// A simple identifier for this transport
-        /// </summary>
-        string Name { get; }
-
-        /// <summary>Has this transport been started?</summary>
-        bool Started { get; }
-
-        void Start();
-        void Stop();
-
-        /* FIXME: Stop-gap solution until we have proper QoS descriptors */
-        MessageProtocol MessageProtocol { get; }
-
-        float Delay { get; set; }
         ServerStream Server { get; set; }
-
-        /// <summary>
-        /// Send the given message to the server.
-        /// </summary>
-        /// <param name="packet">the packet of message(s) to send</param>
-        void SendPacket(byte[] packet);
-
-        void Update();
-
-        int MaximumPacketSize { get; }
     }
 
-    public abstract class BaseClientTransport : IClientTransport
+    public abstract class BaseClientTransport : BaseTransport, IClientTransport
     {
         protected ServerStream server;
         protected string address, port;
         protected IPEndPoint endPoint;
-
-        /// <summary>The average amount of latency between this client 
-        /// and the server (in milliseconds).</summary>
-        public float delay = 20f;
-
 
         public abstract bool Started { get; }
         public abstract void Start();
         public abstract void Stop();
         public void Dispose() { /* empty implementation */ }
 
-        public abstract void SendPacket(byte[] buffer);
-        public abstract void Update();
-        public abstract int MaximumPacketSize { get; }
-        public abstract string Name { get; }
-
-        // FIXME: Stop-gap measure until we have QoS descriptors
-        public abstract MessageProtocol MessageProtocol { get; }
-
-        public virtual float Delay
-        {
-            get { return delay; }
-            set { delay = 0.95f * delay + 0.05f * delay; }
-        }
-
         /// <summary>The last error encountered</summary>
         public Exception LastError = null;
-
-        /// <summary>
-        ///  Messages that have not been able to be sent yet.
-        /// </summary>
-        protected List<MessageOut> MessageOutAwayPool = new List<MessageOut>();
 
         protected BaseClientTransport() {}
 
@@ -106,25 +58,20 @@ namespace GT.Clients
         /// <summary>What is the address of the server?  Thread-safe.</summary>
         public string Address
         {
-            get
-            {
-                return address;
-            }
+            get { return address; }
+            set { address = value; }
         }
 
         /// <summary>What is the TCP port of the server.  Thread-safe.</summary>
         public string Port
         {
-            get
-            {
-                return port;
-            }
+            get { return port; }
+            set { port = value; }
         }
 
         protected void NotifyError(Exception e, SocketError se, string explanation)
         {
             server.NotifyError(this, e, se, explanation);
         }
-
-   }
+    }
 }

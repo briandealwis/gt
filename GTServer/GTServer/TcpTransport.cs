@@ -4,6 +4,8 @@ using System.Collections.Generic;
 using System.Net;
 using System.Threading;
 using GT.Common;
+using System.IO;
+using System.Diagnostics;
 
 namespace GT.Servers {
     public class TcpServerTransport : BaseServerTransport
@@ -18,10 +20,12 @@ namespace GT.Servers {
         private TcpClient handle;
         private List<byte[]> outstanding;
 
-        private MessageInProgress inProgress;
+        private PacketInProgress incomingInProgress;
+        private PacketInProgress outgoingInProgress;
 
         public TcpServerTransport(TcpClient h)
         {
+            PacketHeaderSize = 4;   // 4 bytes for packet length
             outstanding = new List<byte[]>();
             h.NoDelay = true;
             h.Client.Blocking = false;
@@ -66,6 +70,8 @@ namespace GT.Servers {
             try
             {
                 if (handle != null) { handle.Close(); }
+                outgoingInProgress = null;
+                incomingInProgress = null;
             }
             catch (Exception e)
             {
@@ -75,32 +81,70 @@ namespace GT.Servers {
             handle = null;
         }
 
-        /// <summary>Sends a data via TCP.
-        /// We DO care if it doesn't get through; we throw an exception.
-        /// </summary>
-        /// <param name="buffer">Raw stuff to send.</param>
-        override public void SendPacket(byte[] buffer)
+        /// <summary>Send a message to server.</summary>
+        /// <param name="buffer">The message to send.</param>
+        public override void SendPacket(byte[] buffer, int offset, int length)
         {
             if (Dead) { throw new InvalidStateException("Cannot send: is dead"); }
 
-            DebugUtils.DumpMessage(this + ": SendPacket", buffer);
-            outstanding.Add(buffer);
-            FlushOutgoingPackets();
+            DebugUtils.DumpMessage(this + "SendPacket", buffer);
+            byte[] wireFormat = new byte[length + 4];
+            BitConverter.GetBytes(length).CopyTo(wireFormat, 0);
+            Array.Copy(buffer, offset, wireFormat, 4, length);
+
+            outstanding.Add(wireFormat);
+            FlushOutstandingPackets();
         }
 
-        virtual protected void FlushOutgoingPackets() 
+        /// <summary>Send a message to server.</summary>
+        /// <param name="buffer">The message to send.</param>
+        public override void SendPacket(Stream output)
+        {
+            if (Dead)
+            {
+                throw new InvalidStateException("Cannot send on a stopped client", this);
+            }
+            if (!(output is MemoryStream))
+            {
+                throw new ArgumentException("Transport provided different stream!");
+            }
+            MemoryStream ms = (MemoryStream)output;
+            DebugUtils.DumpMessage(this + ": SendPacket(stream)", ms.ToArray());
+            ms.Position = 0;
+            byte[] lb = BitConverter.GetBytes((int)(ms.Length - PacketHeaderSize));
+            Debug.Assert(lb.Length == 4);
+            ms.Write(lb, 0, lb.Length);
+
+            //FIXME: should use a PacketInProgress with the stream length
+            outstanding.Add(ms.ToArray());
+            FlushOutstandingPackets();
+        }
+
+        virtual protected void FlushOutstandingPackets() 
         {
             SocketError error = SocketError.Success;
 
             while (outstanding.Count > 0)
             {
-                byte[] b = outstanding[0];
-                handle.Client.Send(b, 0, b.Length, SocketFlags.None, out error);
+                if (outgoingInProgress == null)
+                {
+                    //Console.WriteLine("Srv.Flush: " + outstanding[0].Length + " bytes");
+                    outgoingInProgress = new PacketInProgress(outstanding[0]);
+                }
+                int bytesSent = handle.Client.Send(outgoingInProgress.data, outgoingInProgress.position, 
+                    outgoingInProgress.bytesRemaining, SocketFlags.None, out error);
+                //Console.WriteLine("  position=" + outgoingInProgress.position + " bR=" + 
+                //  outgoingInProgress.bytesRemaining + ": sent " + bytesSent);
 
                 switch (error)
                 {
                 case SocketError.Success:
-                    outstanding.RemoveAt(0);
+                    outgoingInProgress.Advance(bytesSent);
+                    if (outgoingInProgress.bytesRemaining <= 0)
+                    {
+                        outstanding.RemoveAt(0);
+                        outgoingInProgress = null;
+                    }
                     break;
                 case SocketError.WouldBlock:
                     //don't die, but try again next time
@@ -112,7 +156,7 @@ namespace GT.Servers {
                     //die, because something terrible happened
                     //dead = true;
                     LastError = null;
-                    NotifyError(null, error, this, "Failed to Send TCP Message (" + b.Length + " bytes): " + b.ToString());
+                    NotifyError(null, error, this, "Failed to Send TCP Message (" + outgoingInProgress.Length + " bytes): " + outgoingInProgress.data.ToString());
                     return;
                 }
             }
@@ -123,14 +167,14 @@ namespace GT.Servers {
         {
             if (Dead) { throw new InvalidStateException("Cannot update: instance is dead"); }
             CheckIncomingPackets();
-            FlushOutgoingPackets();
+            FlushOutstandingPackets();
         }
 
         virtual protected void CheckIncomingPackets() {
-            if (handle.Available > 0)
-            {
-                Console.WriteLine(this + ": there appears to be some data available!");
-            }
+            //if (handle.Available > 0)
+            //{
+            //    Console.WriteLine(this + ": there appears to be some data available!");
+            //}
 
             SocketError error = SocketError.Success;
             try
@@ -138,51 +182,53 @@ namespace GT.Servers {
                 while (handle.Available > 0)
                 {
                     // This is a simple state machine: we're either:
-                    // (a) reading a data header (inProgress.IsMessageHeader())
-                    // (b) reading a data body (!inProgress.IsMessageHeader())
-                    // (c) finished and about to start reading in a header (inProgress == null)
+                    // (a) reading a data header (incomingInProgress.IsMessageHeader())
+                    // (b) reading a data body (!incomingInProgress.IsMessageHeader())
+                    // (c) finished and about to start reading in a header (incomingInProgress == null)
 
-                    if (inProgress == null)
+                    if (incomingInProgress == null)
                     {
                         //restart the counters to listen for a new data.
-                        inProgress = new MessageInProgress(8);
-                        // assert inProgress.IsMessageHeader();
+                        incomingInProgress = new PacketInProgress(4, true);
+                        // assert incomingInProgress.IsMessageHeader();
                     }
 
-                    int size = handle.Client.Receive(inProgress.data, inProgress.position,
-                        inProgress.bytesRemaining, SocketFlags.None, out error);
+                    int bytesReceived = handle.Client.Receive(incomingInProgress.data, incomingInProgress.position,
+                        incomingInProgress.bytesRemaining, SocketFlags.None, out error);
                     switch (error)
                     {
                     case SocketError.Success:
-                        // Console.WriteLine("{0}: UpdateFromNetworkTcp(): received header", this);
+                        // Console.WriteLine("{0}: CheckIncomingPacket(): received header", this);
                         break;
+
+                    case SocketError.WouldBlock:
+                        // Console.WriteLine("{0}: CheckIncomingPacket(): would block", this);
+                        return;
+
                     default:
                         //dead = true;
-                        Console.WriteLine("{0}: UpdateFromNetworkTcp(): ERROR reading from socket: {1}", this, error);
+                        DebugUtils.WriteLine(this + ": CheckIncomingPacket(): ERROR reading from socket: " + error);
                         NotifyError(null, SocketError.Fault, this, "Error reading TCP data header.");
                         return;
                     }
-
-                    inProgress.position += size;
-                    inProgress.bytesRemaining -= size;
-                    if (inProgress.bytesRemaining == 0)
+                    if (bytesReceived == 0)
                     {
-                        if (inProgress.IsMessageHeader())
+                        return;
+                    }
+
+                    incomingInProgress.Advance(bytesReceived);
+                    if (incomingInProgress.bytesRemaining == 0)
+                    {
+                        if (incomingInProgress.IsMessageHeader())
                         {
-                            // byte 0: id
-                            // byte 1: data type
-                            // bytes 2,3: unused
-                            // bytes 4-7: data length
-                            inProgress = new MessageInProgress(inProgress.data[0],
-                                inProgress.data[1], BitConverter.ToInt32(inProgress.data, 4));
-                            // assert inProgress.IsMessageHeader()
+                            incomingInProgress = new PacketInProgress(BitConverter.ToInt32(incomingInProgress.data,0), false);
+                            // assert incomingInProgress.IsMessageHeader()
                         }
                         else
                         {
-                            DebugUtils.DumpMessage(this + ": SendMessage", inProgress);
-
-                            NotifyMessageReceived(inProgress.id, (MessageType)inProgress.type, inProgress.data, MessageProtocol.Tcp);
-                            inProgress = null;
+                            DebugUtils.DumpMessage(this + ": CheckIncomingMessage", incomingInProgress.data);
+                            NotifyPacketReceived(incomingInProgress.data, 0, incomingInProgress.data.Length);
+                            incomingInProgress = null;
                         }
                     }
                 }
@@ -274,13 +320,13 @@ namespace GT.Servers {
         public override void Update()
         {
             TcpClient connection;
-            Console.WriteLine(this + ": checking TCP listening socket...");
+            // Console.WriteLine(this + ": checking TCP listening socket...");
             while (bouncer.Pending())
             {
                 //let them join us
                 try
                 {
-                    Console.WriteLine(this + ": accepting new TCP connection");
+                    DebugUtils.WriteLine(this + ": accepting new TCP connection");
                     connection = bouncer.AcceptTcpClient();
                 }
                 catch (Exception e)
