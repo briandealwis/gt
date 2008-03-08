@@ -6,6 +6,7 @@ using System.Net;
 using GT;
 using System.Diagnostics;
 using System.Threading;
+using System.Text;
 
 namespace GT
 {
@@ -26,14 +27,14 @@ namespace GT
         //We use this so that we don't have to block on the writing to the network
         protected List<byte[]> outstanding = new List<byte[]>();
 
-        public TcpClientTransport() {
-            PacketHeaderSize = 4;   // 4 bytes for packet length
-
+        public TcpClientTransport(TcpClient c) {
+            PacketHeaderSize = 4;   // GT TCP 1.0 protocol has 4 bytes for packet length
+            tcpClient = c;
         }
 
         public override string Name { get { return "TCP"; } }
 
-        public override bool Started
+        public override bool Active
         {
             get { return tcpClient != null; }
         }
@@ -41,21 +42,18 @@ namespace GT
         // FIXME: Stop-gap measure until we have QoS descriptors
         public override MessageProtocol MessageProtocol { get { return MessageProtocol.Tcp; } }
 
-        public override void Start() {
-            if(Started) { return; }
-            //we are dead, but they want us to live again.  Reconnect!
-            Reconnect();
-        }
-
-        public override void Stop() {
-            if (!Started) { return; }
+        public void Dispose() {
+            if (!Active) { return; }
             //kill the connection as best we can
             lock (this)
             {
                 try
                 {
-                    tcpClient.Client.LingerState.Enabled = false;
-                    tcpClient.Client.Close();
+                    if (tcpClient != null)
+                    {
+                        tcpClient.Client.LingerState.Enabled = false;
+                        tcpClient.Client.Close();
+                    }
                 }
                 catch (SocketException e) {
                     // FIXME: logError(INFORM, "exception thrown when terminating socket", e);
@@ -63,11 +61,6 @@ namespace GT
                 }
                 tcpClient = null;
             }
-        }
-
-        protected void Restart()
-        {
-            Stop(); Start();
         }
 
         public override int MaximumPacketSize
@@ -85,60 +78,12 @@ namespace GT
                 }
             }
         }
-
-        /// <summary>Reset the superstream and reconnect to the server (blocks)</summary>
-        protected virtual void Reconnect()
-        {
-            lock (this)
-            {
-                if (tcpClient != null) { return; }
-
-                incomingInProgress = null;
-                outgoingInProgress = null;
-
-                IPHostEntry he = Dns.GetHostEntry(address);
-                IPAddress[] addr = he.AddressList;
-                TcpClient client = null;
-
-                //try to connect to the address
-                Exception error = null;
-                for (int i = 0; i < addr.Length; i++)
-                {
-                    try
-                    {
-                        endPoint = new IPEndPoint(addr[0], Int32.Parse(port));
-                        client = new TcpClient();
-                        client.NoDelay = true;
-                        client.ReceiveTimeout = 1;
-                        client.SendTimeout = 1;
-                        client.Connect(endPoint);
-                        client.Client.Blocking = false;
-                        error = null;
-                        break;
-                    }
-                    catch (Exception e)
-                    {
-                        error = new CannotConnectToRemoteException(e);
-                    }
-                }
-
-                if (error != null) { throw error; }
-
-                Console.WriteLine("Address resolved and contacted.  Now connected to " + endPoint.ToString());
-
-                //we are now good to go
-                tcpClient = client;
-            }
-        }
-
+        
         /// <summary>Send a message to server.</summary>
         /// <param name="buffer">The message to send.</param>
         public override void SendPacket(byte[] buffer, int offset, int length)
         {
-            if (!Started)
-            {
-                throw new InvalidStateException("Cannot send on a stopped client", this);
-            }
+            Debug.Assert(Active, "Cannot send on a disposed client");
 
             DebugUtils.DumpMessage(this.ToString(), buffer);
             byte[] wireFormat = new byte[length + 4];
@@ -153,13 +98,10 @@ namespace GT
         /// <param name="buffer">The message to send.</param>
         public override void SendPacket(Stream output)
         {
-            if (!Started)
-            {
-                throw new InvalidStateException("Cannot send on a stopped client", this);
-            }
+            Debug.Assert(Active, "Cannot send on a disposed client");
             if (!(output is MemoryStream))
             {
-                throw new ArgumentException("Transport provided different stream!");
+                throw new ArgumentException("This stream is not the transport-provided stream!");
             }
             DebugUtils.DumpMessage(this + ": SendPacket(stream)", ((MemoryStream)output).ToArray());
             MemoryStream ms = (MemoryStream)output;
@@ -216,7 +158,6 @@ namespace GT
                         LastError = null;
                         NotifyError(null, error, "Failed to Send TCP Message (" + outgoingInProgress.Length + " bytes): " + 
                             outgoingInProgress.data.ToString());
-                        Restart();
                         return true;
                     }
                 }
@@ -225,7 +166,6 @@ namespace GT
             {
                 LastError = e;
                 NotifyError(e, SocketError.NoRecovery, "Trying to send saved TCP data failed because of an exception.");
-                Restart();
                 return true;
             }
 
@@ -235,7 +175,7 @@ namespace GT
         /// <summary>Gets one data from the tcp and interprets it.</summary>
         override public void Update()
         {
-            if (!Started) { throw new InvalidStateException("Cannot update: instance is dead"); }
+            Debug.Assert(Active, "Cannot update a disposed client");
             CheckIncomingPackets();
             FlushOutstandingPackets();
         }

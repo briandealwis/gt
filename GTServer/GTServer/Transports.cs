@@ -1,23 +1,15 @@
 using System;
-using System.Net.Sockets;
+using System.Collections.Generic;
 using System.Net;
-using GT;
+using System.Net.Sockets;
 
 namespace GT
 {
-    public interface IServerTransport : ITransport, IDisposable
-    {
-        bool Dead { get; }
-    }
-
-    public abstract class BaseServerTransport : BaseTransport, IServerTransport
+    public abstract class BaseServerTransport : BaseTransport, ITransport, IDisposable
     {
         public object LastError = null;
 
-        public abstract bool Dead { get; }
-
         public abstract void Dispose();
-
 
         protected void NotifyError(Exception e, SocketError err, object context, string message)
         {
@@ -25,7 +17,7 @@ namespace GT
         }
     }
 
-    public delegate void NewClientHandler(IServerTransport transport, int uniqueId);
+    public delegate void NewClientHandler(ITransport transport, Dictionary<string,string> capabilities);
 
     public interface IAcceptor : IStartable
     {
@@ -48,14 +40,14 @@ namespace GT
 
         public abstract void Update();
 
-        public abstract bool Started { get; }
+        public abstract bool Active { get; }
         public abstract void Start();
         public abstract void Stop();
         public abstract void Dispose();
 
-        public void NotifyNewClient(IServerTransport t, int clientId)
+        public void NotifyNewClient(ITransport t, Dictionary<string,string> capabilities)
         {
-            NewClientEvent(t, clientId);
+            NewClientEvent(t, capabilities);
         }
     }
 }

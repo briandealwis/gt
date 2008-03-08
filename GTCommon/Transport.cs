@@ -1,6 +1,8 @@
 using System.Diagnostics;
 using System;
 using System.IO;
+using System.Collections.Generic;
+using System.Net.Sockets;
 namespace GT
 {
 
@@ -9,12 +11,17 @@ namespace GT
     /// <remarks>
     /// Represents a connection to either a server or a client.
     /// </remarks>
-    public interface ITransport
+    public interface ITransport : IDisposable
     {
         /// <summary>
         /// A simple identifier for this transport
         /// </summary>
         string Name { get; }
+
+        /// <summary>
+        /// Is this instance active?
+        /// </summary>
+        bool Active { get; }
 
         event PacketReceivedHandler PacketReceivedEvent;
 
@@ -22,6 +29,12 @@ namespace GT
         MessageProtocol MessageProtocol { get; }
 
         float Delay { get; set; }
+
+        /// <summary>
+        /// A set of tags describing the capabilities of the transport and of expectations/capabilities
+        /// of the users of this transport.
+        /// </summary>
+        Dictionary<string,string> Capabilities { get; }
 
         /// <summary>
         /// Send the given message to the server.
@@ -50,10 +63,15 @@ namespace GT
 
     public abstract class BaseTransport : ITransport
     {
+        private Dictionary<string, string> capabilities = new Dictionary<string, string>();
+        public event ErrorEventHandler ErrorEvent;
         public event PacketReceivedHandler PacketReceivedEvent;
         public abstract string Name { get; }
+        public abstract MessageProtocol MessageProtocol { get; }    // FIXME: temporary
 
-        public abstract MessageProtocol MessageProtocol { get; }
+        public abstract bool Active { get; }
+
+        public void Dispose() { /* empty implementation */ }
 
         /// <summary>The average amount of latency between this server 
         /// and the client (in milliseconds).</summary>
@@ -63,6 +81,11 @@ namespace GT
         {
             get { return delay; }
             set { delay = 0.95f * delay + 0.05f * delay; }
+        }
+
+        public Dictionary<string, string> Capabilities
+        {
+            get { return capabilities; }
         }
 
         public abstract void SendPacket(byte[] message, int offset, int count);
@@ -90,6 +113,15 @@ namespace GT
                 return;
             }
             PacketReceivedEvent(buffer, offset, count, this);
+        }
+
+        protected void NotifyError(Exception e, SocketError se, string explanation)
+        {
+            //FIXME: server.NotifyError(this, e, se, explanation);
+            Console.WriteLine("{0} {1}: Error Occurred: {2}",
+                DateTime.Now, this, explanation);
+            if (e != null) { Console.WriteLine("  exception={0}", e.ToString()); }
+            if (se != null) { Console.WriteLine("  socket error={1}", se.ToString()); }
         }
     }
 

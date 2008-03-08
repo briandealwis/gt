@@ -51,6 +51,7 @@
   <ItemGroup>
     <Compile Include="AggregatingSharedDictionary.cs" />
     <Compile Include="Client.cs" />
+    <Compile Include="TcpConnector.cs" />
     <Compile Include="Delay.cs" />
     <Compile Include="Framed.cs" />
     <Compile Include="HPTimer.cs" />
@@ -59,6 +60,7 @@
     <Compile Include="SimpleSharedDictionary.cs" />
     <Compile Include="TcpTransport.cs" />
     <Compile Include="TupleStream.cs" />
+    <Compile Include="UdpConnector.cs" />
     <Compile Include="UdpTransport.cs" />
   </ItemGroup>
   <ItemGroup>

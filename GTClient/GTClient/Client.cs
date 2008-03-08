@@ -495,7 +495,8 @@ namespace GT
         public event ErrorEventHandler ErrorEvent;
         internal ErrorEventHandler ErrorEventDelegate;
 
-        private Dictionary<MessageProtocol, IClientTransport> transports;
+        private Dictionary<MessageProtocol, ITransport> transports = 
+            new Dictionary<MessageProtocol,ITransport>();
         private Dictionary<MessageProtocol, List<Message>> messagePools;
 
         /// <summary>Create a new SuperStream to handle a connection to a server. (blocks)</summary>
@@ -507,7 +508,22 @@ namespace GT
             this.owner = owner;
             this.address = address;
             this.port = port;
-            Start();    // FIXME: starting should be *explicit*
+        }
+
+        /// <summary>
+        /// Return the marshaller configured for this stream's client.
+        /// </summary>
+        public IMarshaller Marshaller
+        {
+            get { return owner.Marshaller; }
+        }
+
+        /// <summary>
+        /// Return the globally unique identifier for this stream's client.
+        /// </summary>
+        public Guid Guid
+        {
+            get { return owner.Guid; }
         }
 
         /// <summary>
@@ -515,24 +531,21 @@ namespace GT
         /// </summary>
         public void Start()
         {
-            if (Started) { return; }
+            if (Active) { return; }
             nextPingTime = 0;
 
             messagePools = new Dictionary<MessageProtocol, List<Message>>();
             messages = new List<Message>();
 
-            // FIXME: this should be configurable
-            if (transports == null)
+            transports = new Dictionary<MessageProtocol, ITransport>();
+
+            foreach (IConnector conn in owner.Connectors)
             {
-                transports = new Dictionary<MessageProtocol, IClientTransport>();
-                AddTransport(new TcpClientTransport());
-                AddTransport(new UdpClientTransport());
+                // FIXME: and if there is an error...?
+                ITransport t = conn.Connect(Address, Port, owner.Capabilities);
+                if (t != null) { AddTransport(t); }
             }
 
-            foreach (IClientTransport t in transports.Values)
-            {
-                t.Start();
-            }
             started = true;
 
             // FIXME: This is bogus and should be changed.
@@ -544,19 +557,19 @@ namespace GT
         public void Stop()
         {
             started = false;
-            foreach (IClientTransport t in transports.Values)
+            foreach (ITransport t in transports.Values)
             {
-                t.Stop();
+                t.Dispose();
             }
             transports = null;
         }
 
-        public void AddTransport(IClientTransport t)
+        public void AddTransport(ITransport t)
         {
             // transports[t.Name] = t;
             transports[t.MessageProtocol] = t;  // FIXME: this is to be replaced!
             t.PacketReceivedEvent += new PacketReceivedHandler(MessageReceived);
-            t.Server = this;
+            // t.ErrorEvent += new ErrorEventHandler();
         }
 
         public virtual string Address
@@ -569,7 +582,7 @@ namespace GT
             get { return port; }
         }
 
-        public virtual bool Started
+        public virtual bool Active
         {
             get { return started; }
         }
@@ -646,7 +659,7 @@ namespace GT
         {
             lock (this)
             {
-                if (!Started) { 
+                if (!Active) { 
                     throw new InvalidStateException("Cannot send on a stopped client", this); 
                 }
 
@@ -682,21 +695,21 @@ namespace GT
             }
         }
 
-        protected void SendMessage(IClientTransport transport, Message msg)
+        protected void SendMessage(ITransport transport, Message msg)
         {
             //pack main message into a buffer and send it right away
             Stream packet = transport.GetPacketStream();
             owner.Marshaller.Marshal(msg, packet, transport);
 
             // and be sure to catch exceptions; log and remove transport if unable to be started
-            // if(!transport.Started) { transport.Start(); }
+            // if(!transport.Active) { transport.Start(); }
             transport.SendPacket(packet);
         }
 
         /// <summary>Flushes outgoing messages on this channel only</summary>
         internal void FlushOutgoingMessages(byte id, MessageProtocol protocol)
         {
-            IClientTransport t = transports[protocol];  // will throw exception if not found
+            ITransport t = transports[protocol];  // will throw exception if not found
             Debug.Assert(t.MaximumPacketSize > 0);
 
             List<Message> list;
@@ -713,7 +726,7 @@ namespace GT
             List<Message> list;
             byte[] buffer;
 
-            IClientTransport t = transports[protocol];
+            ITransport t = transports[protocol];
             Debug.Assert(t.MaximumPacketSize > 0);
 
             messagePools.TryGetValue(protocol, out list);
@@ -721,7 +734,7 @@ namespace GT
             FlushOutgoingMessages(t, new SequentialListProcessor<Message>(list));
         }
 
-        private void FlushOutgoingMessages(IClientTransport transport, IProcessingQueue<Message> elements)
+        private void FlushOutgoingMessages(ITransport transport, IProcessingQueue<Message> elements)
         {
             while (!elements.Empty)
             {
@@ -761,8 +774,8 @@ namespace GT
         {
             lock (this)
             {
-                if (!Started) { return; }
-                foreach (IClientTransport t in transports.Values)
+                if (!Active) { return; }
+                foreach (ITransport t in transports.Values)
                 {
                     t.Update();
                 }
@@ -781,7 +794,7 @@ namespace GT
                 break;
 
             case SystemMessageType.PingRequest:
-                SendMessage((IClientTransport)transport, new SystemMessage(SystemMessageType.PingResponse, message.data));
+                SendMessage(transport, new SystemMessage(SystemMessageType.PingResponse, message.data));
                 break;
 
             case SystemMessageType.PingResponse:
@@ -802,7 +815,7 @@ namespace GT
         /// <summary>Ping the server to determine delay, as well as act as a keep-alive.</summary>
         internal void Ping()
         {
-            foreach (IClientTransport t in transports.Values)
+            foreach (ITransport t in transports.Values)
             {
                 SendMessage(t, new SystemMessage(SystemMessageType.PingRequest,
                     BitConverter.GetBytes(System.Environment.TickCount)));
@@ -827,6 +840,7 @@ namespace GT
     /// <summary>Represents a client that can connect to multiple servers.</summary>
     public class Client : IStartable
     {
+        private Guid guid = Guid.NewGuid();
         private Dictionary<byte, ObjectStream> objectStreams;
         private Dictionary<byte, BinaryStream> binaryStreams;
         private Dictionary<byte, StringStream> stringStreams;
@@ -835,11 +849,11 @@ namespace GT
         private Dictionary<byte, AbstractStreamedTuple> twoTupleStreams;
         private Dictionary<byte, AbstractStreamedTuple> threeTupleStreams;
         private List<ServerStream> superStreams;
+        private List<IConnector> connectors = new List<IConnector>();
         private HPTimer timer;
         private bool started = false;
 
         private IMarshaller marshaller = new DotNetSerializingMarshaller();
-
 
         /// <summary>Occurs when there are errors on the network.</summary>
         public event ErrorEventHandler ErrorEvent;
@@ -866,9 +880,48 @@ namespace GT
             timer = new HPTimer();
         }
 
+        /// <summary>
+        /// Return the marshaller configured for this client.
+        /// </summary>
         public IMarshaller Marshaller
         {
             get { return marshaller; }
+        }
+
+        public Dictionary<string, string> Capabilities
+        {
+            get
+            {
+                Dictionary<string, string> caps = new Dictionary<string, string>();
+                caps[GTConstants.CAPABILITIES_CLIENT_ID] = 
+                    Guid.ToString("N");  // "N" is the most compact form
+                StringBuilder sb = new StringBuilder();
+                foreach(string d in Marshaller.Descriptors) {
+                    sb.Append(d);
+                    sb.Append(' ');
+                }
+                caps[GTConstants.CAPABILITIES_MARSHALLER_DESCRIPTORS] = sb.ToString().Trim();
+                return caps;
+            }
+        }
+
+        public ICollection<IConnector> Connectors
+        {
+            get {
+                if (connectors.Count == 0)
+                {
+                    connectors.Add(new TcpConnector());
+                    connectors.Add(new UdpConnector());
+                }
+                return connectors; 
+            }
+        }
+
+        /// <summary>
+        /// Return globally unique identifier for this client.
+        /// </summary>
+        public Guid Guid {
+            get { return guid; }
         }
 
         /// <summary>Get a streaming tuple that is automatically sent to the server every so often</summary>
@@ -1078,7 +1131,7 @@ namespace GT
         /// <summary>Gets a Superstream, and if not already created, makes a new one for that destination.</summary>
         /// <param name="address">The address to connect to.</param>
         /// <param name="port">The port to connect to.</param>
-        /// <returns>The created or retrived connection itself.</returns>
+        /// <returns>The created or retrieved connection itself.</returns>
         public ServerStream GetSuperStream(string address, string port)
         {
             foreach (ServerStream s in superStreams)
@@ -1091,6 +1144,7 @@ namespace GT
             ServerStream mySS = new ServerStream(this, address, port);
             mySS.ErrorEventDelegate = new ErrorEventHandler(mySS_ErrorEvent);
             mySS.ErrorEvent += mySS.ErrorEventDelegate;
+            mySS.Start();
             superStreams.Add(mySS);
             return mySS;
         }
@@ -1399,6 +1453,16 @@ namespace GT
                 if (started) { return; }
                 timer.Start();
                 timer.Update();
+                if (connectors.Count == 0)
+                {
+                    connectors.Add(new TcpConnector());
+                    connectors.Add(new UdpConnector());
+                }
+                foreach (IConnector conn in connectors)
+                {
+                    conn.Start();
+                }
+
                 for (int i = 0; i < superStreams.Count; i++)
                 {
                     superStreams[i].Start();
@@ -1413,9 +1477,13 @@ namespace GT
             {
                 if (!started) { return; }
                 started = false;
-                for (int i = 0; i < superStreams.Count; i++)
+                foreach (IConnector conn in connectors)
                 {
-                    superStreams[i].Stop();
+                    conn.Start();
+                }
+                foreach(ServerStream s in superStreams)
+                {
+                    s.Stop();
                 }
                 // timer.Stop();
             }
@@ -1438,7 +1506,7 @@ namespace GT
             }
         }
 
-        public bool Started
+        public bool Active
         {
             get { return started; }
         }

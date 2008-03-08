@@ -88,4 +88,15 @@ namespace GT
     }
 
     #endregion
+
+    #region String Constants
+    /// <summary>
+    /// Constants used within GT and its implementations.
+    /// </summary>
+    public struct GTConstants
+    {
+        public static readonly string CAPABILITIES_CLIENT_ID = "GUID";
+        public static readonly string CAPABILITIES_MARSHALLER_DESCRIPTORS = "Marshaller";
+    }
+    #endregion
 }

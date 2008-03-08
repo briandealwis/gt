@@ -90,6 +90,11 @@ namespace GT
 
     public class CannotConnectToRemoteException : GTException
     {
+        public CannotConnectToRemoteException(string m)
+            : base(m)
+        {
+        }
+
         public CannotConnectToRemoteException(Exception e)
             : base("unable to connect", e)
         {

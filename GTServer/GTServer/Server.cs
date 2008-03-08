@@ -457,7 +457,7 @@ namespace GT
         {
             DebugUtils.WriteLine(">>>> Server.Update() started");
 
-            if (!Started) { Start(); }
+            if (!Active) { Start(); }
 
             newlyAddedClients.Clear();
             foreach(BaseAcceptor acc in acceptors) {
@@ -516,13 +516,25 @@ namespace GT
             return results;
         }
 
-        protected void NewClient(IServerTransport t, int clientId)
+        protected void NewClient(ITransport t, Dictionary<string,string> capabilities)
         {
+            Guid clientId;
+            try
+            {
+                clientId = new Guid(capabilities[GTConstants.CAPABILITIES_CLIENT_ID]);
+            }
+            catch (Exception e)
+            {
+                Console.WriteLine("{0} Exception when decoding client's GUID: {1}",
+                    DateTime.Now, e);
+                t.Dispose();
+                return;
+            }
             Client c = GetClientFromUniqueIdentity(clientId);
             if (c == null)
             {
                 Console.WriteLine("{0}: unknown client: {1} from {2}", this, clientId, t);
-                c = CreateNewClient();
+                c = CreateNewClient(clientId);
                 newlyAddedClients.Add(c);
             }
             else
@@ -536,17 +548,18 @@ namespace GT
         /// <param name="uniqueIdentity">The unique identity of this client</param>
         /// <returns>The client with that unique identity.  If the number doesn't 
         /// match a client, then it returns null.</returns>
-        public Client GetClientFromUniqueIdentity(int uniqueIdentity)
+        public Client GetClientFromUniqueIdentity(Guid id)
         {
-            Client c;
-            if (clientIDs.TryGetValue(uniqueIdentity, out c))
-                return c;
+            foreach (Client c in Clients)
+            {
+                if (c.ClientIdentity.Equals(id)) { return c; }
+            }
             return null;
         }
 
-        protected Client CreateNewClient()
+        protected Client CreateNewClient(Guid clientId)
         {
-            Client client = new Client(this, GenerateUniqueIdentity());
+            Client client = new Client(this, clientId, GenerateUniqueIdentity());
             client.MessageReceivedDelegate = new MessageHandler(client_MessageReceived);
             client.MessageReceived += client.MessageReceivedDelegate;
             client.ErrorEventDelegate = new ErrorClientHandler(ErrorClientHandlerMethod);
@@ -639,7 +652,7 @@ namespace GT
             acceptors = null;
         }
 
-        public bool Started
+        public bool Active
         {
             get { return running; }
         }
@@ -782,7 +795,7 @@ namespace GT
         public class Client : IDisposable
         {
             #region Variables and Properties
-            
+
             /// <summary>Triggered when a data is received.</summary>
             public event MessageHandler MessageReceived;
             internal MessageHandler MessageReceivedDelegate;
@@ -794,10 +807,19 @@ namespace GT
             /// <summary>Last exception encountered.</summary>
             public Exception LastError;
 
+            /// <summary>
+            /// The client's unique identifier; this should be globally unique
+            /// </summary>
+            protected Guid clientId;
+
+            /// <summary>
+            /// The server's unique identifier; this is not globally unique
+            /// </summary>
             private int uniqueIdentity;
+
             private Server server;
-            private Dictionary<MessageProtocol, IServerTransport> transports =
-                new Dictionary<MessageProtocol, IServerTransport>();
+            private Dictionary<MessageProtocol, ITransport> transports =
+                new Dictionary<MessageProtocol, ITransport>();
 
             private bool dead;
 
@@ -830,6 +852,11 @@ namespace GT
                 get { return uniqueIdentity; }
             }
 
+            public Guid ClientIdentity
+            {
+                get { return clientId; }
+            }
+
             #endregion
 
 
@@ -838,9 +865,10 @@ namespace GT
             /// <summary>Creates a new Client to communicate with.</summary>
             /// <param name="s">The associated server instance.</param>
             /// <param name="id">The unique identity of this new Client.</param>
-            public Client(Server s, int id)
+            public Client(Server s, Guid clientId, int id)
             {
                 server = s;
+                this.clientId = clientId;
                 uniqueIdentity = id;
                 dead = false;
             }
@@ -877,7 +905,7 @@ namespace GT
             }
 
 
-            internal void AddTransport(IServerTransport t)
+            internal void AddTransport(ITransport t)
             {
                 DebugUtils.Write(this + ": added new transport: " + t);
                 t.PacketReceivedEvent += new PacketReceivedHandler(PostNewlyReceivedPacket);
@@ -977,7 +1005,7 @@ namespace GT
                     {
                         throw new InvalidStateException("cannot send on a disposed client!", this);
                     }
-                    IServerTransport t = FindTransport(protocol);
+                    ITransport t = FindTransport(protocol);
                     Stream ms = t.GetPacketStream();
                     int packetStart = (int)ms.Position;
                     while (messages.Count > 0)
@@ -1008,9 +1036,9 @@ namespace GT
 
             #endregion
 
-            protected IServerTransport FindTransport(MessageProtocol protocol)
+            protected ITransport FindTransport(MessageProtocol protocol)
             {
-                IServerTransport t;
+                ITransport t;
                 if (!transports.TryGetValue(protocol, out t))
                 {
                     throw new NoMatchingTransport("Cannot find matching transport: " + protocol);
@@ -1039,7 +1067,7 @@ namespace GT
                     break;
 
                 case SystemMessageType.PingRequest:
-                    SendMessage((IServerTransport)t, new SystemMessage(SystemMessageType.PingResponse, m.data));
+                    SendMessage((ITransport)t, new SystemMessage(SystemMessageType.PingResponse, m.data));
                     break;
                 }
             }
@@ -1048,21 +1076,21 @@ namespace GT
             internal void Ping()
             {
                 byte[] buffer = BitConverter.GetBytes(System.Environment.TickCount);
-                foreach (IServerTransport t in transports.Values)
+                foreach (ITransport t in transports.Values)
                 {
                     SendMessage(t, new SystemMessage(SystemMessageType.PingRequest,
                         BitConverter.GetBytes(System.Environment.TickCount)));
                 }
             }
 
-            protected void SendMessage(IServerTransport transport, Message msg)
+            protected void SendMessage(ITransport transport, Message msg)
             {
                 //pack main message into a buffer and send it right away
                 Stream packet = transport.GetPacketStream();
                 server.Marshaller.Marshal(msg, packet, transport);
 
                 // and be sure to catch exceptions; log and remove transport if unable to be started
-                // if(!transport.Started) { transport.Start(); }
+                // if(!transport.Active) { transport.Start(); }
                 transport.SendPacket(packet);
             }
 
@@ -1074,7 +1102,7 @@ namespace GT
                 lock (this)
                 {
                     if (dead) { return; }
-                    foreach (IServerTransport t in transports.Values)
+                    foreach (ITransport t in transports.Values)
                     {
                         t.Update();
                     }

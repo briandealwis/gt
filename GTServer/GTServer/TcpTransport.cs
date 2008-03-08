@@ -6,8 +6,10 @@ using System.Threading;
 using GT;
 using System.IO;
 using System.Diagnostics;
+using System.Text;
 
-namespace GT {
+namespace GT
+{
     public class TcpServerTransport : BaseServerTransport
     {
         /// <summary>
@@ -63,7 +65,7 @@ namespace GT {
             get { return ((IPEndPoint)handle.Client.RemoteEndPoint).Address; }
         }
 
-        override public bool Dead { get { return handle == null; } }
+        override public bool Active { get { return handle != null; } }
 
         override public void Dispose()
         {
@@ -85,12 +87,13 @@ namespace GT {
         /// <param name="buffer">The message to send.</param>
         public override void SendPacket(byte[] buffer, int offset, int length)
         {
-            if (Dead) { throw new InvalidStateException("Cannot send: is dead"); }
+            if (!Active) { throw new InvalidStateException("Cannot send: is dead"); }
 
             DebugUtils.DumpMessage(this + "SendPacket", buffer);
-            byte[] wireFormat = new byte[length + 4];
+            Debug.Assert(PacketHeaderSize == 4);
+            byte[] wireFormat = new byte[length + PacketHeaderSize];
             BitConverter.GetBytes(length).CopyTo(wireFormat, 0);
-            Array.Copy(buffer, offset, wireFormat, 4, length);
+            Array.Copy(buffer, offset, wireFormat, PacketHeaderSize, length);
 
             outstanding.Add(wireFormat);
             FlushOutstandingPackets();
@@ -100,10 +103,7 @@ namespace GT {
         /// <param name="buffer">The message to send.</param>
         public override void SendPacket(Stream output)
         {
-            if (Dead)
-            {
-                throw new InvalidStateException("Cannot send on a stopped client", this);
-            }
+            Debug.Assert(Active, "Cannot send on disposed transport");
             if (!(output is MemoryStream))
             {
                 throw new ArgumentException("Transport provided different stream!");
@@ -111,6 +111,7 @@ namespace GT {
             MemoryStream ms = (MemoryStream)output;
             DebugUtils.DumpMessage(this + ": SendPacket(stream)", ms.ToArray());
             ms.Position = 0;
+            Debug.Assert(PacketHeaderSize == 4);
             byte[] lb = BitConverter.GetBytes((int)(ms.Length - PacketHeaderSize));
             Debug.Assert(lb.Length == 4);
             ms.Write(lb, 0, lb.Length);
@@ -120,7 +121,7 @@ namespace GT {
             FlushOutstandingPackets();
         }
 
-        virtual protected void FlushOutstandingPackets() 
+        virtual protected void FlushOutstandingPackets()
         {
             SocketError error = SocketError.Success;
 
@@ -131,7 +132,7 @@ namespace GT {
                     //Console.WriteLine("Srv.Flush: " + outstanding[0].Length + " bytes");
                     outgoingInProgress = new PacketInProgress(outstanding[0]);
                 }
-                int bytesSent = handle.Client.Send(outgoingInProgress.data, outgoingInProgress.position, 
+                int bytesSent = handle.Client.Send(outgoingInProgress.data, outgoingInProgress.position,
                     outgoingInProgress.bytesRemaining, SocketFlags.None, out error);
                 //Console.WriteLine("  position=" + outgoingInProgress.position + " bR=" + 
                 //  outgoingInProgress.bytesRemaining + ": sent " + bytesSent);
@@ -165,12 +166,13 @@ namespace GT {
         /// <summary>Gets one data from the tcp and interprets it.</summary>
         override public void Update()
         {
-            if (Dead) { throw new InvalidStateException("Cannot update: instance is dead"); }
+            Debug.Assert(Active, "Cannot send on disposed transport");
             CheckIncomingPackets();
             FlushOutstandingPackets();
         }
 
-        virtual protected void CheckIncomingPackets() {
+        virtual protected void CheckIncomingPackets()
+        {
             //if (handle.Available > 0)
             //{
             //    Console.WriteLine(this + ": there appears to be some data available!");
@@ -221,7 +223,7 @@ namespace GT {
                     {
                         if (incomingInProgress.IsMessageHeader())
                         {
-                            incomingInProgress = new PacketInProgress(BitConverter.ToInt32(incomingInProgress.data,0), false);
+                            incomingInProgress = new PacketInProgress(BitConverter.ToInt32(incomingInProgress.data, 0), false);
                             // assert incomingInProgress.IsMessageHeader()
                         }
                         else
@@ -267,19 +269,27 @@ namespace GT {
 
         private TcpListener bouncer;
 
+        private List<NegotiationInProgress> pending;
+
         public TcpAcceptor(IPAddress address, int port)
             : base(address, port)
         {
         }
 
-        override public bool Started
+        public byte[] ProtocolDescriptor
+        {
+            get { return ASCIIEncoding.ASCII.GetBytes("GT10"); }
+        }
+
+        override public bool Active
         {
             get { return bouncer != null; }
         }
 
         override public void Start()
         {
-            if (Started) { return; }
+            if (Active) { return; }
+            pending = new List<NegotiationInProgress>();
             try
             {
                 bouncer = new TcpListener(address, port);
@@ -319,7 +329,6 @@ namespace GT {
 
         public override void Update()
         {
-            TcpClient connection;
             // Console.WriteLine(this + ": checking TCP listening socket...");
             while (bouncer.Pending())
             {
@@ -327,7 +336,9 @@ namespace GT {
                 try
                 {
                     DebugUtils.WriteLine(this + ": accepting new TCP connection");
-                    connection = bouncer.AcceptTcpClient();
+                    TcpClient connection = bouncer.AcceptTcpClient();
+                    connection.NoDelay = true;
+                    pending.Add(new NegotiationInProgress(this, connection));
                 }
                 catch (Exception e)
                 {
@@ -338,14 +349,127 @@ namespace GT {
                     bouncer = null;
                     break;
                 }
-
-                NotifyNewClient(new TcpServerTransport(connection), 0);
+            }
+            foreach (NegotiationInProgress nip in new List<NegotiationInProgress>(pending))
+            {
+                nip.Update();
             }
         }
 
         public override void Dispose()
         {
             Stop();
+        }
+
+        internal void Remove(NegotiationInProgress nip)
+        {
+            pending.Remove(nip);
+        }
+    }
+
+    internal class NegotiationInProgress
+    {
+        protected TcpAcceptor acceptor;
+        protected TcpClient connection;
+        protected byte[] data = null;
+        protected int offset = 0;
+
+        enum NIPState { TransportProtocol, DictionarySize, DictionaryContent };
+        NIPState state;
+
+        internal NegotiationInProgress(TcpAcceptor acc, TcpClient c)
+        {
+            acceptor = acc;
+            connection = c;
+            state = NIPState.TransportProtocol;
+            data = new byte[4]; // protocol descriptor is 4 bytes
+            offset = 0;
+            try
+            {
+                connection.NoDelay = true;
+            }
+            catch (Exception) {/*ignore*/}
+        }
+
+        internal void Update()
+        {
+            try
+            {
+                InternalUpdate();
+            }
+            catch (Exception e)
+            {
+                Console.WriteLine("{0} {1}: abandoned incoming connection: handshake failed: {2}",
+                    DateTime.Now, this, e);
+                try { connection.Close(); }
+                catch (Exception) { }
+                acceptor.Remove(this);
+            }
+        }
+
+
+        protected void InternalUpdate()
+        {
+            while (offset < data.Length)
+            {
+                if (connection.Available <= 0)
+                {
+                    // we will return!
+                    return;
+                }
+                SocketError sockError;
+                int rc = connection.Client.Receive(data, offset, data.Length - offset,
+                    SocketFlags.None, out sockError);
+                if (sockError == SocketError.WouldBlock) { return; }
+                if (rc == 0) { throw new CannotConnectToRemoteException("unexpected EOF"); }
+                if (sockError != SocketError.Success) { throw new CannotConnectToRemoteException(sockError.ToString()); }
+                offset += rc;
+            }
+
+            switch (state)
+            {
+            case NIPState.TransportProtocol:
+                if (!ByteUtils.Compare(data, 0, acceptor.ProtocolDescriptor, 0, 4))
+                {
+                    throw new CannotConnectToRemoteException("Unknown protocol version: "
+                    + ByteUtils.DumpBytes(data, 0, 4) + " ["
+                    + ByteUtils.AsPrintable(data, 0, 4) + "]");
+                }
+                state = NIPState.DictionarySize;
+                data = new byte[1];
+                offset = 0;
+                break;
+
+            case NIPState.DictionarySize:
+                {
+                    MemoryStream ms = new MemoryStream(data);
+                    try
+                    {
+                        int count = ByteUtils.DecodeLength(ms);
+                        state = NIPState.DictionaryContent;
+                        data = new byte[count];
+                        offset = 0;
+                    }
+                    catch (InvalidDataException)
+                    {
+                        // we keep reading until we have an encoded length
+                        byte[] newData = new byte[data.Length + 1];
+                        Array.Copy(data, newData, data.Length);
+                        data = newData;
+                        // and get that next byte!
+                    }
+                }
+                break;
+
+            case NIPState.DictionaryContent:
+                {
+                    MemoryStream ms = new MemoryStream(data);
+                    Dictionary<string, string> dict = ByteUtils.DecodeDictionary(ms);
+                    acceptor.Remove(this);
+                    acceptor.NotifyNewClient(new TcpServerTransport(connection), dict);
+                }
+                break;
+            }
         }
     }
 }

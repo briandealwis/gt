@@ -3,6 +3,7 @@ using GT;
 using System.Runtime.Serialization.Formatters.Binary;
 using System;
 using System.Diagnostics;
+using System.Text;
 
 namespace GT
 {
@@ -13,6 +14,12 @@ namespace GT
     /// </remarks>
     public interface IMarshaller : IDisposable
     {
+        /// <summary>
+        /// Return a set of descriptions identifying this marshaller and its capabilities.
+        /// The descriptions should not have any white-space.
+        /// </summary>
+        string[] Descriptors { get; }
+
         void Marshal(Message message, Stream output, ITransport t);
         Message Unmarshal(Stream output, ITransport t);
     }
@@ -30,6 +37,14 @@ namespace GT
 
         protected BinaryFormatter formatter = new BinaryFormatter();
 
+        public virtual string[] Descriptors
+        {
+            get
+            {
+                return new string[] { ".NET-1.0" };
+            }
+        }
+
         public void Dispose()
         {
             formatter = null;
@@ -45,7 +60,7 @@ namespace GT
             output.WriteByte((byte)m.type);
             MemoryStream ms = new MemoryStream(64);    // guestimate
             MarshalContents(m, ms, t);
-            EncodeLength((int)ms.Length, output);
+            ByteUtils.EncodeLength((int)ms.Length, output);
             ms.WriteTo(output);
         }
 
@@ -112,7 +127,7 @@ namespace GT
             // Could check the version or something here?
             byte id = (byte)input.ReadByte();
             byte type = (byte)input.ReadByte();
-            int length = DecodeLength(input);
+            int length = ByteUtils.DecodeLength(input);
             return UnmarshalContent(id, (MessageType)type, new WrappedStream(input, (uint)length));
         }
 
@@ -168,67 +183,6 @@ namespace GT
             byte[] idbytes = new byte[4];
             output.Read(idbytes, 0, 4);
             return new SessionMessage(id, BitConverter.ToInt32(idbytes, 0), ac);
-        }
-
-        #endregion
-
-        #region Special Marshalling Operators
-
-        /// <summary>
-        /// Encode a length on the stream in such a way to minimize the number of bytes required.
-        /// Top two bits are used to record the number of bytes necessary for encoding the length.
-        /// Assumes the length is &lt; 2^30 elements.  Lengths &lt; 64 elelements will fit in a single byte.
-        /// </summary>
-        /// <param name="length">the length to be encoded</param>
-        /// <param name="output">where the encoded length should be placed.</param>
-        public static void EncodeLength(int length, Stream output)
-        {
-            // assumptions: a byte is 8 bites.  seems safe :)
-            if(length < 0) { throw new NotSupportedException("lengths must be positive"); }
-            if (length < (1 << 6))  // 2^6 = 64
-            {
-                output.WriteByte((byte)length);
-            }
-            else if (length < (1 << (6 + 8)))  // 2^(6+8) = 16384
-            {
-                output.WriteByte((byte)(64 | ((length >> 8) & 63)));
-                output.WriteByte((byte)(length & 255));
-            }
-            else if (length < (1 << (6 + 8 + 8)))   // 2^(6+8+8) = 4194304
-            {  
-                output.WriteByte((byte)(128 | ((length >> 16) & 63)));
-                output.WriteByte((byte)((length >> 8) & 255));
-                output.WriteByte((byte)(length & 255));
-            }
-            else if (length < (1 << (6 + 8 + 8 + 8)))    // 2^(6+8+8+8) = 1073741824
-            {
-                output.WriteByte((byte)(192 | ((length >> 24) & 63)));
-                output.WriteByte((byte)((length >> 16) & 255));
-                output.WriteByte((byte)((length >> 8) & 255));
-                output.WriteByte((byte)(length & 255));
-            }
-            else
-            {
-                throw new NotSupportedException("cannot encode lengths >= 2^30");
-            }
-        }
-        
-        /// <summary>
-        /// Decode a length from the stream as encoded by EncodeLength() above.
-        /// Top two bits are used to record the number of bytes necessary for encoding the length.
-        /// </summary>
-        /// <param name="input">stream containing the encoded length</param>
-        /// <returns>the decoded length</returns>
-        public static int DecodeLength(Stream input)
-        {
-            byte first = (byte)input.ReadByte();
-            int result = first & 63;
-            int numBytes = first >> 6;
-            if (numBytes >= 1) { result = (result << 8) | input.ReadByte(); }
-            if (numBytes >= 2) { result = (result << 8) | input.ReadByte(); }
-            if (numBytes >= 3) { result = (result << 8) | input.ReadByte(); }
-            if (numBytes > 3) { throw new InvalidDataException("encoding cannot have more than 3 bytes!"); }
-            return result;
         }
 
         #endregion

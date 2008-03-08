@@ -188,21 +188,21 @@ namespace GT.UnitTests.BaseTests
         }
     }
 
-    /// <remarks>Test basic marshalling functionality</remarks>
     [TestFixture]
-    public class DotNetSerializingMarshallerTests
+    public class ByteUtilsTests
     {
+
         #region Adaptive Length Encoding tests
         #region Helper methods
         protected void CheckEncoding(int value, byte[] expectedResult)
         {
             MemoryStream ms = new MemoryStream();
             Assert.AreEqual(0, ms.Length);
-            DotNetSerializingMarshaller.EncodeLength(value, ms);
+            ByteUtils.EncodeLength(value, ms);
             ms.Position = 0;
             Assert.AreEqual(expectedResult.Length, ms.Length);
             Assert.AreEqual(expectedResult, ms.ToArray());
-            Assert.AreEqual(value, DotNetSerializingMarshaller.DecodeLength(ms));
+            Assert.AreEqual(value, ByteUtils.DecodeLength(ms));
             Assert.IsTrue(ms.Position == ms.Length);    // check that no turds left on the stream
         }
         #endregion
@@ -243,9 +243,54 @@ namespace GT.UnitTests.BaseTests
 
         }
 
+        [Test]
+        public void TestEOF()
+        {
+            MemoryStream ms = new MemoryStream(new byte[] { 64 });
+            try
+            {
+                ByteUtils.DecodeLength(ms);
+                Assert.Fail("Should throw exception on EOF");
+            }
+            catch (InvalidDataException) { }
+        }
+
+
         #endregion
         #endregion
 
+        #region Encoded String-String Dictionary Tests
+
+        [Test]
+        public void TestDictionaryEncoding()
+        {
+            Dictionary<string, string> dict = new Dictionary<string, string>();
+            dict["foo"] = "bar";
+            dict["nog"] = Guid.NewGuid().ToString("N");
+
+            // # bytes
+            // 1    1 byte to represent 2 keys
+            // 4    'foo': 1 byte for length + 3 bytes for key 'foo'
+            // 4    'bar': 1 byte for length + 3 bytes for value 'bar'
+            // 4    'nog': 1 byte for length + 3 bytes for key 'nog'
+            // 33   guid: 1 byte for length + 32 bytes for guid ("N" is most compact)
+            // 46 bytes total
+            MemoryStream ms = new MemoryStream();
+            ByteUtils.EncodeDictionary(dict, ms);
+            Assert.AreEqual(46, ms.Length);
+            Assert.AreEqual(46, ByteUtils.EncodedDictionaryByteCount(dict));
+
+            ms.Position = 0;
+            Dictionary<string,string> decoded = ByteUtils.DecodeDictionary(ms);
+            Assert.AreEqual(dict, decoded);
+        }
+        #endregion
+
+    }
+    /// <remarks>Test basic marshalling functionality</remarks>
+    [TestFixture]
+    public class DotNetSerializingMarshallerTests
+    {
         #region DotNetSerializingMarshaller tests
         [Test]
         public void TestObjectMessage()
@@ -253,9 +298,9 @@ namespace GT.UnitTests.BaseTests
             MemoryStream ms = new MemoryStream();
             IMarshaller m = new DotNetSerializingMarshaller();
             object o = new List<object>();
-            m.Marshal(new ObjectMessage(0, o), ms, new TcpClientTransport());
+            m.Marshal(new ObjectMessage(0, o), ms, new NullTransport());
             ms.Seek(0, SeekOrigin.Begin);
-            Message msg = m.Unmarshal(ms, new TcpClientTransport());
+            Message msg = m.Unmarshal(ms, new NullTransport());
             Assert.IsInstanceOfType(typeof(ObjectMessage), msg);
             Assert.AreEqual(0, msg.id);
             Assert.AreEqual(MessageType.Object, msg.type);
@@ -268,10 +313,10 @@ namespace GT.UnitTests.BaseTests
         {
             MemoryStream ms = new MemoryStream();
             IMarshaller m = new DotNetSerializingMarshaller();
-            m.Marshal(new SystemMessage(SystemMessageType.UniqueIDRequest, new byte[4]), 
-                ms, new TcpClientTransport());
+            m.Marshal(new SystemMessage(SystemMessageType.UniqueIDRequest, new byte[4]),
+                ms, new NullTransport());
             ms.Seek(0, SeekOrigin.Begin);
-            Message msg = m.Unmarshal(ms, new TcpClientTransport());
+            Message msg = m.Unmarshal(ms, new NullTransport());
             Assert.IsInstanceOfType(typeof(SystemMessage), msg);
             Assert.AreEqual((byte)SystemMessageType.UniqueIDRequest, msg.id);
             Assert.AreEqual(MessageType.System, msg.type);
@@ -284,9 +329,9 @@ namespace GT.UnitTests.BaseTests
             MemoryStream ms = new MemoryStream();
             IMarshaller m = new DotNetSerializingMarshaller();
             string s = "this is a test of faith";
-            m.Marshal(new StringMessage(0, s), ms, new TcpClientTransport());
+            m.Marshal(new StringMessage(0, s), ms, new NullTransport());
             ms.Seek(0, SeekOrigin.Begin);
-            Message msg = m.Unmarshal(ms, new TcpClientTransport());
+            Message msg = m.Unmarshal(ms, new NullTransport());
             Assert.IsInstanceOfType(typeof(StringMessage), msg);
             Assert.AreEqual(0, msg.id);
             Assert.AreEqual(MessageType.String, msg.type);
@@ -300,9 +345,9 @@ namespace GT.UnitTests.BaseTests
             IMarshaller m = new DotNetSerializingMarshaller();
             byte[] bytes = new byte[10];
             for (int i = 0; i < bytes.Length; i++) { bytes[i] = (byte)i; }
-            m.Marshal(new BinaryMessage(0, bytes), ms, new TcpClientTransport());
+            m.Marshal(new BinaryMessage(0, bytes), ms, new NullTransport());
             ms.Seek(0, SeekOrigin.Begin);
-            Message msg = m.Unmarshal(ms, new TcpClientTransport());
+            Message msg = m.Unmarshal(ms, new NullTransport());
             Assert.IsInstanceOfType(typeof(BinaryMessage), msg);
             Assert.AreEqual(0, msg.id);
             Assert.AreEqual(MessageType.Binary, msg.type);
@@ -310,6 +355,68 @@ namespace GT.UnitTests.BaseTests
         }
 
         #endregion
+    }
+
+    internal class NullTransport : ITransport
+    {
+        public string Name
+        {
+            get { return "NULL"; }
+        }
+
+        public bool Active
+        {
+            get { return true; }
+        }
+
+        public event PacketReceivedHandler PacketReceivedEvent;
+
+        public MessageProtocol MessageProtocol
+        {
+            get { return MessageProtocol.Tcp; }
+        }
+
+        public float Delay
+        {
+            get
+            {
+                return 0;
+            }
+            set
+            {
+            }
+        }
+
+        public Dictionary<string, string> Capabilities
+        {
+            get { return new Dictionary<string,string>(); }
+        }
+
+        public void SendPacket(byte[] packet, int offset, int count)
+        {
+        }
+
+        public void SendPacket(Stream stream)
+        {
+        }
+
+        public Stream GetPacketStream()
+        {
+            return new MemoryStream();
+        }
+
+        public void Update()
+        {
+        }
+
+        public int MaximumPacketSize
+        {
+            get { return 1024; }
+        }
+
+        public void Dispose()
+        {
+        }
     }
 
         /// <summary>
@@ -320,17 +427,25 @@ namespace GT.UnitTests.BaseTests
     {
         int port = 9876;
         Thread serverThread, acceptorThread;
-        TcpAcceptor acceptor;
-        IServerTransport server;
-        TcpClientTransport client;
+        IAcceptor acceptor;
+        ITransport server;
+        ITransport client;
         byte[] sourceData = new byte[] { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9 };
-        string failure = "";
-        int serverPacketCount = 0;
-        int clientPacketCount = 0;
+        string failure;
+        int serverPacketCount;
+        int clientPacketCount;
+
+        [SetUp]
+        public void SetUp()
+        {
+            serverPacketCount = 0;
+            clientPacketCount = 0;
+            failure = "";
+        }
 
         protected void RunServer() {
             server.PacketReceivedEvent += new PacketReceivedHandler(ServerReceivedPacket);
-            while(!server.Dead) { 
+            while(server.Active) { 
                 server.Update();
                 Thread.Sleep(50);
             }
@@ -402,7 +517,8 @@ namespace GT.UnitTests.BaseTests
             clientPacketCount++;
         }
 
-        protected void SetupServer(IServerTransport t, int clientId) {
+        protected void SetupServer(ITransport t, Dictionary<string,string> capabilities) {
+            Console.WriteLine("Server: connected to client by " + t);
             server = t;
             serverThread = new Thread(new ThreadStart(RunServer));
             serverThread.Name = "Server";
@@ -412,7 +528,7 @@ namespace GT.UnitTests.BaseTests
 
         protected void RunAcceptor() {
             Console.WriteLine("Checking acceptor...");
-            while (acceptor.Started)
+            while (acceptor.Active)
             {
                 acceptor.Update();
                 Thread.Sleep(200);
@@ -420,7 +536,7 @@ namespace GT.UnitTests.BaseTests
         }
 
         [Test]
-        public void TestBasics()
+        public void TestTcpTransport()
         {
             acceptor = new TcpAcceptor(IPAddress.Any, port);
             acceptor.Start();
@@ -430,11 +546,9 @@ namespace GT.UnitTests.BaseTests
             acceptorThread.IsBackground = true;
             acceptorThread.Start();
 
-            client = new TcpClientTransport();
-            client.Address = "127.0.0.1";
-            client.Port = port.ToString();
+            client = new TcpConnector().Connect("127.0.0.1", port.ToString(), new Dictionary<string, string>());
+            Assert.IsNotNull(client);
             client.PacketReceivedEvent += new PacketReceivedHandler(ClientReceivedPacket);
-            client.Start();
 
             for (int i = 0; i < 10; i++)
             {
@@ -450,13 +564,48 @@ namespace GT.UnitTests.BaseTests
             Assert.AreEqual(10, clientPacketCount);
         }
 
+        [Test]
+        public void TestUdpTransport()
+        {
+            acceptor = new UdpAcceptor(IPAddress.Any, port);
+            acceptor.Start();
+            acceptor.NewClientEvent += new NewClientHandler(SetupServer);
+            acceptorThread = new Thread(new ThreadStart(RunAcceptor));
+            acceptorThread.Name = "Acceptor";
+            acceptorThread.IsBackground = true;
+            acceptorThread.Start();
+
+            client = new UdpConnector().Connect("127.0.0.1", port.ToString(), new Dictionary<string, string>());
+            Assert.IsNotNull(client);
+            client.PacketReceivedEvent += new PacketReceivedHandler(ClientReceivedPacket);
+
+            for (int i = 0; i < 10; i++)
+            {
+                client.SendPacket(sourceData, 0, sourceData.Length);
+                if (failure.Length != 0)
+                {
+                    Assert.Fail(failure);
+                }
+                Thread.Sleep(500);
+                client.Update();
+            }
+            Assert.AreEqual(10, serverPacketCount);
+            Assert.AreEqual(10, clientPacketCount);
+        }
+
+
         [TearDown]
         public void TearDown() {
             if (server != null) { server.Dispose(); }
             if (acceptor != null) { acceptor.Stop(); }
-            if (client != null) { client.Stop(); }
+            if (client != null) { client.Dispose(); }
             if (acceptorThread != null) { acceptorThread.Abort(); }
             if(serverThread != null) { serverThread.Abort(); }
+            server = null;
+            acceptor = null;
+            client = null;
+            acceptorThread = null;
+            serverThread = null;
         }
     }
 
@@ -473,8 +622,8 @@ namespace GT.UnitTests.BaseTests
 
         private static string EXPECTED_GREETING = "Hello!";
         private static string EXPECTED_RESPONSE = "Go Away!";
-        private static int ServerSleepTime = 10;
-        private static int ClientSleepTime = 10;
+        private static int ServerSleepTime = 13;
+        private static int ClientSleepTime = 19;
 
         [SetUp]
         public void SetUp()

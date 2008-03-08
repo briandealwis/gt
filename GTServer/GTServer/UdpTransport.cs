@@ -4,6 +4,8 @@ using System.IO;
 using System.Net.Sockets;
 using System;
 using System.Net;
+using System.Text;
+using System.Diagnostics;
 
 namespace GT
 {
@@ -36,7 +38,7 @@ namespace GT
             get { return MessageProtocol.Udp; }
         }
 
-        override public bool Dead { get { return handle == null; } }
+        override public bool Active { get { return handle != null; } }
 
         override public int MaximumPacketSize
         {
@@ -72,7 +74,7 @@ namespace GT
         /// <param name="buffer">Raw stuff to send.</param>
         override public void SendPacket(byte[] buffer, int offset, int length)
         {
-            if (Dead) { throw new InvalidStateException("Cannot send: instance is dead"); }
+            if (!Active) { throw new InvalidStateException("Cannot send: instance is !Active"); }
             DebugUtils.DumpMessage(this + "SendPacket", buffer);
             if (offset != 0 || length != buffer.Length)
             {
@@ -88,7 +90,7 @@ namespace GT
         /// <param name="buffer">The message to send.</param>
         public override void SendPacket(Stream output)
         {
-            if (Dead) { throw new InvalidStateException("Cannot send on a stopped client", this); }
+            Debug.Assert(Active, "Cannot send on disposed transport");
             if (!(output is MemoryStream))
             {
                 throw new ArgumentException("Transport provided different stream!");
@@ -132,7 +134,7 @@ namespace GT
             int length, cursor;
             byte id, type;
 
-            if (Dead) { throw new InvalidStateException("Cannot send: is dead"); }
+            Debug.Assert(Active, "Cannot send on disposed transport");
 
             CheckIncomingPackets();
             FlushOutstandingPackets();
@@ -177,13 +179,13 @@ namespace GT
 
         #region IStartable
 
-        public override bool Started
+        public override bool Active
         {
-            get { return udpMultiplexer != null && udpMultiplexer.Started; }
+            get { return udpMultiplexer != null && udpMultiplexer.Active; }
         }
         public override void Start()
         {
-            if (Started) { return; }
+            if (Active) { return; }
             udpMultiplexer = new UdpMultiplexer(address, port);
             udpMultiplexer.SetDefaultMessageHandler(new NetPacketReceivedHandler(PreviouslyUnseenUdpEndpoint));
             udpMultiplexer.Start();
@@ -212,17 +214,52 @@ namespace GT
             udpMultiplexer.Update();
         }
 
+        public byte[] ProtocolDescriptor
+        {
+            get { return ASCIIEncoding.ASCII.GetBytes("GT10"); }
+        }
 
         public void PreviouslyUnseenUdpEndpoint(EndPoint ep, byte[] packet)
         {
-            Console.WriteLine(this + ": Incoming unaddressed packet from " + ep);
-            if (packet.Length < 5 || packet[0] != '?')
+            // Console.WriteLine(this + ": Incoming unaddressed packet from " + ep);
+            if (packet.Length < 4)
             {
-                Console.WriteLine(this + ": UDP: Undecipherable packet");
+                Console.WriteLine(DateTime.Now + " " + this + ": Undecipherable packet");
                 return;
             }
-            int clientId = BitConverter.ToInt32(packet, 1);
-            NotifyNewClient(new UdpServerTransport(new UdpHandle(ep, udpMultiplexer)), clientId);
+
+            if (!ByteUtils.Compare(packet, 0, ProtocolDescriptor, 0, 4))
+            {
+                Console.WriteLine(DateTime.Now + " " + this + ": Unknown protocol version: "
+                    + ByteUtils.DumpBytes(packet, 0, 4) + " [" 
+                    + ByteUtils.AsPrintable(packet, 0, 4) + "]");
+                return;
+            }
+
+            MemoryStream ms = new MemoryStream(packet, 4, packet.Length - 4);
+            Dictionary<string, string> dict = null;
+            try
+            {
+                int count = ByteUtils.DecodeLength(ms); // we don't use it
+                dict = ByteUtils.DecodeDictionary(ms);
+                if (ms.Position != ms.Length)
+                {
+                    Console.WriteLine("{0} bytes still left at end of UDP handshake packet: ({1} vs {2})",
+                        ms.Length - ms.Position, ms.Position, ms.Length);
+                    byte[] rest = new byte[ms.Length - ms.Position];
+                    ms.Read(rest, 0, (int)rest.Length);
+                    Console.WriteLine(" " + ByteUtils.DumpBytes(rest, 0, rest.Length) + "   " +
+                        ByteUtils.AsPrintable(rest, 0, rest.Length));
+                }
+                //Debug.Assert(ms.Position != ms.Length, "crud left at end of UDP handshake packet");
+                NotifyNewClient(new UdpServerTransport(new UdpHandle(ep, udpMultiplexer)), dict);
+            }
+            catch (Exception e)
+            {
+                Console.WriteLine("{0} {1}: Error decoding handshake from remote {2}: {3}",
+                    DateTime.Now, this, ep, e);
+                return;
+            }
         }
 
         public override string ToString()

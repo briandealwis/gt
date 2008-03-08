@@ -25,6 +25,6 @@ namespace GT
         /// <summary>
         /// Return true if the instance is currently running.
         /// </summary>
-        bool Started { get; }
+        bool Active { get; }
     }
 }

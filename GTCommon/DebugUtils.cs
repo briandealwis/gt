@@ -1,6 +1,7 @@
 using System;
 using System.IO;
 using System.Text;
+using System.Diagnostics;
 
 namespace GT
 {
@@ -34,11 +35,10 @@ namespace GT
                 {
                     Write("    ");
                     int rem = Math.Min(16, buffer.Length - i);
-                    for (int j = 0; j < 16; j++)
-                    {
-                        Write(' ');
-                        Convert.ToString((int)buffer[i + j], 16);
-                    }
+                    Write(ByteUtils.DumpBytes(buffer, i, rem));
+                    Write("   ");
+                    Write(ByteUtils.AsPrintable(buffer, i, rem));
+                    WriteLine("");
                     i += rem;
                 }
                 break;
@@ -75,27 +75,14 @@ namespace GT
                 Write(" id=" + buffer[offset]);
             }
             WriteLine(" #bytes:" + count);
-            if (count > 50) { throw new Exception("WHOAH!"); }
+            Debug.Assert(count <= 200);
             for (int i = offset; i < count; i++)
             {
                 Write("    ");
                 int rem = Math.Min(16, count - i);
-                for (int j = 0; j < rem; j++)
-                {
-                    Write(' ');
-                    Write(Convert.ToString((int)buffer[i + j], 16));
-                }
+                Write(ByteUtils.DumpBytes(buffer, i, rem)); 
                 Write("   ");
-                for (int j = 0; j < rem; j++)
-                {
-                    char ch = (char)buffer[i + j];
-                    if (Char.IsLetterOrDigit(ch) || Char.IsPunctuation(ch) || Char.IsSeparator(ch) ||
-                        Char.IsSymbol(ch))
-                    {
-                        Write(ch);
-                    }
-                    else { Write('.'); }
-                }
+                Write(ByteUtils.AsPrintable(buffer, i, rem));
                 WriteLine("");
                 i += rem;
             }
@@ -118,6 +105,7 @@ namespace GT
         }
 
         public static TextWriter writer = null;
+        //public static TextWriter writer = new ConsoleWriter();
 
         public static void Write(char ch)
         {

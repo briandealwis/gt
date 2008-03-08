@@ -5,6 +5,7 @@ using System.Collections.Generic;
 using GT;
 using System.IO;
 using System.Diagnostics;
+using System.Text;
 
 namespace GT
 {
@@ -23,11 +24,13 @@ namespace GT
         //We use this so that we don't have to block on the writing to the network
         protected List<byte[]> outstanding = new List<byte[]>();
 
-        public UdpClientTransport() { }
+        public UdpClientTransport(UdpClient udpc) {
+            udpClient = udpc;
+        }
 
         public override string Name { get { return "UDP"; } }
 
-        public override bool Started
+        public override bool Active
         {
             get { return udpClient != null; }
         }
@@ -35,21 +38,15 @@ namespace GT
         // FIXME: Stop-gap measure until we have QoS descriptors
         public override MessageProtocol MessageProtocol { get { return MessageProtocol.Udp; } }
 
-        public override void Start() {
-            if (Started) { return; }
-            //we are dead, but they want us to live again.  Reconnect!
-            Reconnect();
-        }
-
-        public override void Stop() {
-            if (!Started) { return; }
+        public void Dispose() {
+            if (!Active) { return; }
             //kill the connection as best we can
             lock (this)
             {
                 try
                 {
                     // udpClient.Client.LingerState.Enabled = false; // FIXME: verify not supported on UDP
-                    udpClient.Close();
+                    if (udpClient != null) { udpClient.Close(); }
                 }
                 catch (SocketException e)
                 {
@@ -60,70 +57,14 @@ namespace GT
             }
         }
 
-        /// <summary>Reset the superstream and reconnect to the server (blocks)</summary>
-        protected virtual void Reconnect()
-        {
-            lock (this)
-            {
-                if (udpClient != null) { return; }
-
-                IPHostEntry he = Dns.GetHostEntry(address);
-                IPAddress[] addr = he.AddressList;
-                UdpClient client = new UdpClient();
-
-                //try to connect to the address
-                Exception error = null;
-                for (int i = 0; i < addr.Length; i++)
-                {
-                    try
-                    {
-                        endPoint = new IPEndPoint(addr[0], Int32.Parse(port));
-                        client = new UdpClient();
-                        client.DontFragment = true; // FIXME: what are the implications of setting this flag?
-                        client.Client.Blocking = false;
-                        client.Client.SendTimeout = 1;
-                        client.Client.ReceiveTimeout = 1;
-                        client.Connect(endPoint);
-                        error = null;
-                        break;
-                    }
-                    catch (Exception e)
-                    {
-                        error = e;
-                    }
-                }
-
-                if (error != null)
-                {
-                    throw new CannotConnectToRemoteException(error);
-                }
-
-                //we are now good to go
-                udpClient = client;
-                Console.WriteLine("Address resolved and contacted.  Now connected to " + endPoint.ToString());
-                SendIdentification();
-            }
-        }
-
-        protected void SendIdentification()
-        {
-            // FIXME: need a proper way of doing a handshake!
-            DebugUtils.WriteLine(this + ": sending identification id=" + server.UniqueIdentity);
-            byte[] startMessage = new byte[5];
-            startMessage[0] = (byte)'?'; // FIXME: use ASCII encoder, just in case?
-            BitConverter.GetBytes(server.UniqueIdentity).CopyTo(startMessage, 1);
-            udpClient.Send(startMessage, startMessage.Length);
-        }
 
         public override void SendPacket(byte[] buffer, int offset, int length)
         {
-            if (!Started)
+            if (!Active)
             {
                 throw new InvalidStateException("Cannot send on a stopped client", this);
-            } else if (!udpClient.Client.Connected)
-            {
-                throw new NotSupportedException("ERROR: UdpTransport's should always be connected");
             }
+            Debug.Assert(udpClient.Client.Connected, "ERROR: UdpTransport's should always be connected");
             DebugUtils.DumpMessage(this + "SendPacket", buffer);
             if (offset != 0 || length != buffer.Length)
             {
@@ -183,10 +124,12 @@ namespace GT
         /// <summary>Get data from the UDP connection and interpret them.</summary>
         public override void Update()
         {
+            Debug.Assert(Active, "Cannot update an inactive client");
+
             try
             {
                 //while there are more packets to read
-                while (udpClient.Client.Available > 8)
+                while (udpClient.Client.Available > 0)
                 {
                     IPEndPoint ep = null;
                     byte[] buffer = udpClient.Receive(ref ep);
@@ -242,7 +185,7 @@ namespace GT
         /// <param name="buffer">The message to send.</param>
         public override void SendPacket(Stream ms)
         {
-            if (!Started)
+            if (!Active)
             {
                 throw new InvalidStateException("Cannot send on a stopped client", this);
             }

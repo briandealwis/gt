@@ -38,7 +38,7 @@ namespace GT
             get { return new IPEndPoint(address, port); }
         }
         
-        public bool Started
+        public bool Active
         {
             get { return udpClient != null; }
         }
