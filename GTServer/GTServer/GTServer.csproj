@@ -51,9 +51,9 @@
     <Compile Include="UdpTransport.cs" />
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="..\..\GTCommon\GTCommon.csproj">
+    <ProjectReference Include="..\..\GTBase\GTBase.csproj">
       <Project>{EEC385BF-261C-4F5B-A602-D3ECDFC2AC30}</Project>
-      <Name>GTCommon</Name>
+      <Name>GTBase</Name>
     </ProjectReference>
   </ItemGroup>
   <Import Project="$(MSBuildBinPath)\Microsoft.CSharp.targets" />

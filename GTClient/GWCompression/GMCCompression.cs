@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Text;
 using Compression;
-using MercuryClient;
+using GT.Net;
 
 namespace GMCCompression
 {

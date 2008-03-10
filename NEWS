@@ -1,24 +1,27 @@
-ChangeLog
+GT NEWS
+
+GT has undergone a significant re-architecturing to promote more
+flexibility and extensibility.
 
 Breaking Changes:
 
   * As part of reorganizing the code, we've renamed the namespaces
-    (GTServer and GTClient -> GT) and introduced a new assembly to
-    hold common components (GTCommon).  We have also introduced
+    (GTServer and GTClient -> GT.Net) and introduced a new assembly to
+    hold common components (GTBase).  We have also introduced
     some new components (GT.Utils, GT.UI).
     <https://papyrus.usask.ca/trac/gt/ticket/7>
 
       * Change all the uses
-	  'using GTServer;'  ->  'using GT;'
-	  'using GTClient;'  ->  'using GT;'
+	  'using GTServer;'  ->  'using GT.Net;'
+	  'using GTClient;'  ->  'using GT.Net;'
 
-      * You will need to add the GTCommon project or DLL to your clients.
+      * You will need to add the GTBase project or DLL to your clients.
 	<https://papyrus.usask.ca/trac/gt/ticket/13>
 
   * Server.Client has had some cleanup: the Dead property has been
     made read-only, and the class now implements IDisposable.  Any
     uses of Dead as a writable property should be changed to use
-    IDisposable.Dispose().
+    IDisposable.Dispose().  Dead has been reversed to Active.
 
   * Exposed fields have been made into properties and some have been
     renamed to better conform to C#/.NET naming guidelines.
@@ -80,9 +83,5 @@ Re-organized source code
 
   * Separated example programs from the core client and server
     components <https://papyrus.usask.ca/trac/gt/ticket/10>
-
-  * Created GT.Common and corresponding assembly to hold types common
-    to the client and server; this is a breaking change for clients
-    <https://papyrus.usask.ca/trac/gt/ticket/13
 
 

@@ -1,10 +1,10 @@
 using System;
 using System.IO;
 
-namespace GT.Net
+namespace GT.Utils
 {
     /// <remarks>
-    /// A stream with a fixed capacity.  Useful for debugging.
+    /// A stream with a fixed capacity.  Useful for debugging or message processing.
     /// </remarks>
     public class WrappedStream : Stream
     {

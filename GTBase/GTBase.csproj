@@ -8,7 +8,7 @@
     <OutputType>Library</OutputType>
     <AppDesignerFolder>Properties</AppDesignerFolder>
     <RootNamespace>GT.Common</RootNamespace>
-    <AssemblyName>GTCommon</AssemblyName>
+    <AssemblyName>GTBase</AssemblyName>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
     <DebugSymbols>true</DebugSymbols>
@@ -40,6 +40,7 @@
     <Compile Include="Marshalling.cs" />
     <Compile Include="Messages.cs" />
     <Compile Include="Enums.cs" />
+    <Compile Include="NetExceptions.cs" />
     <Compile Include="Streams.cs" />
     <Compile Include="Transport.cs" />
     <Compile Include="Tuples.cs" />

@@ -1,14 +1,12 @@
 using System;
 using System.Net;
-using System.Net.Sockets;
 using System.Collections.Generic;
-using System.Text;
 using System.IO;
+using System.Text;
 using System.Threading;
-using System.Runtime.Serialization;
-using System.Runtime.Serialization.Formatters.Binary;
 using System.Diagnostics;
-using GT.Net;
+using GT;
+using System.Net.Sockets;
 
 namespace GT.Net
 {
@@ -73,7 +71,6 @@ namespace GT.Net
         #region Variables and Properties
 
         private static Random random = new Random();
-        private static BinaryFormatter formatter = new BinaryFormatter();
 
         private bool running = false;
 
@@ -143,262 +140,6 @@ namespace GT.Net
 
         #endregion
 
-        #region Static
-
-        /// <summary>Converts bytes into a string, in a way consistant with the clients and this server.</summary>
-        /// <param name="b">The bytes</param>
-        /// <returns>The string</returns>
-        public static string BytesToString(byte[] b)
-        {
-            return System.Text.ASCIIEncoding.ASCII.GetString(b);
-        }
-
-        /// <summary>Converts bytes into a string, in a way consistant with the clients and this server.</summary>
-        /// <param name="b">The bytes</param>
-        /// <param name="index">Where to start in the array</param>
-        /// <param name="length">How many *bytes* to decode</param>
-        /// <returns>The string</returns>
-        public static string BytesToString(byte[] b, int index, int length)
-        {
-            return System.Text.ASCIIEncoding.ASCII.GetString(b, index, length);
-        }
-
-        /// <summary>Converts a string into bytes, in a way consistant with the clients and this server.</summary>
-        /// <param name="s">The string</param>
-        /// <returns>The bytes</returns>
-        public static byte[] StringToBytes(string s)
-        {
-            return System.Text.ASCIIEncoding.ASCII.GetBytes(s);
-        }
-
-        /// <summary>Converts bytes into an object, in a way consistant with the clients and this server.</summary>
-        /// <param name="b">The bytes</param>
-        /// <returns>The object</returns>
-        public static object BytesToObject(byte[] b)
-        {
-            MemoryStream ms = new MemoryStream(b);
-            ms.Position = 0;
-            return Server.formatter.Deserialize(ms);
-        }
-
-        /// <summary>Converts an object into bytes, in a way consistant with the clients and this server.</summary>
-        /// <param name="o">The object</param>
-        /// <returns>The bytes</returns>
-        public static byte[] ObjectToBytes(object o)
-        {
-            MemoryStream ms = new MemoryStream();
-            Server.formatter.Serialize(ms, o);
-            byte[] buffer = new byte[ms.Position];
-            ms.Position = 0;
-            ms.Read(buffer, 0, buffer.Length);
-            return buffer;
-        }
-
-        /// <summary>Converts a remote tuple into bytes in a system-consistent way</summary>
-        /// <typeparam name="A"></typeparam>
-        /// <typeparam name="B"></typeparam>
-        /// <typeparam name="C"></typeparam>
-        /// <param name="tuple"></param>
-        /// <param name="clientID"></param>
-        /// <returns></returns>
-        public static byte[] RemoteTupleToBytes<A, B, C>(RemoteTuple<A, B, C> tuple, int clientID)
-            where A : IConvertible
-            where B : IConvertible
-            where C : IConvertible
-        {
-            MemoryStream ms = new MemoryStream(28);  //the maximum size this tuple could possibly be
-            byte[] b;
-
-            //convert values into bytes
-            b = Converter<A>(tuple.X);
-            ms.Write(b, 0, b.Length);
-            b = Converter<B>(tuple.Y);
-            ms.Write(b, 0, b.Length);
-            b = Converter<C>(tuple.Z);
-            ms.Write(b, 0, b.Length);
-
-            //along with whose tuple it is
-            ms.Write(BitConverter.GetBytes(clientID), 0, 4);
-
-            b = new byte[ms.Position];
-            ms.Position = 0;
-            ms.Read(b, 0, b.Length);
-
-            return b;
-        }
-
-        /// <summary>Converts bytes into a remote tuple in a system-consistent way</summary>
-        /// <typeparam name="A"></typeparam>
-        /// <typeparam name="B"></typeparam>
-        /// <typeparam name="C"></typeparam>
-        /// <param name="b">The bytes to be converted</param>
-        /// <param name="clientID"></param>
-        /// <returns></returns>
-        public static RemoteTuple<A, B, C> BytesToRemoteTuple<A, B, C>(byte[] b, out int clientID)
-            where A : IConvertible
-            where B : IConvertible
-            where C : IConvertible
-        {
-            int cursor, length;
-            RemoteTuple<A, B, C> tuple = new RemoteTuple<A, B, C>();
-
-            tuple.X = Converter<A>(b, 0, out length);
-            cursor = length;
-            tuple.Y = Converter<B>(b, cursor, out length);
-            cursor += length;
-            tuple.Z = Converter<C>(b, cursor, out length);
-            cursor += length;
-
-            clientID = BitConverter.ToInt32(b, cursor);
-
-            return tuple;
-        }
-
-        /// <summary>Converts a remote tuple into bytes in a system-consistent way</summary>
-        /// <typeparam name="A"></typeparam>
-        /// <typeparam name="B"></typeparam>
-        /// <param name="tuple"></param>
-        /// <param name="clientID"></param>
-        /// <returns></returns>
-        public static byte[] RemoteTupleToBytes<A, B>(RemoteTuple<A, B> tuple, int clientID)
-            where A : IConvertible
-            where B : IConvertible
-        {
-            MemoryStream ms = new MemoryStream(28);  //the maximum size this tuple could possibly be
-            byte[] b;
-
-            //convert values into bytes
-            b = Converter<A>(tuple.X);
-            ms.Write(b, 0, b.Length);
-            b = Converter<B>(tuple.Y);
-            ms.Write(b, 0, b.Length);
-
-            //along with whose tuple it is
-            ms.Write(BitConverter.GetBytes(clientID), 0, 4);
-
-            b = new byte[ms.Position];
-            ms.Position = 0;
-            ms.Read(b, 0, b.Length);
-
-            return b;
-        }
-
-        /// <summary>Converts bytes into a remote tuple in a system-consistent way</summary>
-        /// <typeparam name="A"></typeparam>
-        /// <typeparam name="B"></typeparam>
-        /// <param name="b">The bytes to be converted</param>
-        /// <param name="clientID"></param>
-        /// <returns></returns>
-        public static RemoteTuple<A, B> BytesToRemoteTuple<A, B>(byte[] b, out int clientID)
-            where A : IConvertible
-            where B : IConvertible
-        {
-            int cursor, length;
-            RemoteTuple<A, B> tuple = new RemoteTuple<A, B>();
-
-            tuple.X = Converter<A>(b, 0, out length);
-            cursor = length;
-            tuple.Y = Converter<B>(b, cursor, out length);
-            cursor += length;
-
-            clientID = BitConverter.ToInt32(b, cursor);
-
-            return tuple;
-        }
-
-        /// <summary>Converts a remote tuple into bytes in a system-consistent way</summary>
-        /// <typeparam name="A"></typeparam>
-        /// <param name="tuple"></param>
-        /// <param name="clientID"></param>
-        /// <returns></returns>
-        public static byte[] RemoteTupleToBytes<A>(RemoteTuple<A> tuple, int clientID)
-            where A : IConvertible
-        {
-            MemoryStream ms = new MemoryStream(28);  //the maximum size this tuple could possibly be
-            byte[] b;
-
-            //convert values into bytes
-            b = Converter<A>(tuple.X);
-            ms.Write(b, 0, b.Length);
-
-            //along with whose tuple it is
-            ms.Write(BitConverter.GetBytes(clientID), 0, 4);
-
-            b = new byte[ms.Position];
-            ms.Position = 0;
-            ms.Read(b, 0, b.Length);
-
-            return b;
-        }
-
-        /// <summary>Converts bytes into a remote tuple in a system-consistent way</summary>
-        /// <typeparam name="A"></typeparam>
-        /// <param name="b">The bytes to be converted</param>
-        /// <param name="clientID"></param>
-        /// <returns></returns>
-        public static RemoteTuple<A> BytesToRemoteTuple<A>(byte[] b, out int clientID)
-            where A : IConvertible
-        {
-            int cursor, length;
-            RemoteTuple<A> tuple = new RemoteTuple<A>();
-
-            tuple.X = Converter<A>(b, 0, out length);
-            cursor = length;
-
-            clientID = BitConverter.ToInt32(b, cursor);
-
-            return tuple;
-        }
-
-        /// <summary>Converts a IConvertible type into a byte array.</summary>
-        /// <typeparam name="A">The IConvertible type.</typeparam>
-        /// <param name="value">The value</param>
-        /// <returns></returns>
-        private static byte[] Converter<A>(A value)
-            where A : IConvertible
-        {
-            switch (Type.GetTypeCode(typeof(A)))
-            {
-                case TypeCode.Byte: byte[] b = new byte[1]; b[0] = value.ToByte(null); return b;
-                case TypeCode.Char: return BitConverter.GetBytes(value.ToChar(null));
-                case TypeCode.Single: return BitConverter.GetBytes(value.ToSingle(null));
-                case TypeCode.Double: return BitConverter.GetBytes(value.ToDouble(null));
-                case TypeCode.Int16: return BitConverter.GetBytes(value.ToInt16(null));
-                case TypeCode.Int32: return BitConverter.GetBytes(value.ToInt32(null));
-                case TypeCode.Int64: return BitConverter.GetBytes(value.ToInt64(null));
-                case TypeCode.UInt16: return BitConverter.GetBytes(value.ToUInt16(null));
-                case TypeCode.UInt32: return BitConverter.GetBytes(value.ToUInt32(null));
-                case TypeCode.UInt64: return BitConverter.GetBytes(value.ToUInt64(null));
-                default: return BitConverter.GetBytes(value.ToDouble(null)); //if not recognized, make it a double
-            }
-        }
-
-        /// <summary>Converts a portion of a byte array into some IConvertible type.</summary>
-        /// <typeparam name="A">The IConvertible type to convert the byte array into.</typeparam>
-        /// <param name="b">The byte array</param>
-        /// <param name="index">The byte in the array at which to begin</param>
-        /// <param name="length">The length of the type</param>
-        /// <returns>The converted type.</returns>
-        private static A Converter<A>(byte[] b, int index, out int length)
-            where A : IConvertible
-        {
-            switch (Type.GetTypeCode(typeof(A)))
-            {
-                case TypeCode.Byte: length = 1; return (A)Convert.ChangeType(b[index], typeof(Byte));
-                case TypeCode.Char: length = 2; return (A)Convert.ChangeType(BitConverter.ToChar(b, index), typeof(Char));
-                case TypeCode.Single: length = 4; return (A)Convert.ChangeType(BitConverter.ToSingle(b, index), typeof(Single));
-                case TypeCode.Double: length = 8; return (A)Convert.ChangeType(BitConverter.ToDouble(b, index), typeof(Double));
-                case TypeCode.Int16: length = 2; return (A)Convert.ChangeType(BitConverter.ToInt16(b, index), typeof(Int16));
-                case TypeCode.Int32: length = 4; return (A)Convert.ChangeType(BitConverter.ToInt32(b, index), typeof(Int32));
-                case TypeCode.Int64: length = 8; return (A)Convert.ChangeType(BitConverter.ToInt64(b, index), typeof(Int64));
-                case TypeCode.UInt16: length = 2; return (A)Convert.ChangeType(BitConverter.ToUInt16(b, index), typeof(UInt16));
-                case TypeCode.UInt32: length = 4; return (A)Convert.ChangeType(BitConverter.ToUInt32(b, index), typeof(UInt32));
-                case TypeCode.UInt64: length = 8; return (A)Convert.ChangeType(BitConverter.ToUInt64(b, index), typeof(UInt64));
-                default: length = 8; return (A)Convert.ChangeType(BitConverter.ToDouble(b, index), typeof(Double)); //if not recognized, make it a double
-            }
-        }
-
-        #endregion
 
         #region Vital Server Mechanics
 
@@ -521,7 +262,7 @@ namespace GT.Net
             Guid clientId;
             try
             {
-                clientId = new Guid(capabilities[GTConstants.CAPABILITIES_CLIENT_ID]);
+                clientId = new Guid(capabilities[GTCapabilities.CLIENT_ID]);
             }
             catch (Exception e)
             {

@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Text;
 using System.IO;
 
-namespace GT.Net
+namespace GT.Utils
 {
 
     /// <summary>
@@ -98,7 +98,7 @@ namespace GT.Net
     /// </summary>
     public class ByteUtils
     {
-#region Debugging Utilities
+        #region Debugging Utilities
         public static string DumpBytes(byte[] buffer, int offset, int count)
         {
             StringBuilder sb = new StringBuilder();
@@ -140,8 +140,7 @@ namespace GT.Net
             return true;
         }
 
-
-        #region Special Marshalling Operators
+        #region Special Number Marshalling Operations
 
         /// <summary>
         /// Encode a length on the stream in such a way to minimize the number of bytes required.
@@ -153,7 +152,7 @@ namespace GT.Net
         public static void EncodeLength(int length, Stream output)
         {
             // assumptions: a byte is 8 bites.  seems safe :)
-            if(length < 0) { throw new NotSupportedException("lengths must be positive"); }
+            if (length < 0) { throw new NotSupportedException("lengths must be positive"); }
             if (length < (1 << 6))  // 2^6 = 64
             {
                 output.WriteByte((byte)length);
@@ -164,7 +163,7 @@ namespace GT.Net
                 output.WriteByte((byte)(length & 255));
             }
             else if (length < (1 << (6 + 8 + 8)))   // 2^(6+8+8) = 4194304
-            {  
+            {
                 output.WriteByte((byte)(128 | ((length >> 16) & 63)));
                 output.WriteByte((byte)((length >> 8) & 255));
                 output.WriteByte((byte)(length & 255));
@@ -181,7 +180,7 @@ namespace GT.Net
                 throw new NotSupportedException("cannot encode lengths >= 2^30");
             }
         }
-        
+
         /// <summary>
         /// Decode a length from the stream as encoded by EncodeLength() above.
         /// Top two bits are used to record the number of bytes necessary for encoding the length.
@@ -193,15 +192,18 @@ namespace GT.Net
             int b = input.ReadByte();
             int result = b & 63;
             int numBytes = b >> 6;
-            if (numBytes >= 1) {
+            if (numBytes >= 1)
+            {
                 if ((b = input.ReadByte()) < 0) { throw new InvalidDataException("EOF"); }
                 result = (result << 8) | b;
             }
-            if (numBytes >= 2) {
+            if (numBytes >= 2)
+            {
                 if ((b = input.ReadByte()) < 0) { throw new InvalidDataException("EOF"); }
                 result = (result << 8) | b;
             }
-            if (numBytes >= 3) {
+            if (numBytes >= 3)
+            {
                 if ((b = input.ReadByte()) < 0) { throw new InvalidDataException("EOF"); }
                 result = (result << 8) | b;
             }
@@ -212,6 +214,7 @@ namespace GT.Net
         #endregion
 
         #region String-String Dictionary Encoding and Decoding
+
         /// <summary>
         /// A simple string-string dictionary that is simply encoded as a stream of bytes.
         /// This uses an encoding *similar* to Bencoding (<see>http://en.wikipedia.org/wiki/Bencoding</see>).
@@ -220,7 +223,8 @@ namespace GT.Net
         /// Each string is prefixed by its encoded length (in bytes as encoded in UTF-8) and then 
         /// the UTF-8 encoded string.
         /// </summary>
-        public static int EncodedDictionaryByteCount(Dictionary<string, string> dict) {
+        public static int EncodedDictionaryByteCount(Dictionary<string, string> dict)
+        {
             int count = 0;
             MemoryStream ms = new MemoryStream();
 
@@ -238,7 +242,8 @@ namespace GT.Net
             return (int)ms.Length + count;
         }
 
-        public static void EncodeDictionary(Dictionary<string, string> dict, Stream output) {
+        public static void EncodeDictionary(Dictionary<string, string> dict, Stream output)
+        {
             EncodeLength(dict.Count, output);
             foreach (string key in dict.Keys)
             {
@@ -252,10 +257,11 @@ namespace GT.Net
             }
         }
 
-        public static Dictionary<string, string> DecodeDictionary(Stream input) {
+        public static Dictionary<string, string> DecodeDictionary(Stream input)
+        {
             Dictionary<string, string> dict = new Dictionary<string, string>();
             int nKeys = DecodeLength(input);
-            for(int i = 0; i < nKeys; i++)
+            for (int i = 0; i < nKeys; i++)
             {
                 int nBytes = DecodeLength(input);
                 byte[] bytes = new byte[nBytes];
@@ -272,12 +278,5 @@ namespace GT.Net
             return dict;
         }
         #endregion
-
-
-        public static int EncodedLengthByteCount(long p)
-        {
-            throw new Exception("The method or operation is not implemented.");
-        }
     }
-
 }

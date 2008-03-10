@@ -1,6 +1,6 @@
 using System;
 
-namespace GT.Net
+namespace GT
 {
     /// <summary>
     /// Defines methods for starting, stopping, and disposing of an instance.
@@ -23,7 +23,7 @@ namespace GT.Net
         void Stop();
 
         /// <summary>
-        /// Return true if the instance is currently running.
+        /// Return true if the instance is currently active.
         /// </summary>
         bool Active { get; }
     }

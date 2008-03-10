@@ -93,10 +93,10 @@ namespace GT.Net
     /// <summary>
     /// Constants used within GT and its implementations.
     /// </summary>
-    public struct GTConstants
+    public struct GTCapabilities
     {
-        public static readonly string CAPABILITIES_CLIENT_ID = "GUID";
-        public static readonly string CAPABILITIES_MARSHALLER_DESCRIPTORS = "Marshaller";
+        public static readonly string CLIENT_ID = "CLI-ID";
+        public static readonly string MARSHALLER_DESCRIPTORS = "MRSHLRS";
     }
     #endregion
 }

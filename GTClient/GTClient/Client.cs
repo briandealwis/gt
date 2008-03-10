@@ -1,14 +1,15 @@
 using System;
-using System.Net;
-using System.Threading;
-using System.Net.Sockets;
 using System.Collections.Generic;
-using System.Text;
+using System.Threading;
 using System.IO;
+using System.Net;
+using System.Net.Sockets;
+using System.Text;
 using System.Runtime.Serialization;
 using System.Runtime.Serialization.Formatters.Binary;
-using GT.Net;
 using System.Diagnostics;
+using GT.Net;
+using GT.Utils;
 
 namespace GT.Net
 {
@@ -893,14 +894,14 @@ namespace GT.Net
             get
             {
                 Dictionary<string, string> caps = new Dictionary<string, string>();
-                caps[GTConstants.CAPABILITIES_CLIENT_ID] = 
+                caps[GTCapabilities.CLIENT_ID] = 
                     Guid.ToString("N");  // "N" is the most compact form
                 StringBuilder sb = new StringBuilder();
                 foreach(string d in Marshaller.Descriptors) {
                     sb.Append(d);
                     sb.Append(' ');
                 }
-                caps[GTConstants.CAPABILITIES_MARSHALLER_DESCRIPTORS] = sb.ToString().Trim();
+                caps[GTCapabilities.MARSHALLER_DESCRIPTORS] = sb.ToString().Trim();
                 return caps;
             }
         }

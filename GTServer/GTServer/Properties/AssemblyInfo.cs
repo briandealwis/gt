@@ -5,12 +5,12 @@ using System.Runtime.InteropServices;
 // General Information about an assembly is controlled through the following 
 // set of attributes. Change these attribute values to modify the information
 // associated with an assembly.
-[assembly: AssemblyTitle("MercuryServer")]
-[assembly: AssemblyDescription("")]
+[assembly: AssemblyTitle("GTServer")]
+[assembly: AssemblyDescription("Networking components for GT servers")]
 [assembly: AssemblyConfiguration("")]
-[assembly: AssemblyCompany("")]
-[assembly: AssemblyProduct("MercuryServer")]
-[assembly: AssemblyCopyright("Copyright ©  2006")]
+[assembly: AssemblyCompany("University of Saskatchewan")]
+[assembly: AssemblyProduct("GT")]
+[assembly: AssemblyCopyright("Copyright ©  2006 -- 2008")]
 [assembly: AssemblyTrademark("")]
 [assembly: AssemblyCulture("")]
 
