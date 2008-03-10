@@ -7,8 +7,7 @@ Breaking Changes:
 
   * As part of reorganizing the code, we've renamed the namespaces
     (GTServer and GTClient -> GT.Net) and introduced a new assembly to
-    hold common components (GTBase).  We have also introduced
-    some new components (GT.Utils, GT.UI).
+    hold common components (GTBase). 
     <https://papyrus.usask.ca/trac/gt/ticket/7>
 
       * Change all the uses
@@ -18,14 +17,14 @@ Breaking Changes:
       * You will need to add the GTBase project or DLL to your clients.
 	<https://papyrus.usask.ca/trac/gt/ticket/13>
 
+  * Exposed fields have been made into properties and some have been
+    renamed to better conform to C#/.NET naming guidelines.  Most
+    notable perhaps is Server.clientList -> Server.Clients.
+
   * Server.Client has had some cleanup: the Dead property has been
     made read-only, and the class now implements IDisposable.  Any
     uses of Dead as a writable property should be changed to use
     IDisposable.Dispose().  Dead has been reversed to Active.
-
-  * Exposed fields have been made into properties and some have been
-    renamed to better conform to C#/.NET naming guidelines.
-	Server.clientList -> Server.Clients
 
   * Some delegates have had their signatures changed to use the least
     specific collection classes possible
@@ -34,6 +33,8 @@ Breaking Changes:
 
   * The marshalling code has been separated and servers and clients
     now deal in more abstract Messages.
+    <https://papyrus.usask.ca/trac/gt/ticket/23>
+
       * delegate MessageHandler has a different calling convention
 
   * Specialized GT exceptions have been created to represent different
@@ -56,10 +57,10 @@ Breaking Changes:
 
 New additions
 
-  * Added a lifecycle protocol consisting of Start(), Stop(), and
-    Dispose() methods, and a read-only property Started.  These methods
-    have been added to most GT user-visible objects to respectively
-    start, stop, and dispose of any system object. 
+  * Added a lifecycle protocol, IStartable, consisting of Start(),
+    Stop(), and Dispose() methods, and a read-only property Active. 
+    These methods have been added to most GT user-visible objects
+    to respectively start, stop, and dispose of any system object. 
     <https://papyrus.usask.ca/trac/gt/ticket/22>
     
       * Client.StartListening() and Server.StartListening() both
@@ -73,9 +74,13 @@ New additions
 	release.
 
   * Added Client.Sleep() and Server.Sleep() methods: these new methods
-    provide a much more efficient way of servicing incoming messages
+    provide a much more efficient way for servicing incoming messages
     while sleeping and greatly improve the fairness of servicing
     GT requests.
+
+  * We have also introduced some new components in the GT.Utils and GT.UI
+    namespaces.  The intent is to provide components that are helpful
+    for quickly prototyping groupware apps.
 
   * Began creating unit tests using NUnit <http://nunit.org>
 

@@ -24,14 +24,14 @@ namespace GT.Net
                 Write(prefix);
                 Write(" ");
             }
-            switch (m.type)
+            switch (m.MessageType)
             {
             case MessageType.String:
-                WriteLine("String: '" + ((StringMessage)m).text + "'");
+                WriteLine("String: '" + ((StringMessage)m).Text + "'");
                 break;
             case MessageType.Binary:
                 WriteLine("Binary: ");
-                byte[] buffer = ((BinaryMessage)m).data;
+                byte[] buffer = ((BinaryMessage)m).Bytes;
                 for (int i = 0; i < buffer.Length; i++)
                 {
                     Write("    ");
@@ -45,7 +45,7 @@ namespace GT.Net
                 break;
 
             case MessageType.Object:
-                WriteLine("Object: " + ((ObjectMessage)m).obj);
+                WriteLine("Object: " + ((ObjectMessage)m).Object);
                 break;
 
             case MessageType.Session:
@@ -53,7 +53,7 @@ namespace GT.Net
                 break;
 
             case MessageType.System:
-                WriteLine("System: " + ((SystemMessage)m).id);
+                WriteLine("System: " + ((SystemMessage)m).Id);
                 break;
             }
         }

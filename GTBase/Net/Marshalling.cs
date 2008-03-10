@@ -58,8 +58,8 @@ namespace GT.Net
         {
             Debug.Assert(output.CanSeek);
 
-            output.WriteByte(m.id);
-            output.WriteByte((byte)m.type);
+            output.WriteByte(m.Id);
+            output.WriteByte((byte)m.MessageType);
             MemoryStream ms = new MemoryStream(64);    // guestimate
             MarshalContents(m, ms, t);
             ByteUtils.EncodeLength((int)ms.Length, output);
@@ -68,26 +68,26 @@ namespace GT.Net
 
         protected void MarshalContents(Message m, Stream output, ITransport t)
         {
-            switch (m.type)
+            switch (m.MessageType)
             {
             case MessageType.Binary:
-                MarshalBinary(((BinaryMessage)m).data, output);
+                MarshalBinary(((BinaryMessage)m).Bytes, output);
                 break;
             case MessageType.String:
-                MarshalString(((StringMessage)m).text, output);
+                MarshalString(((StringMessage)m).Text, output);
                 break;
             case MessageType.Object:
-                MarshalObject(((ObjectMessage)m).obj, output);
+                MarshalObject(((ObjectMessage)m).Object, output);
                 break;
             case MessageType.Session:
                 MarshalSessionAction((SessionMessage)m, output);
                 break;
             case MessageType.System:
-                // channel id is the system message type
+                // channel Id is the system message type
                 MarshalSystemMessage((SystemMessage)m, output);
                 break;
             default:
-                throw new InvalidOperationException("unknown message type: " + m.type);
+                throw new InvalidOperationException("unknown message type: " + m.MessageType);
             }
         }
 

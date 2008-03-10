@@ -30,8 +30,8 @@ namespace GT.Utils
     public class SequentialListProcessor<T> : IProcessingQueue<T>
         where T: class
     {
-        protected List<T> list;
-        public SequentialListProcessor(List<T> list)
+        protected IList<T> list;
+        public SequentialListProcessor(IList<T> list)
         {
             this.list = list;
         }
@@ -55,11 +55,11 @@ namespace GT.Utils
     public class PredicateListProcessor<T> : IProcessingQueue<T>
         where T: class
     {
-        protected List<T> list;
+        protected IList<T> list;
         protected T current = null;
         protected Predicate<T> predicate;
 
-        public PredicateListProcessor(List<T> list, Predicate<T> predicate)
+        public PredicateListProcessor(IList<T> list, Predicate<T> predicate)
         {
             this.list = list;
             this.predicate = predicate;

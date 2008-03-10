@@ -172,7 +172,7 @@ namespace GT.Net
             return false;
         }
 
-        /// <summary>Gets one data from the tcp and interprets it.</summary>
+        /// <seealso cref="M:GT.Net.ITransport.Update"/>
         override public void Update()
         {
             Debug.Assert(Active, "Cannot update a disposed client");
@@ -181,27 +181,21 @@ namespace GT.Net
         }
 
         /// <summary>Get one packet from the tcp connection and interpret it.</summary>
-
         virtual protected void CheckIncomingPackets()
         {
-            //if (tcpClient.Available > 0)
-            //{
-            //    Console.WriteLine(this + ": there appears to be some data available!");
-            //}
-
             SocketError error = SocketError.Success;
             try
             {
                 while (tcpClient.Available > 0)
                 {
                     // This is a simple state machine: we're either:
-                    // (a) reading a data header (incomingInProgress.IsMessageHeader())
-                    // (b) reading a data body (!incomingInProgress.IsMessageHeader())
+                    // (a) reading a packet header (incomingInProgress.IsMessageHeader())
+                    // (b) reading a packet body (!incomingInProgress.IsMessageHeader())
                     // (c) finished and about to start reading in a header (incomingInProgress == null)
 
                     if (incomingInProgress == null)
                     {
-                        //restart the counters to listen for a new data.
+                        //restart the counters to listen for a new packet.
                         incomingInProgress = new PacketInProgress(4, true);
                         // assert incomingInProgress.IsMessageHeader();
                     }
@@ -252,7 +246,7 @@ namespace GT.Net
             {   // FIXME: can this clause even happen?
                 //dead = true;
                 LastError = e;
-                Console.WriteLine("{0}: UpdateFromNetworkTcp(): SocketException reading from socket: {1}", this, e);
+                Console.WriteLine("{0}: CheckForIncoming(): SocketException reading from socket: {1}", this, e);
                 //if (ErrorEvent != null)
                 //    ErrorEvent(e, SocketError.NoRecovery, this, "Updating from TCP connection failed because of a socket exception.");
             }
@@ -262,7 +256,7 @@ namespace GT.Net
                 // catching anything other than SocketExceptions from here?)
                 if (e is ThreadAbortException) { throw e; }
                 LastError = e;
-                Console.WriteLine("{0}: UpdateFromNetworkTcp(): EXCEPTION: {1}", this, e);
+                Console.WriteLine("{0}: CheckForIncoming(): EXCEPTION: {1}", this, e);
                 NotifyError(e, SocketError.NoRecovery, "Exception occured (not socket exception).");
             }
         }

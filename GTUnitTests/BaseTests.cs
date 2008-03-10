@@ -301,10 +301,10 @@ namespace GT.UnitTests.BaseTests
             ms.Seek(0, SeekOrigin.Begin);
             Message msg = m.Unmarshal(ms, new NullTransport());
             Assert.IsInstanceOfType(typeof(ObjectMessage), msg);
-            Assert.AreEqual(0, msg.id);
-            Assert.AreEqual(MessageType.Object, msg.type);
-            Assert.IsInstanceOfType(typeof(List<object>), ((ObjectMessage)msg).obj);
-            Assert.AreEqual(0, ((List<object>)((ObjectMessage)msg).obj).Count);
+            Assert.AreEqual(0, msg.Id);
+            Assert.AreEqual(MessageType.Object, msg.MessageType);
+            Assert.IsInstanceOfType(typeof(List<object>), ((ObjectMessage)msg).Object);
+            Assert.AreEqual(0, ((List<object>)((ObjectMessage)msg).Object).Count);
         }
 
         [Test]
@@ -317,8 +317,8 @@ namespace GT.UnitTests.BaseTests
             ms.Seek(0, SeekOrigin.Begin);
             Message msg = m.Unmarshal(ms, new NullTransport());
             Assert.IsInstanceOfType(typeof(SystemMessage), msg);
-            Assert.AreEqual((byte)SystemMessageType.UniqueIDRequest, msg.id);
-            Assert.AreEqual(MessageType.System, msg.type);
+            Assert.AreEqual((byte)SystemMessageType.UniqueIDRequest, msg.Id);
+            Assert.AreEqual(MessageType.System, msg.MessageType);
             Assert.AreEqual(new byte[4], ((SystemMessage)msg).data);
         }
 
@@ -332,9 +332,9 @@ namespace GT.UnitTests.BaseTests
             ms.Seek(0, SeekOrigin.Begin);
             Message msg = m.Unmarshal(ms, new NullTransport());
             Assert.IsInstanceOfType(typeof(StringMessage), msg);
-            Assert.AreEqual(0, msg.id);
-            Assert.AreEqual(MessageType.String, msg.type);
-            Assert.AreEqual(s, ((StringMessage)msg).text);
+            Assert.AreEqual(0, msg.Id);
+            Assert.AreEqual(MessageType.String, msg.MessageType);
+            Assert.AreEqual(s, ((StringMessage)msg).Text);
         }
 
         [Test]
@@ -348,9 +348,9 @@ namespace GT.UnitTests.BaseTests
             ms.Seek(0, SeekOrigin.Begin);
             Message msg = m.Unmarshal(ms, new NullTransport());
             Assert.IsInstanceOfType(typeof(BinaryMessage), msg);
-            Assert.AreEqual(0, msg.id);
-            Assert.AreEqual(MessageType.Binary, msg.type);
-            Assert.AreEqual(bytes, ((BinaryMessage)msg).data);
+            Assert.AreEqual(0, msg.Id);
+            Assert.AreEqual(MessageType.Binary, msg.MessageType);
+            Assert.AreEqual(bytes, ((BinaryMessage)msg).Bytes);
         }
 
         #endregion
@@ -679,7 +679,7 @@ namespace GT.UnitTests.BaseTests
 
         private void ServerStringMessageReceived(Message m, Server.Client client, MessageProtocol protocol)
         {
-            string s = ((StringMessage)m).text;
+            string s = ((StringMessage)m).Text;
             if (!s.Equals(EXPECTED_GREETING))
             {
                 Console.WriteLine("Server: expected '" + EXPECTED_GREETING + 
@@ -690,7 +690,7 @@ namespace GT.UnitTests.BaseTests
             Console.WriteLine("Server: sending response: '" + EXPECTED_RESPONSE + "'");
             List<Server.Client> clientGroup = new List<Server.Client>(1);
             clientGroup.Add(client);
-            server.Send(EXPECTED_RESPONSE, m.id, clientGroup, protocol);
+            server.Send(EXPECTED_RESPONSE, m.Id, clientGroup, protocol);
         }
 
         /// <summary>This is triggered if something goes wrong</summary>

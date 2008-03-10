@@ -18,7 +18,8 @@ namespace GT
         public GTException(string message) : base(message) {}
 
         /// <summary>
-        /// Initializes a new instance of the System.Exception class with serialized data.
+        /// Initializes a new instance of the System.Exception class
+	/// with serialized data.
         /// </summary>
         /// <param name="context">The System.Runtime.Serialization.StreamingContext that 
         /// contains contextual information about the source or destination.</param>
@@ -56,7 +57,8 @@ namespace GT
         public InvalidStateException(string message) : base(message) {}
 
         /// <summary>
-        /// Initializes a new instance of the System.Exception class with serialized data.
+        /// Initializes a new instance of the System.Exception class
+	/// with serialized data.
         /// </summary>
         /// <param name="context">The System.Runtime.Serialization.StreamingContext that 
         /// contains contextual information about the source or destination.</param>

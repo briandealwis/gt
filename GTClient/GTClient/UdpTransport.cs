@@ -121,7 +121,6 @@ namespace GT.Net
             return false;
         }
 
-        /// <summary>Get data from the UDP connection and interpret them.</summary>
         public override void Update()
         {
             Debug.Assert(Active, "Cannot update an inactive client");
@@ -152,9 +151,9 @@ namespace GT.Net
                 LastError = e;
                 NotifyError(e, SocketError.Fault, "UDP Data Interpretation Error.  There must have been a mistake in a message header. " +
                         "Data has been lost.");
-                //Don't die on a mistake interpreting the data, because we can always 
-                //try to interpret more data starting from a new set of packets. 
-                //However, the data we were currently working on is lost.
+                //Don't die on a mistake interpreting the Bytes, because we can always 
+                //try to interpret more Bytes starting from a new set of packets. 
+                //However, the Bytes we were currently working on is lost.
                 return;
             }
         }

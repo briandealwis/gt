@@ -69,7 +69,7 @@ namespace GT.Net
             handle = null;
         }
 
-        /// <summary>Sends a data via UDP.
+        /// <summary>Sends a packet via UDP.
         /// We don't care if it doesn't get through.</summary>
         /// <param name="buffer">Raw stuff to send.</param>
         override public void SendPacket(byte[] buffer, int offset, int length)
@@ -127,15 +127,9 @@ namespace GT.Net
             }
         }
 
-        /// <summary>Gets available data from UDP.</summary>
         override public void Update()
         {
-            byte[] buffer, data;
-            int length, cursor;
-            byte id, type;
-
             Debug.Assert(Active, "Cannot send on disposed transport");
-
             CheckIncomingPackets();
             FlushOutstandingPackets();
         }

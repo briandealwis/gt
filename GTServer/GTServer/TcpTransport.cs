@@ -164,7 +164,6 @@ namespace GT.Net
             }
         }
 
-        /// <summary>Gets one data from the tcp and interprets it.</summary>
         override public void Update()
         {
             Debug.Assert(Active, "Cannot send on disposed transport");
@@ -174,24 +173,19 @@ namespace GT.Net
 
         virtual protected void CheckIncomingPackets()
         {
-            //if (handle.Available > 0)
-            //{
-            //    Console.WriteLine(this + ": there appears to be some data available!");
-            //}
-
             SocketError error = SocketError.Success;
             try
             {
                 while (handle.Available > 0)
                 {
                     // This is a simple state machine: we're either:
-                    // (a) reading a data header (incomingInProgress.IsMessageHeader())
-                    // (b) reading a data body (!incomingInProgress.IsMessageHeader())
+                    // (a) reading a packet header (incomingInProgress.IsMessageHeader())
+                    // (b) reading a packet body (!incomingInProgress.IsMessageHeader())
                     // (c) finished and about to start reading in a header (incomingInProgress == null)
 
                     if (incomingInProgress == null)
                     {
-                        //restart the counters to listen for a new data.
+                        //restart the counters to listen for a new packet.
                         incomingInProgress = new PacketInProgress(4, true);
                         // assert incomingInProgress.IsMessageHeader();
                     }

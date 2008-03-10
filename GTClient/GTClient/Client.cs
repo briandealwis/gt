@@ -197,7 +197,7 @@ namespace GT.Net
 
         /// <summary>Create a stream object.</summary>
         /// <param name="stream">The SuperStream to use to actually send the messages.</param>
-        /// <param name="id">What channel this will be.</param>
+        /// <param name="id">The message channel.</param>
         internal AbstractStream(ServerStream stream, byte id) : base(stream, id)
         {
             messages = new List<Message>();
@@ -233,7 +233,7 @@ namespace GT.Net
 
         /// <summary>Create a SessionStream object.</summary>
         /// <param name="stream">The SuperStream to use to actually send the messages.</param>
-        /// <param name="id">What channel this will be.</param>
+        /// <param name="id">The message channel id.</param>
         internal SessionStream(ServerStream stream, byte id) : base(stream, id)
         {
         }
@@ -296,7 +296,7 @@ namespace GT.Net
 
         /// <summary>Create a StringStream object.</summary>
         /// <param name="stream">The SuperStream to use to actually send the messages.</param>
-        /// <param name="id">What channel this will be.</param>
+        /// <param name="id">The message channel id.</param>
         internal StringStream(ServerStream stream, byte id) : base(stream, id)
         {
         }
@@ -328,7 +328,7 @@ namespace GT.Net
                     m = (StringMessage)messages[index];
                     messages.RemoveAt(index);
                 }
-                return m.text;
+                return m.Text;
             }
             catch (IndexOutOfRangeException)
             {
@@ -360,7 +360,7 @@ namespace GT.Net
 
         /// <summary>Create an ObjectStream object.</summary>
         /// <param name="stream">The SuperStream to use to actually send the objects.</param>
-        /// <param name="id">The channel we will claim.</param>
+        /// <param name="id">The message channel claimed.</param>
         internal ObjectStream(ServerStream stream, byte id) : base(stream,id)
         {
         }
@@ -391,7 +391,7 @@ namespace GT.Net
                     m = (ObjectMessage)messages[index];
                     messages.RemoveAt(index);
                 }
-                return m.obj;
+                return m.Object;
             }
             catch (IndexOutOfRangeException)
             {
@@ -421,7 +421,7 @@ namespace GT.Net
 
         /// <summary>Creates a BinaryStream object.</summary>
         /// <param name="stream">The SuperStream object on which to actually send the objects.</param>
-        /// <param name="id">The channel to claim.</param>
+        /// <param name="id">The message channel to claim.</param>
         internal BinaryStream(ServerStream stream, byte id) : base(stream, id)
         {
         }
@@ -448,7 +448,7 @@ namespace GT.Net
                     m = (BinaryMessage)messages[index];
                     messages.RemoveAt(index);
                 }
-                return m.data;
+                return m.Bytes;
             }
             catch (IndexOutOfRangeException)
             {
@@ -550,7 +550,7 @@ namespace GT.Net
             started = true;
 
             // FIXME: This is bogus and should be changed.
-            //request our id right away
+            // request our id right away
             Send(new SystemMessage(SystemMessageType.UniqueIDRequest), MessageProtocol.Tcp, 
                 MessageAggregation.No, MessageOrder.None);
         }
@@ -605,7 +605,7 @@ namespace GT.Net
         protected void MessageReceived(byte[] buffer, int offset, int count, ITransport transport)
         {
             Message msg = owner.Marshaller.Unmarshal(new MemoryStream(buffer, offset, count, false), transport);
-            if (msg.type == MessageType.System)
+            if (msg.MessageType == MessageType.System)
             {
                 HandleSystemMessage((SystemMessage)msg, transport);
             }
@@ -629,9 +629,7 @@ namespace GT.Net
 
 
         /// <summary>Adds the message to a list, waiting to be sent out.</summary>
-        /// <param name="data">The data that will wait</param>
-        /// <param name="id">The channel it will be sent on</param>
-        /// <param name="type">The type of data this is</param>
+        /// <param name="msg">The message to be aggregated</param>
         /// <param name="ordering">The ordering of how it will be sent</param>
         /// <param name="protocol">How it should be sent out</param>
         private void Aggregate(Message msg, 
@@ -649,13 +647,11 @@ namespace GT.Net
         }
 
         /// <summary>Send a message using these parameters.</summary>
-        /// <param name="data">The data to send.</param>
-        /// <param name="id">What channel to send it on.</param>
-        /// <param name="type">What type of data it is.</param>
+        /// <param name="msg">The message to send.</param>
         /// <param name="protocol">How to send it.</param>
-        /// <param name="aggr">Should this data be aggregated?</param>
-        /// <param name="ordering">What data should be sent before this?</param>
-        internal void Send(Message msg, MessageProtocol protocol, 
+        /// <param name="aggr">Should this message be aggregated?</param>
+        /// <param name="ordering">Should message sent before this be sent?</param>
+        public void Send(Message msg, MessageProtocol protocol, 
             MessageAggregation aggr, MessageOrder ordering)
         {
             lock (this)
@@ -666,7 +662,7 @@ namespace GT.Net
 
                 if (aggr == MessageAggregation.Yes)
                 {
-                    //Wait to send this data, hopefully to pack it with later data.
+                    //Wait to send this Bytes, hopefully to pack it with later Bytes.
                     Aggregate(msg, protocol, ordering);
                     return;
                 }
@@ -684,11 +680,11 @@ namespace GT.Net
                     //Make sure ALL other messages on this CHANNEL are sent,
                     //then send this one.
                     Aggregate(msg, protocol, ordering);
-                    FlushOutgoingMessages(msg.id, protocol);
+                    FlushOutgoingMessages(msg.Id, protocol);
                     return;
                 }
 
-                //Actually send the data.  Note that after this point, ordering and 
+                //Actually send the Bytes.  Note that after this point, ordering and 
                 //aggregation are locked in / already decided.
                 //If you're here, then you're not aggregating and you're not concerned 
                 //about ordering.
@@ -764,7 +760,7 @@ namespace GT.Net
                 }
                 if(packet.Length == 0) { break; }
 
-                //Actually send the data.  Note that after this point, ordering and 
+                //Actually send the Bytes.  Note that after this point, ordering and 
                 //aggregation are locked in / already decided.
                 transport.SendPacket(packet);
             }
@@ -784,11 +780,12 @@ namespace GT.Net
         }
 
         /// <summary>Deal with a system message in whatever way we need to.</summary>
-        /// <param name="id">The channel it came alone.</param>
-        /// <param name="buffer">The data that came along with it.</param>
+        /// <param name="message">The incoming message.</param>
+        /// <param name="transport">The transport from which the message
+	///  came.</param>
         internal void HandleSystemMessage(SystemMessage message, ITransport transport)
         {
-            switch ((SystemMessageType)message.id)
+            switch ((SystemMessageType)message.Id)
             {
             case SystemMessageType.UniqueIDRequest:
                 UniqueIdentity = BitConverter.ToInt32(message.data, 0);
@@ -807,7 +804,7 @@ namespace GT.Net
 
             default:
                 Debug.WriteLine("ServerStream.HandleSystemMessage(): Unknown message type: " +
-                    (SystemMessageType)message.id);
+                    (SystemMessageType)message.Id);
                 break;
             }
         }
@@ -834,7 +831,7 @@ namespace GT.Net
 
         internal bool Matches(Message element)
         {
-            return element.id == soughtChannel;
+            return element.Id == soughtChannel;
         }
     }
 
@@ -862,7 +859,7 @@ namespace GT.Net
         /// <summary>How often to ping the servers.  These are keep-alives.</summary>
         public double PingInterval = 10000;
 
-        /// <summary>How often to check the network for new data.
+        /// <summary>How often to check the network for new Bytes.
         /// Only applies if StartListeningOnSeperateThread() or StartListening() methods 
         /// are used.  Can be changed at runtime.  Unit is milliseconds.</summary>
         public double ListeningInterval = 0;
@@ -931,7 +928,7 @@ namespace GT.Net
         /// <typeparam name="C">The Type of the third value of the tuple</typeparam>
         /// <param name="address">The address to connect to</param>
         /// <param name="port">The port to connect to</param>
-        /// <param name="id">The id to use for this three-tuple (unique to three-tuples)</param>
+        /// <param name="id">The channel id to use for this three-tuple (unique to three-tuples)</param>
         /// <param name="milliseconds">The interval in milliseconds</param>
         /// <returns>The streaming tuple</returns>
         public StreamedTuple<A, B, C> GetStreamedTuple<A, B, C>(string address, string port, byte id, int milliseconds)
@@ -962,7 +959,7 @@ namespace GT.Net
         /// <typeparam name="B">The Type of the second value of the tuple</typeparam>
         /// <typeparam name="C">The Type of the third value of the tuple</typeparam>
         /// <param name="serverStream">The stream to use to send the tuple</param>
-        /// <param name="id">The id to use for this three-tuple (unique to three-tuples)</param>
+        /// <param name="id">The channel id to use for this three-tuple (unique to three-tuples)</param>
         /// <param name="milliseconds">The interval in milliseconds</param>
         /// <returns>The streaming tuple</returns>
         public StreamedTuple<A, B, C> GetStreamedTuple<A, B, C>(ServerStream serverStream, byte id, int milliseconds)
@@ -993,7 +990,7 @@ namespace GT.Net
         /// <typeparam name="B">The Type of the second value of the tuple</typeparam>
         /// <param name="address">The address to connect to</param>
         /// <param name="port">The port to connect to</param>
-        /// <param name="id">The id to use for this two-tuple (unique to two-tuples)</param>
+        /// <param name="id">The channel id to use for this two-tuple (unique to two-tuples)</param>
         /// <param name="milliseconds">The interval in milliseconds</param>
         /// <returns>The streaming tuple</returns>
         public StreamedTuple<A, B> GetStreamedTuple<A, B>(string address, string port, byte id, int milliseconds)
@@ -1022,7 +1019,7 @@ namespace GT.Net
         /// <typeparam name="A">The Type of the first value of the tuple</typeparam>
         /// <typeparam name="B">The Type of the second value of the tuple</typeparam>
         /// <param name="serverStream">The stream to use to send the tuple</param>
-        /// <param name="id">The id to use for this three-tuple (unique to three-tuples)</param>
+        /// <param name="id">The channel id to use for this three-tuple (unique to three-tuples)</param>
         /// <param name="milliseconds">The interval in milliseconds</param>
         /// <returns>The streaming tuple</returns>
         public StreamedTuple<A, B> GetStreamedTuple<A, B>(ServerStream serverStream, byte id, int milliseconds)
@@ -1051,7 +1048,7 @@ namespace GT.Net
         /// <typeparam name="A">The Type of the value of the tuple</typeparam>
         /// <param name="address">The address to connect to</param>
         /// <param name="port">The port to connect to</param>
-        /// <param name="id">The id to use for this one-tuple (unique to one-tuples)</param>
+        /// <param name="id">The channel id to use for this one-tuple (unique to one-tuples)</param>
         /// <param name="milliseconds">The interval in milliseconds</param>
         /// <returns>The streaming tuple</returns>
         public StreamedTuple<A> GetStreamedTuple<A>(string address, string port, byte id, int milliseconds)
@@ -1333,21 +1330,21 @@ namespace GT.Net
                             {
                                 try
                                 {
-                                    switch (m.type)
+                                    switch (m.MessageType)
                                     {
-                                    case MessageType.Binary: binaryStreams[m.id].QueueMessage(m); break;
-                                    case MessageType.Object: objectStreams[m.id].QueueMessage(m); break;
-                                    case MessageType.Session: sessionStreams[m.id].QueueMessage(m); break;
-                                    case MessageType.String: stringStreams[m.id].QueueMessage(m); break;
+                                    case MessageType.Binary: binaryStreams[m.Id].QueueMessage(m); break;
+                                    case MessageType.Object: objectStreams[m.Id].QueueMessage(m); break;
+                                    case MessageType.Session: sessionStreams[m.Id].QueueMessage(m); break;
+                                    case MessageType.String: stringStreams[m.Id].QueueMessage(m); break;
                                     case MessageType.System: HandleSystemMessage(m); break;
-                                    case MessageType.Tuple1D: oneTupleStreams[m.id].QueueMessage(m); break;
-                                    case MessageType.Tuple2D: twoTupleStreams[m.id].QueueMessage(m); break;
-                                    case MessageType.Tuple3D: threeTupleStreams[m.id].QueueMessage(m); break;
+                                    case MessageType.Tuple1D: oneTupleStreams[m.Id].QueueMessage(m); break;
+                                    case MessageType.Tuple2D: twoTupleStreams[m.Id].QueueMessage(m); break;
+                                    case MessageType.Tuple3D: threeTupleStreams[m.Id].QueueMessage(m); break;
                                     default:
                                         Console.WriteLine("Client: WARNING: received message (id={0}) with unknown type: {1}",
-                                            m.id, m.type);
+                                            m.Id, m.MessageType);
                                         if (ErrorEvent != null)
-                                            ErrorEvent(null, SocketError.Fault, s, "Received " + m.type + "message for connection " + m.id +
+                                            ErrorEvent(null, SocketError.Fault, s, "Received " + m.MessageType + "message for connection " + m.Id +
                                                 ", but that type does not exist.");
                                         break;
                                     }
@@ -1355,9 +1352,9 @@ namespace GT.Net
                                 catch (KeyNotFoundException e)
                                 {
                                     Console.WriteLine("Client: WARNING: received message with unmonitored id (type={0}): id={1}",
-                                        m.type, m.id);
+                                        m.MessageType, m.Id);
                                     if (ErrorEvent != null)
-                                        ErrorEvent(e, SocketError.Fault, s, "Received " + m.type + "message for connection " + m.id +
+                                        ErrorEvent(e, SocketError.Fault, s, "Received " + m.MessageType + "message for connection " + m.Id +
                                             ", but that id does not exist for that type.");
                                 }
                             }
@@ -1400,7 +1397,7 @@ namespace GT.Net
             Console.WriteLine("Client handled System Message.");
         }
 
-        /// <summary>Starts a new thread that listens for new clients or new data.
+        /// <summary>Starts a new thread that listens for new clients or new Bytes.
         /// Abort returned thread at any time to stop listening.</summary>
         public Thread StartListeningOnSeperateThread(int interval)
         {
@@ -1411,7 +1408,7 @@ namespace GT.Net
             return t;
         }
 
-        /// <summary>Enter an infinite loop, which will listen for incoming data.
+        /// <summary>Enter an infinite loop, which will listen for incoming Bytes.
         /// Use this to dedicate the current thread of execution to listening.
         /// If there are any exceptions, you should can catch them.
         /// Aborting this thread of execution will cause this thread to die
@@ -1424,7 +1421,7 @@ namespace GT.Net
             Start();
             try
             {
-                //check for new data
+                //check for new Bytes
                 while (started)
                 {
                     timer.Update();

@@ -7,10 +7,13 @@ namespace GT.Net
     public abstract class Message
     {
         /// <summary>The channel that this message is on.</summary>
-        public byte id;
+        public byte Id { get { return id; } }
 
         /// <summary>The type of message.</summary>
-        public MessageType type;
+        public MessageType MessageType { get { return type; } }
+
+        protected byte id;
+        protected MessageType type;
 
         /// <summary>Creates a new outbound message.</summary>
         /// <param name="id">The channel that this message is on.</param>
@@ -24,20 +27,24 @@ namespace GT.Net
 
     public class BinaryMessage : Message
     {
-        /// <summary>The binary data.</summary>
-        public byte[] data;
+        /// <summary>The binary byte content.</summary>
+        public byte[] Bytes { get { return bytes; } }
+
+        protected byte[] bytes;
 
         public BinaryMessage(byte id, byte[] bytes)
             : base(id, MessageType.Binary)
         {
-            this.data = bytes;
+            this.bytes = bytes;
         }
     }
 
     public class StringMessage : Message
     {
-        /// <summary>The string data.</summary>
-        public string text;
+        /// <summary>The string text.</summary>
+        public string Text { get { return text; } }
+
+        protected string text;
 
         public StringMessage(byte id, string text)
             : base(id, MessageType.String)
@@ -48,8 +55,10 @@ namespace GT.Net
 
     public class ObjectMessage : Message
     {
-        /// <summary>The string data.</summary>
-        public object obj;
+        /// <summary>The message's object.</summary>
+        public object Object { get { return obj; } }
+
+        protected object obj;
 
         public ObjectMessage(byte id, object obj)
             : base(id, MessageType.Object)
@@ -62,10 +71,13 @@ namespace GT.Net
     public class SessionMessage : Message
     {
         /// <summary>What occurred on the session.</summary>
-        public SessionAction Action;
+        public SessionAction Action { get { return action; } }
 
         /// <summary>Which client was affected.</summary>
-        public int ClientId;
+        public int ClientId { get { return clientId; } }
+
+        protected SessionAction action;
+        protected int clientId;
 
         /// <summary>Create a new SessionMessage</summary>
         /// <param name="clientId">The subject of the session action.</param>
@@ -73,8 +85,8 @@ namespace GT.Net
         public SessionMessage(byte id, int clientId, SessionAction e)
             : base(id, MessageType.Session)
         {
-            this.ClientId = clientId;
-            this.Action = e;
+            this.clientId = clientId;
+            this.action = e;
         }
     }
 

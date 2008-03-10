@@ -43,7 +43,7 @@ namespace GT.Net
         /// <typeparam name="A">The IConvertible type to convert the byte array into.</typeparam>
         /// <param name="b">The byte array</param>
         /// <param name="index">The byte in the array at which to begin</param>
-        /// <param name="length">The length of the type</param>
+        /// <param name="length">The length of the instance</param>
         /// <returns>The converted type.</returns>
         public static A Converter<A>(byte[] b, int index, out int length)
             where A : IConvertible
@@ -122,14 +122,14 @@ namespace GT.Net
             int clientID, cursor, length;
             RemoteTuple<T, K, J> tuple = new RemoteTuple<T, K, J>();
 
-            //tuple.X = StreamedTupleUtilities.Converter<T>(message.data, 0, out length);
+            //tuple.X = StreamedTupleUtilities.Converter<T>(message.Bytes, 0, out length);
             //cursor = length;
-            //tuple.Y = StreamedTupleUtilities.Converter<K>(message.data, cursor, out length);
+            //tuple.Y = StreamedTupleUtilities.Converter<K>(message.Bytes, cursor, out length);
             //cursor += length;
-            //tuple.Z = StreamedTupleUtilities.Converter<J>(message.data, cursor, out length);
+            //tuple.Z = StreamedTupleUtilities.Converter<J>(message.Bytes, cursor, out length);
             //cursor += length;
 
-            //clientID = BitConverter.ToInt32(message.data, cursor);
+            //clientID = BitConverter.ToInt32(message.Bytes, cursor);
 
             //if (StreamedTupleReceived != null)
             //    StreamedTupleReceived(tuple, clientID);
@@ -198,12 +198,12 @@ namespace GT.Net
 
             RemoteTuple<T, K> tuple = new RemoteTuple<T, K>();
 
-            //tuple.X = StreamedTupleUtilities.Converter<T>(message.data, 0, out length);
+            //tuple.X = StreamedTupleUtilities.Converter<T>(message.Bytes, 0, out length);
             //cursor = length;
-            //tuple.Y = StreamedTupleUtilities.Converter<K>(message.data, cursor, out length);
+            //tuple.Y = StreamedTupleUtilities.Converter<K>(message.Bytes, cursor, out length);
             //cursor += length;
 
-            //clientID = BitConverter.ToInt32(message.data, cursor);
+            //clientID = BitConverter.ToInt32(message.Bytes, cursor);
 
             //if (StreamedTupleReceived != null)
             //    StreamedTupleReceived(tuple, clientID);
@@ -265,10 +265,10 @@ namespace GT.Net
 
             RemoteTuple<T> tuple = new RemoteTuple<T>();
 
-            //tuple.X = StreamedTupleUtilities.Converter<T>(message.data, 0, out length);
+            //tuple.X = StreamedTupleUtilities.Converter<T>(message.Bytes, 0, out length);
             //cursor = length;
 
-            //clientID = BitConverter.ToInt32(message.data, cursor);
+            //clientID = BitConverter.ToInt32(message.Bytes, cursor);
 
             //if (StreamedTupleReceived != null)
             //    StreamedTupleReceived(tuple, clientID);

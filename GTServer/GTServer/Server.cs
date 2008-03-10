@@ -16,34 +16,34 @@ namespace GT.Net
     /// <summary>Handles a tick event, which is one loop of the server</summary>
     public delegate void TickHandler();
 
-    /// <summary>Handles a Message event, when a data arrives</summary>
+    /// <summary>Handles a Message event, when a new message arrives</summary>
     /// <param name="m">The incoming message.</param>
-    /// <param name="client">Who sent the data</param>
-    /// <param name="protocol">How the data was sent</param>
+    /// <param name="client">Who sent the message</param>
+    /// <param name="protocol">How the message was sent</param>
     public delegate void MessageHandler(Message m, Server.Client client, MessageProtocol protocol);
 
     /// <summary>Handles a SessionMessage event, when a SessionMessage arrives.</summary>
     /// <param name="m">The incoming message.</param>
-    /// <param name="client">Who sent the data.</param>
-    /// <param name="protocol">How the data was sent</param>
+    /// <param name="client">Who sent the message.</param>
+    /// <param name="protocol">How the message was sent</param>
     public delegate void SessionMessageHandler(Message m, Server.Client client, MessageProtocol protocol);
 
     /// <summary>Handles a StringMessage event, when a StringMessage arrives.</summary>
     /// <param name="m">The incoming message.</param>
-    /// <param name="client">Who sent the data.</param>
-    /// <param name="protocol">How the data was sent</param>
+    /// <param name="client">Who sent the message.</param>
+    /// <param name="protocol">How the message was sent</param>
     public delegate void StringMessageHandler(Message m, Server.Client client, MessageProtocol protocol);
 
     /// <summary>Handles a ObjectMessage event, when a ObjectMessage arrives.</summary>
     /// <param name="m">The incoming message.</param>
-    /// <param name="client">Who sent the data.</param>
-    /// <param name="protocol">How the data was sent</param>
+    /// <param name="client">Who sent the message.</param>
+    /// <param name="protocol">How the message was sent</param>
     public delegate void ObjectMessageHandler(Message m, Server.Client client, MessageProtocol protocol);
 
     /// <summary>Handles a BinaryMessage event, when a BinaryMessage arrives.</summary>
     /// <param name="m">The incoming message.</param>
-    /// <param name="client">Who sent the data.</param>
-    /// <param name="protocol">How the data was sent</param>
+    /// <param name="client">Who sent the message.</param>
+    /// <param name="protocol">How the message was sent</param>
     public delegate void BinaryMessageHandler(Message m, Server.Client client, MessageProtocol protocol);
 
     /// <summary>Handles when clients leave the server.</summary>
@@ -106,27 +106,25 @@ namespace GT.Net
         /// <summary>Invoked each cycle of the server.</summary>
         public event TickHandler Tick;
 
-        /// <summary>Invoked each time a data is received.</summary>
+        /// <summary>Invoked each time a message is received.</summary>
         public event MessageHandler MessageReceived;
 
-        /* Note: the specialized data handlers are provided the data payloads
-         * as raw uninterpreted byte arrays so as to avoid introducing latency
-         * from unneeded latency.  If your server needs to use
-         * the data content, then the server should perform the interpretation. */
+        /* Note: the specialized message handlers are provided the
+	 * message payloads as raw uninterpreted byte arrays so as
+	 * to avoid introducing latency from unneeded processing.
+	 * If your server needs to use the message content, then
+	 * the server should perform the unmarshalling. */
 
-        /// <summary>Invoked each time a session data is received.</summary>
+        /// <summary>Invoked each time a session message is received.</summary>
         public event SessionMessageHandler SessionMessageReceived;
 
-        /// <summary>Invoked each time a string data is received.
-        /// Strings are encoded as bytes and can be decoded using variants of BytesToString().</summary>
+        /// <summary>Invoked each time a string message is received.</summary>
         public event StringMessageHandler StringMessageReceived;
 
-        /// <summary>Invoked each time a object data is received.
-        /// Objects are encoded as bytes and can be decoded using variants of BytesToObject().</summary>
-        /// FIXME: document the format.</summary>
+        /// <summary>Invoked each time a object message is received.</summary>
         public event ObjectMessageHandler ObjectMessageReceived;
 
-        /// <summary>Invoked each time a binary data is received.</summary>
+        /// <summary>Invoked each time a binary mesage is received.</summary>
         public event BinaryMessageHandler BinaryMessageReceived;
 
         /// <summary>Invoked each time a client disconnects.</summary>
@@ -153,7 +151,7 @@ namespace GT.Net
         /// <summary>Creates a new Server object.</summary>
         /// <param name="port">The port to listen on.</param>
         /// <param name="interval">The interval in milliseconds at which to check 
-        /// for new connections or new data.</param>
+        /// for new connections or new messages.</param>
         public Server(int port, int interval)
         {
             this.port = port;
@@ -161,10 +159,11 @@ namespace GT.Net
         }
 
 
-        /// <summary>Starts a new thread that listens for new clients or new data.
-        /// Abort returned thread at any time to stop listening.
+        /// <summary>Starts a new thread that listens for new clients or
+	/// new messages.  Abort the returned thread at any time
+	/// to stop listening.
         /// <param name="interval">The interval in milliseconds at which to check 
-        /// for new connections or new data.</param> </summary>
+        /// for new connections or new message.</param> </summary>
         public Thread StartSeparateListeningThread(int interval)
         {
             this.Interval = interval;
@@ -310,7 +309,8 @@ namespace GT.Net
             return client;
         }
 
-        /// <summary>Starts a new thread that listens for new clients or new data on the current thread.</summary>
+        /// <summary>Starts a new thread that listens for new clients or
+	/// new messages on the current thread.</summary>
         public void StartListening()
         {
             int oldTickCount;
@@ -318,7 +318,7 @@ namespace GT.Net
 
             Start();
 
-            //check this server for new connections or new data forevermore
+            //check this server for new connections or new messages forevermore
             while (running)
             {
                 try
@@ -398,20 +398,18 @@ namespace GT.Net
             get { return running; }
         }
 
-        /// <summary>Handle a data that was received by a client.</summary>
-        /// <param name="id">Channel of the data.</param>
-        /// <param name="type">Type of Message sent.</param>
-        /// <param name="data">The data of the Message.</param>
+        /// <summary>Handle a message that was received by a client.</summary>
+        /// <param name="m">The message.</param>
         /// <param name="client">Which client sent it.</param>
-        /// <param name="protocol">How the data was sent</param>
+        /// <param name="protocol">How the message was sent</param>
         void client_MessageReceived(Message m, Client client, MessageProtocol protocol)
         {
             DebugUtils.DumpMessage(this + ": MessageReceived from " + client, m);
             //send to this
             if (MessageReceived != null) MessageReceived(m, client, protocol);
 
-            //sort to the correct data type
-            switch (m.type)
+            //sort to the correct type
+            switch (m.MessageType)
             {
                 case MessageType.Binary:
                     if (BinaryMessageReceived != null) BinaryMessageReceived(m, client, protocol); break;
@@ -537,7 +535,7 @@ namespace GT.Net
         {
             #region Variables and Properties
 
-            /// <summary>Triggered when a data is received.</summary>
+            /// <summary>Triggered when a message is received.</summary>
             public event MessageHandler MessageReceived;
             internal MessageHandler MessageReceivedDelegate;
 
@@ -587,7 +585,7 @@ namespace GT.Net
                 }
             }
 
-            /// <summary>The unique id of this client</summary>
+            /// <summary>The server-unique identity of this client</summary>
             public int UniqueIdentity
             {
                 get { return uniqueIdentity; }
@@ -653,7 +651,7 @@ namespace GT.Net
                 transports[t.MessageProtocol] = t;
             }
 
-            #region Send
+            #region Sending
 
             /// <summary>Send a byte array on the channel <c>id</c>.</summary>
             /// <param name="buffer">The byte array to send</param>
@@ -690,9 +688,9 @@ namespace GT.Net
 
             /// <summary>Send SessionAction.</summary>
             /// <param name="clientId">Client who is doing the action.</param>
-            /// <param name="e">SessionEvent data to send.</param>
+            /// <param name="e">Session action to send.</param>
             /// <param name="id">Channel to send on.</param>
-            /// <param name="protocol">What protocol the data should use.</param>
+            /// <param name="protocol">The protocol to use.</param>
             public void Send(int clientId, SessionAction e, byte id, MessageProtocol protocol)
             {
                 List<Message> messages = new List<Message>(1);
@@ -702,7 +700,7 @@ namespace GT.Net
 
 
             /// <summary>Send byte array.</summary>
-            /// <param name="buffer">Binary data to send.</param>
+            /// <param name="buffer">Bytes to send.</param>
             /// <param name="id">Channel to send on.</param>
             public void Send(byte[] buffer, byte id)
             {
@@ -710,7 +708,7 @@ namespace GT.Net
             }
 
             /// <summary>Send object.</summary>
-            /// <param name="o">Object data to send.</param>
+            /// <param name="o">Object to send.</param>
             /// <param name="id">Channel to send on.</param>
             public void Send(Object o, byte id)
             {
@@ -718,7 +716,7 @@ namespace GT.Net
             }
 
             /// <summary>Send string.</summary>
-            /// <param name="s">String data to send.</param>
+            /// <param name="s">String to send.</param>
             /// <param name="id">Channel to send on.</param>
             public void Send(String s, byte id)
             {
@@ -732,12 +730,9 @@ namespace GT.Net
                 Send(messages, protocol);
             }
 
-            /// <summary>Sends a raw byte array of any data type using these parameters.  
-            /// This can be used to manipulate received messages without converting it to another 
-            /// format, for example, a string or an object.  Using this method, received messages 
-            /// can be repeated, compared, or passed along faster than otherwise.</summary>
+            /// <summary>Sends a set of using these parameters.</summary>
             /// <param name="messages">The messages to go across.</param>
-            /// <param name="protocol">What protocol the data should use.</param>
+            /// <param name="protocol">What protocol to use.</param>
             public void Send(IList<Message> messages, MessageProtocol protocol)
             {
                 lock (this)
@@ -789,12 +784,12 @@ namespace GT.Net
 
 
 
-            /// <summary>Handles a system data in that it takes the information and does something with it.</summary>
-            /// <param name="data">The data we received.</param>
+            /// <summary>Handles a system message in that it takes the information and does something with it.</summary>
+            /// <param name="m">The message received.</param>
             /// <param name="id">What channel it came in on.</param>
             private void HandleSystemMessage(SystemMessage m, ITransport t)
             {
-                switch((SystemMessageType)m.id) {
+                switch((SystemMessageType)m.Id) {
                 case SystemMessageType.UniqueIDRequest:
                     //they want to know their own id
                     Send(new SystemMessage(SystemMessageType.UniqueIDRequest, 
@@ -859,7 +854,7 @@ namespace GT.Net
                     Message m = server.Marshaller.Unmarshal(stream, t);
                     //DebugUtils.DumpMessage("Server.Client.PostNewlyReceivedMessage", m);
 
-                    if (m.type == MessageType.System)
+                    if (m.MessageType == MessageType.System)
                     {
                         //System messages are special!  Yay!
                         HandleSystemMessage((SystemMessage)m, t);
