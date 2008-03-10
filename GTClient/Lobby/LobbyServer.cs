@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Text;
-using GT;
+using GT.Net;
 
 namespace Lobby
 {

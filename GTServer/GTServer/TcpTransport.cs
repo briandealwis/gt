@@ -3,12 +3,12 @@ using System.Net.Sockets;
 using System.Collections.Generic;
 using System.Net;
 using System.Threading;
-using GT;
+using GT.Net;
 using System.IO;
 using System.Diagnostics;
 using System.Text;
 
-namespace GT
+namespace GT.Net
 {
     public class TcpServerTransport : BaseServerTransport
     {

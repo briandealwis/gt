@@ -3,7 +3,7 @@ using System;
 using System.IO;
 using System.Collections.Generic;
 using System.Net.Sockets;
-namespace GT
+namespace GT.Net
 {
 
     public delegate void PacketReceivedHandler(byte[] buffer, int offset, int count, ITransport transport);

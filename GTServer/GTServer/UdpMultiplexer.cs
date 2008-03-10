@@ -4,9 +4,9 @@ using System.Net;
 using System.IO;
 using System.Collections.Generic;
 using System.Diagnostics;
-using GT;
+using GT.Net;
 
-namespace GT
+namespace GT.Net
 {
     public delegate void NetPacketReceivedHandler(EndPoint ep, byte[] message);
 

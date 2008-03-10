@@ -1,11 +1,11 @@
 using System;
 using System.Collections.Generic;
 using System.Text;
-using GT;
+using GT.Net;
 using System.IO;
-using GT;
+using GT.Net;
 
-namespace GT
+namespace GT.Net
 {
     /// <summary>Delegate for tuples.</summary>
     public delegate void StreamedTupleReceivedDelegate<T>(RemoteTuple<T> tuple, int clientID);

@@ -4,9 +4,9 @@ using System.Text;
 using System.IO;
 using System.Runtime.Serialization;
 using System.Runtime.Serialization.Formatters.Binary;
-using GT;
+using GT.Net;
 
-namespace GT
+namespace GT.Net
 {
     class AggregatingSharedDictionary
     {

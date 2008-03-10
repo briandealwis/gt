@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Text;
 
-namespace GT
+namespace GT.Net
 {
     /// <summary>
     /// Injects a certain amount of latency into the sending or receiving from this connection.

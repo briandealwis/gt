@@ -1,7 +1,7 @@
 using System;
 using System.IO;
 
-namespace GT
+namespace GT.Net
 {
     /// <remarks>
     /// A stream with a fixed capacity.  Useful for debugging.

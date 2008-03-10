@@ -5,8 +5,8 @@ using System.Data;
 using System.Drawing;
 using System.Text;
 using System.Windows.Forms;
-using GT;
-using GT;
+using GT.Net;
+using GT.Net;
 
 namespace Telepointers
 {

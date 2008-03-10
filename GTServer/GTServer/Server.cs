@@ -8,9 +8,9 @@ using System.Threading;
 using System.Runtime.Serialization;
 using System.Runtime.Serialization.Formatters.Binary;
 using System.Diagnostics;
-using GT;
+using GT.Net;
 
-namespace GT
+namespace GT.Net
 {
 
     #region Delegates

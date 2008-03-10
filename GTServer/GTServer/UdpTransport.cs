@@ -1,4 +1,4 @@
-using GT;
+using GT.Net;
 using System.Collections.Generic;
 using System.IO;
 using System.Net.Sockets;
@@ -7,7 +7,7 @@ using System.Net;
 using System.Text;
 using System.Diagnostics;
 
-namespace GT
+namespace GT.Net
 {
     public class UdpServerTransport : BaseServerTransport
     {

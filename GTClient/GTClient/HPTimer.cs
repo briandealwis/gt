@@ -4,7 +4,7 @@ using System.ComponentModel;
 using System.Threading;
 using System.Diagnostics;
 
-namespace GT
+namespace GT.Net
 {
     /// <summary>A high-resolution high-performance timer.</summary>
     public class HPTimer

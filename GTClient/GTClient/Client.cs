@@ -7,10 +7,10 @@ using System.Text;
 using System.IO;
 using System.Runtime.Serialization;
 using System.Runtime.Serialization.Formatters.Binary;
-using GT;
+using GT.Net;
 using System.Diagnostics;
 
-namespace GT
+namespace GT.Net
 {
 
     #region Delegates

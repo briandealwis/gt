@@ -1,6 +1,6 @@
 using System;
 using NUnit.Framework;
-using GT;
+using GT.Net;
 using GT.Utils;
 
 namespace GT.UnitTests

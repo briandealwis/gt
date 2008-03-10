@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Net;
 using System.Net.Sockets;
 
-namespace GT
+namespace GT.Net
 {
     public abstract class BaseServerTransport : BaseTransport, ITransport, IDisposable
     {

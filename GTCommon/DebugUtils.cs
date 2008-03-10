@@ -3,7 +3,7 @@ using System.IO;
 using System.Text;
 using System.Diagnostics;
 
-namespace GT
+namespace GT.Net
 {
     public class DebugUtils
     {

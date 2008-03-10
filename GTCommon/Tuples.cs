@@ -1,4 +1,4 @@
-namespace GT
+namespace GT.Net
 {
 
     /// <summary>Represents a 1-tuple.</summary>

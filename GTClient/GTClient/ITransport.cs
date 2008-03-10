@@ -2,10 +2,10 @@ using System;
 using System.Net.Sockets;
 using System.Collections.Generic;
 using System.Net;
-using GT;
+using GT.Net;
 using System.IO;
 
-namespace GT
+namespace GT.Net
 {
     /// <summary>
     /// A standard interface for clients to reference a remote

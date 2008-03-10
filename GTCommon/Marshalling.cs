@@ -1,11 +1,11 @@
 using System.IO;
-using GT;
+using GT.Net;
 using System.Runtime.Serialization.Formatters.Binary;
 using System;
 using System.Diagnostics;
 using System.Text;
 
-namespace GT
+namespace GT.Net
 {
     /// <remarks>
     /// A marshaller is responsible for transforming an object to a sequence of bytes,

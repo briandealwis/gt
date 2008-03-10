@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Text;
 using System.IO;
 
-namespace GT
+namespace GT.Net
 {
 
     /// <summary>
