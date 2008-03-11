@@ -5,18 +5,6 @@ using System.Net.Sockets;
 
 namespace GT.Net
 {
-    public abstract class BaseServerTransport : BaseTransport, ITransport, IDisposable
-    {
-        public object LastError = null;
-
-        public abstract void Dispose();
-
-        protected void NotifyError(Exception e, SocketError err, object context, string message)
-        {
-            /* do nothing */
-        }
-    }
-
     public delegate void NewClientHandler(ITransport transport, Dictionary<string,string> capabilities);
 
     public interface IAcceptor : IStartable

@@ -68,7 +68,7 @@ namespace GT.Net
             client.Client.Send(ms.GetBuffer(), 0, (int)ms.Length, SocketFlags.None);
 
             Console.WriteLine("Address resolved and contacted.  Now connected to " + endPoint.ToString());
-            return new TcpClientTransport(client);
+            return new TcpTransport(client);
         }
 
     }

@@ -33,28 +33,4 @@ namespace GT.Net
         ITransport Connect(string address, string port, Dictionary<string, string> capabilities);
     }
 
-    public abstract class BaseClientTransport : BaseTransport, ITransport, IServerSurrogate, IDisposable
-    {
-        protected string address, port;
-        protected IPEndPoint endPoint;
-
-        /// <summary>The last error encountered</summary>
-        public Exception LastError = null;
-
-        protected BaseClientTransport() {}
-
-        /// <summary>What is the address of the server?  Thread-safe.</summary>
-        public string Address
-        {
-            get { return address; }
-            set { address = value; }
-        }
-
-        /// <summary>What is the TCP port of the server.  Thread-safe.</summary>
-        public string Port
-        {
-            get { return port; }
-            set { port = value; }
-        }
-    }
 }

@@ -368,6 +368,7 @@ namespace GT.UnitTests.BaseTests
             get { return true; }
         }
 
+        public event TransportErrorHandler TransportErrorEvent;
         public event PacketReceivedHandler PacketReceivedEvent;
 
         public MessageProtocol MessageProtocol

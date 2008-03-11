@@ -7,6 +7,7 @@ using System.Net.Sockets;
 namespace GT.Net
 {
 
+    public delegate void TransportErrorHandler(string explanation, ITransport transport, object context);
     public delegate void PacketReceivedHandler(byte[] buffer, int offset, int count, ITransport transport);
 
     /// <remarks>
@@ -25,6 +26,7 @@ namespace GT.Net
         bool Active { get; }
 
         event PacketReceivedHandler PacketReceivedEvent;
+        event TransportErrorHandler TransportErrorEvent;
 
         /* FIXME: Stop-gap solution until we have proper QoS descriptors */
         MessageProtocol MessageProtocol { get; }
@@ -65,7 +67,7 @@ namespace GT.Net
     public abstract class BaseTransport : ITransport
     {
         private Dictionary<string, string> capabilities = new Dictionary<string, string>();
-        public event ErrorEventHandler ErrorEvent;
+        public event TransportErrorHandler TransportErrorEvent;
         public event PacketReceivedHandler PacketReceivedEvent;
         public abstract string Name { get; }
         public abstract MessageProtocol MessageProtocol { get; }    // FIXME: temporary
@@ -116,13 +118,16 @@ namespace GT.Net
             PacketReceivedEvent(buffer, offset, count, this);
         }
 
-        protected void NotifyError(Exception e, SocketError se, string explanation)
+        protected void NotifyError(string explanation, object context)
         {
             //FIXME: server.NotifyError(this, e, se, explanation);
             Console.WriteLine("{0} {1}: Error Occurred: {2}",
                 DateTime.Now, this, explanation);
-            if (e != null) { Console.WriteLine("  exception={0}", e.ToString()); }
-            if (se != null) { Console.WriteLine("  socket error={1}", se.ToString()); }
+            if (context != null) { Console.WriteLine("  context={0}", context); }
+            if (TransportErrorEvent != null)
+            {
+                TransportErrorEvent(explanation, this, context);
+            }
         }
     }
 

@@ -41,8 +41,10 @@
     <Compile Include="Net\Marshalling.cs" />
     <Compile Include="Net\Messages.cs" />
     <Compile Include="Net\NetExceptions.cs" />
+    <Compile Include="Net\TcpTransport.cs" />
     <Compile Include="Net\Transports.cs" />
     <Compile Include="Net\Tuples.cs" />
+    <Compile Include="Net\UdpTransport.cs" />
     <Compile Include="Streams.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="Utils.cs" />

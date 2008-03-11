@@ -43,7 +43,7 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="TcpTransport.cs" />
+    <Compile Include="TcpAcceptor.cs" />
     <Compile Include="Transports.cs" />
     <Compile Include="UdpMultiplexer.cs" />
     <Compile Include="Server.cs" />

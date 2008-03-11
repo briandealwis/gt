@@ -540,6 +540,7 @@ namespace GT.Net
 
             transports = new Dictionary<MessageProtocol, ITransport>();
 
+            // FIXME: should this be done on demand?
             foreach (IConnector conn in owner.Connectors)
             {
                 // FIXME: and if there is an error...?
@@ -569,7 +570,8 @@ namespace GT.Net
         {
             // transports[t.Name] = t;
             transports[t.MessageProtocol] = t;  // FIXME: this is to be replaced!
-            t.PacketReceivedEvent += new PacketReceivedHandler(MessageReceived);
+            t.PacketReceivedEvent += new PacketReceivedHandler(HandleNewPacket);
+            t.TransportErrorEvent += new TransportErrorHandler(HandleTransportError);
             // t.ErrorEvent += new ErrorEventHandler();
         }
 
@@ -602,7 +604,7 @@ namespace GT.Net
             }
         }
 
-        protected void MessageReceived(byte[] buffer, int offset, int count, ITransport transport)
+        protected void HandleNewPacket(byte[] buffer, int offset, int count, ITransport transport)
         {
             Message msg = owner.Marshaller.Unmarshal(new MemoryStream(buffer, offset, count, false), transport);
             if (msg.MessageType == MessageType.System)
@@ -615,6 +617,15 @@ namespace GT.Net
             }
         }
 
+        protected void HandleTransportError(string explanation, ITransport transport, object context)
+        {
+            // FIXME: find the associated connector and re-connect
+            if (transport != null)
+            {
+                transport.Dispose();
+                transports.Remove(transport.MessageProtocol);
+            }
+        }
         /// <summary>Occurs when there is an error.</summary>
         protected internal void NotifyError(object generator, Exception e, SocketError se, string explanation)
         {

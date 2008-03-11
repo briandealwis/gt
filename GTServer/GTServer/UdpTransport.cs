@@ -9,33 +9,13 @@ using GT.Utils;
 
 namespace GT.Net
 {
-    public class UdpServerTransport : BaseServerTransport
+    public class UdpServerTransport : BaseUdpTransport
     {
-        /// <summary>
-        /// Allow setting a cap on the maximum UDP message size
-        /// as compared to the OS value normally used.
-        /// 512 is the historical value supported by GT.
-        /// </summary>
-        public static int CappedMessageSize = 512;
-
         private UdpHandle handle;
-        private List<byte[]> outstanding;
-        private MemoryStream udpIn;
 
         public UdpServerTransport(UdpHandle h)
         {
-            outstanding = new List<byte[]>();
             handle = h;
-        }
-
-        override public string Name
-        {
-            get { return "TCP"; }
-        }
-
-        override public MessageProtocol MessageProtocol
-        {
-            get { return MessageProtocol.Udp; }
         }
 
         override public bool Active { get { return handle != null; } }
@@ -55,7 +35,7 @@ namespace GT.Net
             }
         }
 
-        override public void Dispose()
+        virtual public void Dispose()
         {
             try
             {
@@ -69,37 +49,8 @@ namespace GT.Net
             handle = null;
         }
 
-        /// <summary>Sends a packet via UDP.
-        /// We don't care if it doesn't get through.</summary>
-        /// <param name="buffer">Raw stuff to send.</param>
-        override public void SendPacket(byte[] buffer, int offset, int length)
-        {
-            if (!Active) { throw new InvalidStateException("Cannot send: instance is !Active"); }
-            DebugUtils.DumpMessage(this + "SendPacket", buffer);
-            if (offset != 0 || length != buffer.Length)
-            {
-                byte[] newBuffer = new byte[length];
-                Array.Copy(buffer, offset, newBuffer, 0, length);
-                buffer = newBuffer;
-            }
-            outstanding.Add(buffer);
-            FlushOutstandingPackets();
-        }
 
-        /// <summary>Send a message to server.</summary>
-        /// <param name="buffer">The message to send.</param>
-        public override void SendPacket(Stream output)
-        {
-            Debug.Assert(Active, "Cannot send on disposed transport");
-            if (!(output is MemoryStream))
-            {
-                throw new ArgumentException("Transport provided different stream!");
-            }
-            outstanding.Add(((MemoryStream)output).ToArray());
-            FlushOutstandingPackets();
-        }
-
-        virtual protected void FlushOutstandingPackets()
+        protected override void FlushOutstandingPackets()
         {
             SocketError error = SocketError.Success;
             while (outstanding.Count > 0)
@@ -114,27 +65,18 @@ namespace GT.Net
                     break;
                 case SocketError.WouldBlock:
                     //don't die, but try again next time
-                    LastError = null;
-                    NotifyError(null, error, this, "The UDP write buffer is full now, but the data will be saved and " +
-                        "sent soon.  Send less data to reduce perceived latency.");
+                    // NotifyError(null, error, this, "The UDP write buffer is full now, but the data will be saved and " +
+                    ///    "sent soon.  Send less data to reduce perceived latency.");
                     return;
                 default:
                     //something terrible happened, but this is only UDP, so stick around.
-                    LastError = null;
-                    NotifyError(null, error, this, "Failed to Send UDP Message (" + b.Length + " bytes): " + b.ToString());
+                    NotifyError("Failed to Send UDP Message", error);
                     return;
                 }
             }
         }
 
-        override public void Update()
-        {
-            Debug.Assert(Active, "Cannot send on disposed transport");
-            CheckIncomingPackets();
-            FlushOutstandingPackets();
-        }
-
-        virtual protected void CheckIncomingPackets()
+        protected override void CheckIncomingPackets()
         {
             try
             {
@@ -148,10 +90,9 @@ namespace GT.Net
             }
             catch (SocketException e)
             {
-                if (e.SocketErrorCode == SocketError.WouldBlock)
+                if (e.SocketErrorCode != SocketError.WouldBlock)
                 {
-                    LastError = e;
-                    NotifyError(e, SocketError.NoRecovery, this, "Updating from UDP connection failed because of an exception");
+                    NotifyError("Error while reading UDP data", e);
                 }
             }
         }

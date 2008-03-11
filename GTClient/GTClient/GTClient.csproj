@@ -58,7 +58,6 @@
     <Compile Include="ITransport.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="SimpleSharedDictionary.cs" />
-    <Compile Include="TcpTransport.cs" />
     <Compile Include="TupleStream.cs" />
     <Compile Include="UdpConnector.cs" />
     <Compile Include="UdpTransport.cs" />

@@ -9,34 +9,18 @@ using System.Text;
 
 namespace GT.Net
 {
-    public class UdpClientTransport : BaseClientTransport
+    public class UdpClientTransport : BaseUdpTransport
     {
-        /// <summary>
-        /// Allow setting a cap on the maximum UDP message size
-        /// as compared to the OS value normally used.
-        /// 512 is the historical value supported by GT.
-        /// </summary>
-        public static int CappedMessageSize = 512;
-
         protected UdpClient udpClient;
-
-        //If bits can't be written to the network now, try later
-        //We use this so that we don't have to block on the writing to the network
-        protected List<byte[]> outstanding = new List<byte[]>();
 
         public UdpClientTransport(UdpClient udpc) {
             udpClient = udpc;
         }
 
-        public override string Name { get { return "UDP"; } }
-
         public override bool Active
         {
             get { return udpClient != null; }
         }
-
-        // FIXME: Stop-gap measure until we have QoS descriptors
-        public override MessageProtocol MessageProtocol { get { return MessageProtocol.Udp; } }
 
         public void Dispose() {
             if (!Active) { return; }
@@ -58,27 +42,9 @@ namespace GT.Net
         }
 
 
-        public override void SendPacket(byte[] buffer, int offset, int length)
-        {
-            if (!Active)
-            {
-                throw new InvalidStateException("Cannot send on a stopped client", this);
-            }
-            Debug.Assert(udpClient.Client.Connected, "ERROR: UdpTransport's should always be connected");
-            DebugUtils.DumpMessage(this + "SendPacket", buffer);
-            if (offset != 0 || length != buffer.Length)
-            {
-                byte[] newBuffer = new byte[length];
-                Array.Copy(buffer, offset, newBuffer, 0, length);
-                buffer = newBuffer;
-            }
-            outstanding.Add(buffer);
-            FlushOutstandingPackets();        
-        }
-
         /// <summary> Flushes out old messages that couldn't be sent because of exceptions</summary>
         /// <returns>True if there are bytes that still have to be sent out</returns>
-        protected virtual bool FlushOutstandingPackets()
+        protected override void FlushOutstandingPackets()
         {
             byte[] b;
             SocketError error = SocketError.Success;
@@ -97,34 +63,26 @@ namespace GT.Net
                             break;
                         case SocketError.WouldBlock:
                             //don't die, but try again next time
-                            LastError = null;
                             // FIXME: This should not be an error!
                             // FIXME: Does UDP ever cause a WouldBlock?
-                            NotifyError(null, error, "The UDP write buffer is full now, but the data will be saved and " +
-                                    "sent soon.  Send less data to reduce perceived latency.");
-                            return true;
+                            //NotifyError(null, error, "The UDP write buffer is full now, but the data will be saved and " +
+                            //        "sent soon.  Send less data to reduce perceived latency.");
+                            return;
                         default:
                             //something terrible happened, but this is only UDP, so stick around.
-                            LastError = null;
-                            NotifyError(null, error, "Failed to Send UDP Message (" + b.Length + " bytes): " + b.ToString());
-                            return true;
+                            NotifyError("Error sending UDP packet", error);
+                            return;
                     }
                 }
             }
-            catch (Exception e)
+            catch (SocketException e)
             {
-                LastError = e;
-                NotifyError(e, SocketError.NoRecovery, "Trying to send saved UDP data failed because of an exception.");
-                return true;
+                NotifyError("Error sending UDP data", e);
             }
-
-            return false;
         }
 
-        public override void Update()
+        protected override void CheckIncomingPackets()
         {
-            Debug.Assert(Active, "Cannot update an inactive client");
-
             try
             {
                 //while there are more packets to read
@@ -142,19 +100,8 @@ namespace GT.Net
             {
                 if (e.SocketErrorCode != SocketError.WouldBlock)
                 {
-                    LastError = e;
-                    NotifyError(e, SocketError.NoRecovery, "Updating from UDP failed because of a socket exception.");
+                    NotifyError("Error reading UDP data", e);
                 }
-            }
-            catch (Exception e)
-            {
-                LastError = e;
-                NotifyError(e, SocketError.Fault, "UDP Data Interpretation Error.  There must have been a mistake in a message header. " +
-                        "Data has been lost.");
-                //Don't die on a mistake interpreting the Bytes, because we can always 
-                //try to interpret more Bytes starting from a new set of packets. 
-                //However, the Bytes we were currently working on is lost.
-                return;
             }
         }
 
@@ -172,29 +119,6 @@ namespace GT.Net
                     return CappedMessageSize;
                 }
             }
-        }
-
-        override public Stream GetPacketStream()
-        {
-            MemoryStream ms = new MemoryStream();
-            return ms;
-        }
-
-        /// <summary>Send a message to server.</summary>
-        /// <param name="buffer">The message to send.</param>
-        public override void SendPacket(Stream ms)
-        {
-            if (!Active)
-            {
-                throw new InvalidStateException("Cannot send on a stopped client", this);
-            }
-            if (!(ms is MemoryStream))
-            {
-                throw new ArgumentException("Transport provided different stream!");
-            }
-            MemoryStream output = (MemoryStream)ms;
-            outstanding.Add(output.ToArray());
-            FlushOutstandingPackets();
         }
 
     }
