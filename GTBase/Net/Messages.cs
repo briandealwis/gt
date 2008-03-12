@@ -110,6 +110,22 @@ namespace GT.Net
         }
     }
 
+    /// <summary>
+    /// An uninterpreted message
+    /// </summary>
+    public class RawMessage : Message
+    {
+        /// <summary>The binary byte content.</summary>
+        public byte[] Bytes { get { return bytes; } }
+
+        protected byte[] bytes;
+
+        public RawMessage(byte id, MessageType t, byte[] data)
+            : base(id, t)
+        {
+            this.bytes = data;
+        }
+    }
 
 
     /// <remarks>

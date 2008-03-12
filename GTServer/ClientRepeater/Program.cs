@@ -1,10 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Text;
-using GT.Net;
 using System.IO;
-using System.Runtime.Serialization;
-using System.Runtime.Serialization.Formatters.Binary;
 using System.Net.Sockets;
 using GT.Net;
 
@@ -32,7 +29,8 @@ namespace ClientRepeater
                     return;
                 }
             }
-            s = new Server(port, 1);
+
+            s = new Server(new RepeaterConfiguration(port));
             s.MessageReceived += new MessageHandler(s_MessageReceived);
             s.ClientsJoined += new ClientsJoinedHandler(s_ClientsJoined);
             s.ClientsRemoved += new ClientsRemovedHandler(s_ClientsRemoved);
@@ -40,34 +38,34 @@ namespace ClientRepeater
             s.StartListening();
         }
 
-        static void s_ErrorEvent(Exception e, SocketError se, Server.Client c, string explanation)
+        static void s_ErrorEvent(Exception e, SocketError se, ClientConnexion c, string explanation)
         {
             Console.WriteLine(DateTime.Now + " Error[" + c + "]: " + explanation + " (" + e + ", " + se + ")");
             if (se.Equals(SocketError.NoRecovery))  // FIXME: this test is bogus -- we need more information
             {
-                List<Server.Client> removed = new List<Server.Client>();
+                List<ClientConnexion> removed = new List<ClientConnexion>();
                 removed.Add(c);
                 s_ClientsRemoved(removed);
             }
         }
 
-        static void s_ClientsJoined(ICollection<Server.Client> list)
+        static void s_ClientsJoined(ICollection<ClientConnexion> list)
         {
-            foreach (Server.Client client in list)
+            foreach (ClientConnexion client in list)
             {
                 int clientId = client.UniqueIdentity;
                 Console.WriteLine(DateTime.Now + " Joined: " + clientId + " (" + client + ")");
 
-                foreach (Server.Client c in s.Clients)
+                foreach (ClientConnexion c in s.Clients)
                 {
                         c.Send(clientId, SessionAction.Joined, (byte)0, MessageProtocol.Tcp);
                 }
             }
         }
 
-        static void s_ClientsRemoved(ICollection<Server.Client> list)
+        static void s_ClientsRemoved(ICollection<ClientConnexion> list)
         {
-            foreach (Server.Client client in list)
+            foreach (ClientConnexion client in list)
             {
                 //kill client
                 int clientId = client.UniqueIdentity;
@@ -81,18 +79,37 @@ namespace ClientRepeater
                 }
 
                 //inform others client is gone
-                foreach (Server.Client c in s.Clients)
+                foreach (ClientConnexion c in s.Clients)
                 {
                     c.Send(clientId, SessionAction.Left, (byte)0, MessageProtocol.Tcp);
                 }
             }
         }
 
-        static void s_MessageReceived(Message m, Server.Client client, 
+        static void s_MessageReceived(Message m, ClientConnexion client, 
             MessageProtocol protocol)
         {
             //repeat whatever we receive to everyone else
             s.Send(m, s.Clients, protocol);
+        }
+    }
+
+    internal class RepeaterConfiguration : DefaultServerConfiguration
+    {
+        public RepeaterConfiguration(int port)
+            : base(port)
+        {
+            this.PingInterval = TimeSpan.FromMilliseconds(1);
+        }
+
+        override public Server BuildServer()
+        {
+            return new Server(this);
+        }
+
+        override public IMarshaller CreateMarshaller()
+        {
+            return new LightweightDotNetSerializingMarshaller();
         }
     }
 }

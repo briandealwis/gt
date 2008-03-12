@@ -13,8 +13,8 @@ namespace ClientChat
     public partial class Form1 : Form
     {
         private Client c;
-        private StringStream s;
-        private SessionStream session;
+        private IStringStream s;
+        private ISessionStream session;
 
         public Form1()
         {

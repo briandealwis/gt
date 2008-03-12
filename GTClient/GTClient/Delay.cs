@@ -5,12 +5,12 @@ using System.Text;
 namespace GT.Net
 {
     /// <summary>
-    /// Injects a certain amount of latency into the sending or receiving from this connection.
+    /// Injects a certain amount of latency into the sending or receiving from this connexion.
     /// </summary>
     public class DelayedBinaryStream
     {
         /// <summary>
-        /// The milliseconds of delay injected into the connection
+        /// The milliseconds of delay injected into the connexion
         /// </summary>
         public int InjectedDelay
         {
@@ -19,7 +19,7 @@ namespace GT.Net
         }
 
         /// <summary>
-        /// The messages which have been received by this connection, after the injected delay has passed
+        /// The messages which have been received by this connexion, after the injected delay has passed
         /// </summary>
         public List<byte[]> Messages;
 
@@ -31,7 +31,7 @@ namespace GT.Net
 
         /// <summary>Delays the sending and receiving of messages by 'injectedDelay' milliseconds.
         /// </summary>
-        /// <param name="bs">The binary connection to use to send and receive on.</param>
+        /// <param name="bs">The binary connexion to use to send and receive on.</param>
         /// <param name="injectedDelay">time in milliseconds to inject</param>
         public DelayedBinaryStream(IBinaryStream bs, int injectedDelay)
         {
@@ -74,7 +74,7 @@ namespace GT.Net
         }
 
         /// <summary>Checks to see if anything queued should be sent.
-        /// The sending resolution of this connection is as good as 
+        /// The sending resolution of this connexion is as good as 
         /// the frequency this method and the Send method are called.
         /// </summary>
         public void SendCheck()

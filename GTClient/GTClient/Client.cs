@@ -32,14 +32,10 @@ namespace GT.Net
     /// <summary>Handles a Error event, when an error occurs on the network.</summary>
     /// <param name="e">The exception.  May be null.</param>
     /// <param name="se">The networking error type.</param>
-    /// <param name="ss">The server stream in which it occurred.  May be null if exception not in ServerStream.</param>
+    /// <param name="ss">The server stream in which it occurred.  May be null if exception not in ServerConnexion.</param>
     /// <param name="explanation">A string describing the problem.</param>
     /// <remarks>deprecated: use ErrorEvents instead</remarks>
-    public delegate void ErrorEventHandler(Exception e, SocketError se, ServerStream ss, string explanation);
-    // FIXME: is this really the right way to notify of exceptions?
-    // And what if they are non-socket-errors?
-    public delegate void ErrorEvent(/*Severity sev, */ 
-        IServerSurrogate ss, string explanation, Exception e);
+    public delegate void ErrorEventHandler(Exception e, SocketError se, ServerConnexion ss, string explanation);
 
     /// <summary>Occurs whenever this client is updated.</summary>
     public delegate void UpdateEventDelegate(HPTimer hpTimer);
@@ -54,7 +50,7 @@ namespace GT.Net
         float Delay { get; }
 
         /// <summary> Get the unique identity of the client for this server.  This will be
-        /// different for each server, and thus could be different for each connection. </summary>
+        /// different for each server, and thus could be different for each connexion. </summary>
         int UniqueIdentity { get; }
 
         /// <summary>Occurs whenever this client is updated.</summary>
@@ -87,23 +83,23 @@ namespace GT.Net
         /// <summary>Received messages from the server.</summary>
         List<Message> Messages { get; }
 
-        /// <summary>Flush all aggregated messages on this connection</summary>
+        /// <summary>Flush all aggregated messages on this connexion</summary>
         /// <param name="protocol"></param>
         void FlushAllOutgoingMessagesOnChannel(MessageProtocol protocol);
 
         // FIXME: How can the new message event be brought in?
-        ///// <summary> Occurs when this connection receives a message. </summary>
+        ///// <summary> Occurs when this connexion receives a message. </summary>
         //// event SessionNewMessage SessionNewMessageEvent;
     }
 
-    /// <summary>A connection of session events.</summary>
+    /// <summary>A connexion of session events.</summary>
     public interface ISessionStream : IGenericStream<SessionAction,SessionMessage>
     {
-        /// <summary> Occurs when this connection receives a message. </summary>
+        /// <summary> Occurs when this connexion receives a message. </summary>
         event SessionNewMessage SessionNewMessageEvent;
     }
 
-    /// <summary>A connection of strings.</summary>
+    /// <summary>A connexion of strings.</summary>
     public interface IStringStream : IGenericStream<string,string>
     {
         /// <summary>Take a String off the queue of received messages.</summary>
@@ -111,11 +107,11 @@ namespace GT.Net
         /// <returns>The message.</returns>
         string DequeueMessage(int index);
 
-        /// <summary> Occurs when this connection receives a message. </summary>
+        /// <summary> Occurs when this connexion receives a message. </summary>
         event StringNewMessage StringNewMessageEvent;
     }
 
-    /// <summary>A connection of objects.</summary>
+    /// <summary>A connexion of objects.</summary>
     public interface IObjectStream : IGenericStream<object,object>
     {
         /// <summary>Dequeues an object from the message list.</summary>
@@ -123,11 +119,11 @@ namespace GT.Net
         /// <returns>The object that was there.</returns>
         object DequeueMessage(int index);
 
-        /// <summary> Occurs when this connection receives a message. </summary>
+        /// <summary> Occurs when this connexion receives a message. </summary>
         event ObjectNewMessage ObjectNewMessageEvent;
     }
 
-    /// <summary>A connection of byte arrays.</summary>
+    /// <summary>A connexion of byte arrays.</summary>
     public interface IBinaryStream : IGenericStream<byte[],byte[]>
     {
         /// <summary>Takes a message from the message list</summary>
@@ -135,7 +131,7 @@ namespace GT.Net
         /// <returns>The byte array of the message</returns>
         byte[] DequeueMessage(int index);
 
-        /// <summary> Occurs when this connection receives a message. </summary>
+        /// <summary> Occurs when this connexion receives a message. </summary>
         event BinaryNewMessage BinaryNewMessageEvent;
     }
 
@@ -147,7 +143,7 @@ namespace GT.Net
     public abstract class AbstractBaseStream : IStream
     {
         protected byte id;
-        protected internal ServerStream connection;
+        protected internal ServerConnexion connexion;
 
         /// <summary> Occurs when client is updated. </summary>
         public event UpdateEventDelegate UpdateEvent;
@@ -156,24 +152,24 @@ namespace GT.Net
         public byte ID { get { return id; } }
 
         /// <summary>Average latency between the client and this particluar server.</summary>
-        public float Delay { get { return connection.Delay; } }
+        public float Delay { get { return connexion.Delay; } }
 
         /// <summary> Get the unique identity of the client for this server.  This will be
-        /// different for each server, and thus could be different for each connection. </summary>
-        public int UniqueIdentity { get { return connection.UniqueIdentity; } }
+        /// different for each server, and thus could be different for each connexion. </summary>
+        public int UniqueIdentity { get { return connexion.UniqueIdentity; } }
 
-        /// <summary> Get the connection's destination address </summary>
-        public string Address { get { return connection.Address; } }
+        /// <summary> Get the connexion's destination address </summary>
+        public string Address { get { return connexion.Address; } }
 
-        /// <summary>Get the connection's destination port</summary>
+        /// <summary>Get the connexion's destination port</summary>
         public string Port
         {
-            get { return connection.Port; }
+            get { return connexion.Port; }
         }
 
-        internal AbstractBaseStream(ServerStream stream, byte id)
+        internal AbstractBaseStream(ServerConnexion stream, byte id)
         {
-            this.connection = stream;
+            this.connexion = stream;
             this.id = id;
         }
 
@@ -191,14 +187,14 @@ namespace GT.Net
         /// <summary>Received messages from the server.</summary>
         public List<Message> Messages { get { return messages; } }
 
-        /// <summary> This SessionStream uses this ServerStream. </summary>
+        /// <summary> This SessionStream uses this ServerConnexion. </summary>
         /// <remarks>deprecated</remarks>
-        public ServerStream Connection { get { return connection; } }
+        public ServerConnexion Connection { get { return connexion; } }
 
         /// <summary>Create a stream object.</summary>
         /// <param name="stream">The SuperStream to use to actually send the messages.</param>
         /// <param name="id">The message channel.</param>
-        internal AbstractStream(ServerStream stream, byte id) : base(stream, id)
+        internal AbstractStream(ServerConnexion stream, byte id) : base(stream, id)
         {
             messages = new List<Message>();
         }
@@ -217,15 +213,15 @@ namespace GT.Net
 
         public abstract M DequeueMessage(int index);
 
-        /// <summary>Flush all aggregated messages on this connection</summary>
+        /// <summary>Flush all aggregated messages on this connexion</summary>
         /// <param name="protocol"></param>
         public virtual void FlushAllOutgoingMessagesOnChannel(MessageProtocol protocol)
         {
-            connection.FlushOutgoingMessages(this.id, protocol);
+            connexion.FlushOutgoingMessages(this.id, protocol);
         }
     }
 
-    /// <summary>A connection of session events.</summary>
+    /// <summary>A connexion of session events.</summary>
     public class SessionStream : AbstractStream<SessionAction,SessionMessage>, ISessionStream
     {
         /// <summary> Occurs when this session receives a message. </summary>
@@ -234,7 +230,7 @@ namespace GT.Net
         /// <summary>Create a SessionStream object.</summary>
         /// <param name="stream">The SuperStream to use to actually send the messages.</param>
         /// <param name="id">The message channel id.</param>
-        internal SessionStream(ServerStream stream, byte id) : base(stream, id)
+        internal SessionStream(ServerConnexion stream, byte id) : base(stream, id)
         {
         }
 
@@ -245,7 +241,7 @@ namespace GT.Net
         /// <param name="ordering">In what order should this message be sent in relation to other aggregated messages.</param>
         override public void Send(SessionAction action, MessageProtocol reli, MessageAggregation aggr, MessageOrder ordering)
         {
-            this.connection.Send(new SessionMessage(id, UniqueIdentity, action), reli, aggr, ordering);
+            connexion.Send(new SessionMessage(id, UniqueIdentity, action), reli, aggr, ordering);
         }
 
         /// <summary>Take a SessionMessage off the queue of received messages.</summary>
@@ -288,16 +284,16 @@ namespace GT.Net
 
     }
 
-    /// <summary>A connection of strings.</summary>
+    /// <summary>A connexion of strings.</summary>
     public class StringStream : AbstractStream<string,string>, IStringStream
     {
-        /// <summary> Occurs when this connection receives a message. </summary>
+        /// <summary> Occurs when this connexion receives a message. </summary>
         public event StringNewMessage StringNewMessageEvent;
 
         /// <summary>Create a StringStream object.</summary>
         /// <param name="stream">The SuperStream to use to actually send the messages.</param>
         /// <param name="id">The message channel id.</param>
-        internal StringStream(ServerStream stream, byte id) : base(stream, id)
+        internal StringStream(ServerConnexion stream, byte id) : base(stream, id)
         {
         }
 
@@ -309,7 +305,7 @@ namespace GT.Net
         /// <param name="ordering">In what order should this message be sent in relation to other aggregated messages.</param>
         override public void Send(string b, MessageProtocol reli, MessageAggregation aggr, MessageOrder ordering)
         {
-            this.connection.Send(new StringMessage(id, b), reli, aggr, ordering);
+            connexion.Send(new StringMessage(id, b), reli, aggr, ordering);
         }
 
         /// <summary>Take a String off the queue of received messages.</summary>
@@ -320,8 +316,7 @@ namespace GT.Net
             try
             {
                 StringMessage m;
-                if (index >= messages.Count)
-                    return null;
+                if (index >= messages.Count) { return null; }
 
                 lock (messages)
                 {
@@ -350,18 +345,18 @@ namespace GT.Net
         }
     }
 
-    /// <summary>A connection of Objects.</summary>
+    /// <summary>A connexion of Objects.</summary>
     public class ObjectStream : AbstractStream<object,object>, IObjectStream
     {
         private static BinaryFormatter formatter = new BinaryFormatter();
 
-        /// <summary> Occurs when this connection receives a message. </summary>
+        /// <summary> Occurs when this connexion receives a message. </summary>
         public event ObjectNewMessage ObjectNewMessageEvent;
 
         /// <summary>Create an ObjectStream object.</summary>
         /// <param name="stream">The SuperStream to use to actually send the objects.</param>
         /// <param name="id">The message channel claimed.</param>
-        internal ObjectStream(ServerStream stream, byte id) : base(stream,id)
+        internal ObjectStream(ServerConnexion stream, byte id) : base(stream,id)
         {
         }
 
@@ -372,7 +367,7 @@ namespace GT.Net
         /// <param name="ordering">In what order should this message be sent in relation to other aggregated messages.</param>
         override public void Send(object o, MessageProtocol reli, MessageAggregation aggr, MessageOrder ordering)
         {
-            this.connection.Send(new ObjectMessage(id, o), reli, aggr, ordering);
+            connexion.Send(new ObjectMessage(id, o), reli, aggr, ordering);
         }
 
         /// <summary>Dequeues an object from the message list.</summary>
@@ -413,23 +408,23 @@ namespace GT.Net
         }
     }
 
-    /// <summary>A connection of byte arrays.</summary>
+    /// <summary>A connexion of byte arrays.</summary>
     public class BinaryStream : AbstractStream<byte[],byte[]>, IBinaryStream
     {
-        /// <summary> Occurs when this connection receives a message. </summary>
+        /// <summary> Occurs when this connexion receives a message. </summary>
         public event BinaryNewMessage BinaryNewMessageEvent;
 
         /// <summary>Creates a BinaryStream object.</summary>
         /// <param name="stream">The SuperStream object on which to actually send the objects.</param>
         /// <param name="id">The message channel to claim.</param>
-        internal BinaryStream(ServerStream stream, byte id) : base(stream, id)
+        internal BinaryStream(ServerConnexion stream, byte id) : base(stream, id)
         {
         }
 
         override public void Send(byte[] b, MessageProtocol reli, MessageAggregation aggr, 
             MessageOrder ordering)
         {
-            this.connection.Send(new BinaryMessage(id, b), reli, aggr, ordering);
+            connexion.Send(new BinaryMessage(id, b), reli, aggr, ordering);
         }
 
         /// <summary>Takes a message from the message list.</summary>
@@ -473,7 +468,7 @@ namespace GT.Net
     #endregion
 
     /// <summary>Controls the sending of messages to a particular server.</summary>
-    public class ServerStream : IServerSurrogate
+    public class ServerConnexion : IStartable
     {
         private Client owner;
         private bool started;
@@ -483,7 +478,7 @@ namespace GT.Net
         internal double nextPingTime;
 
         /// <summary>The unique identity of the client for this server.
-        /// This will be different for each server, and thus could be different for each connection.</summary>
+        /// This will be different for each server, and thus could be different for each connexion.</summary>
         public int UniqueIdentity;
 
         /// <summary>Incoming messages from the server. As messages are read in from the
@@ -494,16 +489,16 @@ namespace GT.Net
 
         /// <summary>Occurs when there is an error.</summary>
         public event ErrorEventHandler ErrorEvent;
-        internal ErrorEventHandler ErrorEventDelegate;
 
         private Dictionary<MessageProtocol, ITransport> transports = 
             new Dictionary<MessageProtocol,ITransport>();
         private Dictionary<MessageProtocol, List<Message>> messagePools;
 
-        /// <summary>Create a new SuperStream to handle a connection to a server. (blocks)</summary>
+        /// <summary>Create a new SuperStream to handle a connexion to a server.</summary>
+        /// <param name="owner">The owning client.</param>
         /// <param name="address">Who to try to connect to.</param>
         /// <param name="port">Which port to connect to.</param>
-        internal ServerStream(Client owner, string address, string port)
+        internal ServerConnexion(Client owner, string address, string port)
         {
             started = false;
             this.owner = owner;
@@ -559,11 +554,16 @@ namespace GT.Net
         public void Stop()
         {
             started = false;
-            foreach (ITransport t in transports.Values)
+            if (transports != null)
             {
-                t.Dispose();
+                foreach (ITransport t in transports.Values) { t.Dispose(); }
             }
             transports = null;
+        }
+
+        public void Dispose()
+        {
+            Stop();
         }
 
         public void AddTransport(ITransport t)
@@ -814,7 +814,7 @@ namespace GT.Net
                 break;
 
             default:
-                Debug.WriteLine("ServerStream.HandleSystemMessage(): Unknown message type: " +
+                Debug.WriteLine("connexion.HandleSystemMessage(): Unknown message type: " +
                     (SystemMessageType)message.Id);
                 break;
             }
@@ -846,9 +846,72 @@ namespace GT.Net
         }
     }
 
+    public abstract class ClientConfiguration
+    {
+        abstract public IMarshaller CreateMarshaller();
+        abstract public ICollection<IConnector> CreateConnectors();
+
+        /// <summary>
+        /// The time between pings to servers.
+        /// </summary>
+        abstract public TimeSpan PingInterval { get; set; }
+
+        /// <summary>
+        /// The time between client ticks.
+        /// </summary>
+        abstract public TimeSpan TickInterval { get; set; }
+
+        abstract public Client BuildClient();
+
+        virtual public ServerConnexion CreateServerConnexion(Client owner,
+            string address, string port)
+        {
+            return new ServerConnexion(owner, address, port);
+        }
+    }
+
+    public class DefaultClientConfiguration : ClientConfiguration
+    {
+        protected TimeSpan pingInterval = TimeSpan.FromMilliseconds(10000);
+        protected TimeSpan tickInterval = TimeSpan.FromMilliseconds(10);
+        protected int port = 9999;
+
+        public override IMarshaller CreateMarshaller()
+        {
+            return new DotNetSerializingMarshaller();
+        }
+
+        public override ICollection<IConnector> CreateConnectors()
+        {
+            ICollection<IConnector> connectors = new List<IConnector>();
+            connectors.Add(new TcpConnector());
+            connectors.Add(new UdpConnector());
+            return connectors;
+        }
+
+        override public TimeSpan PingInterval
+        {
+            get { return pingInterval; }
+            set { pingInterval = value; }
+        }
+
+        override public TimeSpan TickInterval
+        {
+            get { return tickInterval; }
+            set { tickInterval = value; }
+        }
+
+        public override Client BuildClient()
+        {
+            return new Client(this);
+        }
+    }
+
     /// <summary>Represents a client that can connect to multiple servers.</summary>
     public class Client : IStartable
     {
+        private ClientConfiguration configuration;
+
         private Guid guid = Guid.NewGuid();
         private Dictionary<byte, ObjectStream> objectStreams;
         private Dictionary<byte, BinaryStream> binaryStreams;
@@ -857,27 +920,27 @@ namespace GT.Net
         private Dictionary<byte, AbstractStreamedTuple> oneTupleStreams;
         private Dictionary<byte, AbstractStreamedTuple> twoTupleStreams;
         private Dictionary<byte, AbstractStreamedTuple> threeTupleStreams;
-        private List<ServerStream> superStreams;
-        private List<IConnector> connectors = new List<IConnector>();
+
+        private IList<ServerConnexion> connexions;
+        private ICollection<IConnector> connectors;
+        private IMarshaller marshaller;
         private HPTimer timer;
         private bool started = false;
-
-        private IMarshaller marshaller = new DotNetSerializingMarshaller();
 
         /// <summary>Occurs when there are errors on the network.</summary>
         public event ErrorEventHandler ErrorEvent;
 
-        /// <summary>How often to ping the servers.  These are keep-alives.</summary>
-        public double PingInterval = 10000;
-
-        /// <summary>How often to check the network for new Bytes.
-        /// Only applies if StartListeningOnSeperateThread() or StartListening() methods 
-        /// are used.  Can be changed at runtime.  Unit is milliseconds.</summary>
-        public double ListeningInterval = 0;
-
-        /// <summary>Creates a Client object.</summary>
+        /// <summary>Creates a Client object.  
+        /// <strong>deprecated:</strong> The client is started</summary>
         public Client()
+            : this(new DefaultClientConfiguration())
         {
+            Start();    // this behaviour is deprecated
+        }
+
+        public Client(ClientConfiguration cc)
+        {
+            configuration = cc;
             objectStreams = new Dictionary<byte, ObjectStream>();
             binaryStreams = new Dictionary<byte, BinaryStream>();
             stringStreams = new Dictionary<byte, StringStream>();
@@ -885,7 +948,6 @@ namespace GT.Net
             oneTupleStreams = new Dictionary<byte, AbstractStreamedTuple>();
             twoTupleStreams = new Dictionary<byte, AbstractStreamedTuple>();
             threeTupleStreams = new Dictionary<byte, AbstractStreamedTuple>();
-            superStreams = new List<ServerStream>();
             timer = new HPTimer();
         }
 
@@ -916,14 +978,7 @@ namespace GT.Net
 
         public ICollection<IConnector> Connectors
         {
-            get {
-                if (connectors.Count == 0)
-                {
-                    connectors.Add(new TcpConnector());
-                    connectors.Add(new UdpConnector());
-                }
-                return connectors; 
-            }
+            get { return connectors;  }
         }
 
         /// <summary>
@@ -932,6 +987,86 @@ namespace GT.Net
         public Guid Guid {
             get { return guid; }
         }
+
+        public void Start()
+        {
+            lock (this)
+            {
+                if(Active) { return; }
+                marshaller = configuration.CreateMarshaller();
+                connexions = new List<ServerConnexion>();
+                timer.Start();
+                timer.Update();
+                connectors = configuration.CreateConnectors();
+                foreach (IConnector conn in connectors)
+                {
+                    conn.Start();
+                }
+                started = true;
+            }
+        }
+
+        public void Stop()
+        {
+            lock (this)
+            {
+                if (!Active) { return; }
+                started = false;
+                foreach (IConnector conn in connectors)
+                {
+                    conn.Stop();
+                }
+                foreach(ServerConnexion s in connexions)
+                {
+                    s.Stop();
+                }
+                // timer.Stop();
+            }
+        }
+
+        public void Dispose()
+        {
+            lock (this)
+            {
+                Stop();
+                if (connexions != null)
+                {
+                    foreach(ServerConnexion sc in connexions)
+                    {
+                        sc.Dispose();
+                    }
+                }
+                connexions = null;
+                timer = null;
+            }
+        }
+
+        public bool Active
+        {
+            get { return started; }
+        }
+
+        /// <summary>
+        /// Sleep for the tick-time from the configuration
+        /// </summary>
+        public void Sleep()
+        {
+            Sleep(configuration.TickInterval.Milliseconds);
+        }
+
+        /// <summary>
+        /// Sleep for the specified amount of time, overruling the tick-time from the
+        /// configuration
+        /// </summary>
+        /// <param name="milliseconds"></param>
+        public void Sleep(int milliseconds)
+        {
+            // FIXME: this should do something smarter
+            // Socket.Select(listenList, null, null, 1000);
+            Thread.Sleep(milliseconds);
+        }
+
+        #region Streams
 
         /// <summary>Get a streaming tuple that is automatically sent to the server every so often</summary>
         /// <typeparam name="A">The Type of the first value of the tuple</typeparam>
@@ -956,11 +1091,11 @@ namespace GT.Net
                 }
 
                 tuple = (StreamedTuple<A, B, C>)threeTupleStreams[id]; 
-                tuple.connection = GetSuperStream(address, port);
+                tuple.connexion = GetConnexion(address, port);
                 return (StreamedTuple<A, B, C>)threeTupleStreams[id];
             }
 
-            StreamedTuple<A, B, C> bs = (StreamedTuple<A, B, C>)new StreamedTuple<A, B, C>(GetSuperStream(address, port), id, milliseconds);
+            StreamedTuple<A, B, C> bs = (StreamedTuple<A, B, C>)new StreamedTuple<A, B, C>(GetConnexion(address, port), id, milliseconds);
             threeTupleStreams.Add(id, (AbstractStreamedTuple)bs);
             return bs;
         }
@@ -969,11 +1104,11 @@ namespace GT.Net
         /// <typeparam name="A">The Type of the first value of the tuple</typeparam>
         /// <typeparam name="B">The Type of the second value of the tuple</typeparam>
         /// <typeparam name="C">The Type of the third value of the tuple</typeparam>
-        /// <param name="serverStream">The stream to use to send the tuple</param>
+        /// <param name="connexion">The stream to use to send the tuple</param>
         /// <param name="id">The channel id to use for this three-tuple (unique to three-tuples)</param>
         /// <param name="milliseconds">The interval in milliseconds</param>
         /// <returns>The streaming tuple</returns>
-        public StreamedTuple<A, B, C> GetStreamedTuple<A, B, C>(ServerStream serverStream, byte id, int milliseconds)
+        public StreamedTuple<A, B, C> GetStreamedTuple<A, B, C>(ServerConnexion connexion, byte id, int milliseconds)
             where A : IConvertible
             where B : IConvertible
             where C : IConvertible
@@ -982,16 +1117,16 @@ namespace GT.Net
             if (threeTupleStreams.ContainsKey(id))
             {
                 tuple = (StreamedTuple<A, B, C>) threeTupleStreams[id];
-                if (tuple.connection == serverStream)
+                if (tuple.connexion == connexion)
                 {
                     return tuple;
                 }
 
-                tuple.connection = serverStream;
+                tuple.connexion = connexion;
                 return tuple;
             }
 
-            tuple = new StreamedTuple<A, B, C>(serverStream, id, milliseconds);
+            tuple = new StreamedTuple<A, B, C>(connexion, id, milliseconds);
             threeTupleStreams.Add(id, (AbstractStreamedTuple)tuple);
             return tuple;
         }
@@ -1017,11 +1152,11 @@ namespace GT.Net
                     return tuple;
                 }
 
-                tuple.connection = GetSuperStream(address, port);
+                tuple.connexion = GetConnexion(address, port);
                 return tuple;
             }
 
-            tuple = new StreamedTuple<A, B>(GetSuperStream(address, port), id, milliseconds);
+            tuple = new StreamedTuple<A, B>(GetConnexion(address, port), id, milliseconds);
             twoTupleStreams.Add(id, (AbstractStreamedTuple)tuple);
             return tuple;
         }
@@ -1029,11 +1164,11 @@ namespace GT.Net
         /// <summary>Get a streaming tuple that is automatically sent to the server every so often</summary>
         /// <typeparam name="A">The Type of the first value of the tuple</typeparam>
         /// <typeparam name="B">The Type of the second value of the tuple</typeparam>
-        /// <param name="serverStream">The stream to use to send the tuple</param>
+        /// <param name="connexion">The stream to use to send the tuple</param>
         /// <param name="id">The channel id to use for this three-tuple (unique to three-tuples)</param>
         /// <param name="milliseconds">The interval in milliseconds</param>
         /// <returns>The streaming tuple</returns>
-        public StreamedTuple<A, B> GetStreamedTuple<A, B>(ServerStream serverStream, byte id, int milliseconds)
+        public StreamedTuple<A, B> GetStreamedTuple<A, B>(ServerConnexion connexion, byte id, int milliseconds)
             where A : IConvertible
             where B : IConvertible
         {
@@ -1041,16 +1176,16 @@ namespace GT.Net
             if (twoTupleStreams.ContainsKey(id))
             {
                 tuple = (StreamedTuple<A, B>)twoTupleStreams[id];
-                if (tuple.connection == serverStream)
+                if (tuple.connexion == connexion)
                 {
                     return tuple;
                 }
 
-                tuple.connection = serverStream;
+                tuple.connexion = connexion;
                 return tuple;
             }
 
-            tuple = new StreamedTuple<A, B>(serverStream, id, milliseconds);
+            tuple = new StreamedTuple<A, B>(connexion, id, milliseconds);
             threeTupleStreams.Add(id, (AbstractStreamedTuple)tuple);
             return tuple;
         }
@@ -1074,22 +1209,22 @@ namespace GT.Net
                     return tuple;
                 }
 
-                tuple.connection = GetSuperStream(address, port);
+                tuple.connexion = GetConnexion(address, port);
                 return tuple;
             }
 
-            tuple = new StreamedTuple<A>(GetSuperStream(address, port), id, milliseconds);
+            tuple = new StreamedTuple<A>(GetConnexion(address, port), id, milliseconds);
             oneTupleStreams.Add(id, (AbstractStreamedTuple)tuple);
             return tuple;
         }
 
 
-        /// <summary>Gets a connection for managing the session to this server.</summary>
-        /// <param name="address">The address to connect to.  Changes old connection if id already claimed.</param>
-        /// <param name="port">The port to connect to.  Changes old connection if id already claimed.</param>
+        /// <summary>Gets a connexion for managing the session to this server.</summary>
+        /// <param name="address">The address to connect to.  Changes old connexion if id already claimed.</param>
+        /// <param name="port">The port to connect to.  Changes old connexion if id already claimed.</param>
         /// <param name="id">The channel id to claim or retrieve.</param>
         /// <returns>The created or retrived SessionStream</returns>
-        public SessionStream GetSessionStream(string address, string port, byte id)
+        public ISessionStream GetSessionStream(string address, string port, byte id)
         {
             if (sessionStreams.ContainsKey(id))
             {
@@ -1098,33 +1233,33 @@ namespace GT.Net
                     return sessionStreams[id];
                 }
 
-                sessionStreams[id].connection = GetSuperStream(address, port);
+                sessionStreams[id].connexion = GetConnexion(address, port);
                 return sessionStreams[id];
             }
 
-            SessionStream bs = new SessionStream(GetSuperStream(address, port), id);
+            SessionStream bs = new SessionStream(GetConnexion(address, port), id);
             sessionStreams.Add(id, bs);
             return bs;
         }
 
-        /// <summary>Gets a connection for managing the session to this server.</summary>
-        /// <param name="serverStream">The serverStream to use for the connection.  Changes the server of id if the id is already claimed.</param>
+        /// <summary>Gets a connexion for managing the session to this server.</summary>
+        /// <param name="connexion">The connexion to use for the connexion.  Changes the server of id if the id is already claimed.</param>
         /// <param name="id">The channel id to claim or retrieve.</param>
         /// <returns>The created or retrived SessionStream</returns>
-        public SessionStream GetSessionStream(ServerStream serverStream, byte id)
+        public ISessionStream GetSessionStream(ServerConnexion connexion, byte id)
         {
             if (sessionStreams.ContainsKey(id))
             {
-                if (sessionStreams[id].connection == serverStream)
+                if (sessionStreams[id].connexion == connexion)
                 {
                     return sessionStreams[id];
                 }
 
-                sessionStreams[id].connection = serverStream;
+                sessionStreams[id].connexion = connexion;
                 return sessionStreams[id];
             }
 
-            SessionStream bs = new SessionStream(serverStream, id);
+            SessionStream bs = new SessionStream(connexion, id);
             sessionStreams.Add(id, bs);
             return bs;
         }
@@ -1132,44 +1267,17 @@ namespace GT.Net
         /// <summary>Gets an already created SessionStream</summary>
         /// <param name="id">The channel id of the SessionStream unique to SessionStreams.</param>
         /// <returns>The found SessionStream</returns>
-        public SessionStream GetSessionStream(byte id)
+        public ISessionStream GetSessionStream(byte id)
         {
             return sessionStreams[id];
         }
 
-        /// <summary>Gets a Superstream, and if not already created, makes a new one for that destination.</summary>
-        /// <param name="address">The address to connect to.</param>
-        /// <param name="port">The port to connect to.</param>
-        /// <returns>The created or retrieved connection itself.</returns>
-        public ServerStream GetSuperStream(string address, string port)
-        {
-            foreach (ServerStream s in superStreams)
-            {
-                if (s.Address.Equals(address) && s.Port.Equals(port))
-                {
-                    return s;
-                }
-            }
-            ServerStream mySS = new ServerStream(this, address, port);
-            mySS.ErrorEventDelegate = new ErrorEventHandler(mySS_ErrorEvent);
-            mySS.ErrorEvent += mySS.ErrorEventDelegate;
-            mySS.Start();
-            superStreams.Add(mySS);
-            return mySS;
-        }
-
-        private void mySS_ErrorEvent(Exception e, SocketError se, ServerStream ss, string explanation)
-        {
-            if (ErrorEvent != null)
-                ErrorEvent(e, se, ss, explanation);
-        }
-
-        /// <summary>Gets a connection for transmitting strings.</summary>
-        /// <param name="address">The address to connect to.  Changes old connection if id already claimed.</param>
-        /// <param name="port">The port to connect to.  Changes old connection if id already claimed.</param>
+        /// <summary>Gets a connexion for transmitting strings.</summary>
+        /// <param name="address">The address to connect to.  Changes old connexion if id already claimed.</param>
+        /// <param name="port">The port to connect to.  Changes old connexion if id already claimed.</param>
         /// <param name="id">The channel id to claim.</param>
         /// <returns>The created or retrived StringStream</returns>
-        public StringStream GetStringStream(string address, string port, byte id)
+        public IStringStream GetStringStream(string address, string port, byte id)
         {
             if (stringStreams.ContainsKey(id))
             {
@@ -1178,33 +1286,33 @@ namespace GT.Net
                     return stringStreams[id];
                 }
 
-                stringStreams[id].connection = GetSuperStream(address, port);
+                stringStreams[id].connexion = GetConnexion(address, port);
                 return stringStreams[id];
             }
 
-            StringStream bs = new StringStream(GetSuperStream(address, port), id);
+            StringStream bs = new StringStream(GetConnexion(address, port), id);
             stringStreams.Add(id, bs);
             return bs;
         }
 
-        /// <summary>Gets a connection for transmitting strings.</summary>
-        /// <param name="serverStream">The serverStream to use for the connection.  Changes the server of id if the id is already claimed.</param>
+        /// <summary>Gets a connexion for transmitting strings.</summary>
+        /// <param name="connexion">The connexion to use for the connexion.  Changes the server of id if the id is already claimed.</param>
         /// <param name="id">The channel id to claim.</param>
         /// <returns>The created or retrived StringStream</returns>
-        public StringStream GetStringStream(ServerStream serverStream, byte id)
+        public IStringStream GetStringStream(ServerConnexion connexion, byte id)
         {
             if (stringStreams.ContainsKey(id))
             {
-                if (stringStreams[id].connection == serverStream)
+                if (stringStreams[id].connexion == connexion)
                 {
                     return stringStreams[id];
                 }
 
-                stringStreams[id].connection = serverStream;
+                stringStreams[id].connexion = connexion;
                 return stringStreams[id];
             }
 
-            StringStream bs = new StringStream(serverStream, id);
+            StringStream bs = new StringStream(connexion, id);
             stringStreams.Add(id, bs);
             return bs;
         }
@@ -1212,17 +1320,17 @@ namespace GT.Net
         /// <summary>Gets an already created StringStream</summary>
         /// <param name="id">The channel id of the StringStream unique to StringStreams.</param>
         /// <returns>The found StringStream</returns>
-        public StringStream GetStringStream(byte id)
+        public IStringStream GetStringStream(byte id)
         {
             return stringStreams[id];
         }
 
-        /// <summary>Gets a connection for transmitting objects.</summary>
-        /// <param name="address">The address to connect to.  Changes old connection if id already claimed.</param>
-        /// <param name="port">The port to connect to.  Changes old connection if id already claimed.</param>
+        /// <summary>Gets a connexion for transmitting objects.</summary>
+        /// <param name="address">The address to connect to.  Changes old connexion if id already claimed.</param>
+        /// <param name="port">The port to connect to.  Changes old connexion if id already claimed.</param>
         /// <param name="id">The channel id to claim for this ObjectStream, unique for all ObjectStreams.</param>
         /// <returns>The created or retrived ObjectStream</returns>
-        public ObjectStream GetObjectStream(string address, string port, byte id)
+        public IObjectStream GetObjectStream(string address, string port, byte id)
         {
             if (objectStreams.ContainsKey(id))
             {
@@ -1230,30 +1338,30 @@ namespace GT.Net
                 {
                     return objectStreams[id];
                 }
-                objectStreams[id].connection = GetSuperStream(address, port);
+                objectStreams[id].connexion = GetConnexion(address, port);
                 return objectStreams[id];
             }
-            ObjectStream bs = new ObjectStream(GetSuperStream(address, port), id);
+            ObjectStream bs = new ObjectStream(GetConnexion(address, port), id);
             objectStreams.Add(id, bs);
             return bs;
         }
 
-        /// <summary>Gets a connection for transmitting objects.</summary>
-        /// <param name="serverStream">The serverStream to use for the connection.  Changes the server of id if the id is already claimed.</param>
+        /// <summary>Gets a connexion for transmitting objects.</summary>
+        /// <param name="connexion">The connexion to use for the connexion.  Changes the server of id if the id is already claimed.</param>
         /// <param name="id">The channel id to claim for this ObjectStream, unique for all ObjectStreams.</param>
         /// <returns>The created or retrived ObjectStream</returns>
-        public ObjectStream GetObjectStream(ServerStream serverStream, byte id)
+        public IObjectStream GetObjectStream(ServerConnexion connexion, byte id)
         {
             if (objectStreams.ContainsKey(id))
             {
-                if (objectStreams[id].connection == serverStream)
+                if (objectStreams[id].connexion == connexion)
                 {
                     return objectStreams[id];
                 }
-                objectStreams[id].connection = serverStream;
+                objectStreams[id].connexion = connexion;
                 return objectStreams[id];
             }
-            ObjectStream bs = new ObjectStream(serverStream, id);
+            ObjectStream bs = new ObjectStream(connexion, id);
             objectStreams.Add(id, bs);
             return bs;
         }
@@ -1261,17 +1369,17 @@ namespace GT.Net
         /// <summary>Get an already created ObjectStream</summary>
         /// <param name="id">The channel id of the ObjectStream unique, to ObjectStreams.</param>
         /// <returns>The found ObjectStream.</returns>
-        public ObjectStream GetObjectStream(byte id)
+        public IObjectStream GetObjectStream(byte id)
         {
             return objectStreams[id];
         }
 
-        /// <summary>Gets a connection for transmitting byte arrays.</summary>
-        /// <param name="address">The address to connect to.  Changes old connection if id already claimed.</param>
-        /// <param name="port">The port to connect to.  Changes old connection if id already claimed.</param>
+        /// <summary>Gets a connexion for transmitting byte arrays.</summary>
+        /// <param name="address">The address to connect to.  Changes old connexion if id already claimed.</param>
+        /// <param name="port">The port to connect to.  Changes old connexion if id already claimed.</param>
         /// <param name="id">The channel id to claim for this BinaryStream, unique for all BinaryStreams.</param>
         /// <returns>The created or retrived BinaryStream.</returns>
-        public BinaryStream GetBinaryStream(string address, string port, byte id)
+        public IBinaryStream GetBinaryStream(string address, string port, byte id)
         {
             if (binaryStreams.ContainsKey(id))
             {
@@ -1280,30 +1388,30 @@ namespace GT.Net
                 {
                     return binaryStreams[id];
                 }
-                binaryStreams[id].connection = GetSuperStream(address, port);
+                binaryStreams[id].connexion = GetConnexion(address, port);
                 return binaryStreams[id];
             }
-            BinaryStream bs = new BinaryStream(GetSuperStream(address, port), id);
+            BinaryStream bs = new BinaryStream(GetConnexion(address, port), id);
             binaryStreams.Add(id, bs);
             return bs;
         }
 
-        /// <summary>Gets a connection for transmitting byte arrays.</summary>
-        /// <param name="serverStream">The serverStream to use for the connection.  Changes the server of id if the id is already claimed.</param>
+        /// <summary>Gets a connexion for transmitting byte arrays.</summary>
+        /// <param name="connexion">The connexion to use for the connexion.  Changes the server of id if the id is already claimed.</param>
         /// <param name="id">The channel id to claim for this BinaryStream, unique for all BinaryStreams.</param>
         /// <returns>The created or retrived BinaryStream.</returns>
-        public BinaryStream GetBinaryStream(ServerStream serverStream, byte id)
+        public IBinaryStream GetBinaryStream(ServerConnexion connexion, byte id)
         {
             if (binaryStreams.ContainsKey(id))
             {
-                if (binaryStreams[id].connection == serverStream)
+                if (binaryStreams[id].connexion == connexion)
                 {
                     return binaryStreams[id];
                 }
-                binaryStreams[id].connection = serverStream;
+                binaryStreams[id].connexion = connexion;
                 return binaryStreams[id];
             }
-            BinaryStream bs = new BinaryStream(serverStream, id);
+            BinaryStream bs = new BinaryStream(connexion, id);
             binaryStreams.Add(id, bs);
             return bs;
         }
@@ -1311,9 +1419,38 @@ namespace GT.Net
         /// <summary>Get an already created BinaryStream</summary>
         /// <param name="id">The channel id of the BinaryStream, unique to BinaryStreams.</param>
         /// <returns>A BinaryStream</returns>
-        public BinaryStream GetBinaryStream(byte id)
+        public IBinaryStream GetBinaryStream(byte id)
         {
                 return binaryStreams[id];
+        }
+
+
+        #endregion
+
+        /// <summary>Gets a server connexion; if no such connexion exists establish one.</summary>
+        /// <param name="address">The address to connect to.</param>
+        /// <param name="port">The port to connect to.</param>
+        /// <returns>The created or retrieved connexion itself.</returns>
+        protected ServerConnexion GetConnexion(string address, string port)
+        {
+            foreach (ServerConnexion s in connexions)
+            {
+                if (s.Address.Equals(address) && s.Port.Equals(port))
+                {
+                    return s;
+                }
+            }
+            ServerConnexion mySC = configuration.CreateServerConnexion(this, address, port);
+            mySC.ErrorEvent += new ErrorEventHandler(mySS_ErrorEvent);
+            mySC.Start();
+            connexions.Add(mySC);
+            return mySC;
+        }
+
+        private void mySS_ErrorEvent(Exception e, SocketError se, ServerConnexion ss, string explanation)
+        {
+            if (ErrorEvent != null)
+                ErrorEvent(e, se, ss, explanation);
         }
 
         /// <summary>One tick of the network beat.  Thread-safe.</summary>
@@ -1324,13 +1461,13 @@ namespace GT.Net
             {
                 if (!started) { Start(); }
                 timer.Update();
-                foreach (ServerStream s in superStreams)
+                foreach (ServerConnexion s in connexions)
                 {
                     try
                     {
                         if (s.nextPingTime < timer.TimeInMilliseconds)
                         {
-                            s.nextPingTime = timer.TimeInMilliseconds + PingInterval;
+                            s.nextPingTime = timer.TimeInMilliseconds + configuration.PingInterval.Milliseconds;
                             s.Ping();
                         }
 
@@ -1412,6 +1549,8 @@ namespace GT.Net
         /// Abort returned thread at any time to stop listening.</summary>
         public Thread StartListeningOnSeperateThread(int interval)
         {
+            configuration.TickInterval = TimeSpan.FromMilliseconds(interval);
+
             Thread t = new Thread(new ThreadStart(StartListening));
             t.Name = "Listening Thread";
             t.IsBackground = true;
@@ -1444,92 +1583,15 @@ namespace GT.Net
 
                     timer.Update();
                     newTime = timer.TimeInMilliseconds;
-                    int sleepCount = (int)(this.ListeningInterval - (newTime - oldTime));
+                    int sleepCount = (int)(configuration.TickInterval.Milliseconds - (newTime - oldTime));
                     Sleep(sleepCount);
                 }
             }
             catch (ThreadAbortException) //we were told to die.  die gracefully.
             {
-                //kill the connection
+                //kill the connexion
                 Stop();
             } 
-        }
-
-        public void Start()
-        {
-            lock (this)
-            {
-                if (started) { return; }
-                timer.Start();
-                timer.Update();
-                if (connectors.Count == 0)
-                {
-                    connectors.Add(new TcpConnector());
-                    connectors.Add(new UdpConnector());
-                }
-                foreach (IConnector conn in connectors)
-                {
-                    conn.Start();
-                }
-
-                for (int i = 0; i < superStreams.Count; i++)
-                {
-                    superStreams[i].Start();
-                }
-                started = true;
-            }
-        }
-
-        public void Stop()
-        {
-            lock (this)
-            {
-                if (!started) { return; }
-                started = false;
-                foreach (IConnector conn in connectors)
-                {
-                    conn.Start();
-                }
-                foreach(ServerStream s in superStreams)
-                {
-                    s.Stop();
-                }
-                // timer.Stop();
-            }
-        }
-
-        public void Dispose()
-        {
-            lock (this)
-            {
-                Stop();
-                if (superStreams != null)
-                {
-                    //for (int i = 0; i < superStreams.Count; i++)
-                    //{
-                    //    superStreams[i].Dispose();
-                    //}
-                }
-                superStreams = null;
-                timer = null;
-            }
-        }
-
-        public bool Active
-        {
-            get { return started; }
-        }
-
-        public void Sleep(TimeSpan span)
-        {
-            Sleep(span.Milliseconds);
-        }
-
-        public void Sleep(int milliseconds)
-        {
-            // FIXME: this should do something smarter
-            // Socket.Select(listenList, null, null, 1000);
-            Thread.Sleep(milliseconds);
         }
     }
 }

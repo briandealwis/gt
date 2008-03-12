@@ -91,7 +91,7 @@ namespace GT.Net
         {
             if (!Active) { throw new InvalidStateException("Cannot send on disposed transport"); }
 
-            DebugUtils.DumpMessage(this + "SendPacket", buffer);
+            DebugUtils.DumpMessage(this + "SendPacket", buffer, offset, length);
             Debug.Assert(PacketHeaderSize == 4);
             byte[] wireFormat = new byte[length + PacketHeaderSize];
             BitConverter.GetBytes(length).CopyTo(wireFormat, 0);
@@ -111,7 +111,8 @@ namespace GT.Net
                 throw new ArgumentException("Transport provided different stream!");
             }
             MemoryStream ms = (MemoryStream)output;
-            DebugUtils.DumpMessage(this + ": SendPacket(stream)", ms.ToArray());
+            DebugUtils.DumpMessage(this + ": SendPacket(stream)", ms.ToArray(), PacketHeaderSize,
+                (int)(ms.Length - PacketHeaderSize));
             ms.Position = 0;
             Debug.Assert(PacketHeaderSize == 4);
             byte[] lb = BitConverter.GetBytes((int)(ms.Length - PacketHeaderSize));
@@ -131,13 +132,13 @@ namespace GT.Net
             {
                 if (outgoingInProgress == null)
                 {
-                    //Console.WriteLine("Srv.Flush: " + outstanding[0].Length + " bytes");
+                    DebugUtils.WriteLine(this + ": Flush: " + outstanding[0].Length + " bytes");
                     outgoingInProgress = new PacketInProgress(outstanding[0]);
                 }
                 int bytesSent = handle.Client.Send(outgoingInProgress.data, outgoingInProgress.position,
                     outgoingInProgress.bytesRemaining, SocketFlags.None, out error);
-                //Console.WriteLine("  position=" + outgoingInProgress.position + " bR=" + 
-                //  outgoingInProgress.bytesRemaining + ": sent " + bytesSent);
+                DebugUtils.WriteLine(Name + ": position=" + outgoingInProgress.position + " bR=" + 
+                  outgoingInProgress.bytesRemaining + ": sent " + bytesSent);
 
                 switch (error)
                 {
@@ -243,7 +244,7 @@ namespace GT.Net
 
         public override string ToString()
         {
-            return "TcpTransport(" + handle.Client.RemoteEndPoint + ")";
+            return "TcpTransport(" + handle.Client.LocalEndPoint + " -> " + handle.Client.RemoteEndPoint + ")";
         }
     }
 

@@ -24,7 +24,7 @@ namespace GT.Net
 
         public void Dispose() {
             if (!Active) { return; }
-            //kill the connection as best we can
+            //kill the connexion as best we can
             lock (this)
             {
                 try

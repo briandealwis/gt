@@ -354,6 +354,37 @@ namespace GT.UnitTests.BaseTests
         }
 
         #endregion
+
+        #region Lightweight Marshalling Tests
+        [Test]
+        public void TestRawMessage()
+        {
+            MemoryStream ms = new MemoryStream();
+            IMarshaller m = new DotNetSerializingMarshaller();
+            string s = "this is a test of faith";
+            m.Marshal(new StringMessage(0, s), ms, new NullTransport());
+            ms.Seek(0, SeekOrigin.Begin);
+            int originalLength = (int)ms.Length;
+
+            IMarshaller rawm = new LightweightDotNetSerializingMarshaller();
+            Message msg = rawm.Unmarshal(ms, new NullTransport());
+            Assert.IsInstanceOfType(typeof(RawMessage), msg);
+            Assert.AreEqual(0, msg.Id);
+            Assert.AreEqual(MessageType.String, msg.MessageType);
+
+            ms = new MemoryStream();
+            rawm.Marshal(msg, ms, new NullTransport());
+            ms.Seek(0, SeekOrigin.Begin);
+            Assert.AreEqual(originalLength, (int)ms.Length);
+
+            msg = m.Unmarshal(ms, new NullTransport());
+            Assert.IsInstanceOfType(typeof(StringMessage), msg);
+            Assert.AreEqual(0, msg.Id);
+            Assert.AreEqual(MessageType.String, msg.MessageType);
+            Assert.AreEqual(s, ((StringMessage)msg).Text);
+        }
+
+        #endregion
     }
 
     internal class NullTransport : ITransport
@@ -622,8 +653,8 @@ namespace GT.UnitTests.BaseTests
 
         private static string EXPECTED_GREETING = "Hello!";
         private static string EXPECTED_RESPONSE = "Go Away!";
-        private static int ServerSleepTime = 13;
-        private static int ClientSleepTime = 19;
+        private static int ServerSleepTime = 20;
+        private static int ClientSleepTime = 25;
 
         [SetUp]
         public void SetUp()
@@ -643,17 +674,10 @@ namespace GT.UnitTests.BaseTests
                 serverThread.Join();
             }
             serverThread = null;
-            if (server != null)
-            {
-                server.Stop();
-            }
+            if (server != null) { server.Stop(); }
             server = null;
 
-            if (client != null)
-            {
-                client.Stop();
-                client.Dispose();
-            }
+            if (client != null) { client.Dispose(); }
             client = null;
             Console.WriteLine(this + " TearDown() complete");
         }
@@ -673,12 +697,15 @@ namespace GT.UnitTests.BaseTests
             }
             server = new Server(9999);
             server.StringMessageReceived += new StringMessageHandler(ServerStringMessageReceived);
+            server.BinaryMessageReceived += new BinaryMessageHandler(ServerBinaryMessageReceived);
+            server.ObjectMessageReceived += new ObjectMessageHandler(ServerObjectMessageReceived);
+            server.SessionMessageReceived += new SessionMessageHandler(ServerSessionMessageReceived);
             server.ErrorEvent += new ErrorClientHandler(server_ErrorEvent);
             serverThread = server.StartSeparateListeningThread(ServerSleepTime);
             Console.WriteLine("Server started: " + server.ToString() + " [" + serverThread.Name + "]");
         }
 
-        private void ServerStringMessageReceived(Message m, Server.Client client, MessageProtocol protocol)
+        private void ServerStringMessageReceived(Message m, ClientConnexion client, MessageProtocol protocol)
         {
             string s = ((StringMessage)m).Text;
             if (!s.Equals(EXPECTED_GREETING))
@@ -687,15 +714,52 @@ namespace GT.UnitTests.BaseTests
                     "' but received '" + s + "'");
                 errorOccurred = true;
             }
-            Console.WriteLine("Server: received greeting '" + s + "'");
+            Console.WriteLine("Server: received greeting '" + s + "' on " + protocol);
             Console.WriteLine("Server: sending response: '" + EXPECTED_RESPONSE + "'");
-            List<Server.Client> clientGroup = new List<Server.Client>(1);
+            List<ClientConnexion> clientGroup = new List<ClientConnexion>(1);
             clientGroup.Add(client);
             server.Send(EXPECTED_RESPONSE, m.Id, clientGroup, protocol);
         }
 
+        private void ServerBinaryMessageReceived(Message m, ClientConnexion client, MessageProtocol protocol)
+        {
+            byte[] buffer = ((BinaryMessage)m).Bytes;
+            Console.WriteLine("Server: received binary '" + ByteUtils.DumpBytes(buffer, 0, buffer.Length) + "' on " + protocol);
+            Array.Reverse(buffer);
+            Console.WriteLine("Server: sending response: '" + ByteUtils.DumpBytes(buffer, 0, buffer.Length) + "'");
+            List<ClientConnexion> clientGroup = new List<ClientConnexion>(1);
+            clientGroup.Add(client);
+            server.Send(buffer, m.Id, clientGroup, protocol);
+        }
+
+        private void ServerObjectMessageReceived(Message m, ClientConnexion client, MessageProtocol protocol)
+        {
+            object o = ((ObjectMessage)m).Object;
+            Console.WriteLine("Server: received object '" + o + "' on " + protocol);
+            Console.WriteLine("Server: sending object back");
+            List<ClientConnexion> clientGroup = new List<ClientConnexion>(1);
+            clientGroup.Add(client);
+            server.Send(o, m.Id, clientGroup, protocol);
+        }
+
+        private void ServerSessionMessageReceived(Message m, ClientConnexion client, MessageProtocol protocol)
+        {
+            SessionMessage sm = (SessionMessage)m;
+            if (!sm.Action.Equals(SessionAction.Joined))
+            {
+                Console.WriteLine("Server: expected '" + SessionAction.Joined +
+                    "' but received '" + sm.Action + "'");
+                errorOccurred = true;
+            }
+            Console.WriteLine("Server: received  '" + sm.Action + "' on " + protocol);
+            Console.WriteLine("Server: sending back as response");
+            List<ClientConnexion> clientGroup = new List<ClientConnexion>(1);
+            clientGroup.Add(client);
+            server.Send(m, clientGroup, protocol);
+        }
+
         /// <summary>This is triggered if something goes wrong</summary>
-        void server_ErrorEvent(Exception e, SocketError se, Server.Client c, string explanation)
+        void server_ErrorEvent(Exception e, SocketError se, ClientConnexion c, string explanation)
         {
             Console.WriteLine("Server: Error: " + explanation + "\n" + e.ToString());
             errorOccurred = true;
@@ -703,50 +767,21 @@ namespace GT.UnitTests.BaseTests
         #endregion
 
         #region "Tests"
-
         [Test]
         public void EchoStringViaTCP()
         {
-            StartExpectedResponseServer(EXPECTED_GREETING, EXPECTED_RESPONSE);
-
-            client = new Client();  //this is a client
-            client.ErrorEvent += new GT.Net.ErrorEventHandler(client_ErrorEvent);  //triggers if there is an error
-            StringStream stream = client.GetStringStream("127.0.0.1", "9999", 0);  //connect here
-            stream.StringNewMessageEvent += new StringNewMessage(ClientStringMessageReceivedEvent);
-            Assert.IsFalse(errorOccurred);
-
-            Console.WriteLine("Client: sending greeting: " + EXPECTED_GREETING);
-            stream.Send(EXPECTED_GREETING, MessageProtocol.Tcp);  //send a string
-            Assert.IsFalse(errorOccurred, "Client: error occurred while sending greeting");
-
-            int repeats = 10;
-            while (!responseReceived && repeats-- > 0)
-            {
-                client.Update();  // let the client check the network
-                Assert.IsFalse(errorOccurred);
-                client.Sleep(ClientSleepTime);
-            }
-            Assert.IsTrue(responseReceived, "Client: no response received from server");
-            string s = stream.DequeueMessage(0);
-            Assert.IsNotNull(s);
-            Assert.AreEqual(EXPECTED_RESPONSE, s);
+            PerformEchos(MessageProtocol.Tcp);
         }
 
         [Test]
         public void EchoStringViaUDP()
         {
-            StartExpectedResponseServer(EXPECTED_GREETING, EXPECTED_RESPONSE);
+            PerformEchos(MessageProtocol.Udp);
+        }
 
-            client = new Client();  //this is a client
-            client.ErrorEvent += new GT.Net.ErrorEventHandler(client_ErrorEvent);  //triggers if there is an error
-            StringStream stream = client.GetStringStream("127.0.0.1", "9999", 0);  //connect here
-            stream.StringNewMessageEvent += new StringNewMessage(ClientStringMessageReceivedEvent);
-            Assert.IsFalse(errorOccurred);
-
-            Console.WriteLine("Client: sending greeting: " + EXPECTED_GREETING);
-            stream.Send(EXPECTED_GREETING, MessageProtocol.Udp);  //send a string
+        protected void CheckForResponse()
+        {
             Assert.IsFalse(errorOccurred, "Client: error occurred while sending greeting");
-
             int repeats = 10;
             while (!responseReceived && repeats-- > 0)
             {
@@ -755,9 +790,68 @@ namespace GT.UnitTests.BaseTests
                 client.Sleep(ClientSleepTime);
             }
             Assert.IsTrue(responseReceived, "Client: no response received from server");
-            string s = stream.DequeueMessage(0);
+        }
+
+        protected void PerformEchos(MessageProtocol protocol) {
+            StartExpectedResponseServer(EXPECTED_GREETING, EXPECTED_RESPONSE);
+
+            client = new Client();  //this is a client
+            client.ErrorEvent += new GT.Net.ErrorEventHandler(client_ErrorEvent);  //triggers if there is an error
+            Assert.IsFalse(errorOccurred);
+            Assert.IsFalse(responseReceived);
+
+            Console.WriteLine("Client: sending greeting: " + EXPECTED_GREETING);
+            IStringStream strStream = client.GetStringStream("127.0.0.1", "9999", 0);  //connect here
+            strStream.StringNewMessageEvent += new StringNewMessage(ClientStringMessageReceivedEvent);
+            strStream.Send(EXPECTED_GREETING, protocol);  //send a string
+            CheckForResponse();
+            Assert.AreEqual(1, strStream.Messages.Count);
+            string s = strStream.DequeueMessage(0);
             Assert.IsNotNull(s);
             Assert.AreEqual(EXPECTED_RESPONSE, s);
+
+            responseReceived = false;
+            Assert.IsFalse(responseReceived);
+            Assert.IsFalse(errorOccurred);
+
+            Console.WriteLine("Client: sending byte message: [0 1 2 3 4 5 6 7 8 9]");
+            IBinaryStream binStream = client.GetBinaryStream("127.0.0.1", "9999", 0);  //connect here
+            binStream.BinaryNewMessageEvent += new BinaryNewMessage(ClientBinaryMessageReceivedEvent);
+            binStream.Send(new byte[] { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9 }, protocol);
+            CheckForResponse();
+            Assert.AreEqual(1, binStream.Messages.Count);
+            byte[] bytes = binStream.DequeueMessage(0);
+            Assert.IsNotNull(bytes);
+            Assert.AreEqual(new byte[] { 9, 8, 7, 6, 5, 4, 3, 2, 1, 0 }, bytes);
+
+            responseReceived = false;
+            Assert.IsFalse(responseReceived);
+            Assert.IsFalse(errorOccurred);
+
+            Console.WriteLine("Client: sending greeting: list(\"hello\",\"world\")");
+            IObjectStream objStream = client.GetObjectStream("127.0.0.1", "9999", 0);  //connect here
+            objStream.ObjectNewMessageEvent += new ObjectNewMessage(ClientObjectMessageReceivedEvent);
+            objStream.Send(new List<string>(new string[] { "hello", "world" }), protocol);  //send a string
+            CheckForResponse();
+            Assert.AreEqual(1, objStream.Messages.Count);
+            object o = objStream.DequeueMessage(0);
+            Assert.IsNotNull(o);
+            Assert.IsInstanceOfType(typeof(List<string>), o);
+            Assert.AreEqual(new List<string>(new string[] { "hello", "world" }), o);
+
+            responseReceived = false;
+            Assert.IsFalse(responseReceived);
+            Assert.IsFalse(errorOccurred);
+
+            Console.WriteLine("Client: sending greeting: SessionAction.Joined");
+            ISessionStream sessStream = client.GetSessionStream("127.0.0.1", "9999", 0);  //connect here
+            sessStream.SessionNewMessageEvent += new SessionNewMessage(ClientSessionMessageReceivedEvent);
+            sessStream.Send(SessionAction.Joined, protocol);  //send a string
+            CheckForResponse();
+            Assert.AreEqual(1, sessStream.Messages.Count);
+            SessionMessage sm = sessStream.DequeueMessage(0);
+            Assert.IsNotNull(sm);
+            Assert.AreEqual(sm.Action, SessionAction.Joined);
         }
 
 
@@ -767,10 +861,28 @@ namespace GT.UnitTests.BaseTests
             responseReceived = true;
         }
 
-        /// <summary>This is triggered if something goes wrong</summary>
-        void client_ErrorEvent(Exception e, SocketError se, ServerStream ss, string explanation)
+        void ClientBinaryMessageReceivedEvent(IBinaryStream stream)
         {
-            Console.WriteLine("Error: " + explanation + "\n" + e);
+            Console.WriteLine("Client: received a response\n");
+            responseReceived = true;
+        }
+
+        void ClientObjectMessageReceivedEvent(IObjectStream stream)
+        {
+            Console.WriteLine("Client: received a response\n");
+            responseReceived = true;
+        }
+
+        void ClientSessionMessageReceivedEvent(ISessionStream stream)
+        {
+            Console.WriteLine("Client: received a response\n");
+            responseReceived = true;
+        }
+
+        /// <summary>This is triggered if something goes wrong</summary>
+        void client_ErrorEvent(Exception e, SocketError se, ServerConnexion ss, string explanation)
+        {
+            Console.WriteLine("Client Error: " + explanation + "\n" + e);
             errorOccurred = true;
         }
 

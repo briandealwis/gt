@@ -72,7 +72,7 @@ namespace GT.Net
         protected long interval;
         protected long lastTimeSent;
 
-        protected AbstractStreamedTuple(ServerStream s, byte id)
+        protected AbstractStreamedTuple(ServerConnexion s, byte id)
             : base(s, id)
         {
             this.changed = false;
@@ -110,10 +110,10 @@ namespace GT.Net
         public event StreamedTupleReceivedDelegate<T, K, J> StreamedTupleReceived;
 
         /// <summary>Creates a streaming tuple</summary>
-        /// <param name="connection">The stream to send the tuples on</param>
+        /// <param name="connexion">The stream to send the tuples on</param>
         /// <param name="id">the stream id</param>
         /// <param name="milliseconds">Send the tuple only once during this interval</param>
-        internal StreamedTuple(ServerStream connection, byte id, int milliseconds) : base(connection, id)
+        internal StreamedTuple(ServerConnexion connection, byte id, int milliseconds) : base(connection, id)
         {
         }
 
@@ -138,7 +138,7 @@ namespace GT.Net
         internal override void Update(HPTimer hpTimer)
         {
             this.interval = hpTimer.Frequency * milliseconds / 1000;
-            if (this.lastTimeSent + this.interval < hpTimer.Time && connection.UniqueIdentity != 0 && changed)
+            if (this.lastTimeSent + this.interval < hpTimer.Time && connexion.UniqueIdentity != 0 && changed)
             {
                 this.lastTimeSent = hpTimer.Time;
                 MemoryStream ms = new MemoryStream(28);  //the maximum size this tuple could possibly be
@@ -153,14 +153,14 @@ namespace GT.Net
                 ms.Write(b, 0, b.Length);
 
                 //along with whose tuple it is
-                ms.Write(BitConverter.GetBytes(connection.UniqueIdentity), 0, 4);
+                ms.Write(BitConverter.GetBytes(connexion.UniqueIdentity), 0, 4);
 
                 b = new byte[ms.Position];
                 ms.Position = 0;
                 ms.Read(b, 0, b.Length);
 
                 changed = false;
-                //connection.Send(b, id, MessageType.Tuple3D, MessageProtocol.Tcp, MessageAggregation.No, MessageOrder.None);
+                //connexion.Send(b, id, MessageType.Tuple3D, MessageProtocol.Tcp, MessageAggregation.No, MessageOrder.None);
                 throw new InvalidProgramException("FIXME");
             }
         }
@@ -185,10 +185,10 @@ namespace GT.Net
         public event StreamedTupleReceivedDelegate<T, K> StreamedTupleReceived;
 
         /// <summary>Creates a streaming tuple</summary>
-        /// <param name="connection">The stream to send the tuples on</param>
+        /// <param name="connexion">The stream to send the tuples on</param>
         /// <param name="id">the stream id</param>
         /// <param name="milliseconds">Send the tuple only once during this interval</param>
-        public StreamedTuple(ServerStream connection, byte id, int milliseconds) : base(connection, id)
+        public StreamedTuple(ServerConnexion connection, byte id, int milliseconds) : base(connection, id)
         {
         }
 
@@ -212,7 +212,7 @@ namespace GT.Net
         internal override void Update(HPTimer hpTimer)
         {
             this.interval = hpTimer.Frequency * milliseconds / 1000;
-            if (this.lastTimeSent + this.interval < hpTimer.Time && connection.UniqueIdentity != 0 && changed)
+            if (this.lastTimeSent + this.interval < hpTimer.Time && connexion.UniqueIdentity != 0 && changed)
             {
                 this.lastTimeSent = hpTimer.Time;
                 MemoryStream ms = new MemoryStream(28);  //the maximum size this tuple could possibly be
@@ -225,14 +225,14 @@ namespace GT.Net
                 ms.Write(b, 0, b.Length);
 
                 //along with whose tuple it is
-                ms.Write(BitConverter.GetBytes(connection.UniqueIdentity), 0, 4);
+                ms.Write(BitConverter.GetBytes(connexion.UniqueIdentity), 0, 4);
 
                 b = new byte[ms.Position];
                 ms.Position = 0;
                 ms.Read(b, 0, b.Length);
 
                 changed = false;
-                //connection.Send(b, id, MessageType.Tuple2D, MessageProtocol.Tcp, MessageAggregation.No, MessageOrder.None);
+                //connexion.Send(b, id, MessageType.Tuple2D, MessageProtocol.Tcp, MessageAggregation.No, MessageOrder.None);
                 throw new InvalidProgramException("FIXME");
             }
         }
@@ -252,10 +252,10 @@ namespace GT.Net
         public event StreamedTupleReceivedDelegate<T> StreamedTupleReceived;
 
         /// <summary>Creates a streaming tuple</summary>
-        /// <param name="connection">The stream to send the tuples on</param>
+        /// <param name="connexion">The stream to send the tuples on</param>
         /// <param name="id">the stream id</param>
         /// <param name="milliseconds">Send the tuple only once during this interval</param>
-        public StreamedTuple(ServerStream connection, byte id, int milliseconds) : base(connection, id)
+        public StreamedTuple(ServerConnexion connection, byte id, int milliseconds) : base(connection, id)
         {
         }
 
@@ -277,7 +277,7 @@ namespace GT.Net
         internal override void Update(HPTimer hpTimer)
         {
             this.interval = hpTimer.Frequency * milliseconds / 1000;
-            if (this.lastTimeSent + this.interval < hpTimer.Time && connection.UniqueIdentity != 0 && changed)
+            if (this.lastTimeSent + this.interval < hpTimer.Time && connexion.UniqueIdentity != 0 && changed)
             {
                 this.lastTimeSent = hpTimer.Time;
                 MemoryStream ms = new MemoryStream(28);  //the maximum size this tuple could possibly be
@@ -288,14 +288,14 @@ namespace GT.Net
                 ms.Write(b, 0, b.Length);
 
                 //along with whose tuple it is
-                ms.Write(BitConverter.GetBytes(connection.UniqueIdentity), 0, 4);
+                ms.Write(BitConverter.GetBytes(connexion.UniqueIdentity), 0, 4);
 
                 b = new byte[ms.Position];
                 ms.Position = 0;
                 ms.Read(b, 0, b.Length);
 
                 changed = false;
-                //connection.Send(b, id, MessageType.Tuple1D, MessageProtocol.Tcp, MessageAggregation.No, MessageOrder.None);
+                //connexion.Send(b, id, MessageType.Tuple1D, MessageProtocol.Tcp, MessageAggregation.No, MessageOrder.None);
                 throw new InvalidProgramException("FIXME");
             }
         }

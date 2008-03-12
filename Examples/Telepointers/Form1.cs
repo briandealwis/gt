@@ -15,8 +15,8 @@ namespace Telepointers
         Graphics g;
         Dictionary<int, Telepointer> teleList = new Dictionary<int, Telepointer>();
         Client c = new Client();
-        BinaryStream binary;
-        SessionStream session;
+        IBinaryStream binary;
+        ISessionStream session;
         StreamedTuple<int, int> coords;
 
         List<Control> controls = new List<Control>();
@@ -81,7 +81,7 @@ namespace Telepointers
             Console.WriteLine("h");
         }
 
-        void c_ErrorEvent(Exception e, System.Net.Sockets.SocketError se, ServerStream ss, string explanation)
+        void c_ErrorEvent(Exception e, System.Net.Sockets.SocketError se, ServerConnexion ss, string explanation)
         {
             throw new Exception("The method or operation is not implemented.");
         }

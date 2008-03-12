@@ -65,7 +65,7 @@ namespace GT.Net
         /// time.  When an object is changed, an event is triggered describing which object has
         /// been updated.
         /// </summary>
-        /// <param name="bs">A networked binary connection of some sort.  A compressed connection is recommended.</param>
+        /// <param name="bs">A networked binary connexion of some sort.  A compressed connexion is recommended.</param>
         public SimpleSharedDictionary(IBinaryStream bs)
         {
             this.stream = bs;

@@ -26,18 +26,19 @@ namespace GT.Net
         Message Unmarshal(Stream output, ITransport t);
     }
 
-    public class DotNetSerializingMarshaller : IMarshaller
+    /// <summary>The lightweight marshaller is a provides the message payloads as raw 
+    /// uninterpreted byte arrays so as to avoid introducing latency from unneeded processing.
+    /// Should your server need to use the message content, then you server should 
+    /// use the DotNetSerializingMarshaller.</summary>
+    /// <seealso cref="T:GT.Net.DotNetSerializingMarshaller"/>
+    public class LightweightDotNetSerializingMarshaller : IMarshaller
     {
         /*
          * Messages have an 8-byte header (MessageHeaderByteSize):
          * byte 0 is the channel id
          * byte 1 is the message type
-         * bytes 2 and 3 are unused
-         * bytes 4-7 encode the message data length
+         * bytes 2-5 encode the message data length
          */
-        public static readonly int MessageHeaderByteSize = 8;
-
-        protected BinaryFormatter formatter = new BinaryFormatter();
 
         public virtual string[] Descriptors
         {
@@ -49,17 +50,63 @@ namespace GT.Net
 
         public void Dispose()
         {
-            formatter = null;
         }
 
         #region Marshalling
 
-        public void Marshal(Message m, Stream output, ITransport t)
+        virtual public void Marshal(Message m, Stream output, ITransport t)
         {
             Debug.Assert(output.CanSeek);
 
             output.WriteByte(m.Id);
             output.WriteByte((byte)m.MessageType);
+            Debug.Assert(m.GetType().Equals(typeof(RawMessage)));
+            RawMessage rm = (RawMessage)m;
+            ByteUtils.EncodeLength((int)rm.Bytes.Length, output);
+            output.Write(rm.Bytes, 0, rm.Bytes.Length);
+        }
+
+        #endregion
+
+        #region Unmarshalling
+
+        virtual public Message Unmarshal(Stream input, ITransport t)
+        {
+            // Could check the version or something here?
+            byte id = (byte)input.ReadByte();
+            byte type = (byte)input.ReadByte();
+            int length = ByteUtils.DecodeLength(input);
+            byte[] data = new byte[length];
+            input.Read(data, 0, length);
+            return new RawMessage(id, (MessageType)type, data);
+        }
+
+        #endregion
+
+    }
+
+    public class DotNetSerializingMarshaller :
+            LightweightDotNetSerializingMarshaller
+    {
+        protected BinaryFormatter formatter = new BinaryFormatter();
+
+        public void Dispose()
+        {
+            formatter = null;
+            base.Dispose();
+        }
+
+        #region Marshalling
+
+        override public void Marshal(Message m, Stream output, ITransport t)
+        {
+            Debug.Assert(output.CanSeek);
+
+            output.WriteByte(m.Id);
+            output.WriteByte((byte)m.MessageType);
+            // ok, this is crappy: because the length-encoding is adaptive, we
+            // can't predict how many bytes it will require.  So all the
+            // hard work for trying to minimize copies comes to nothing :-(
             MemoryStream ms = new MemoryStream(64);    // guestimate
             MarshalContents(m, ms, t);
             ByteUtils.EncodeLength((int)ms.Length, output);
@@ -124,7 +171,7 @@ namespace GT.Net
 
         #region Unmarshalling
 
-        public Message Unmarshal(Stream input, ITransport t)
+        override public Message Unmarshal(Stream input, ITransport t)
         {
             // Could check the version or something here?
             byte id = (byte)input.ReadByte();
@@ -188,7 +235,6 @@ namespace GT.Net
         }
 
         #endregion
+
     }
-
-
 }

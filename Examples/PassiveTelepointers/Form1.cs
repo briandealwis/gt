@@ -15,8 +15,8 @@ namespace PassiveTelepointers
         Graphics g;
         Dictionary<int, Telepointer> teleList = new Dictionary<int, Telepointer>();
         Client c = new Client();
-        BinaryStream binary;
-        SessionStream session;
+        IBinaryStream binary;
+        ISessionStream session;
 
         List<Control> controls = new List<Control>();
 

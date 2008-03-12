@@ -1,7 +1,8 @@
 GT NEWS
 
 GT has undergone a significant re-architecturing to promote more
-flexibility and extensibility.
+flexibility and extensibility.  There have been a number of breaking
+changes, primarily dealing with type renaming.
 
 Breaking Changes:
 
@@ -17,14 +18,24 @@ Breaking Changes:
       * You will need to add the GTBase project or DLL to your clients.
 	<https://papyrus.usask.ca/trac/gt/ticket/13>
 
-  * Exposed fields have been made into properties and some have been
-    renamed to better conform to C#/.NET naming guidelines.  Most
-    notable perhaps is Server.clientList -> Server.Clients.
+  * Previously-exposed fields have been made into properties and
+    some have been renamed to better conform to C#/.NET naming guidelines. 
+    Most notable perhaps is Server.clientList -> Server.Clients.
 
-  * Server.Client has had some cleanup: the Dead property has been
-    made read-only, and the class now implements IDisposable.  Any
-    uses of Dead as a writable property should be changed to use
-    IDisposable.Dispose().  Dead has been reversed to Active.
+  * Many classes have been shielded by interfaces, notably the *Stream
+    classes provided by GT Client.  The Client.Get*Stream() methods now
+    return interfaces.
+
+  * GT Server's Server.Client has been renamed to ClientConnexion, and similarly
+    GT Client's ServerStream has been renamed to ServerConnexion.  These classes
+    represent connections between a particular client and server and should
+    be treated as only quasi-public.  Both classes have undergone cleanup:
+
+      * the Dead property has been flipped to be called Active and
+        made read-only;
+
+      * the class now implements IDisposable: any uses of Dead as
+        a writable property should be changed to use IDisposable.Dispose().
 
   * Some delegates have had their signatures changed to use the least
     specific collection classes possible

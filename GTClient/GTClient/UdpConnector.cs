@@ -54,7 +54,7 @@ namespace GT.Net
             if (error != null) { throw error; }
 
             // FIXME: a handshake is between two people; we assume that if they don't want
-            // to talk to us then they'll close the connection.
+            // to talk to us then they'll close the connexion.
 
             // This is the GT (UDP) protocol 1.0:
             // bytes 0 - 3: the protocol version (ASCII for "GT10")
@@ -67,7 +67,7 @@ namespace GT.Net
             ByteUtils.EncodeDictionary(capabilities, ms);
             client.Client.Send(ms.GetBuffer(), 0, (int)ms.Length, SocketFlags.None);
 
-            Console.WriteLine("Address resolved and contacted.  Now connected to " + endPoint.ToString());
+            Console.WriteLine("Now connected to UDP: " + endPoint.ToString());
             return new UdpClientTransport(client);
         }
 

@@ -15,6 +15,7 @@ namespace GT.Net
 
         public static void DumpMessage(string prefix, Message m)
         {
+            if (!Verbose) { return; }
             if (prefix == null)
             {
                 Write("  ");
@@ -60,6 +61,7 @@ namespace GT.Net
 
         public static void DumpMessage(string prefix, byte[] buffer, int offset, int count)
         {
+            if (!Verbose) { return; }
             if (prefix == null)
             {
                 Write("  ");
@@ -76,7 +78,7 @@ namespace GT.Net
                 Write(" id=" + buffer[offset]);
             }
             WriteLine(" #bytes:" + count);
-            Debug.Assert(count <= 200);
+            Debug.Assert(count <= 300);
             for (int i = offset; i < count; i++)
             {
                 Write("    ");
