@@ -24,7 +24,8 @@ Breaking Changes:
 
   * Many classes have been shielded by interfaces, notably the *Stream
     classes provided by GT Client.  The Client.Get*Stream() methods now
-    return interfaces.
+    return interfaces (i.e., IStringStream, IBinaryStream, IObjectStream,
+    ISessionStream, ITupleStream*).
 
   * GT Server's Server.Client has been renamed to ClientConnexion, and similarly
     GT Client's ServerStream has been renamed to ServerConnexion.  These classes
