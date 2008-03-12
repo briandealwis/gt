@@ -48,6 +48,7 @@
   <ItemGroup>
     <Compile Include="BagTests.cs" />
     <Compile Include="BaseTests.cs" />
+    <Compile Include="LocalTransport.cs" />
     <Compile Include="NUnitConsoleRunner.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>

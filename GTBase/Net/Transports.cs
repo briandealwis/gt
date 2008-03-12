@@ -91,8 +91,8 @@ namespace GT.Net
             get { return capabilities; }
         }
 
-        public abstract void SendPacket(byte[] message, int offset, int count);
-        public abstract void SendPacket(Stream p);
+        public abstract void SendPacket(byte[] packet, int offset, int count);
+        public abstract void SendPacket(Stream packetStream);
 
         protected int PacketHeaderSize = 0;
         protected int AveragePacketSize = 64; // guestimate on avg packet size

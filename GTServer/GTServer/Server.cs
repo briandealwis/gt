@@ -277,10 +277,12 @@ namespace GT.Net
             if (!Active) { Start(); }
 
             newlyAddedClients.Clear();
-            foreach (BaseAcceptor acc in acceptors)
+            foreach (IAcceptor acc in acceptors)
             {
-                DebugUtils.WriteLine("Server.Update(): checking acceptor " + acc);
-                acc.Update();
+                if (acc.Active) {
+                    DebugUtils.WriteLine("Server.Update(): checking acceptor " + acc);
+                    acc.Update();
+                }
             }
             if (newlyAddedClients.Count > 0 && ClientsJoined != null)
             {
@@ -442,6 +444,7 @@ namespace GT.Net
 
         public void Start()
         {
+            if (Active) { return; }
             acceptors = configuration.CreateAcceptors();
             foreach (IAcceptor acc in acceptors)
             {
@@ -456,9 +459,12 @@ namespace GT.Net
         {
             // we were told to die.  die gracefully.
             running = false;
-            foreach (IAcceptor acc in acceptors)
+            if (acceptors != null)
             {
-                acc.Stop();
+                foreach (IAcceptor acc in acceptors)
+                {
+                    acc.Stop(); // FIXME: trap exceptions?
+                }
             }
             KillAll();
         }
@@ -466,11 +472,19 @@ namespace GT.Net
         public void Dispose()
         {
             Stop();
-            foreach (IAcceptor acc in acceptors)
+            if (acceptors != null)
             {
-                acc.Dispose();
+                foreach (IAcceptor acc in acceptors)
+                {
+                    try { acc.Dispose(); }
+                    catch (Exception e)
+                    {
+                        ErrorEvent(e, SocketError.Success, null, 
+                            "Acceptor " + acc + " threw exception on dispose");
+                    }
+                }
+                acceptors = null;
             }
-            acceptors = null;
         }
 
         public bool Active
@@ -480,6 +494,7 @@ namespace GT.Net
 
         private void KillAll()
         {
+            if (clientIDs == null) { return; }
             foreach (ClientConnexion c in Clients)
             {
                 try

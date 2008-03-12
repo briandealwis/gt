@@ -7,6 +7,7 @@ using System.Net.Sockets;
 using GT.Net;
 using GT.Utils;
 using NUnit.Framework;
+using GT.Net.Local;
  
 namespace GT.UnitTests.BaseTests
 {
@@ -454,24 +455,47 @@ namespace GT.UnitTests.BaseTests
     /// Test basic GT functionality
     /// </summary>
     [TestFixture]
-    public class ZZATCPTransprtTests
+    public class ZZATransportTests
     {
         int port = 9876;
         Thread serverThread, acceptorThread;
         IAcceptor acceptor;
+        IConnector connector;
         ITransport server;
         ITransport client;
-        byte[] sourceData = new byte[] { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9 };
+        byte[] sourceData;
         string failure;
         int serverPacketCount;
         int clientPacketCount;
+        int serverMissedOffset;
+        int clientMissedOffset;
 
         [SetUp]
         public void SetUp()
         {
             serverPacketCount = 0;
             clientPacketCount = 0;
+            serverMissedOffset = 0;
+            clientMissedOffset = 0;
+            sourceData = new byte[] { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9 };
             failure = "";
+        }
+
+
+        [TearDown]
+        public void TearDown()
+        {
+            if (server != null) { server.Dispose(); }
+            if (acceptor != null) { acceptor.Dispose(); }
+            if (connector != null) { connector.Dispose(); }
+            if (client != null) { client.Dispose(); }
+            if (acceptorThread != null) { acceptorThread.Abort(); }
+            if (serverThread != null) { serverThread.Abort(); }
+            server = null;
+            acceptor = null;
+            client = null;
+            acceptorThread = null;
+            serverThread = null;
         }
 
         protected void RunServer() {
@@ -485,15 +509,20 @@ namespace GT.UnitTests.BaseTests
         protected void ServerReceivedPacket(byte[] buffer, int offset, int count, ITransport transport) {
             byte[] received = new byte[count];
             Array.Copy(buffer, offset, received, 0, count);
+            if (buffer[offset] != serverPacketCount + serverMissedOffset)
+            {
+                Console.WriteLine("server: expected packet#" + (serverPacketCount + serverMissedOffset)
+                    + " but received packet #" + buffer[offset]);
+            }
             CheckPacket(received, "server");
             if (serverPacketCount % 2 == 0)
             {
-                Console.WriteLine("==> server: replying with byte array");
+                DebugUtils.WriteLine("==> server: replying with byte array");
                 server.SendPacket(buffer, offset, count);
             }
             else
             {
-                Console.WriteLine("==> server: replying with stream");
+                DebugUtils.WriteLine("==> server: replying with stream");
                 Stream ms = server.GetPacketStream();
                 ms.Write(buffer, offset, count);
                 server.SendPacket(ms);
@@ -501,7 +530,7 @@ namespace GT.UnitTests.BaseTests
             serverPacketCount++;
         }
 
-        protected void CheckPacket(byte[] incoming, string prefix)
+        protected bool CheckPacket(byte[] incoming, string prefix)
         {
             bool failed = false;
             if (sourceData.Length != incoming.Length)
@@ -517,7 +546,8 @@ namespace GT.UnitTests.BaseTests
             {
                 bool ok = true;
                 string debug = "";
-                for (int i = 0; i < sourceData.Length; i++)
+                // incoming[0] is the packet number
+                for (int i = 1; i < sourceData.Length; i++)
                 {
                     if (sourceData[i] != incoming[i])
                     {
@@ -529,27 +559,36 @@ namespace GT.UnitTests.BaseTests
                 {
                     lock (this)
                     {
-                        failure += prefix + ": mismatch in received data values: " + debug + "\n";
+                        failure += prefix + ": packet " + incoming[0] + " mismatch in received data values: " + debug + "\n";
                         failed = true;
                     }
                 }
             }
             if (!failed)
             {
-                Console.WriteLine(prefix + ": received packet checked ok");
+                DebugUtils.WriteLine(prefix + ": received packet checked ok");
             }
+            return !failed;
         }
 
         protected void ClientReceivedPacket(byte[] buffer, int offset, int count, ITransport transport)
         {
             byte[] received = new byte[count];
+            bool ok = true;
+            if (buffer[offset] != clientPacketCount + clientMissedOffset)
+            {
+                Console.WriteLine("client: expected packet#" + (clientPacketCount + clientMissedOffset)
+                    + " but received packet #" + buffer[offset]);
+                ok = false;
+            }
             Array.Copy(buffer, offset, received, 0, count);
-            CheckPacket(received, "client");
+            if (!CheckPacket(received, "client")) { ok = false; }
+            Console.Write(ok ? '+' : '!');
             clientPacketCount++;
         }
 
         protected void SetupServer(ITransport t, Dictionary<string,string> capabilities) {
-            Console.WriteLine("Server: connected to client by " + t);
+            DebugUtils.WriteLine("Server: connected to client by " + t);
             server = t;
             serverThread = new Thread(new ThreadStart(RunServer));
             serverThread.Name = "Server";
@@ -558,7 +597,7 @@ namespace GT.UnitTests.BaseTests
         }
 
         protected void RunAcceptor() {
-            Console.WriteLine("Checking acceptor...");
+            DebugUtils.WriteLine("Checking acceptor...");
             while (acceptor.Active)
             {
                 acceptor.Update();
@@ -566,10 +605,11 @@ namespace GT.UnitTests.BaseTests
             }
         }
 
-        [Test]
-        public void TestTcpTransport()
+        public void TestTransport(IAcceptor acc, IConnector conn, string address, string port)
         {
-            acceptor = new TcpAcceptor(IPAddress.Any, port);
+            acceptor = acc;
+            connector = conn;
+
             acceptor.Start();
             acceptor.NewClientEvent += new NewClientHandler(SetupServer);
             acceptorThread = new Thread(new ThreadStart(RunAcceptor));
@@ -577,12 +617,15 @@ namespace GT.UnitTests.BaseTests
             acceptorThread.IsBackground = true;
             acceptorThread.Start();
 
-            client = new TcpConnector().Connect("127.0.0.1", port.ToString(), new Dictionary<string, string>());
+            client = connector.Connect(address, port, new Dictionary<string, string>());
             Assert.IsNotNull(client);
             client.PacketReceivedEvent += new PacketReceivedHandler(ClientReceivedPacket);
 
             for (int i = 0; i < 10; i++)
             {
+                sourceData[0] = (byte)i;
+                DebugUtils.WriteLine("client: sending packet#" + i + ": "
+                    + ByteUtils.DumpBytes(sourceData, 0, sourceData.Length));
                 client.SendPacket(sourceData, 0, sourceData.Length);
                 if (failure.Length != 0)
                 {
@@ -593,50 +636,27 @@ namespace GT.UnitTests.BaseTests
             }
             Assert.AreEqual(10, serverPacketCount);
             Assert.AreEqual(10, clientPacketCount);
+        }
+
+        [Test]
+        public void TestTcpTransport()
+        {
+            Console.Write("\nTesting TCP Transport: ");
+            TestTransport(new TcpAcceptor(IPAddress.Any, port), new TcpConnector(), "127.0.0.1", port.ToString());
         }
 
         [Test]
         public void TestUdpTransport()
         {
-            acceptor = new UdpAcceptor(IPAddress.Any, port);
-            acceptor.Start();
-            acceptor.NewClientEvent += new NewClientHandler(SetupServer);
-            acceptorThread = new Thread(new ThreadStart(RunAcceptor));
-            acceptorThread.Name = "Acceptor";
-            acceptorThread.IsBackground = true;
-            acceptorThread.Start();
-
-            client = new UdpConnector().Connect("127.0.0.1", port.ToString(), new Dictionary<string, string>());
-            Assert.IsNotNull(client);
-            client.PacketReceivedEvent += new PacketReceivedHandler(ClientReceivedPacket);
-
-            for (int i = 0; i < 10; i++)
-            {
-                client.SendPacket(sourceData, 0, sourceData.Length);
-                if (failure.Length != 0)
-                {
-                    Assert.Fail(failure);
-                }
-                Thread.Sleep(500);
-                client.Update();
-            }
-            Assert.AreEqual(10, serverPacketCount);
-            Assert.AreEqual(10, clientPacketCount);
+            Console.Write("\nTesting UDP Transport: ");
+            TestTransport(new UdpAcceptor(IPAddress.Any, port), new UdpConnector(), "127.0.0.1", port.ToString());
         }
 
-
-        [TearDown]
-        public void TearDown() {
-            if (server != null) { server.Dispose(); }
-            if (acceptor != null) { acceptor.Stop(); }
-            if (client != null) { client.Dispose(); }
-            if (acceptorThread != null) { acceptorThread.Abort(); }
-            if(serverThread != null) { serverThread.Abort(); }
-            server = null;
-            acceptor = null;
-            client = null;
-            acceptorThread = null;
-            serverThread = null;
+        [Test]
+        public void TestLocalTransport()
+        {
+            Console.Write("\nTesting Local Transport: ");
+            TestTransport(new LocalAcceptor("127.0.0.1:9999"), new LocalConnector(), "127.0.0.1", "9999");
         }
     }
 
@@ -644,7 +664,7 @@ namespace GT.UnitTests.BaseTests
     /// Test basic GT functionality
     /// </summary>
     [TestFixture]
-    public class ZZZStringStreamTests
+    public class ZZZStreamTests
     {
 
         private Boolean errorOccurred;
@@ -684,6 +704,32 @@ namespace GT.UnitTests.BaseTests
 
         #region "Server Stuff"
 
+        public class TestServerConfiguration : DefaultServerConfiguration
+        {
+            public TestServerConfiguration(int port)
+                : base(port)
+            { 
+            }
+
+            public override ICollection<IAcceptor> CreateAcceptors()
+            {
+                ICollection<IAcceptor> acceptors = base.CreateAcceptors();
+                acceptors.Add(new LocalAcceptor("127.0.0.1:9999")); // whatahack!
+                return acceptors;
+            }
+
+        }
+
+        public class TestClientConfiguration : DefaultClientConfiguration
+        {
+            public override ICollection<IConnector> CreateConnectors()
+            {
+                ICollection<IConnector> connectors = base.CreateConnectors();
+                connectors.Add(new LocalConnector());
+                return connectors;
+            }
+        }
+
         private Server server;
         private Thread serverThread;
 
@@ -695,12 +741,13 @@ namespace GT.UnitTests.BaseTests
             {
                 Assert.Fail("server already started");
             }
-            server = new Server(9999);
+            server = new TestServerConfiguration(9999).BuildServer();
             server.StringMessageReceived += new StringMessageHandler(ServerStringMessageReceived);
             server.BinaryMessageReceived += new BinaryMessageHandler(ServerBinaryMessageReceived);
             server.ObjectMessageReceived += new ObjectMessageHandler(ServerObjectMessageReceived);
             server.SessionMessageReceived += new SessionMessageHandler(ServerSessionMessageReceived);
             server.ErrorEvent += new ErrorClientHandler(server_ErrorEvent);
+            server.Start();
             serverThread = server.StartSeparateListeningThread(ServerSleepTime);
             Console.WriteLine("Server started: " + server.ToString() + " [" + serverThread.Name + "]");
         }
@@ -768,6 +815,12 @@ namespace GT.UnitTests.BaseTests
 
         #region "Tests"
         [Test]
+        public void EchoStringViaLocal()
+        {
+            PerformEchos((MessageProtocol)5);
+        }
+
+        [Test]
         public void EchoStringViaTCP()
         {
             PerformEchos(MessageProtocol.Tcp);
@@ -795,8 +848,9 @@ namespace GT.UnitTests.BaseTests
         protected void PerformEchos(MessageProtocol protocol) {
             StartExpectedResponseServer(EXPECTED_GREETING, EXPECTED_RESPONSE);
 
-            client = new Client();  //this is a client
+            client = new TestClientConfiguration().BuildClient();  //this is a client
             client.ErrorEvent += new GT.Net.ErrorEventHandler(client_ErrorEvent);  //triggers if there is an error
+            client.Start();
             Assert.IsFalse(errorOccurred);
             Assert.IsFalse(responseReceived);
 

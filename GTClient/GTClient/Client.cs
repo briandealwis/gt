@@ -547,8 +547,11 @@ namespace GT.Net
 
             // FIXME: This is bogus and should be changed.
             // request our id right away
-            Send(new SystemMessage(SystemMessageType.UniqueIDRequest), MessageProtocol.Tcp, 
-                MessageAggregation.No, MessageOrder.None);
+            foreach (ITransport t in transports.Values)
+            {
+                Send(new SystemMessage(SystemMessageType.UniqueIDRequest), t.MessageProtocol,
+                    MessageAggregation.No, MessageOrder.None);
+            }
         }
 
         public void Stop()
@@ -699,7 +702,7 @@ namespace GT.Net
                 //aggregation are locked in / already decided.
                 //If you're here, then you're not aggregating and you're not concerned 
                 //about ordering.
-                SendMessage(transports[protocol], msg);
+                SendMessage(FindTransport(protocol), msg);
             }
         }
 
@@ -712,6 +715,16 @@ namespace GT.Net
             // and be sure to catch exceptions; log and remove transport if unable to be started
             // if(!transport.Active) { transport.Start(); }
             transport.SendPacket(packet);
+        }
+
+        protected ITransport FindTransport(MessageProtocol protocol)
+        {
+            ITransport t;
+            if (!transports.TryGetValue(protocol, out t))
+            {
+                throw new NoMatchingTransport("Cannot find matching transport: " + protocol);
+            }
+            return t;
         }
 
         /// <summary>Flushes outgoing messages on this channel only</summary>
