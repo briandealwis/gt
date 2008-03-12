@@ -16,7 +16,7 @@ namespace GT.Net
 
         //If bits can't be written to the network now, try later
         //We use this so that we don't have to block on the writing to the network
-        protected List<byte[]> outstanding = new List<byte[]>();
+        protected Queue<byte[]> outstanding;
 
         // FIXME: Stop-gap measure until we have QoS descriptors
         public override MessageProtocol MessageProtocol { get { return MessageProtocol.Udp; } }
@@ -24,6 +24,7 @@ namespace GT.Net
         public BaseUdpTransport()
         {
             PacketHeaderSize = 0;   // GT UDP 1.0 doesn't need a packet length
+            outstanding = new Queue<byte[]>();
         }
 
         public override string Name { get { return "UDP"; } }
@@ -49,7 +50,7 @@ namespace GT.Net
                 Array.Copy(buffer, offset, newBuffer, 0, length);
                 buffer = newBuffer;
             }
-            outstanding.Add(buffer);
+            outstanding.Enqueue(buffer);
             FlushOutstandingPackets();
         }
 
@@ -64,7 +65,7 @@ namespace GT.Net
                 throw new ArgumentException("Transport provided different stream!");
             }
             MemoryStream output = (MemoryStream)ms;
-            outstanding.Add(output.ToArray());
+            outstanding.Enqueue(output.ToArray());
             FlushOutstandingPackets();
         }
 

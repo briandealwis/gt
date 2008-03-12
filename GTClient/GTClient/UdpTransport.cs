@@ -53,13 +53,13 @@ namespace GT.Net
             {
                 while (outstanding.Count > 0 && udpClient.Client.Connected)
                 {
-                    b = outstanding[0];
+                    b = outstanding.Peek();
                     udpClient.Client.Send(b, 0, b.Length, SocketFlags.None, out error);
 
                     switch (error)
                     {
                         case SocketError.Success:
-                            outstanding.RemoveAt(0);
+                            outstanding.Dequeue();
                             break;
                         case SocketError.WouldBlock:
                             //don't die, but try again next time

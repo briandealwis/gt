@@ -55,13 +55,13 @@ namespace GT.Net
             SocketError error = SocketError.Success;
             while (outstanding.Count > 0)
             {
-                byte[] b = outstanding[0];
+                byte[] b = outstanding.Peek();
                 handle.Send(b, 0, b.Length, out error);
 
                 switch (error)
                 {
                 case SocketError.Success:
-                    outstanding.RemoveAt(0);
+                    outstanding.Dequeue();
                     break;
                 case SocketError.WouldBlock:
                     //don't die, but try again next time

@@ -21,7 +21,7 @@ namespace GT.Net
         public static int CappedMessageSize = 512;
 
         private TcpClient handle;
-        private List<byte[]> outstanding;
+        private Queue<byte[]> outstanding;
 
         private PacketInProgress incomingInProgress;
         private PacketInProgress outgoingInProgress;
@@ -29,7 +29,7 @@ namespace GT.Net
         public TcpTransport(TcpClient h)
         {
             PacketHeaderSize = 4;   // GT TCP 1.0 protocol has 4 bytes for packet length
-            outstanding = new List<byte[]>();
+            outstanding = new Queue<byte[]>();
             h.NoDelay = true;
             h.Client.Blocking = false;
             handle = h;
@@ -97,7 +97,7 @@ namespace GT.Net
             BitConverter.GetBytes(length).CopyTo(wireFormat, 0);
             Array.Copy(buffer, offset, wireFormat, PacketHeaderSize, length);
 
-            outstanding.Add(wireFormat);
+            outstanding.Enqueue(wireFormat);
             FlushOutstandingPackets();
         }
 
@@ -120,7 +120,7 @@ namespace GT.Net
             ms.Write(lb, 0, lb.Length);
 
             //FIXME: should use a PacketInProgress with the stream length
-            outstanding.Add(ms.ToArray());
+            outstanding.Enqueue(ms.ToArray());
             FlushOutstandingPackets();
         }
 
@@ -132,8 +132,8 @@ namespace GT.Net
             {
                 if (outgoingInProgress == null)
                 {
-                    DebugUtils.WriteLine(this + ": Flush: " + outstanding[0].Length + " bytes");
-                    outgoingInProgress = new PacketInProgress(outstanding[0]);
+                    DebugUtils.WriteLine(this + ": Flush: " + outstanding.Peek().Length + " bytes");
+                    outgoingInProgress = new PacketInProgress(outstanding.Peek());
                 }
                 int bytesSent = handle.Client.Send(outgoingInProgress.data, outgoingInProgress.position,
                     outgoingInProgress.bytesRemaining, SocketFlags.None, out error);
@@ -146,7 +146,7 @@ namespace GT.Net
                     outgoingInProgress.Advance(bytesSent);
                     if (outgoingInProgress.bytesRemaining <= 0)
                     {
-                        outstanding.RemoveAt(0);
+                        outstanding.Dequeue();
                         outgoingInProgress = null;
                     }
                     break;
