@@ -42,7 +42,7 @@ namespace GT.Net
         }
 
 
-        /// <summary> Flushes out old messages that couldn't be sent because of exceptions</summary>
+        /// <summary> Flushes out old incomingMessages that couldn't be sent because of exceptions</summary>
         /// <returns>True if there are bytes that still have to be sent out</returns>
         protected override void FlushOutstandingPackets()
         {

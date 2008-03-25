@@ -68,9 +68,10 @@ namespace Telepointers
 
             teleList.Add(0,new Telepointer(Color.Pink));
 
-            binary = c.GetBinaryStream(f.Result, "9999", 0);
-            session = c.GetSessionStream(f.Result, "9999", 0);
-            coords = c.GetStreamedTuple<int, int>(f.Result, "9999", 1, 50);
+            binary = c.GetBinaryStream(f.Result, "9999", 0, ChannelDeliveryRequirements.Data);
+            session = c.GetSessionStream(f.Result, "9999", 0, ChannelDeliveryRequirements.SessionLike);
+            coords = c.GetStreamedTuple<int, int>(f.Result, "9999", 1, 50, 
+                ChannelDeliveryRequirements.TelepointerLike);
             coords.StreamedTupleReceived += new StreamedTupleReceivedDelegate<int, int>(coords_StreamedTupleReceived);
             c.ErrorEvent += new ErrorEventHandler(c_ErrorEvent);
             session.SessionNewMessageEvent += new SessionNewMessage(session_SessionNewMessageEvent);
@@ -81,7 +82,7 @@ namespace Telepointers
             Console.WriteLine("h");
         }
 
-        void c_ErrorEvent(Exception e, System.Net.Sockets.SocketError se, ServerConnexion ss, string explanation)
+        void c_ErrorEvent(ServerConnexion ss, string explanation, object context)
         {
             throw new Exception("The method or operation is not implemented.");
         }

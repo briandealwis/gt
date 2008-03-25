@@ -19,7 +19,7 @@ namespace GT.Net
         }
 
         /// <summary>
-        /// The messages which have been received by this connexion, after the injected delay has passed
+        /// The incomingMessages which have been received by this connexion, after the injected delay has passed
         /// </summary>
         public List<byte[]> Messages;
 
@@ -29,7 +29,7 @@ namespace GT.Net
         private SortedDictionary<long, byte[]> dequeueQueue;
         private HPTimer timer;
 
-        /// <summary>Delays the sending and receiving of messages by 'injectedDelay' milliseconds.
+        /// <summary>Delays the sending and receiving of incomingMessages by 'injectedDelay' milliseconds.
         /// </summary>
         /// <param name="bs">The binary connexion to use to send and receive on.</param>
         /// <param name="injectedDelay">time in milliseconds to inject</param>

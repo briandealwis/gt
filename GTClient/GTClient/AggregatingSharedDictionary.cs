@@ -115,14 +115,14 @@ namespace GT.Net
             interval = hpTimer.Frequency * milliseconds / 1000;
             currentTime = hpTimer.Time;
 
-            //check to see if there are possibly messages to send
+            //check to see if there are possibly incomingMessages to send
             if(!oneMessageOrMoreWaiting)
                 return;
             
             if (lastTimeSent + interval > hpTimer.Time)
                 return;
 
-            this.stream.FlushAllOutgoingMessagesOnChannel(MessageProtocol.Tcp);
+            this.stream.Flush();
         }
 
         private void bs_BinaryNewMessageEvent(IBinaryStream stream)
@@ -190,12 +190,12 @@ namespace GT.Net
             //if we've already sent stuff in this interval, aggregate instead of sending
             if (lastTimeSent + interval < currentTime)
             {
-                stream.Send(buffer, MessageProtocol.Tcp, MessageAggregation.Yes, MessageOrder.AllChannel);
+                stream.Send(buffer);
                 this.oneMessageOrMoreWaiting = true;
             }
             else
             {
-                stream.Send(buffer, MessageProtocol.Tcp, MessageAggregation.No, MessageOrder.AllChannel);
+                stream.Send(buffer);
                 this.oneMessageOrMoreWaiting = false;
             }
 

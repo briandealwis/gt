@@ -35,45 +35,6 @@ namespace GT.Net
         Tuple3D = 8
     }
 
-    /// <summary>Possible ways messages can be sent.</summary>
-    public enum MessageProtocol
-    {
-        /// <summary>This message will be sent via TCP, and is very reliable.</summary>
-        Tcp = 1,
-        /// <summary>This message will be sent via UDP, and is not reliable at all.</summary>
-        Udp = 2
-    }
-
-    /// <summary>Should this message be aggregated?</summary>
-    public enum MessageAggregation
-    {
-        /// <summary>This message will be saved, and sent dependant on the specified message ordering</summary>
-        Yes,
-        /// <summary>This message will be sent immediately</summary>
-        No
-    }
-
-    /// <summary>Which messages should be sent before this one?</summary>
-    public enum MessageOrder
-    {
-        /// <summary>This message will flush all other saved-to-be-aggregated messages out beforehand</summary>
-        All,
-        /// <summary>This message will flush all other saved-to-be-aggregated messages on this channel out beforehand</summary>
-        AllChannel,
-        /// <summary>This message will be sent immediately, without worrying about any saved-to-be-aggregated messages</summary>
-        None
-    }
-
-    /// <summary>Should receiving clients keep old messages?</summary>
-    /// FIXME: Is this the same as freshness?
-    public enum MessageTimeliness
-    {
-        /// <summary>Throw away old messages</summary>
-        RealTime,
-        /// <summary>Keep old messages</summary>
-        NonRealTime
-    }
-
     /// <summary>Session action performed.  We can add a lot more to this list.</summary>
     public enum SessionAction
     {

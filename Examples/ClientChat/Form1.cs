@@ -28,9 +28,8 @@ namespace ClientChat
             string host = parts[0];
             string port = parts.Length > 1 ? parts[1] : "9999";
 
-            s = c.GetStringStream(host, port,0);
-            session = c.GetSessionStream(host, port, 0);
-
+            s = c.GetStringStream(host, port,0, ChannelDeliveryRequirements.ChatLike);
+            session = c.GetSessionStream(host, port, 0, ChannelDeliveryRequirements.SessionLike);
             InitializeComponent();
         }
 

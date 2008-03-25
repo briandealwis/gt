@@ -30,12 +30,11 @@ namespace GT.Net
     public delegate void BinaryNewMessage(IBinaryStream stream);
 
     /// <summary>Handles a Error event, when an error occurs on the network.</summary>
-    /// <param name="e">The exception.  May be null.</param>
-    /// <param name="se">The networking error type.</param>
     /// <param name="ss">The server stream in which it occurred.  May be null if exception not in ServerConnexion.</param>
     /// <param name="explanation">A string describing the problem.</param>
+    /// <param name="context">A contextual object</param>
     /// <remarks>deprecated: use ErrorEvents instead</remarks>
-    public delegate void ErrorEventHandler(Exception e, SocketError se, ServerConnexion ss, string explanation);
+    public delegate void ErrorEventHandler(ServerConnexion ss, string explanation, object context);
 
     /// <summary>Occurs whenever this client is updated.</summary>
     public delegate void UpdateEventDelegate(HPTimer hpTimer);
@@ -65,15 +64,8 @@ namespace GT.Net
 
         /// <summary>Send an item to the server</summary>
         /// <param name="item">The item</param>
-        /// <param name="reli">How to send it</param>
-        void Send(T item, MessageProtocol reli);
-
-        /// <summary>Send an item to the server</summary>
-        /// <param name="item">The item</param>
-        /// <param name="reli">How to send it</param>
-        /// <param name="aggr">Should the message be saved to be packed with others?</param>
-        /// <param name="ordering">In what order should this message be sent in relation to other aggregated messages</param>
-        void Send(T item, MessageProtocol reli, MessageAggregation aggr, MessageOrder ordering);
+        /// <param name="mdr">How to send it</param>
+        void Send(T item, MessageDeliveryRequirements mdr);
 
         /// <summary>Take an item off the queue of received messages.</summary>
         /// <param name="index">The message to take off, with a higher number indicating a newer message.</param>
@@ -85,7 +77,7 @@ namespace GT.Net
 
         /// <summary>Flush all aggregated messages on this connexion</summary>
         /// <param name="protocol"></param>
-        void FlushAllOutgoingMessagesOnChannel(MessageProtocol protocol);
+        void Flush();
 
         // FIXME: How can the new message event be brought in?
         ///// <summary> Occurs when this connexion receives a message. </summary>
@@ -144,6 +136,7 @@ namespace GT.Net
     {
         protected byte id;
         protected internal ServerConnexion connexion;
+        protected ChannelDeliveryRequirements deliveryOptions;
 
         /// <summary> Occurs when client is updated. </summary>
         public event UpdateEventDelegate UpdateEvent;
@@ -167,10 +160,13 @@ namespace GT.Net
             get { return connexion.Port; }
         }
 
-        internal AbstractBaseStream(ServerConnexion stream, byte id)
+        public ChannelDeliveryRequirements ChannelDeliveryOptions { get { return deliveryOptions; } }
+
+        internal AbstractBaseStream(ServerConnexion stream, byte id, ChannelDeliveryRequirements cdr)
         {
             this.connexion = stream;
             this.id = id;
+            this.deliveryOptions = cdr;
         }
 
         internal virtual void Update(HPTimer hpTimer)
@@ -194,30 +190,26 @@ namespace GT.Net
         /// <summary>Create a stream object.</summary>
         /// <param name="stream">The SuperStream to use to actually send the messages.</param>
         /// <param name="id">The message channel.</param>
-        internal AbstractStream(ServerConnexion stream, byte id) : base(stream, id)
+        /// <param name="cdr">The channel delivery options.</param>
+        internal AbstractStream(ServerConnexion stream, byte id, ChannelDeliveryRequirements cdr) 
+            : base(stream, id, cdr)
         {
             messages = new List<Message>();
         }
 
         public void Send(T item)
         {
-            Send(item, MessageProtocol.Tcp, MessageAggregation.No, MessageOrder.None);
+            Send(item, null);
         }
 
-        public void Send(T item, MessageProtocol reli)
-        {
-            Send(item, reli, MessageAggregation.No, MessageOrder.None);
-        }
-
-        public abstract void Send(T action, MessageProtocol reli, MessageAggregation aggr, MessageOrder ordering);
+        public abstract void Send(T item, MessageDeliveryRequirements mdr);
 
         public abstract M DequeueMessage(int index);
 
         /// <summary>Flush all aggregated messages on this connexion</summary>
-        /// <param name="protocol"></param>
-        public virtual void FlushAllOutgoingMessagesOnChannel(MessageProtocol protocol)
+        public virtual void Flush()
         {
-            connexion.FlushOutgoingMessages(this.id, protocol);
+            connexion.FlushChannelMessages(this.id, deliveryOptions);
         }
     }
 
@@ -230,18 +222,18 @@ namespace GT.Net
         /// <summary>Create a SessionStream object.</summary>
         /// <param name="stream">The SuperStream to use to actually send the messages.</param>
         /// <param name="id">The message channel id.</param>
-        internal SessionStream(ServerConnexion stream, byte id) : base(stream, id)
+        /// <param name="cdr">The channel delivery options.</param>
+        internal SessionStream(ServerConnexion stream, byte id, ChannelDeliveryRequirements cdr) 
+            : base(stream, id, cdr)
         {
         }
 
         /// <summary>Send a session action to the server.</summary>
         /// <param name="action">The action.</param>
-        /// <param name="reli">How to send it.</param>
-        /// <param name="aggr">Should the message be saved to be packed with others?</param>
-        /// <param name="ordering">In what order should this message be sent in relation to other aggregated messages.</param>
-        override public void Send(SessionAction action, MessageProtocol reli, MessageAggregation aggr, MessageOrder ordering)
+        /// <param name="mdr">Message delivery options</param>
+        override public void Send(SessionAction action, MessageDeliveryRequirements mdr)
         {
-            connexion.Send(new SessionMessage(id, UniqueIdentity, action), reli, aggr, ordering);
+            connexion.Send(new SessionMessage(id, UniqueIdentity, action), mdr, deliveryOptions);
         }
 
         /// <summary>Take a SessionMessage off the queue of received messages.</summary>
@@ -293,19 +285,19 @@ namespace GT.Net
         /// <summary>Create a StringStream object.</summary>
         /// <param name="stream">The SuperStream to use to actually send the messages.</param>
         /// <param name="id">The message channel id.</param>
-        internal StringStream(ServerConnexion stream, byte id) : base(stream, id)
+        /// <param name="cdr">The channel delivery options.</param>
+        internal StringStream(ServerConnexion stream, byte id, ChannelDeliveryRequirements cdr) 
+            : base(stream, id, cdr)
         {
         }
 
         
         /// <summary>Send a string to the server, specifying how.</summary>
         /// <param name="b">The string to send.</param>
-        /// <param name="reli">What method to send it by.</param>
-        /// <param name="aggr">Should the message be saved to be packed with others?</param>
-        /// <param name="ordering">In what order should this message be sent in relation to other aggregated messages.</param>
-        override public void Send(string b, MessageProtocol reli, MessageAggregation aggr, MessageOrder ordering)
+        /// <param name="mdr">Message delivery options</param>
+        override public void Send(string s, MessageDeliveryRequirements mdr)
         {
-            connexion.Send(new StringMessage(id, b), reli, aggr, ordering);
+            connexion.Send(new StringMessage(id, s), mdr, deliveryOptions);
         }
 
         /// <summary>Take a String off the queue of received messages.</summary>
@@ -356,18 +348,18 @@ namespace GT.Net
         /// <summary>Create an ObjectStream object.</summary>
         /// <param name="stream">The SuperStream to use to actually send the objects.</param>
         /// <param name="id">The message channel claimed.</param>
-        internal ObjectStream(ServerConnexion stream, byte id) : base(stream,id)
+        /// <param name="cdr">The channel delivery options.</param>
+        internal ObjectStream(ServerConnexion stream, byte id, ChannelDeliveryRequirements cdr) 
+            : base(stream, id, cdr)
         {
         }
 
         /// <summary>Send an object using the specified method.</summary>
         /// <param name="o">The object to send.</param>
-        /// <param name="reli">How to send the object.</param>
-        /// <param name="aggr">Should the message be saved to be packed with others?</param>
-        /// <param name="ordering">In what order should this message be sent in relation to other aggregated messages.</param>
-        override public void Send(object o, MessageProtocol reli, MessageAggregation aggr, MessageOrder ordering)
+        /// <param name="mdr">Message delivery options</param>
+        override public void Send(object o, MessageDeliveryRequirements mdr)
         {
-            connexion.Send(new ObjectMessage(id, o), reli, aggr, ordering);
+            connexion.Send(new ObjectMessage(id, o), mdr, deliveryOptions);
         }
 
         /// <summary>Dequeues an object from the message list.</summary>
@@ -417,14 +409,18 @@ namespace GT.Net
         /// <summary>Creates a BinaryStream object.</summary>
         /// <param name="stream">The SuperStream object on which to actually send the objects.</param>
         /// <param name="id">The message channel to claim.</param>
-        internal BinaryStream(ServerConnexion stream, byte id) : base(stream, id)
+        /// <param name="cdr">The channel delivery options.</param>
+        internal BinaryStream(ServerConnexion stream, byte id, ChannelDeliveryRequirements cdr) 
+            : base(stream, id, cdr)
         {
         }
 
-        override public void Send(byte[] b, MessageProtocol reli, MessageAggregation aggr, 
-            MessageOrder ordering)
+        /// <summary>Send a byte array using the specified method.</summary>
+        /// <param name="b">The byte array to send.</param>
+        /// <param name="mdr">Message delivery options</param>
+        override public void Send(byte[] b, MessageDeliveryRequirements mdr)
         {
-            connexion.Send(new BinaryMessage(id, b), reli, aggr, ordering);
+            connexion.Send(new BinaryMessage(id, b), mdr, deliveryOptions);
         }
 
         /// <summary>Takes a message from the message list.</summary>
@@ -471,7 +467,7 @@ namespace GT.Net
     public class ServerConnexion : IStartable
     {
         private Client owner;
-        private bool started;
+        private bool active;
         private string address;
         private string port;
 
@@ -485,14 +481,13 @@ namespace GT.Net
         /// different transports, they are added to this list.  The different types of 
         /// streams process this list to select messages corresponding to their particular 
         /// type.</summary>
-        internal List<Message> messages;
+        internal List<Message> receivedMessages;
 
         /// <summary>Occurs when there is an error.</summary>
         public event ErrorEventHandler ErrorEvent;
 
-        private Dictionary<MessageProtocol, ITransport> transports = 
-            new Dictionary<MessageProtocol,ITransport>();
-        private Dictionary<MessageProtocol, List<Message>> messagePools;
+        private List<ITransport> transports = new List<ITransport>();
+        private Dictionary<byte, Queue<KeyValuePair<Message, MessageDeliveryRequirements>>> messagePools;
 
         /// <summary>Create a new SuperStream to handle a connexion to a server.</summary>
         /// <param name="owner">The owning client.</param>
@@ -500,7 +495,7 @@ namespace GT.Net
         /// <param name="port">Which port to connect to.</param>
         internal ServerConnexion(Client owner, string address, string port)
         {
-            started = false;
+            active = false;
             this.owner = owner;
             this.address = address;
             this.port = port;
@@ -530,10 +525,10 @@ namespace GT.Net
             if (Active) { return; }
             nextPingTime = 0;
 
-            messagePools = new Dictionary<MessageProtocol, List<Message>>();
-            messages = new List<Message>();
+            messagePools = new Dictionary<byte, Queue<KeyValuePair<Message, MessageDeliveryRequirements>>>();
+            receivedMessages = new List<Message>();
 
-            transports = new Dictionary<MessageProtocol, ITransport>();
+            transports = new List<ITransport>();
 
             // FIXME: should this be done on demand?
             foreach (IConnector conn in owner.Connectors)
@@ -543,23 +538,29 @@ namespace GT.Net
                 if (t != null) { AddTransport(t); }
             }
 
-            started = true;
+            active = true;
 
             // FIXME: This is bogus and should be changed.
             // request our id right away
-            foreach (ITransport t in transports.Values)
+            foreach (ITransport t in transports)
             {
-                Send(new SystemMessage(SystemMessageType.UniqueIDRequest), t.MessageProtocol,
-                    MessageAggregation.No, MessageOrder.None);
+                SendMessage(t, new SystemMessage(SystemMessageType.UniqueIDRequest));
             }
         }
 
         public void Stop()
         {
-            started = false;
+            active = false;
             if (transports != null)
             {
-                foreach (ITransport t in transports.Values) { t.Dispose(); }
+                foreach (ITransport t in transports)
+                {
+                    try { t.Dispose(); }
+                    catch (Exception e)
+                    {
+                        ErrorEvent(this, "Exception disposing transport: " + t, e);
+                    }
+                }
             }
             transports = null;
         }
@@ -571,11 +572,10 @@ namespace GT.Net
 
         public void AddTransport(ITransport t)
         {
-            // transports[t.Name] = t;
-            transports[t.MessageProtocol] = t;  // FIXME: this is to be replaced!
             t.PacketReceivedEvent += new PacketReceivedHandler(HandleNewPacket);
             t.TransportErrorEvent += new TransportErrorHandler(HandleTransportError);
-            // t.ErrorEvent += new ErrorEventHandler();
+            transports.Add(t);
+            transports.Sort(owner.Configuration);
         }
 
         public virtual string Address
@@ -590,7 +590,7 @@ namespace GT.Net
 
         public virtual bool Active
         {
-            get { return started; }
+            get { return active; }
         }
 
         /// <summary>Average latency between the client and this particluar server.</summary>
@@ -598,7 +598,7 @@ namespace GT.Net
             get
             {
                 float total = 0; int n = 0;
-                foreach (ITransport t in transports.Values)
+                foreach (ITransport t in transports)
                 {
                     float d = t.Delay;
                     if (d > 0) { total += d; n++; }
@@ -616,7 +616,7 @@ namespace GT.Net
             }
             else
             {
-                messages.Add(msg);
+                receivedMessages.Add(msg);
             }
         }
 
@@ -625,87 +625,27 @@ namespace GT.Net
             // FIXME: find the associated connector and re-connect
             if (transport != null)
             {
+                transports.Remove(transport);
                 transport.Dispose();
-                transports.Remove(transport.MessageProtocol);
             }
         }
+
         /// <summary>Occurs when there is an error.</summary>
-        protected internal void NotifyError(object generator, Exception e, SocketError se, string explanation)
+        protected internal void NotifyError(string explanation, object generator, object context)
         {
             // FIXME: This should be logging
-            Console.WriteLine("Error[" + generator + "]: " + explanation + " (" + e + ", " + se + ")");
+            Console.WriteLine("Error[" + generator + "]: " + explanation + ": " + context);
             if (ErrorEvent != null)
             {
-                ErrorEvent(e, se, this, explanation);
+                ErrorEvent(this, explanation, context);
             }
         }
 
-
-
-        /// <summary>Adds the message to a list, waiting to be sent out.</summary>
-        /// <param name="msg">The message to be aggregated</param>
-        /// <param name="ordering">The ordering of how it will be sent</param>
-        /// <param name="protocol">How it should be sent out</param>
-        private void Aggregate(Message msg, 
-            MessageProtocol protocol, MessageOrder ordering)
-        {
-            List<Message> mp;
-            messagePools.TryGetValue(protocol, out mp);
-            if(mp == null) {
-                mp = messagePools[protocol] = new List<Message>();
-            }
-            // FIXME: presumably there is some maximum size or waiting time
-            // before aggregated messages are flushed?
-            // FIXME: what about QoS.Freshness -- where only the latest should be sent?
-            mp.Add(msg);
-        }
-
-        /// <summary>Send a message using these parameters.</summary>
-        /// <param name="msg">The message to send.</param>
-        /// <param name="protocol">How to send it.</param>
-        /// <param name="aggr">Should this message be aggregated?</param>
-        /// <param name="ordering">Should message sent before this be sent?</param>
-        public void Send(Message msg, MessageProtocol protocol, 
-            MessageAggregation aggr, MessageOrder ordering)
-        {
-            lock (this)
-            {
-                if (!Active) { 
-                    throw new InvalidStateException("Cannot send on a stopped client", this); 
-                }
-
-                if (aggr == MessageAggregation.Yes)
-                {
-                    //Wait to send this Bytes, hopefully to pack it with later Bytes.
-                    Aggregate(msg, protocol, ordering);
-                    return;
-                }
-
-                if (ordering == MessageOrder.All)
-                {
-                    //Make sure ALL messages on the CLIENT are sent,
-                    //then send this one.
-                    Aggregate(msg, protocol, ordering);
-                    FlushOutgoingMessages(protocol);
-                    return;
-                }
-                else if (ordering == MessageOrder.AllChannel)
-                {
-                    //Make sure ALL other messages on this CHANNEL are sent,
-                    //then send this one.
-                    Aggregate(msg, protocol, ordering);
-                    FlushOutgoingMessages(msg.Id, protocol);
-                    return;
-                }
-
-                //Actually send the Bytes.  Note that after this point, ordering and 
-                //aggregation are locked in / already decided.
-                //If you're here, then you're not aggregating and you're not concerned 
-                //about ordering.
-                SendMessage(FindTransport(protocol), msg);
-            }
-        }
-
+        /// <summary>
+        /// Short-circuit operation to send a message with no fuss and no muss.
+        /// </summary>
+        /// <param name="transport">Where to send it</param>
+        /// <param name="msg">What to send</param>
         protected void SendMessage(ITransport transport, Message msg)
         {
             //pack main message into a buffer and send it right away
@@ -717,78 +657,196 @@ namespace GT.Net
             transport.SendPacket(packet);
         }
 
-        protected ITransport FindTransport(MessageProtocol protocol)
+
+        /// <summary>Adds the message to a list, waiting to be sent out.</summary>
+        /// <param name="msg">The message to be aggregated</param>
+        /// <param name="mdr">How it should be sent out (potentially null)</param>
+        /// <param name="cdr">General delivery instructions for this message's channel.</param>
+        private void Aggregate(Message msg, MessageDeliveryRequirements mdr, ChannelDeliveryRequirements cdr)
         {
-            ITransport t;
-            if (!transports.TryGetValue(protocol, out t))
+            Queue<KeyValuePair<Message,MessageDeliveryRequirements>> mp;
+            if (!messagePools.TryGetValue(msg.Id, out mp))
             {
-                throw new NoMatchingTransport("Cannot find matching transport: " + protocol);
+                mp = messagePools[msg.Id] = new Queue<KeyValuePair<Message,MessageDeliveryRequirements>>();
+            }
+            // FIXME: presumably there is some maximum size or waiting time
+            // before aggregated messages are flushed?
+            // FIXME: what about QoS.Freshness -- where only the latest should be sent?
+            mp.Enqueue(new KeyValuePair<Message,MessageDeliveryRequirements>(msg, mdr));
+        }
+
+        /// <summary>Send a message using these parameters.</summary>
+        /// <param name="msg">The message to send.</param>
+        /// <param name="mdr">Particular instructions for this message.</param>
+        /// <param name="cdr">General delivery instructions for this message's channel.</param>
+        public void Send(Message msg, MessageDeliveryRequirements mdr, ChannelDeliveryRequirements cdr)
+        {
+            lock (this)
+            {
+                if (!Active) { 
+                    throw new InvalidStateException("Cannot send on a stopped client", this); 
+                }
+
+                // We resolve and use the transport for aggregation *now* rather than
+                // at flush time as it greatly simplifies our lives.  We could remember
+                // items 
+                ITransport t = FindTransport(mdr, cdr);
+
+                if (msg.MessageType == MessageType.System)
+                {
+                    SendMessage(FindTransport(mdr, cdr), msg);
+                    return;
+                }
+
+                MessageAggregation aggr = mdr == null ? cdr.Aggregation : mdr.Aggregation;
+                if (aggr == MessageAggregation.Aggregatable)
+                {
+                    //Wait to send this message, hopefully to pack it with later messages.
+                    Aggregate(msg, mdr, cdr);
+                    return;
+                } else if (aggr == MessageAggregation.FlushAll)
+                {
+                    //Make sure ALL messages on the CLIENT are sent, then send <c>msg</c>.
+                    FlushAllMessages(msg, mdr);
+                    return;
+                }
+
+                // if aggr == FlushChannel, then must make sure ALL other messages 
+                // on this CHANNEL are sent, and then send <c>msg</c>.  Otherwise
+                // is Immediate, meaning bundle <c>msg</c> first and then cram on whatever 
+                // other messages are waiting.
+                FlushChannelMessages(msg.Id, msg, mdr, cdr, aggr == MessageAggregation.FlushChannel);
+            }
+        }
+
+        protected ITransport FindTransport(MessageDeliveryRequirements mdr, ChannelDeliveryRequirements cdr)
+        {
+            ITransport t = owner.Configuration.SelectTransport(transports, mdr, cdr);
+            if (t == null)
+            {
+                throw new NoMatchingTransport("Cannot find matching transport!");
             }
             return t;
         }
 
-        /// <summary>Flushes outgoing messages on this channel only</summary>
-        internal void FlushOutgoingMessages(byte id, MessageProtocol protocol)
+        internal void FlushChannelMessages(byte id, ChannelDeliveryRequirements cdr)
         {
-            ITransport t = transports[protocol];  // will throw exception if not found
-            Debug.Assert(t.MaximumPacketSize > 0);
-
-            List<Message> list;
-            messagePools.TryGetValue(protocol, out list);
-            if (list == null || list.Count == 0) { return; }
-            FlushOutgoingMessages(t, 
-                new PredicateListProcessor<Message>(list, 
-                    new Predicate<Message>(new SpecificChannelMessageProcessor(id).Matches)));
+            FlushChannelMessages(id, null, null, cdr, false);
         }
 
-        /// <summary>Flushes outgoing messages</summary>
-        private void FlushOutgoingMessages(MessageProtocol protocol)
+        /// <summary>Flushes outgoing messages on <c>msg</c>'s channel only</summary>
+        protected void FlushChannelMessages(byte id, Message msg, MessageDeliveryRequirements mdr,
+            ChannelDeliveryRequirements cdr, bool putMsgFirst)
         {
-            List<Message> list;
-            byte[] buffer;
-
-            ITransport t = transports[protocol];
-            Debug.Assert(t.MaximumPacketSize > 0);
-
-            messagePools.TryGetValue(protocol, out list);
-            if (list == null || list.Count == 0) { return; }
-            FlushOutgoingMessages(t, new SequentialListProcessor<Message>(list));
-        }
-
-        private void FlushOutgoingMessages(ITransport transport, IProcessingQueue<Message> elements)
-        {
-            while (!elements.Empty)
+            Queue<KeyValuePair<Message,MessageDeliveryRequirements>> list;
+            if (!messagePools.TryGetValue(id, out list) || list == null || list.Count == 0)
             {
-                Message message;
-                Stream packet = transport.GetPacketStream();
-                //if there are no more messages in the list
-                while((message = elements.Current) != null) 
+                SendMessage(FindTransport(mdr, cdr), msg);
+                return;
+            }
+            if (!putMsgFirst)
+            {
+                list.Enqueue(new KeyValuePair<Message, MessageDeliveryRequirements>(msg, mdr));
+            }
+
+            Dictionary<ITransport, Stream> inProgress = new Dictionary<ITransport, Stream>();
+            do
+            {
+                KeyValuePair<Message, MessageDeliveryRequirements> current;
+                if (putMsgFirst)
                 {
-                    long previousLength = packet.Length;
-                    try
-                    {
-                        owner.Marshaller.Marshal(message, packet, transport);
-                    }
-                    catch (ArgumentException) { }
-
-                    //if packing a packet, and the packet is full
-                    if (packet.Length >= transport.MaximumPacketSize)
-                    {
-                        // we're too big: go back to previous length, send this, and cause
-                        // the last message to be remarshalled
-                        packet.SetLength(previousLength);
-                        break;
-                    }
-                    // successfully marshalled: remove the message and find the next
-                    elements.Remove();
+                    current = new KeyValuePair<Message, MessageDeliveryRequirements>(msg, mdr);
+                    putMsgFirst = false;
                 }
-                if(packet.Length == 0) { break; }
+                else { current = list.Dequeue(); }
+                // FindTransport() will throw exception if not found
+                ITransport transport = FindTransport(current.Value, cdr);
+                Stream stream;
+                if (!inProgress.TryGetValue(transport, out stream))
+                {
+                    stream = inProgress[transport] = transport.GetPacketStream();
+                }
+                StreamMessage(msg, transport, ref stream);
+                inProgress[transport] = stream; // be sure to update inProgress
+            } while (list.Count > 0);
 
-                //Actually send the Bytes.  Note that after this point, ordering and 
-                //aggregation are locked in / already decided.
-                transport.SendPacket(packet);
+            if (list.Count == 0) { messagePools.Remove(id); }
+
+            // send everything in progress
+            foreach (ITransport t in inProgress.Keys)
+            {
+                Stream stream = inProgress[t];
+                if (stream != null) { t.SendPacket(stream); }
             }
         }
+
+        protected void StreamMessage(Message message, ITransport t, ref Stream stream)
+        {
+            long previousLength = stream.Length;
+            owner.Marshaller.Marshal(message, stream, t);
+            if (stream.Length < t.MaximumPacketSize) { return; }
+
+            // resulting packet is too big: go back to previous length, send what we had, 
+            stream.SetLength(previousLength);
+            Debug.Assert(stream.Length > 0);
+            t.SendPacket(stream);
+
+            // and remarshal the last message
+            stream = t.GetPacketStream();
+            owner.Marshaller.Marshal(message, stream, t);
+        }
+
+        /// <summary>Flushes all messages and then msg.</summary>
+        internal void FlushAllMessages(Message msg, MessageDeliveryRequirements mdr)
+        {
+            if (messagePools.Count == 0)
+            {
+                SendMessage(FindTransport(mdr, GetChannelDeliveryOptions(msg)), msg);
+                return;
+            }
+
+            Queue<KeyValuePair<Message, MessageDeliveryRequirements>> list;
+            if (!messagePools.TryGetValue(msg.Id, out list))
+            {
+                list = messagePools[msg.Id] = new Queue<KeyValuePair<Message, MessageDeliveryRequirements>>();
+            }
+            list.Enqueue(new KeyValuePair<Message, MessageDeliveryRequirements>(msg, mdr));
+
+            Dictionary<ITransport, Stream> inProgress = new Dictionary<ITransport, Stream>();
+            while (messagePools.Count > 0)
+            {
+                // Go in round robin
+                foreach (byte id in messagePools.Keys)
+                {
+                    list = messagePools[id];
+                    KeyValuePair<Message, MessageDeliveryRequirements> current = list.Dequeue();
+                    // FindTransport() will throw exception if not found
+                    ITransport transport = FindTransport(current.Value, 
+                        GetChannelDeliveryOptions(current.Key));
+                    Stream stream;
+                    if (!inProgress.TryGetValue(transport, out stream))
+                    {
+                        stream = inProgress[transport] = transport.GetPacketStream();
+                    }
+                    StreamMessage(current.Key, transport, ref stream);
+                    inProgress[transport] = stream; // be sure to update inProgress
+
+                    if (list.Count == 0) { messagePools.Remove(id); }
+                }
+            }
+            // send everything that was in progress
+            foreach (ITransport t in inProgress.Keys)
+            {
+                Stream stream = inProgress[t];
+                if (stream != null) { t.SendPacket(stream); }
+            }
+        }
+
+        private ChannelDeliveryRequirements GetChannelDeliveryOptions(Message msg)
+        {
+            return owner.GetChannelDeliveryOptions(msg);
+        }
+
     
         /// <summary>A single tick of the SuperStream.</summary>
         internal void Update()
@@ -796,7 +854,7 @@ namespace GT.Net
             lock (this)
             {
                 if (!Active) { return; }
-                foreach (ITransport t in transports.Values)
+                foreach (ITransport t in transports)
                 {
                     t.Update();
                 }
@@ -837,7 +895,7 @@ namespace GT.Net
         /// <summary>Ping the server to determine delay, as well as act as a keep-alive.</summary>
         internal void Ping()
         {
-            foreach (ITransport t in transports.Values)
+            foreach (ITransport t in transports)
             {
                 SendMessage(t, new SystemMessage(SystemMessageType.PingRequest,
                     BitConverter.GetBytes(System.Environment.TickCount)));
@@ -859,7 +917,7 @@ namespace GT.Net
         }
     }
 
-    public abstract class ClientConfiguration
+    public abstract class ClientConfiguration : BaseConfiguration
     {
         abstract public IMarshaller CreateMarshaller();
         abstract public ICollection<IConnector> CreateConnectors();
@@ -971,6 +1029,8 @@ namespace GT.Net
         {
             get { return marshaller; }
         }
+
+        public ClientConfiguration Configuration { get { return configuration; } }
 
         public Dictionary<string, string> Capabilities
         {
@@ -1090,7 +1150,8 @@ namespace GT.Net
         /// <param name="id">The channel id to use for this three-tuple (unique to three-tuples)</param>
         /// <param name="milliseconds">The interval in milliseconds</param>
         /// <returns>The streaming tuple</returns>
-        public StreamedTuple<A, B, C> GetStreamedTuple<A, B, C>(string address, string port, byte id, int milliseconds)
+        public StreamedTuple<A, B, C> GetStreamedTuple<A, B, C>(string address, string port, byte id, int milliseconds, 
+            ChannelDeliveryRequirements cdr)
             where A : IConvertible
             where B : IConvertible
             where C : IConvertible
@@ -1108,7 +1169,8 @@ namespace GT.Net
                 return (StreamedTuple<A, B, C>)threeTupleStreams[id];
             }
 
-            StreamedTuple<A, B, C> bs = (StreamedTuple<A, B, C>)new StreamedTuple<A, B, C>(GetConnexion(address, port), id, milliseconds);
+            StreamedTuple<A, B, C> bs = (StreamedTuple<A, B, C>)new StreamedTuple<A, B, C>(GetConnexion(address, port), 
+                id, milliseconds, cdr);
             threeTupleStreams.Add(id, (AbstractStreamedTuple)bs);
             return bs;
         }
@@ -1121,7 +1183,8 @@ namespace GT.Net
         /// <param name="id">The channel id to use for this three-tuple (unique to three-tuples)</param>
         /// <param name="milliseconds">The interval in milliseconds</param>
         /// <returns>The streaming tuple</returns>
-        public StreamedTuple<A, B, C> GetStreamedTuple<A, B, C>(ServerConnexion connexion, byte id, int milliseconds)
+        public StreamedTuple<A, B, C> GetStreamedTuple<A, B, C>(ServerConnexion connexion, byte id, int milliseconds,
+            ChannelDeliveryRequirements cdr)
             where A : IConvertible
             where B : IConvertible
             where C : IConvertible
@@ -1139,7 +1202,7 @@ namespace GT.Net
                 return tuple;
             }
 
-            tuple = new StreamedTuple<A, B, C>(connexion, id, milliseconds);
+            tuple = new StreamedTuple<A, B, C>(connexion, id, milliseconds, cdr);
             threeTupleStreams.Add(id, (AbstractStreamedTuple)tuple);
             return tuple;
         }
@@ -1152,7 +1215,8 @@ namespace GT.Net
         /// <param name="id">The channel id to use for this two-tuple (unique to two-tuples)</param>
         /// <param name="milliseconds">The interval in milliseconds</param>
         /// <returns>The streaming tuple</returns>
-        public StreamedTuple<A, B> GetStreamedTuple<A, B>(string address, string port, byte id, int milliseconds)
+        public StreamedTuple<A, B> GetStreamedTuple<A, B>(string address, string port, byte id, int milliseconds,
+            ChannelDeliveryRequirements cdr)
             where A : IConvertible
             where B : IConvertible
         {
@@ -1169,7 +1233,7 @@ namespace GT.Net
                 return tuple;
             }
 
-            tuple = new StreamedTuple<A, B>(GetConnexion(address, port), id, milliseconds);
+            tuple = new StreamedTuple<A, B>(GetConnexion(address, port), id, milliseconds, cdr);
             twoTupleStreams.Add(id, (AbstractStreamedTuple)tuple);
             return tuple;
         }
@@ -1181,7 +1245,8 @@ namespace GT.Net
         /// <param name="id">The channel id to use for this three-tuple (unique to three-tuples)</param>
         /// <param name="milliseconds">The interval in milliseconds</param>
         /// <returns>The streaming tuple</returns>
-        public StreamedTuple<A, B> GetStreamedTuple<A, B>(ServerConnexion connexion, byte id, int milliseconds)
+        public StreamedTuple<A, B> GetStreamedTuple<A, B>(ServerConnexion connexion, byte id, int milliseconds,
+            ChannelDeliveryRequirements cdr)
             where A : IConvertible
             where B : IConvertible
         {
@@ -1198,7 +1263,7 @@ namespace GT.Net
                 return tuple;
             }
 
-            tuple = new StreamedTuple<A, B>(connexion, id, milliseconds);
+            tuple = new StreamedTuple<A, B>(connexion, id, milliseconds, cdr);
             threeTupleStreams.Add(id, (AbstractStreamedTuple)tuple);
             return tuple;
         }
@@ -1210,7 +1275,8 @@ namespace GT.Net
         /// <param name="id">The channel id to use for this one-tuple (unique to one-tuples)</param>
         /// <param name="milliseconds">The interval in milliseconds</param>
         /// <returns>The streaming tuple</returns>
-        public StreamedTuple<A> GetStreamedTuple<A>(string address, string port, byte id, int milliseconds)
+        public StreamedTuple<A> GetStreamedTuple<A>(string address, string port, byte id, int milliseconds,
+            ChannelDeliveryRequirements cdr)
             where A : IConvertible
         {
             StreamedTuple<A> tuple;
@@ -1226,7 +1292,7 @@ namespace GT.Net
                 return tuple;
             }
 
-            tuple = new StreamedTuple<A>(GetConnexion(address, port), id, milliseconds);
+            tuple = new StreamedTuple<A>(GetConnexion(address, port), id, milliseconds, cdr);
             oneTupleStreams.Add(id, (AbstractStreamedTuple)tuple);
             return tuple;
         }
@@ -1237,7 +1303,7 @@ namespace GT.Net
         /// <param name="port">The port to connect to.  Changes old connexion if id already claimed.</param>
         /// <param name="id">The channel id to claim or retrieve.</param>
         /// <returns>The created or retrived SessionStream</returns>
-        public ISessionStream GetSessionStream(string address, string port, byte id)
+        public ISessionStream GetSessionStream(string address, string port, byte id, ChannelDeliveryRequirements cdr)
         {
             if (sessionStreams.ContainsKey(id))
             {
@@ -1250,7 +1316,7 @@ namespace GT.Net
                 return sessionStreams[id];
             }
 
-            SessionStream bs = new SessionStream(GetConnexion(address, port), id);
+            SessionStream bs = new SessionStream(GetConnexion(address, port), id, cdr);
             sessionStreams.Add(id, bs);
             return bs;
         }
@@ -1259,7 +1325,7 @@ namespace GT.Net
         /// <param name="connexion">The connexion to use for the connexion.  Changes the server of id if the id is already claimed.</param>
         /// <param name="id">The channel id to claim or retrieve.</param>
         /// <returns>The created or retrived SessionStream</returns>
-        public ISessionStream GetSessionStream(ServerConnexion connexion, byte id)
+        public ISessionStream GetSessionStream(ServerConnexion connexion, byte id, ChannelDeliveryRequirements cdr)
         {
             if (sessionStreams.ContainsKey(id))
             {
@@ -1272,7 +1338,7 @@ namespace GT.Net
                 return sessionStreams[id];
             }
 
-            SessionStream bs = new SessionStream(connexion, id);
+            SessionStream bs = new SessionStream(connexion, id, cdr);
             sessionStreams.Add(id, bs);
             return bs;
         }
@@ -1290,7 +1356,7 @@ namespace GT.Net
         /// <param name="port">The port to connect to.  Changes old connexion if id already claimed.</param>
         /// <param name="id">The channel id to claim.</param>
         /// <returns>The created or retrived StringStream</returns>
-        public IStringStream GetStringStream(string address, string port, byte id)
+        public IStringStream GetStringStream(string address, string port, byte id, ChannelDeliveryRequirements cdr)
         {
             if (stringStreams.ContainsKey(id))
             {
@@ -1303,7 +1369,7 @@ namespace GT.Net
                 return stringStreams[id];
             }
 
-            StringStream bs = new StringStream(GetConnexion(address, port), id);
+            StringStream bs = new StringStream(GetConnexion(address, port), id, cdr);
             stringStreams.Add(id, bs);
             return bs;
         }
@@ -1312,7 +1378,7 @@ namespace GT.Net
         /// <param name="connexion">The connexion to use for the connexion.  Changes the server of id if the id is already claimed.</param>
         /// <param name="id">The channel id to claim.</param>
         /// <returns>The created or retrived StringStream</returns>
-        public IStringStream GetStringStream(ServerConnexion connexion, byte id)
+        public IStringStream GetStringStream(ServerConnexion connexion, byte id, ChannelDeliveryRequirements cdr)
         {
             if (stringStreams.ContainsKey(id))
             {
@@ -1325,7 +1391,7 @@ namespace GT.Net
                 return stringStreams[id];
             }
 
-            StringStream bs = new StringStream(connexion, id);
+            StringStream bs = new StringStream(connexion, id, cdr);
             stringStreams.Add(id, bs);
             return bs;
         }
@@ -1343,7 +1409,7 @@ namespace GT.Net
         /// <param name="port">The port to connect to.  Changes old connexion if id already claimed.</param>
         /// <param name="id">The channel id to claim for this ObjectStream, unique for all ObjectStreams.</param>
         /// <returns>The created or retrived ObjectStream</returns>
-        public IObjectStream GetObjectStream(string address, string port, byte id)
+        public IObjectStream GetObjectStream(string address, string port, byte id, ChannelDeliveryRequirements cdr)
         {
             if (objectStreams.ContainsKey(id))
             {
@@ -1354,7 +1420,7 @@ namespace GT.Net
                 objectStreams[id].connexion = GetConnexion(address, port);
                 return objectStreams[id];
             }
-            ObjectStream bs = new ObjectStream(GetConnexion(address, port), id);
+            ObjectStream bs = new ObjectStream(GetConnexion(address, port), id, cdr);
             objectStreams.Add(id, bs);
             return bs;
         }
@@ -1363,7 +1429,7 @@ namespace GT.Net
         /// <param name="connexion">The connexion to use for the connexion.  Changes the server of id if the id is already claimed.</param>
         /// <param name="id">The channel id to claim for this ObjectStream, unique for all ObjectStreams.</param>
         /// <returns>The created or retrived ObjectStream</returns>
-        public IObjectStream GetObjectStream(ServerConnexion connexion, byte id)
+        public IObjectStream GetObjectStream(ServerConnexion connexion, byte id, ChannelDeliveryRequirements cdr)
         {
             if (objectStreams.ContainsKey(id))
             {
@@ -1374,7 +1440,7 @@ namespace GT.Net
                 objectStreams[id].connexion = connexion;
                 return objectStreams[id];
             }
-            ObjectStream bs = new ObjectStream(connexion, id);
+            ObjectStream bs = new ObjectStream(connexion, id, cdr);
             objectStreams.Add(id, bs);
             return bs;
         }
@@ -1392,7 +1458,7 @@ namespace GT.Net
         /// <param name="port">The port to connect to.  Changes old connexion if id already claimed.</param>
         /// <param name="id">The channel id to claim for this BinaryStream, unique for all BinaryStreams.</param>
         /// <returns>The created or retrived BinaryStream.</returns>
-        public IBinaryStream GetBinaryStream(string address, string port, byte id)
+        public IBinaryStream GetBinaryStream(string address, string port, byte id, ChannelDeliveryRequirements cdr)
         {
             if (binaryStreams.ContainsKey(id))
             {
@@ -1404,7 +1470,7 @@ namespace GT.Net
                 binaryStreams[id].connexion = GetConnexion(address, port);
                 return binaryStreams[id];
             }
-            BinaryStream bs = new BinaryStream(GetConnexion(address, port), id);
+            BinaryStream bs = new BinaryStream(GetConnexion(address, port), id, cdr);
             binaryStreams.Add(id, bs);
             return bs;
         }
@@ -1413,7 +1479,7 @@ namespace GT.Net
         /// <param name="connexion">The connexion to use for the connexion.  Changes the server of id if the id is already claimed.</param>
         /// <param name="id">The channel id to claim for this BinaryStream, unique for all BinaryStreams.</param>
         /// <returns>The created or retrived BinaryStream.</returns>
-        public IBinaryStream GetBinaryStream(ServerConnexion connexion, byte id)
+        public IBinaryStream GetBinaryStream(ServerConnexion connexion, byte id, ChannelDeliveryRequirements cdr)
         {
             if (binaryStreams.ContainsKey(id))
             {
@@ -1424,7 +1490,7 @@ namespace GT.Net
                 binaryStreams[id].connexion = connexion;
                 return binaryStreams[id];
             }
-            BinaryStream bs = new BinaryStream(connexion, id);
+            BinaryStream bs = new BinaryStream(connexion, id, cdr);
             binaryStreams.Add(id, bs);
             return bs;
         }
@@ -1460,10 +1526,10 @@ namespace GT.Net
             return mySC;
         }
 
-        private void mySS_ErrorEvent(Exception e, SocketError se, ServerConnexion ss, string explanation)
+        private void mySS_ErrorEvent(ServerConnexion ss, string explanation, object context)
         {
             if (ErrorEvent != null)
-                ErrorEvent(e, se, ss, explanation);
+                ErrorEvent(ss, explanation, context);
         }
 
         /// <summary>One tick of the network beat.  Thread-safe.</summary>
@@ -1485,19 +1551,19 @@ namespace GT.Net
                         }
 
                         s.Update();
-                        lock (s.messages)
+                        lock (s.receivedMessages)
                         {
-                            foreach (Message m in s.messages)
+                            foreach (Message m in s.receivedMessages)
                             {
                                 try
                                 {
                                     switch (m.MessageType)
                                     {
+                                    case MessageType.System: HandleSystemMessage(m); break;
                                     case MessageType.Binary: binaryStreams[m.Id].QueueMessage(m); break;
                                     case MessageType.Object: objectStreams[m.Id].QueueMessage(m); break;
                                     case MessageType.Session: sessionStreams[m.Id].QueueMessage(m); break;
                                     case MessageType.String: stringStreams[m.Id].QueueMessage(m); break;
-                                    case MessageType.System: HandleSystemMessage(m); break;
                                     case MessageType.Tuple1D: oneTupleStreams[m.Id].QueueMessage(m); break;
                                     case MessageType.Tuple2D: twoTupleStreams[m.Id].QueueMessage(m); break;
                                     case MessageType.Tuple3D: threeTupleStreams[m.Id].QueueMessage(m); break;
@@ -1505,8 +1571,8 @@ namespace GT.Net
                                         Console.WriteLine("Client: WARNING: received message (id={0}) with unknown type: {1}",
                                             m.Id, m.MessageType);
                                         if (ErrorEvent != null)
-                                            ErrorEvent(null, SocketError.Fault, s, "Received " + m.MessageType + "message for connection " + m.Id +
-                                                ", but that type does not exist.");
+                                            ErrorEvent(s, "Received " + m.MessageType + "message for connection " + m.Id +
+                                                ", but that type does not exist.", m.MessageType);
                                         break;
                                     }
                                 }
@@ -1515,18 +1581,18 @@ namespace GT.Net
                                     Console.WriteLine("Client: WARNING: received message with unmonitored id (type={0}): id={1}",
                                         m.MessageType, m.Id);
                                     if (ErrorEvent != null)
-                                        ErrorEvent(e, SocketError.Fault, s, "Received " + m.MessageType + "message for connection " + m.Id +
-                                            ", but that id does not exist for that type.");
+                                        ErrorEvent(s, "Received " + m.MessageType + "message for connection " + m.Id +
+                                            ", but that id does not exist for that type.", e);
                                 }
                             }
-                            s.messages.Clear();
+                            s.receivedMessages.Clear();
                         }
                     }
                     catch (Exception e)
                     {
                         Console.WriteLine("Client: ERROR: Exception occurred in Client.Update() processing stream {0}: {1}", s, e);
                         if (ErrorEvent != null)
-                            ErrorEvent(e, SocketError.Fault, s, "Exception occurred when trying to queue message.");
+                            ErrorEvent(s, "Exception occurred when trying to queue message.", e);
                     }
                 }
 
@@ -1605,6 +1671,24 @@ namespace GT.Net
                 //kill the connexion
                 Stop();
             } 
+        }
+
+        internal ChannelDeliveryRequirements GetChannelDeliveryOptions(Message m)
+        {
+            switch (m.MessageType)
+            {
+            case MessageType.Binary: return binaryStreams[m.Id].ChannelDeliveryOptions;
+            case MessageType.Object: return objectStreams[m.Id].ChannelDeliveryOptions;
+            case MessageType.Session: return sessionStreams[m.Id].ChannelDeliveryOptions;
+            case MessageType.String: return stringStreams[m.Id].ChannelDeliveryOptions;
+            case MessageType.Tuple1D: return oneTupleStreams[m.Id].ChannelDeliveryOptions;
+            case MessageType.Tuple2D: return twoTupleStreams[m.Id].ChannelDeliveryOptions;
+            case MessageType.Tuple3D: return threeTupleStreams[m.Id].ChannelDeliveryOptions;
+
+            case MessageType.System:
+            default:
+                throw new InvalidDataException();
+            }
         }
     }
 }

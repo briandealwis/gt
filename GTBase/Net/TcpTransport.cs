@@ -40,9 +40,14 @@ namespace GT.Net
             get { return "TCP"; }
         }
 
-        override public MessageProtocol MessageProtocol
+        override public Reliability Reliability
         {
-            get { return MessageProtocol.Tcp; }
+            get { return Reliability.Reliable; }
+        }
+
+        public override Ordering Ordering
+        {
+            get { return Ordering.Sequenced; }
         }
 
         public override int MaximumPacketSize

@@ -72,8 +72,8 @@ namespace GT.Net
         protected long interval;
         protected long lastTimeSent;
 
-        protected AbstractStreamedTuple(ServerConnexion s, byte id)
-            : base(s, id)
+        protected AbstractStreamedTuple(ServerConnexion s, byte id, ChannelDeliveryRequirements cdr)
+            : base(s, id, cdr)
         {
             this.changed = false;
             this.milliseconds = milliseconds;
@@ -113,7 +113,9 @@ namespace GT.Net
         /// <param name="connexion">The stream to send the tuples on</param>
         /// <param name="id">the stream id</param>
         /// <param name="milliseconds">Send the tuple only once during this interval</param>
-        internal StreamedTuple(ServerConnexion connection, byte id, int milliseconds) : base(connection, id)
+        internal StreamedTuple(ServerConnexion connection, byte id,
+            int milliseconds, ChannelDeliveryRequirements cdr)
+            : base(connection, id, cdr)
         {
         }
 
@@ -160,7 +162,7 @@ namespace GT.Net
                 ms.Read(b, 0, b.Length);
 
                 changed = false;
-                //connexion.Send(b, id, MessageType.Tuple3D, MessageProtocol.Tcp, MessageAggregation.No, MessageOrder.None);
+                //connexion.Send(b, id, MessageType.Tuple3D, Reliability.Tcp, MessageAggregation.No, Sequencing.None);
                 throw new InvalidProgramException("FIXME");
             }
         }
@@ -188,7 +190,9 @@ namespace GT.Net
         /// <param name="connexion">The stream to send the tuples on</param>
         /// <param name="id">the stream id</param>
         /// <param name="milliseconds">Send the tuple only once during this interval</param>
-        public StreamedTuple(ServerConnexion connection, byte id, int milliseconds) : base(connection, id)
+        internal StreamedTuple(ServerConnexion connection, byte id,
+            int milliseconds, ChannelDeliveryRequirements cdr)
+            : base(connection, id, cdr)
         {
         }
 
@@ -232,7 +236,7 @@ namespace GT.Net
                 ms.Read(b, 0, b.Length);
 
                 changed = false;
-                //connexion.Send(b, id, MessageType.Tuple2D, MessageProtocol.Tcp, MessageAggregation.No, MessageOrder.None);
+                //connexion.Send(b, id, MessageType.Tuple2D, Reliability.Tcp, MessageAggregation.No, Sequencing.None);
                 throw new InvalidProgramException("FIXME");
             }
         }
@@ -255,7 +259,9 @@ namespace GT.Net
         /// <param name="connexion">The stream to send the tuples on</param>
         /// <param name="id">the stream id</param>
         /// <param name="milliseconds">Send the tuple only once during this interval</param>
-        public StreamedTuple(ServerConnexion connection, byte id, int milliseconds) : base(connection, id)
+        internal StreamedTuple(ServerConnexion connection, byte id,
+            int milliseconds, ChannelDeliveryRequirements cdr)
+            : base(connection, id, cdr)
         {
         }
 
@@ -295,7 +301,7 @@ namespace GT.Net
                 ms.Read(b, 0, b.Length);
 
                 changed = false;
-                //connexion.Send(b, id, MessageType.Tuple1D, MessageProtocol.Tcp, MessageAggregation.No, MessageOrder.None);
+                //connexion.Send(b, id, MessageType.Tuple1D, Reliability.Tcp, MessageAggregation.No, Sequencing.None);
                 throw new InvalidProgramException("FIXME");
             }
         }

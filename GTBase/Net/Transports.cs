@@ -3,6 +3,7 @@ using System.Diagnostics;
 using System.Collections.Generic;
 using System.IO;
 using System.Net.Sockets;
+using GT.Utils;
 
 namespace GT.Net
 {
@@ -13,10 +14,11 @@ namespace GT.Net
     /// <remarks>
     /// Represents a connection to either a server or a client.
     /// </remarks>
-    public interface ITransport : IDisposable
+    public interface ITransport : ITransportDeliveryCharacteristics, IDisposable
     {
         /// <summary>
-        /// A simple identifier for this transport
+        /// A simple identifier for this transport.  This name should uniquely identify this
+        /// transport.
         /// </summary>
         string Name { get; }
 
@@ -27,11 +29,6 @@ namespace GT.Net
 
         event PacketReceivedHandler PacketReceivedEvent;
         event TransportErrorHandler TransportErrorEvent;
-
-        /* FIXME: Stop-gap solution until we have proper QoS descriptors */
-        MessageProtocol MessageProtocol { get; }
-
-        float Delay { get; set; }
 
         /// <summary>
         /// A set of tags describing the capabilities of the transport and of expectations/capabilities
@@ -70,21 +67,33 @@ namespace GT.Net
         public event TransportErrorHandler TransportErrorEvent;
         public event PacketReceivedHandler PacketReceivedEvent;
         public abstract string Name { get; }
-        public abstract MessageProtocol MessageProtocol { get; }    // FIXME: temporary
 
         public abstract bool Active { get; }
 
         public void Dispose() { /* empty implementation */ }
 
+        #region Transport Characteristics
+
+        public abstract Reliability Reliability { get; }
+        public abstract Ordering Ordering { get; }
+
         /// <summary>The average amount of latency between this server 
         /// and the client (in milliseconds).</summary>
-        public float delay = 20f;
+        protected float delay = 20f;
+        protected float delayMemory = 0.95f;
+        protected StatisticalMoments delayStats = new StatisticalMoments();
 
         public virtual float Delay
         {
             get { return delay; }
-            set { delay = 0.95f * delay + 0.05f * delay; }
+            set {
+                delayStats.Accumulate(value);
+                Debug.Assert(delayMemory >= 0f && delayMemory <= 1.0f);
+                delay = delayMemory * delay + (1f - delayMemory) * value; 
+            }
         }
+
+        #endregion
 
         public Dictionary<string, string> Capabilities
         {

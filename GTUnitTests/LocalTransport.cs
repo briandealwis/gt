@@ -142,6 +142,7 @@ namespace GT.Net.Local
 
         public LocalTransport(LocalHalfPipe hp)
         {
+            delay = 0f;             // dude, we're fast
             PacketHeaderSize = 0;
             handle = hp;
         }
@@ -151,9 +152,14 @@ namespace GT.Net.Local
             get { return "Local"; }
         }
 
-        public override MessageProtocol MessageProtocol
+        public override Reliability Reliability
         {
-            get { return (MessageProtocol)5; }
+            get { return Reliability.Reliable; }
+        }
+
+        public override Ordering Ordering
+        {
+            get { return Ordering.Sequenced; }
         }
 
         public override bool Active

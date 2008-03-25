@@ -18,8 +18,8 @@ namespace GT.Net
         //We use this so that we don't have to block on the writing to the network
         protected Queue<byte[]> outstanding;
 
-        // FIXME: Stop-gap measure until we have QoS descriptors
-        public override MessageProtocol MessageProtocol { get { return MessageProtocol.Udp; } }
+        public override Reliability Reliability { get { return Reliability.Unreliable; } }
+        public override Ordering Ordering { get { return Ordering.Unordered; } }
 
         public BaseUdpTransport()
         {

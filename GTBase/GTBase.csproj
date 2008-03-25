@@ -34,6 +34,8 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="Bag.cs" />
+    <Compile Include="Net\ClientServer.cs" />
+    <Compile Include="Statistics.cs" />
     <Compile Include="Exceptions.cs" />
     <Compile Include="Lifecycle.cs" />
     <Compile Include="Net\DebugUtils.cs" />
@@ -41,6 +43,7 @@
     <Compile Include="Net\Marshalling.cs" />
     <Compile Include="Net\Messages.cs" />
     <Compile Include="Net\NetExceptions.cs" />
+    <Compile Include="Net\QoS.cs" />
     <Compile Include="Net\TcpTransport.cs" />
     <Compile Include="Net\Transports.cs" />
     <Compile Include="Net\Tuples.cs" />

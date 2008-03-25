@@ -67,8 +67,8 @@ namespace PassiveTelepointers
 
             teleList.Add(0,new Telepointer(Color.Pink));
 
-            binary = c.GetBinaryStream(f.Result, "9999", 0);
-            session = c.GetSessionStream(f.Result, "9999", 0);
+            binary = c.GetBinaryStream(f.Result, "9999", 0, ChannelDeliveryRequirements.Data);
+            session = c.GetSessionStream(f.Result, "9999", 0, ChannelDeliveryRequirements.SessionLike);
         }
 
         void Form1_Paint(object sender, PaintEventArgs e)

@@ -38,15 +38,15 @@ namespace ClientRepeater
             s.StartListening();
         }
 
-        static void s_ErrorEvent(Exception e, SocketError se, ClientConnexion c, string explanation)
+        static void s_ErrorEvent(ClientConnexion c, string explanation, object context)
         {
-            Console.WriteLine(DateTime.Now + " Error[" + c + "]: " + explanation + " (" + e + ", " + se + ")");
-            if (se.Equals(SocketError.NoRecovery))  // FIXME: this test is bogus -- we need more information
-            {
-                List<ClientConnexion> removed = new List<ClientConnexion>();
-                removed.Add(c);
-                s_ClientsRemoved(removed);
-            }
+            Console.WriteLine(DateTime.Now + " Error[" + c + "]: " + explanation + ": " + context);
+            //if (se.Equals(SocketError.NoRecovery))  // FIXME: this test is bogus -- we need more information
+            //{
+            //    List<ClientConnexion> removed = new List<ClientConnexion>();
+            //    removed.Add(c);
+            //    s_ClientsRemoved(removed);
+            //}
         }
 
         static void s_ClientsJoined(ICollection<ClientConnexion> list)
@@ -58,7 +58,9 @@ namespace ClientRepeater
 
                 foreach (ClientConnexion c in s.Clients)
                 {
-                        c.Send(clientId, SessionAction.Joined, (byte)0, MessageProtocol.Tcp);
+                    c.Send(clientId, SessionAction.Joined, (byte)0,
+                        new MessageDeliveryRequirements(Reliability.Reliable, MessageAggregation.Immediate, 
+                            Ordering.Unordered));
                 }
             }
         }
@@ -81,16 +83,18 @@ namespace ClientRepeater
                 //inform others client is gone
                 foreach (ClientConnexion c in s.Clients)
                 {
-                    c.Send(clientId, SessionAction.Left, (byte)0, MessageProtocol.Tcp);
+                    c.Send(clientId, SessionAction.Left, (byte)0,
+                        new MessageDeliveryRequirements(Reliability.Reliable, MessageAggregation.Immediate,
+                            Ordering.Unordered));
                 }
             }
         }
 
-        static void s_MessageReceived(Message m, ClientConnexion client, 
-            MessageProtocol protocol)
+        static void s_MessageReceived(Message m, ClientConnexion client, ITransport transport)
         {
             //repeat whatever we receive to everyone else
-            s.Send(m, s.Clients, protocol);
+            s.Send(m, s.Clients, new MessageDeliveryRequirements(transport.Reliability, 
+                MessageAggregation.Immediate, transport.Ordering));
         }
     }
 

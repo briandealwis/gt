@@ -18,6 +18,13 @@ Breaking Changes:
       * You will need to add the GTBase project or DLL to your clients.
 	<https://papyrus.usask.ca/trac/gt/ticket/13>
 
+  * The TCP and UDP protocols have been separated out and generalized
+    from the code into implementations called transports (see ITransport).
+    The MessageProtocol enum has disappeared: clients now request 
+    a communication protocol by describing the requirements for
+    sending a message; GT will use these requirements to find a suitable
+    transport.
+
   * Previously-exposed fields have been made into properties and
     some have been renamed to better conform to C#/.NET naming guidelines. 
     Most notable perhaps is Server.clientList -> Server.Clients.
@@ -38,6 +45,10 @@ Breaking Changes:
       * the class now implements IDisposable: any uses of Dead as
         a writable property should be changed to use IDisposable.Dispose().
 
+      * the Send() calls now take a MessageDeliverRequirements object
+	which encompasses the different Message{Aggregation,Order,Protocol}
+	values.
+
   * Some delegates have had their signatures changed to use the least
     specific collection classes possible
 	ClientsRemovedHandler uses ICollection
@@ -48,6 +59,10 @@ Breaking Changes:
     <https://papyrus.usask.ca/trac/gt/ticket/23>
 
       * delegate MessageHandler has a different calling convention
+
+  * The message parameterization for Quality of Service has been
+    reworked.  Many of the parameters previously specified on Send()
+    are now properties associated on the channels.
 
   * Specialized GT exceptions have been created to represent different
     insurpassable communications conditions in GT.  These exceptions
