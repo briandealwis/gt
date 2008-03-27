@@ -7,10 +7,10 @@ namespace GT.Net
     public abstract class Message
     {
         /// <summary>The channel that this message is on.</summary>
-        public byte Id { get { return id; } }
+        virtual public byte Id { get { return id; } }
 
         /// <summary>The type of message.</summary>
-        public MessageType MessageType { get { return type; } }
+        virtual public MessageType MessageType { get { return type; } }
 
         protected byte id;
         protected MessageType type;

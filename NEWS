@@ -25,14 +25,15 @@ Breaking Changes:
     sending a message; GT will use these requirements to find a suitable
     transport.
 
-  * Previously-exposed fields have been made into properties and
-    some have been renamed to better conform to C#/.NET naming guidelines. 
-    Most notable perhaps is Server.clientList -> Server.Clients.
-
   * Many classes have been shielded by interfaces, notably the *Stream
     classes provided by GT Client.  The Client.Get*Stream() methods now
     return interfaces (i.e., IStringStream, IBinaryStream, IObjectStream,
-    ISessionStream, ITupleStream*).
+    ISessionStream, ITupleStream*).  The Client.GetStreamedTuple*()
+    methods now also return interfaces (i.e., IStreamedTuple).
+
+  * Previously-exposed fields have been made into properties and
+    some have been renamed to better conform to C#/.NET naming guidelines. 
+    Most notable perhaps is Server.clientList -> Server.Clients.
 
   * GT Server's Server.Client has been renamed to ClientConnexion, and similarly
     GT Client's ServerStream has been renamed to ServerConnexion.  These classes

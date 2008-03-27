@@ -17,7 +17,7 @@ namespace Telepointers
         Client c = new Client();
         IBinaryStream binary;
         ISessionStream session;
-        StreamedTuple<int, int> coords;
+        IStreamedTuple<int, int> coords;
 
         List<Control> controls = new List<Control>();
 

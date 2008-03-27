@@ -22,8 +22,29 @@ namespace GT.Net
         /// </summary>
         string[] Descriptors { get; }
 
+        /// <summary>
+        /// Marshal the provided message in an appropriate form for the provided transport.
+        /// </summary>
+        /// <param name="message">the message</param>
+        /// <param name="output">the stream collecting the packet content</param>
+        /// <param name="t">the transport on which the packet will be sent</param>
         void Marshal(Message message, Stream output, ITransport t);
-        Message Unmarshal(Stream output, ITransport t);
+
+        /// <summary>
+        /// Unmarshal the message as encoded in the transport-specific form from the given
+        /// stream.
+        /// </summary>
+        /// <param name="input">the stream with the packet content</param>
+        /// <param name="t">the transport from which the packet was received</param>
+        /// <returns>the message, or null if no message was present</returns>
+        Message Unmarshal(Stream input, ITransport t);
+    }
+
+    public class MarshallingException : GTException {
+        public MarshallingException(string message) 
+            : base(message) 
+        {
+        }
     }
 
     /// <summary>The lightweight marshaller is a provides the message payloads as raw 
@@ -133,6 +154,11 @@ namespace GT.Net
                 // channel Id is the system message type
                 MarshalSystemMessage((SystemMessage)m, output);
                 break;
+            case MessageType.Tuple1D:
+            case MessageType.Tuple2D:
+            case MessageType.Tuple3D:
+                MarshalTupleMessage((TupleMessage)m, output);
+                break;
             default:
                 throw new InvalidOperationException("unknown message type: " + m.MessageType);
             }
@@ -167,6 +193,34 @@ namespace GT.Net
             output.Write(BitConverter.GetBytes(sm.ClientId), 0, 4);
         }
 
+        protected void MarshalTupleMessage(TupleMessage tm, Stream output)
+        {
+            output.Write(BitConverter.GetBytes(tm.ClientId), 0, 4);
+            if (tm.Dimension >= 1) { MarshalConvertible(tm.X, output); }
+            if (tm.Dimension >= 2) { MarshalConvertible(tm.Y, output); }
+            if (tm.Dimension >= 3) { MarshalConvertible(tm.Z, output); }
+        }
+
+        protected void MarshalConvertible(IConvertible value, Stream output) {
+            output.WriteByte((byte)value.GetTypeCode());
+            byte[] result;
+            switch (value.GetTypeCode())
+            {
+            case TypeCode.Byte: output.WriteByte(value.ToByte(null)); return;
+            case TypeCode.Char: result = BitConverter.GetBytes(value.ToChar(null)); break;
+            case TypeCode.Single: result = BitConverter.GetBytes(value.ToSingle(null)); break;
+            case TypeCode.Double: result = BitConverter.GetBytes(value.ToDouble(null)); break;
+            case TypeCode.Int16: result = BitConverter.GetBytes(value.ToInt16(null)); break;
+            case TypeCode.Int32: result = BitConverter.GetBytes(value.ToInt32(null)); break;
+            case TypeCode.Int64: result = BitConverter.GetBytes(value.ToInt64(null)); break;
+            case TypeCode.UInt16: result = BitConverter.GetBytes(value.ToUInt16(null)); break;
+            case TypeCode.UInt32: result = BitConverter.GetBytes(value.ToUInt32(null)); break;
+            case TypeCode.UInt64: result = BitConverter.GetBytes(value.ToUInt64(null)); break;
+            default: throw new MarshallingException("Unhandled form of IConvertible: " + value.GetTypeCode());
+            }
+            output.Write(result, 0, result.Length);
+        }
+
         #endregion
 
         #region Unmarshalling
@@ -194,6 +248,10 @@ namespace GT.Net
                 return UnmarshalSessionAction(id, (MessageType)type, input);
             case MessageType.System:
                 return UnmarshalSystemMessage(id, (MessageType)type, input);
+            case MessageType.Tuple1D:
+            case MessageType.Tuple2D:
+            case MessageType.Tuple3D:
+                return UnmarshalTuple(id, (MessageType)type, input);
             default:
                 throw new InvalidOperationException("unknown message type: " + (MessageType)type);
             }
@@ -213,25 +271,65 @@ namespace GT.Net
             return new StringMessage(id, sr.ReadToEnd());
         }
 
-        protected ObjectMessage UnmarshalObject(byte id, MessageType type, Stream output)
+        protected ObjectMessage UnmarshalObject(byte id, MessageType type, Stream input)
         {
-            return new ObjectMessage(id, formatter.Deserialize(output));
+            return new ObjectMessage(id, formatter.Deserialize(input));
         }
 
-        protected BinaryMessage UnmarshalBinary(byte id, MessageType type, Stream output)
+        protected BinaryMessage UnmarshalBinary(byte id, MessageType type, Stream input)
         {
-            int length = (int)(output.Length - output.Position);
+            int length = (int)(input.Length - input.Position);
             byte[] result = new byte[length];
-            output.Read(result, 0, length);
+            input.Read(result, 0, length);
             return new BinaryMessage(id, result);
         }
 
-        protected SessionMessage UnmarshalSessionAction(byte id, MessageType type, Stream output)
+        protected SessionMessage UnmarshalSessionAction(byte id, MessageType type, Stream input)
         {
-            SessionAction ac = (SessionAction)output.ReadByte();
-            byte[] idbytes = new byte[4];
-            output.Read(idbytes, 0, 4);
-            return new SessionMessage(id, BitConverter.ToInt32(idbytes, 0), ac);
+            SessionAction ac = (SessionAction)input.ReadByte();
+            return new SessionMessage(id, BitConverter.ToInt32(ReadBytes(input, 4), 0), ac);
+        }
+
+        protected TupleMessage UnmarshalTuple(byte id, MessageType type, Stream input)
+        {
+            int clientId = BitConverter.ToInt32(ReadBytes(input, 4), 0);
+            switch (type)
+            {
+            case MessageType.Tuple1D:
+                return new TupleMessage(id, clientId, UnmarshalConvertible(input));
+            case MessageType.Tuple2D:
+                return new TupleMessage(id, clientId, UnmarshalConvertible(input), UnmarshalConvertible(input));
+            case MessageType.Tuple3D:
+                return new TupleMessage(id, clientId, UnmarshalConvertible(input),
+                    UnmarshalConvertible(input), UnmarshalConvertible(input));
+            }
+            throw new MarshallingException("MessageType is not a tuple: " + type);
+        }
+
+        protected IConvertible UnmarshalConvertible(Stream input)
+        {
+            TypeCode tc = (TypeCode)input.ReadByte();
+            switch (tc)
+            {
+            case TypeCode.Byte: return input.ReadByte();
+            case TypeCode.Char: return BitConverter.ToChar(ReadBytes(input, 2), 0);
+            case TypeCode.Single: return BitConverter.ToSingle(ReadBytes(input, 4), 0);
+            case TypeCode.Double: return BitConverter.ToDouble(ReadBytes(input, 8), 0);
+            case TypeCode.Int16: return BitConverter.ToInt16(ReadBytes(input, 2), 0);
+            case TypeCode.Int32: return BitConverter.ToInt32(ReadBytes(input, 4), 0);
+            case TypeCode.Int64: return BitConverter.ToInt64(ReadBytes(input, 8), 0);
+            case TypeCode.UInt16: return BitConverter.ToUInt16(ReadBytes(input, 2), 0);
+            case TypeCode.UInt32: return BitConverter.ToUInt32(ReadBytes(input, 4), 0);
+            case TypeCode.UInt64: return BitConverter.ToUInt64(ReadBytes(input, 8), 0);
+            default: throw new MarshallingException("Unknown IConvertible type: " + tc);
+            }
+        }
+
+        protected byte[] ReadBytes(Stream input, int length)
+        {
+            byte[] result = new byte[length];
+            input.Read(result, 0, length);
+            return result;
         }
 
         #endregion

@@ -52,32 +52,43 @@ namespace GT.Net
         /// different for each server, and thus could be different for each connexion. </summary>
         int UniqueIdentity { get; }
 
+        /// <summary>Flush all pending messages on this stream.</summary>
+        void Flush();
+
         /// <summary>Occurs whenever this client is updated.</summary>
         event UpdateEventDelegate UpdateEvent;
 
     }
-    public interface IGenericStream<T,M> : IStream
+
+    /// <summary>
+    /// A generic item stream as exposed by the GT Client.
+    /// </summary>
+    /// <typeparam name="SI">The type of generic items supported by this stream.</typeparam>
+    /// <typeparam name="RI">The type of received items, which is generally expected to be
+    ///     the same as <c>SI</c>.  Some special streams, such as <c>ISessionStream</c>, return
+    ///     more complex objects.</typeparam>
+    public interface IGenericStream<SI,RI> : IStream
     {
         /// <summary>Send an item to the server</summary>
         /// <param name="item">The item</param>
-        void Send(T item);
+        void Send(SI item);
 
         /// <summary>Send an item to the server</summary>
         /// <param name="item">The item</param>
         /// <param name="mdr">How to send it</param>
-        void Send(T item, MessageDeliveryRequirements mdr);
+        void Send(SI item, MessageDeliveryRequirements mdr);
 
         /// <summary>Take an item off the queue of received messages.</summary>
-        /// <param name="index">The message to take off, with a higher number indicating a newer message.</param>
-        /// <returns>The message.</returns>
-        M DequeueMessage(int index);
+        /// <param name="index">The message to be dequeued, with a higher number indicating a newer message.</param>
+        /// <returns>The message, or null if there is no such message.</returns>
+        RI DequeueMessage(int index);
+
+        /// <summary>Return the number of waiting messages.</summary>
+        /// <returns>The number of waiting messages; 0 indicates there are no waiting message.</returns>
+        int Count { get; }
 
         /// <summary>Received messages from the server.</summary>
-        List<Message> Messages { get; }
-
-        /// <summary>Flush all aggregated messages on this connexion</summary>
-        /// <param name="protocol"></param>
-        void Flush();
+        IList<Message> Messages { get; }
 
         // FIXME: How can the new message event be brought in?
         ///// <summary> Occurs when this connexion receives a message. </summary>
@@ -94,11 +105,6 @@ namespace GT.Net
     /// <summary>A connexion of strings.</summary>
     public interface IStringStream : IGenericStream<string,string>
     {
-        /// <summary>Take a String off the queue of received messages.</summary>
-        /// <param name="index">Which message to take, with higher numbers being newer messages.</param>
-        /// <returns>The message.</returns>
-        string DequeueMessage(int index);
-
         /// <summary> Occurs when this connexion receives a message. </summary>
         event StringNewMessage StringNewMessageEvent;
     }
@@ -106,11 +112,6 @@ namespace GT.Net
     /// <summary>A connexion of objects.</summary>
     public interface IObjectStream : IGenericStream<object,object>
     {
-        /// <summary>Dequeues an object from the message list.</summary>
-        /// <param name="index">Which to dequeue, where a higher number means a newer message.</param>
-        /// <returns>The object that was there.</returns>
-        object DequeueMessage(int index);
-
         /// <summary> Occurs when this connexion receives a message. </summary>
         event ObjectNewMessage ObjectNewMessageEvent;
     }
@@ -118,17 +119,11 @@ namespace GT.Net
     /// <summary>A connexion of byte arrays.</summary>
     public interface IBinaryStream : IGenericStream<byte[],byte[]>
     {
-        /// <summary>Takes a message from the message list</summary>
-        /// <param name="index">The message to take, where a higher number means a newer message</param>
-        /// <returns>The byte array of the message</returns>
-        byte[] DequeueMessage(int index);
-
         /// <summary> Occurs when this connexion receives a message. </summary>
         event BinaryNewMessage BinaryNewMessageEvent;
     }
 
     #endregion
-
 
     #region Type Stream Implementations
 
@@ -155,10 +150,10 @@ namespace GT.Net
         public string Address { get { return connexion.Address; } }
 
         /// <summary>Get the connexion's destination port</summary>
-        public string Port
-        {
-            get { return connexion.Port; }
-        }
+        public string Port { get { return connexion.Port; } }
+
+        /// <summary>Flush all pending messages on this stream.</summary>
+        public abstract void Flush();
 
         public ChannelDeliveryRequirements ChannelDeliveryOptions { get { return deliveryOptions; } }
 
@@ -176,19 +171,19 @@ namespace GT.Net
         }
     }
 
-    public abstract class AbstractStream<T,M> : AbstractBaseStream, IGenericStream<T,M>
+    public abstract class AbstractStream<SI,RI> : AbstractBaseStream, IGenericStream<SI,RI>
     {
         protected List<Message> messages;
 
         /// <summary>Received messages from the server.</summary>
-        public List<Message> Messages { get { return messages; } }
+        public IList<Message> Messages { get { return messages; } }
 
-        /// <summary> This SessionStream uses this ServerConnexion. </summary>
+        /// <summary> This streak uses this connexion. </summary>
         /// <remarks>deprecated</remarks>
         public ServerConnexion Connection { get { return connexion; } }
 
         /// <summary>Create a stream object.</summary>
-        /// <param name="stream">The SuperStream to use to actually send the messages.</param>
+        /// <param name="stream">The connexion used to actually send the messages.</param>
         /// <param name="id">The message channel.</param>
         /// <param name="cdr">The channel delivery options.</param>
         internal AbstractStream(ServerConnexion stream, byte id, ChannelDeliveryRequirements cdr) 
@@ -197,24 +192,26 @@ namespace GT.Net
             messages = new List<Message>();
         }
 
-        public void Send(T item)
+        public virtual int Count { get { return messages.Count; } }
+
+        public void Send(SI item)
         {
             Send(item, null);
         }
 
-        public abstract void Send(T item, MessageDeliveryRequirements mdr);
+        public abstract void Send(SI item, MessageDeliveryRequirements mdr);
 
-        public abstract M DequeueMessage(int index);
+        public abstract RI DequeueMessage(int index);
 
         /// <summary>Flush all aggregated messages on this connexion</summary>
-        public virtual void Flush()
+        public override void Flush()
         {
             connexion.FlushChannelMessages(this.id, deliveryOptions);
         }
     }
 
     /// <summary>A connexion of session events.</summary>
-    public class SessionStream : AbstractStream<SessionAction,SessionMessage>, ISessionStream
+    internal class SessionStream : AbstractStream<SessionAction, SessionMessage>, ISessionStream
     {
         /// <summary> Occurs when this session receives a message. </summary>
         public event SessionNewMessage SessionNewMessageEvent;
@@ -277,7 +274,7 @@ namespace GT.Net
     }
 
     /// <summary>A connexion of strings.</summary>
-    public class StringStream : AbstractStream<string,string>, IStringStream
+    internal class StringStream : AbstractStream<string, string>, IStringStream
     {
         /// <summary> Occurs when this connexion receives a message. </summary>
         public event StringNewMessage StringNewMessageEvent;
@@ -338,10 +335,8 @@ namespace GT.Net
     }
 
     /// <summary>A connexion of Objects.</summary>
-    public class ObjectStream : AbstractStream<object,object>, IObjectStream
+    internal class ObjectStream : AbstractStream<object, object>, IObjectStream
     {
-        private static BinaryFormatter formatter = new BinaryFormatter();
-
         /// <summary> Occurs when this connexion receives a message. </summary>
         public event ObjectNewMessage ObjectNewMessageEvent;
 
@@ -401,7 +396,7 @@ namespace GT.Net
     }
 
     /// <summary>A connexion of byte arrays.</summary>
-    public class BinaryStream : AbstractStream<byte[],byte[]>, IBinaryStream
+    internal class BinaryStream : AbstractStream<byte[],byte[]>, IBinaryStream
     {
         /// <summary> Occurs when this connexion receives a message. </summary>
         public event BinaryNewMessage BinaryNewMessageEvent;
@@ -478,10 +473,10 @@ namespace GT.Net
         public int UniqueIdentity;
 
         /// <summary>Incoming messages from the server. As messages are read in from the
-        /// different transports, they are added to this list.  The different types of 
-        /// streams process this list to select messages corresponding to their particular 
-        /// type.</summary>
-        internal List<Message> receivedMessages;
+        /// different transports, they are added to this list.  These messages are then
+        /// processed by Client.Update() to dispatch to their corresponding stream.
+        /// We separate these two steps to isolate potential problems.</summary>
+        protected Queue<Message> receivedMessages;
 
         /// <summary>Occurs when there is an error.</summary>
         public event ErrorEventHandler ErrorEvent;
@@ -526,7 +521,7 @@ namespace GT.Net
             nextPingTime = 0;
 
             messagePools = new Dictionary<byte, Queue<KeyValuePair<Message, MessageDeliveryRequirements>>>();
-            receivedMessages = new List<Message>();
+            receivedMessages = new Queue<Message>();
 
             transports = new List<ITransport>();
 
@@ -616,7 +611,9 @@ namespace GT.Net
             }
             else
             {
-                receivedMessages.Add(msg);
+                // Hmm, this lock may not be necessary -- the Dequeueing of messages should
+                // occur in the same thread.
+                lock (receivedMessages) { receivedMessages.Enqueue(msg); }
             }
         }
 
@@ -901,19 +898,14 @@ namespace GT.Net
                     BitConverter.GetBytes(System.Environment.TickCount)));
             }
         }
-    }
 
-    internal class SpecificChannelMessageProcessor {
-        protected byte soughtChannel;
-
-        internal SpecificChannelMessageProcessor(byte channel)
+        internal Message DequeueMessage()
         {
-            this.soughtChannel = channel;
-        }
-
-        internal bool Matches(Message element)
-        {
-            return element.Id == soughtChannel;
+            lock (receivedMessages)
+            {
+                if (receivedMessages.Count == 0) { return null; }
+                return receivedMessages.Dequeue();
+            }
         }
     }
 
@@ -1142,57 +1134,57 @@ namespace GT.Net
         #region Streams
 
         /// <summary>Get a streaming tuple that is automatically sent to the server every so often</summary>
-        /// <typeparam name="A">The Type of the first value of the tuple</typeparam>
-        /// <typeparam name="B">The Type of the second value of the tuple</typeparam>
-        /// <typeparam name="C">The Type of the third value of the tuple</typeparam>
+        /// <typeparam name="T_X">The Type of the first value of the tuple</typeparam>
+        /// <typeparam name="T_Y">The Type of the second value of the tuple</typeparam>
+        /// <typeparam name="T_Z">The Type of the third value of the tuple</typeparam>
         /// <param name="address">The address to connect to</param>
         /// <param name="port">The port to connect to</param>
         /// <param name="id">The channel id to use for this three-tuple (unique to three-tuples)</param>
         /// <param name="milliseconds">The interval in milliseconds</param>
         /// <returns>The streaming tuple</returns>
-        public StreamedTuple<A, B, C> GetStreamedTuple<A, B, C>(string address, string port, byte id, int milliseconds, 
-            ChannelDeliveryRequirements cdr)
-            where A : IConvertible
-            where B : IConvertible
-            where C : IConvertible
+        public IStreamedTuple<T_X, T_Y, T_Z> GetStreamedTuple<T_X, T_Y, T_Z>(string address, string port, 
+            byte id, int milliseconds, ChannelDeliveryRequirements cdr)
+            where T_X : IConvertible
+            where T_Y : IConvertible
+            where T_Z : IConvertible
         {
-            StreamedTuple<A, B, C> tuple;
+            StreamedTuple<T_X, T_Y, T_Z> tuple;
             if (threeTupleStreams.ContainsKey(id))
             {
                 if (threeTupleStreams[id].Address.Equals(address) && threeTupleStreams[id].Port.Equals(port))
                 {
-                    return (StreamedTuple<A, B, C>)threeTupleStreams[id];
+                    return (StreamedTuple<T_X, T_Y, T_Z>)threeTupleStreams[id];
                 }
 
-                tuple = (StreamedTuple<A, B, C>)threeTupleStreams[id]; 
+                tuple = (StreamedTuple<T_X, T_Y, T_Z>)threeTupleStreams[id]; 
                 tuple.connexion = GetConnexion(address, port);
-                return (StreamedTuple<A, B, C>)threeTupleStreams[id];
+                return (StreamedTuple<T_X, T_Y, T_Z>)threeTupleStreams[id];
             }
 
-            StreamedTuple<A, B, C> bs = (StreamedTuple<A, B, C>)new StreamedTuple<A, B, C>(GetConnexion(address, port), 
+            StreamedTuple<T_X, T_Y, T_Z> bs = (StreamedTuple<T_X, T_Y, T_Z>)new StreamedTuple<T_X, T_Y, T_Z>(GetConnexion(address, port), 
                 id, milliseconds, cdr);
             threeTupleStreams.Add(id, (AbstractStreamedTuple)bs);
             return bs;
         }
 
         /// <summary>Get a streaming tuple that is automatically sent to the server every so often</summary>
-        /// <typeparam name="A">The Type of the first value of the tuple</typeparam>
-        /// <typeparam name="B">The Type of the second value of the tuple</typeparam>
-        /// <typeparam name="C">The Type of the third value of the tuple</typeparam>
+        /// <typeparam name="T_X">The Type of the first value of the tuple</typeparam>
+        /// <typeparam name="T_Y">The Type of the second value of the tuple</typeparam>
+        /// <typeparam name="T_Z">The Type of the third value of the tuple</typeparam>
         /// <param name="connexion">The stream to use to send the tuple</param>
         /// <param name="id">The channel id to use for this three-tuple (unique to three-tuples)</param>
         /// <param name="milliseconds">The interval in milliseconds</param>
         /// <returns>The streaming tuple</returns>
-        public StreamedTuple<A, B, C> GetStreamedTuple<A, B, C>(ServerConnexion connexion, byte id, int milliseconds,
-            ChannelDeliveryRequirements cdr)
-            where A : IConvertible
-            where B : IConvertible
-            where C : IConvertible
+        public IStreamedTuple<T_X, T_Y, T_Z> GetStreamedTuple<T_X, T_Y, T_Z>(ServerConnexion connexion, 
+            byte id, int milliseconds, ChannelDeliveryRequirements cdr)
+            where T_X : IConvertible
+            where T_Y : IConvertible
+            where T_Z : IConvertible
         {
-            StreamedTuple<A, B, C> tuple;
+            StreamedTuple<T_X, T_Y, T_Z> tuple;
             if (threeTupleStreams.ContainsKey(id))
             {
-                tuple = (StreamedTuple<A, B, C>) threeTupleStreams[id];
+                tuple = (StreamedTuple<T_X, T_Y, T_Z>) threeTupleStreams[id];
                 if (tuple.connexion == connexion)
                 {
                     return tuple;
@@ -1202,28 +1194,28 @@ namespace GT.Net
                 return tuple;
             }
 
-            tuple = new StreamedTuple<A, B, C>(connexion, id, milliseconds, cdr);
+            tuple = new StreamedTuple<T_X, T_Y, T_Z>(connexion, id, milliseconds, cdr);
             threeTupleStreams.Add(id, (AbstractStreamedTuple)tuple);
             return tuple;
         }
 
         /// <summary>Get a streaming tuple that is automatically sent to the server every so often</summary>
-        /// <typeparam name="A">The Type of the first value of the tuple</typeparam>
-        /// <typeparam name="B">The Type of the second value of the tuple</typeparam>
+        /// <typeparam name="T_X">The Type of the first value of the tuple</typeparam>
+        /// <typeparam name="T_Y">The Type of the second value of the tuple</typeparam>
         /// <param name="address">The address to connect to</param>
         /// <param name="port">The port to connect to</param>
         /// <param name="id">The channel id to use for this two-tuple (unique to two-tuples)</param>
         /// <param name="milliseconds">The interval in milliseconds</param>
         /// <returns>The streaming tuple</returns>
-        public StreamedTuple<A, B> GetStreamedTuple<A, B>(string address, string port, byte id, int milliseconds,
+        public IStreamedTuple<T_X, T_Y> GetStreamedTuple<T_X, T_Y>(string address, string port, byte id, int milliseconds,
             ChannelDeliveryRequirements cdr)
-            where A : IConvertible
-            where B : IConvertible
+            where T_X : IConvertible
+            where T_Y : IConvertible
         {
-            StreamedTuple<A, B> tuple;
+            StreamedTuple<T_X, T_Y> tuple;
             if (twoTupleStreams.ContainsKey(id))
             {
-                tuple = (StreamedTuple<A, B>) twoTupleStreams[id];
+                tuple = (StreamedTuple<T_X, T_Y>) twoTupleStreams[id];
                 if (tuple.Address.Equals(address) && tuple.Port.Equals(port))
                 {
                     return tuple;
@@ -1233,27 +1225,27 @@ namespace GT.Net
                 return tuple;
             }
 
-            tuple = new StreamedTuple<A, B>(GetConnexion(address, port), id, milliseconds, cdr);
+            tuple = new StreamedTuple<T_X, T_Y>(GetConnexion(address, port), id, milliseconds, cdr);
             twoTupleStreams.Add(id, (AbstractStreamedTuple)tuple);
             return tuple;
         }
 
         /// <summary>Get a streaming tuple that is automatically sent to the server every so often</summary>
-        /// <typeparam name="A">The Type of the first value of the tuple</typeparam>
-        /// <typeparam name="B">The Type of the second value of the tuple</typeparam>
+        /// <typeparam name="T_X">The Type of the first value of the tuple</typeparam>
+        /// <typeparam name="T_Y">The Type of the second value of the tuple</typeparam>
         /// <param name="connexion">The stream to use to send the tuple</param>
         /// <param name="id">The channel id to use for this three-tuple (unique to three-tuples)</param>
         /// <param name="milliseconds">The interval in milliseconds</param>
         /// <returns>The streaming tuple</returns>
-        public StreamedTuple<A, B> GetStreamedTuple<A, B>(ServerConnexion connexion, byte id, int milliseconds,
+        public IStreamedTuple<T_X, T_Y> GetStreamedTuple<T_X, T_Y>(ServerConnexion connexion, byte id, int milliseconds,
             ChannelDeliveryRequirements cdr)
-            where A : IConvertible
-            where B : IConvertible
+            where T_X : IConvertible
+            where T_Y : IConvertible
         {
-            StreamedTuple<A, B> tuple;
+            StreamedTuple<T_X, T_Y> tuple;
             if (twoTupleStreams.ContainsKey(id))
             {
-                tuple = (StreamedTuple<A, B>)twoTupleStreams[id];
+                tuple = (StreamedTuple<T_X, T_Y>)twoTupleStreams[id];
                 if (tuple.connexion == connexion)
                 {
                     return tuple;
@@ -1263,26 +1255,26 @@ namespace GT.Net
                 return tuple;
             }
 
-            tuple = new StreamedTuple<A, B>(connexion, id, milliseconds, cdr);
+            tuple = new StreamedTuple<T_X, T_Y>(connexion, id, milliseconds, cdr);
             threeTupleStreams.Add(id, (AbstractStreamedTuple)tuple);
             return tuple;
         }
 
         /// <summary>Get a streaming tuple that is automatically sent to the server every so often</summary>
-        /// <typeparam name="A">The Type of the value of the tuple</typeparam>
+        /// <typeparam name="T_X">The Type of the value of the tuple</typeparam>
         /// <param name="address">The address to connect to</param>
         /// <param name="port">The port to connect to</param>
         /// <param name="id">The channel id to use for this one-tuple (unique to one-tuples)</param>
         /// <param name="milliseconds">The interval in milliseconds</param>
         /// <returns>The streaming tuple</returns>
-        public StreamedTuple<A> GetStreamedTuple<A>(string address, string port, byte id, int milliseconds,
+        public IStreamedTuple<T_X> GetStreamedTuple<T_X>(string address, string port, byte id, int milliseconds,
             ChannelDeliveryRequirements cdr)
-            where A : IConvertible
+            where T_X : IConvertible
         {
-            StreamedTuple<A> tuple;
+            StreamedTuple<T_X> tuple;
             if (oneTupleStreams.ContainsKey(id))
             {
-                tuple = (StreamedTuple<A>)oneTupleStreams[id];
+                tuple = (StreamedTuple<T_X>)oneTupleStreams[id];
                 if (tuple.Address.Equals(address) && tuple.Port.Equals(port))
                 {
                     return tuple;
@@ -1292,7 +1284,7 @@ namespace GT.Net
                 return tuple;
             }
 
-            tuple = new StreamedTuple<A>(GetConnexion(address, port), id, milliseconds, cdr);
+            tuple = new StreamedTuple<T_X>(GetConnexion(address, port), id, milliseconds, cdr);
             oneTupleStreams.Add(id, (AbstractStreamedTuple)tuple);
             return tuple;
         }
@@ -1538,7 +1530,7 @@ namespace GT.Net
             DebugUtils.WriteLine(this + ": Update() started");
             lock (this)
             {
-                if (!started) { Start(); }
+                if (!started) { Start(); }  // deprecated behaviour
                 timer.Update();
                 foreach (ServerConnexion s in connexions)
                 {
@@ -1551,41 +1543,38 @@ namespace GT.Net
                         }
 
                         s.Update();
-                        lock (s.receivedMessages)
+                        Message m;
+                        while ((m = s.DequeueMessage()) != null)
                         {
-                            foreach (Message m in s.receivedMessages)
+                            try
                             {
-                                try
+                                switch (m.MessageType)
                                 {
-                                    switch (m.MessageType)
-                                    {
-                                    case MessageType.System: HandleSystemMessage(m); break;
-                                    case MessageType.Binary: binaryStreams[m.Id].QueueMessage(m); break;
-                                    case MessageType.Object: objectStreams[m.Id].QueueMessage(m); break;
-                                    case MessageType.Session: sessionStreams[m.Id].QueueMessage(m); break;
-                                    case MessageType.String: stringStreams[m.Id].QueueMessage(m); break;
-                                    case MessageType.Tuple1D: oneTupleStreams[m.Id].QueueMessage(m); break;
-                                    case MessageType.Tuple2D: twoTupleStreams[m.Id].QueueMessage(m); break;
-                                    case MessageType.Tuple3D: threeTupleStreams[m.Id].QueueMessage(m); break;
-                                    default:
-                                        Console.WriteLine("Client: WARNING: received message (id={0}) with unknown type: {1}",
-                                            m.Id, m.MessageType);
-                                        if (ErrorEvent != null)
-                                            ErrorEvent(s, "Received " + m.MessageType + "message for connection " + m.Id +
-                                                ", but that type does not exist.", m.MessageType);
-                                        break;
-                                    }
-                                }
-                                catch (KeyNotFoundException e)
-                                {
-                                    Console.WriteLine("Client: WARNING: received message with unmonitored id (type={0}): id={1}",
-                                        m.MessageType, m.Id);
+                                case MessageType.System: HandleSystemMessage(m); break;
+                                case MessageType.Binary: binaryStreams[m.Id].QueueMessage(m); break;
+                                case MessageType.Object: objectStreams[m.Id].QueueMessage(m); break;
+                                case MessageType.Session: sessionStreams[m.Id].QueueMessage(m); break;
+                                case MessageType.String: stringStreams[m.Id].QueueMessage(m); break;
+                                case MessageType.Tuple1D: oneTupleStreams[m.Id].QueueMessage(m); break;
+                                case MessageType.Tuple2D: twoTupleStreams[m.Id].QueueMessage(m); break;
+                                case MessageType.Tuple3D: threeTupleStreams[m.Id].QueueMessage(m); break;
+                                default:
+                                    Console.WriteLine("Client: WARNING: received message (id={0}) with unknown type: {1}",
+                                        m.Id, m.MessageType);
                                     if (ErrorEvent != null)
                                         ErrorEvent(s, "Received " + m.MessageType + "message for connection " + m.Id +
-                                            ", but that id does not exist for that type.", e);
+                                            ", but that type does not exist.", m.MessageType);
+                                    break;
                                 }
                             }
-                            s.receivedMessages.Clear();
+                            catch (KeyNotFoundException e)
+                            {
+                                Console.WriteLine("Client: WARNING: received message with unmonitored id (type={0}): id={1}",
+                                    m.MessageType, m.Id);
+                                if (ErrorEvent != null)
+                                    ErrorEvent(s, "Received " + m.MessageType + "message for connection " + m.Id +
+                                        ", but that id does not exist for that type.", e);
+                            }
                         }
                     }
                     catch (Exception e)

@@ -113,6 +113,7 @@ namespace GT.UnitTests
             server.BinaryMessageReceived += new BinaryMessageHandler(ServerBinaryMessageReceived);
             server.ObjectMessageReceived += new ObjectMessageHandler(ServerObjectMessageReceived);
             server.SessionMessageReceived += new SessionMessageHandler(ServerSessionMessageReceived);
+            server.MessageReceived += ServerGeneralMessageReceived;
             server.ErrorEvent += new ErrorClientHandler(server_ErrorEvent);
             server.Start();
             serverThread = server.StartSeparateListeningThread(ServerSleepTime);
@@ -176,6 +177,23 @@ namespace GT.UnitTests
                 new MessageDeliveryRequirements(t.Reliability, MessageAggregation.Immediate, Ordering.Unordered));
         }
 
+        private void ServerGeneralMessageReceived(Message m, ClientConnexion client, ITransport t)
+        {
+            switch (m.MessageType)
+            {
+            case MessageType.Tuple1D:
+            case MessageType.Tuple2D:
+            case MessageType.Tuple3D:
+                Console.WriteLine("Server: received  tuple message on " + t);
+                List<ClientConnexion> clientGroup = new List<ClientConnexion>(1);
+                clientGroup.Add(client);
+                server.Send(m, clientGroup,
+                    new MessageDeliveryRequirements(t.Reliability, MessageAggregation.Immediate, Ordering.Unordered));
+                break;
+            }
+
+        }
+
         /// <summary>This is triggered if something goes wrong</summary>
         void server_ErrorEvent(ClientConnexion c, string explanation, object context)
         {
@@ -226,84 +244,125 @@ namespace GT.UnitTests
             Assert.IsFalse(errorOccurred);
             Assert.IsFalse(responseReceived);
 
-            Console.WriteLine("Client: sending greeting: " + EXPECTED_GREETING);
-            IStringStream strStream = client.GetStringStream("127.0.0.1", "9999", 0, cdr);  //connect here
-            strStream.StringNewMessageEvent += new StringNewMessage(ClientStringMessageReceivedEvent);
-            strStream.Send(EXPECTED_GREETING);  //send a string
-            CheckForResponse();
-            Assert.AreEqual(1, strStream.Messages.Count);
-            string s = strStream.DequeueMessage(0);
-            Assert.IsNotNull(s);
-            Assert.AreEqual(EXPECTED_RESPONSE, s);
+            {
+                Console.WriteLine("Client: sending greeting: " + EXPECTED_GREETING);
+                IStringStream strStream = client.GetStringStream("127.0.0.1", "9999", 0, cdr);  //connect here
+                strStream.StringNewMessageEvent += ClientStringMessageReceivedEvent;
+                strStream.Send(EXPECTED_GREETING);  //send a string
+                CheckForResponse();
+                Assert.AreEqual(1, strStream.Messages.Count);
+                string s = strStream.DequeueMessage(0);
+                Assert.IsNotNull(s);
+                Assert.AreEqual(EXPECTED_RESPONSE, s);
+                strStream.StringNewMessageEvent -= ClientStringMessageReceivedEvent;
+            }
 
             responseReceived = false;
             Assert.IsFalse(responseReceived);
             Assert.IsFalse(errorOccurred);
 
-            Console.WriteLine("Client: sending byte message: [0 1 2 3 4 5 6 7 8 9]");
-            IBinaryStream binStream = client.GetBinaryStream("127.0.0.1", "9999", 0, cdr);  //connect here
-            binStream.BinaryNewMessageEvent += new BinaryNewMessage(ClientBinaryMessageReceivedEvent);
-            binStream.Send(new byte[] { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9 });
-            CheckForResponse();
-            Assert.AreEqual(1, binStream.Messages.Count);
-            byte[] bytes = binStream.DequeueMessage(0);
-            Assert.IsNotNull(bytes);
-            Assert.AreEqual(new byte[] { 9, 8, 7, 6, 5, 4, 3, 2, 1, 0 }, bytes);
+            {
+                Console.WriteLine("Client: sending byte message: [0 1 2 3 4 5 6 7 8 9]");
+                IBinaryStream binStream = client.GetBinaryStream("127.0.0.1", "9999", 0, cdr);  //connect here
+                binStream.BinaryNewMessageEvent += ClientBinaryMessageReceivedEvent;
+                binStream.Send(new byte[] { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9 });
+                CheckForResponse();
+                Assert.AreEqual(1, binStream.Messages.Count);
+                byte[] bytes = binStream.DequeueMessage(0);
+                Assert.IsNotNull(bytes);
+                Assert.AreEqual(new byte[] { 9, 8, 7, 6, 5, 4, 3, 2, 1, 0 }, bytes);
+                binStream.BinaryNewMessageEvent -= ClientBinaryMessageReceivedEvent;
+            }
 
             responseReceived = false;
             Assert.IsFalse(responseReceived);
             Assert.IsFalse(errorOccurred);
 
-            Console.WriteLine("Client: sending greeting: list(\"hello\",\"world\")");
-            IObjectStream objStream = client.GetObjectStream("127.0.0.1", "9999", 0, cdr);  //connect here
-            objStream.ObjectNewMessageEvent += new ObjectNewMessage(ClientObjectMessageReceivedEvent);
-            objStream.Send(new List<string>(new string[] { "hello", "world" }));  //send a string
-            CheckForResponse();
-            Assert.AreEqual(1, objStream.Messages.Count);
-            object o = objStream.DequeueMessage(0);
-            Assert.IsNotNull(o);
-            Assert.IsInstanceOfType(typeof(List<string>), o);
-            Assert.AreEqual(new List<string>(new string[] { "hello", "world" }), o);
+            {
+                Console.WriteLine("Client: sending greeting: list(\"hello\",\"world\")");
+                IObjectStream objStream = client.GetObjectStream("127.0.0.1", "9999", 0, cdr);  //connect here
+                objStream.ObjectNewMessageEvent += ClientObjectMessageReceivedEvent;
+                objStream.Send(new List<string>(new string[] { "hello", "world" }));  //send a string
+                CheckForResponse();
+                Assert.AreEqual(1, objStream.Messages.Count);
+                object o = objStream.DequeueMessage(0);
+                Assert.IsNotNull(o);
+                Assert.IsInstanceOfType(typeof(List<string>), o);
+                Assert.AreEqual(new List<string>(new string[] { "hello", "world" }), o);
+                objStream.ObjectNewMessageEvent -= ClientObjectMessageReceivedEvent;
+            }
 
             responseReceived = false;
             Assert.IsFalse(responseReceived);
             Assert.IsFalse(errorOccurred);
 
-            Console.WriteLine("Client: sending greeting: SessionAction.Joined");
-            ISessionStream sessStream = client.GetSessionStream("127.0.0.1", "9999", 0, cdr);  //connect here
-            sessStream.SessionNewMessageEvent += new SessionNewMessage(ClientSessionMessageReceivedEvent);
-            sessStream.Send(SessionAction.Joined);  //send a string
-            CheckForResponse();
-            Assert.AreEqual(1, sessStream.Messages.Count);
-            SessionMessage sm = sessStream.DequeueMessage(0);
-            Assert.IsNotNull(sm);
-            Assert.AreEqual(sm.Action, SessionAction.Joined);
+            {
+                Console.WriteLine("Client: sending greeting: SessionAction.Joined");
+                ISessionStream sessStream = client.GetSessionStream("127.0.0.1", "9999", 0, cdr);  //connect here
+                sessStream.SessionNewMessageEvent += ClientSessionMessageReceivedEvent;
+                sessStream.Send(SessionAction.Joined);  //send a string
+                CheckForResponse();
+                Assert.AreEqual(1, sessStream.Messages.Count);
+                SessionMessage sm = sessStream.DequeueMessage(0);
+                Assert.IsNotNull(sm);
+                Assert.AreEqual(sm.Action, SessionAction.Joined);
+                sessStream.SessionNewMessageEvent -= ClientSessionMessageReceivedEvent;
+            }
+
+            responseReceived = false;
+            Assert.IsFalse(responseReceived);
+            Assert.IsFalse(errorOccurred);
+
+            {
+                Console.WriteLine("Client: sending tuple message: [-1, 0, 1]");
+                IStreamedTuple<int, int, int> tupleStream = 
+                    client.GetStreamedTuple<int, int, int>("127.0.0.1", "9999", 0, 20, cdr);
+                tupleStream.StreamedTupleReceived += ClientTupleMessageReceivedEvent;
+                tupleStream.X = -1;
+                tupleStream.Y = 0;
+                tupleStream.Z = 1;
+                CheckForResponse();
+                Assert.AreEqual(-1, tupleStream.X);
+                Assert.AreEqual(0, tupleStream.Y);
+                Assert.AreEqual(1, tupleStream.Z);
+                tupleStream.StreamedTupleReceived -= ClientTupleMessageReceivedEvent;
+            }
         }
 
 
         void ClientStringMessageReceivedEvent(IStringStream stream)
         {
-            Console.WriteLine("Client: received a response\n");
+            Console.WriteLine("Client: received a string response\n");
             responseReceived = true;
         }
 
         void ClientBinaryMessageReceivedEvent(IBinaryStream stream)
         {
-            Console.WriteLine("Client: received a response\n");
+            Console.WriteLine("Client: received a byte[] response\n");
             responseReceived = true;
         }
 
         void ClientObjectMessageReceivedEvent(IObjectStream stream)
         {
-            Console.WriteLine("Client: received a response\n");
+            Console.WriteLine("Client: received a object response\n");
             responseReceived = true;
         }
 
         void ClientSessionMessageReceivedEvent(ISessionStream stream)
         {
-            Console.WriteLine("Client: received a response\n");
+            Console.WriteLine("Client: received a session response\n");
             responseReceived = true;
         }
+
+        void ClientTupleMessageReceivedEvent<T_X,T_Y,T_Z>(RemoteTuple<T_X, T_Y, T_Z> tuple, int clientId)
+            where T_X : IConvertible
+            where T_Y : IConvertible
+            where T_Z : IConvertible
+        {
+            Console.WriteLine("Client: received a tuple response\n");
+            responseReceived = true;
+        }
+
 
         /// <summary>This is triggered if something goes wrong</summary>
         void client_ErrorEvent(ServerConnexion ss, string explanation, object context)
