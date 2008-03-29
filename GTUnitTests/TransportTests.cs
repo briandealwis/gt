@@ -91,7 +91,7 @@ namespace GT.UnitTests
     /// Test GT transports functionality
     /// </summary>
     [TestFixture]
-    public class ZZATransportTests
+    public class ZMTransportTests
     {
         int port = 9876;
         Thread serverThread, acceptorThread;
