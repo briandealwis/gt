@@ -25,6 +25,10 @@ namespace GT.Net
                 Write(prefix);
                 Write(" ");
             }
+            if(m is RawMessage) {
+                WriteLine("Raw Message (uninterpreted bytes)");
+                return;
+            }
             switch (m.MessageType)
             {
             case MessageType.String:
