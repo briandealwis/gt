@@ -160,66 +160,69 @@ namespace GT.Net
 
         protected void InternalUpdate()
         {
-            while (offset < data.Length)
+            do
             {
-                if (connection.Available <= 0)
+                while (offset < data.Length)
                 {
-                    // we will return!
+                    if (connection.Available <= 0)
+                    {
+                        // we will return!
+                        return;
+                    }
+                    SocketError sockError;
+                    int rc = connection.Client.Receive(data, offset, data.Length - offset,
+                        SocketFlags.None, out sockError);
+                    if (sockError == SocketError.WouldBlock) { return; }
+                    if (rc == 0) { throw new CannotConnectToRemoteException("unexpected EOF"); }
+                    if (sockError != SocketError.Success) { throw new CannotConnectToRemoteException(sockError.ToString()); }
+                    offset += rc;
+                }
+
+                switch (state)
+                {
+                case NIPState.TransportProtocol:
+                    if (!ByteUtils.Compare(data, 0, acceptor.ProtocolDescriptor, 0, 4))
+                    {
+                        throw new CannotConnectToRemoteException("Unknown protocol version: "
+                        + ByteUtils.DumpBytes(data, 0, 4) + " ["
+                        + ByteUtils.AsPrintable(data, 0, 4) + "]");
+                    }
+                    state = NIPState.DictionarySize;
+                    data = new byte[1];
+                    offset = 0;
+                    break;
+
+                case NIPState.DictionarySize:
+                    {
+                        MemoryStream ms = new MemoryStream(data);
+                        try
+                        {
+                            int count = ByteUtils.DecodeLength(ms);
+                            state = NIPState.DictionaryContent;
+                            data = new byte[count];
+                            offset = 0;
+                        }
+                        catch (InvalidDataException)
+                        {
+                            // we keep reading until we have an encoded length
+                            byte[] newData = new byte[data.Length + 1];
+                            Array.Copy(data, newData, data.Length);
+                            data = newData;
+                            // and get that next byte!
+                        }
+                    }
+                    break;
+
+                case NIPState.DictionaryContent:
+                    {
+                        MemoryStream ms = new MemoryStream(data);
+                        Dictionary<string, string> dict = ByteUtils.DecodeDictionary(ms);
+                        acceptor.Remove(this);
+                        acceptor.NotifyNewClient(new TcpTransport(connection), dict);
+                    }
                     return;
                 }
-                SocketError sockError;
-                int rc = connection.Client.Receive(data, offset, data.Length - offset,
-                    SocketFlags.None, out sockError);
-                if (sockError == SocketError.WouldBlock) { return; }
-                if (rc == 0) { throw new CannotConnectToRemoteException("unexpected EOF"); }
-                if (sockError != SocketError.Success) { throw new CannotConnectToRemoteException(sockError.ToString()); }
-                offset += rc;
-            }
-
-            switch (state)
-            {
-            case NIPState.TransportProtocol:
-                if (!ByteUtils.Compare(data, 0, acceptor.ProtocolDescriptor, 0, 4))
-                {
-                    throw new CannotConnectToRemoteException("Unknown protocol version: "
-                    + ByteUtils.DumpBytes(data, 0, 4) + " ["
-                    + ByteUtils.AsPrintable(data, 0, 4) + "]");
-                }
-                state = NIPState.DictionarySize;
-                data = new byte[1];
-                offset = 0;
-                break;
-
-            case NIPState.DictionarySize:
-                {
-                    MemoryStream ms = new MemoryStream(data);
-                    try
-                    {
-                        int count = ByteUtils.DecodeLength(ms);
-                        state = NIPState.DictionaryContent;
-                        data = new byte[count];
-                        offset = 0;
-                    }
-                    catch (InvalidDataException)
-                    {
-                        // we keep reading until we have an encoded length
-                        byte[] newData = new byte[data.Length + 1];
-                        Array.Copy(data, newData, data.Length);
-                        data = newData;
-                        // and get that next byte!
-                    }
-                }
-                break;
-
-            case NIPState.DictionaryContent:
-                {
-                    MemoryStream ms = new MemoryStream(data);
-                    Dictionary<string, string> dict = ByteUtils.DecodeDictionary(ms);
-                    acceptor.Remove(this);
-                    acceptor.NotifyNewClient(new TcpTransport(connection), dict);
-                }
-                break;
-            }
+            } while (connection.Available > 0);
         }
     }
 }
