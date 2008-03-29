@@ -10,8 +10,9 @@ namespace GT.Net.Local
     public class LocalAcceptor : IAcceptor
     {
         protected string name;
-        protected Semaphore semaphore;
-        protected LocalHalfPipe listener;
+        protected int connectionNumber = 1;
+        protected List<LocalHalfPipe> pending;
+        protected List<LocalHalfPipe> toBeRemoved;
        
         public event NewClientHandler NewClientEvent;
 
@@ -20,32 +21,21 @@ namespace GT.Net.Local
             this.name = name;
         }
 
-        public void Update()
+        public bool Active
         {
-            if(semaphore.WaitOne(0, false)) {
-                Dictionary<string,string> capabilities = 
-                    ByteUtils.DecodeDictionary(new MemoryStream(listener.Check()));
-                NewClientEvent(new LocalTransport(listener), capabilities);
-
-                RegisterNewListener();
-            }
+            get { return LocalTransport.IsRegistered(name, this); }
         }
 
         public void Start()
         {
-            RegisterNewListener();
+            LocalTransport.RegisterAcceptor(name, this);
+            pending = new List<LocalHalfPipe>();
+            toBeRemoved = new List<LocalHalfPipe>();
         }
 
         public void Stop()
         {
-            LocalTransport.RemoveListener(name);
-            listener = null;
-            semaphore = null;
-        }
-
-        public bool Active
-        {
-            get { return listener != null; }
+            LocalTransport.RemoveAcceptor(name);
         }
 
         public void Dispose()
@@ -53,13 +43,39 @@ namespace GT.Net.Local
             Stop();
         }
 
-        protected void RegisterNewListener()
+        internal LocalHalfPipe Connect()
         {
             Queue<byte[]> first = new Queue<byte[]>();
             Queue<byte[]> second = new Queue<byte[]>();
-            listener = new LocalHalfPipe(first, second);
-            LocalHalfPipe client = new LocalHalfPipe(second, first);
-            semaphore = LocalTransport.RegisterConnection(name, client);
+            ++connectionNumber;
+            LocalHalfPipe listener = new LocalHalfPipe(connectionNumber, first, second);
+            LocalHalfPipe client = new LocalHalfPipe(-connectionNumber, second, first);
+            pending.Add(listener);
+            return client;
+        }
+
+        public void Update()
+        {
+            toBeRemoved.Clear();
+            foreach (LocalHalfPipe hp in pending)
+            {
+                byte[] message = hp.Check();
+                if (message != null)
+                {
+                    try
+                    {
+                        Dictionary<string, string> capabilities =
+                             ByteUtils.DecodeDictionary(new MemoryStream(message));
+                        NewClientEvent(new LocalTransport(hp), capabilities);
+                    }
+                    catch (Exception e)
+                    {
+                        Console.WriteLine("WARNING: {0}: connection negotiation failed", hp);
+                    }
+                    toBeRemoved.Add(hp);
+                }
+            }
+            pending.RemoveAll(delegate(LocalHalfPipe o) { return toBeRemoved.Contains(o); });
         }
 
     }
@@ -99,41 +115,46 @@ namespace GT.Net.Local
     public class LocalTransport : BaseTransport
     {
         #region Static members
-        public static Dictionary<string, KeyValuePair<Semaphore, LocalHalfPipe>> OpenConnections =
-            new Dictionary<string, KeyValuePair<Semaphore, LocalHalfPipe>>();
+        public static Dictionary<string, LocalAcceptor> OpenConnections =
+            new Dictionary<string, LocalAcceptor>();
 
         internal static LocalHalfPipe OpenConnection(string key, Dictionary<string,string> capabilities)
         {
-            KeyValuePair<Semaphore, LocalHalfPipe> pair;
+            LocalHalfPipe hp;
             lock (OpenConnections)
             {
-                if (!OpenConnections.TryGetValue(key, out pair)) { return null; }
-                OpenConnections.Remove(key);
+                LocalAcceptor acceptor;
+                if (!OpenConnections.TryGetValue(key, out acceptor)) { return null; }
+                hp = acceptor.Connect();
             }
             // gotta negotiate
             MemoryStream ms = new MemoryStream();
             ByteUtils.EncodeDictionary(capabilities, ms);
-            pair.Value.Put(ms.ToArray());
-            pair.Key.Release();
-            return pair.Value;
+            hp.Put(ms.ToArray());
+            return hp;
         }
 
-        internal static Semaphore RegisterConnection(string key, LocalHalfPipe hp)
+        internal static void RegisterAcceptor(string key, LocalAcceptor acceptor)
         {
             lock (OpenConnections)
             {
-                Semaphore s = new Semaphore(0, 1);
-                OpenConnections[key] = new KeyValuePair<Semaphore, LocalHalfPipe>(s, hp);
-                return s;
+                OpenConnections[key] = acceptor;
             }
         }
 
-        internal static void RemoveListener(string name)
+        internal static void RemoveAcceptor(string key)
         {
             lock (OpenConnections)
             {
-                OpenConnections.Remove(name);
+                OpenConnections.Remove(key);
             }
+        }
+
+        internal static bool IsRegistered(string key, LocalAcceptor acceptor)
+        {
+            LocalAcceptor v;
+            if (!OpenConnections.TryGetValue(key, out v)) { return false; }
+            return v == acceptor;
         }
 
         #endregion
@@ -159,7 +180,7 @@ namespace GT.Net.Local
 
         public override Ordering Ordering
         {
-            get { return Ordering.Sequenced; }
+            get { return Ordering.Ordered; }
         }
 
         public override bool Active
@@ -192,19 +213,28 @@ namespace GT.Net.Local
         {
             get { return 2048; }
         }
+
+        public override string ToString()
+        {
+            return "Local{" + handle.Identifier + "}";
+        }
     }
 
 
     public class LocalHalfPipe
     {
+        protected int identifier;
         protected Queue<byte[]> readQueue;
         protected Queue<byte[]> writeQueue;
 
-        public LocalHalfPipe(Queue<byte[]> rq, Queue<byte[]> wq)
+        public LocalHalfPipe(int id, Queue<byte[]> rq, Queue<byte[]> wq)
         {
+            identifier = id;
             readQueue = rq;
             writeQueue = wq;
         }
+
+        public int Identifier { get { return identifier; } }
 
         public byte[] Check()
         {
