@@ -23,6 +23,11 @@ namespace GT.Net
             this.id = id;
             this.type = type;
         }
+
+        public override string ToString()
+        {
+            return type + "(id:" + id + ")";
+        }
     }
 
     public class BinaryMessage : Message
@@ -51,6 +56,12 @@ namespace GT.Net
         {
             this.text = text;
         }
+
+        public override string ToString()
+        {
+            return MessageType + "(id:" + id + " content: " + text + ")";
+        }
+
     }
 
     public class ObjectMessage : Message
@@ -64,6 +75,11 @@ namespace GT.Net
             : base(id, MessageType.Object)
         {
             this.obj = obj;
+        }
+
+        public override string ToString()
+        {
+            return MessageType + "(id:" + id + " content: " + obj + ")";
         }
     }
 
@@ -88,6 +104,11 @@ namespace GT.Net
             this.clientId = clientId;
             this.action = e;
         }
+
+        public override string ToString()
+        {
+            return "Session{id:" + id + " client:" + clientId + " " + action + "}";
+        }
     }
 
     /// <summary>A message from a session about id</summary>
@@ -107,6 +128,11 @@ namespace GT.Net
             : base((byte)t, MessageType.System)
         {
             this.data = data;
+        }
+
+        public override string ToString()
+        {
+            return "System{" + ((SystemMessageType)id) + "}";
         }
     }
 
