@@ -298,7 +298,7 @@ namespace GT.Net
             }
 
             //ping, if needed
-            if (System.Environment.TickCount - lastPingTime >= configuration.PingInterval.Milliseconds)
+            if (System.Environment.TickCount - lastPingTime >= configuration.PingInterval.Ticks)
             {
                 DebugUtils.WriteLine("Server.Update(): pinging clients");
                 lastPingTime = System.Environment.TickCount;
@@ -353,7 +353,7 @@ namespace GT.Net
             }
             catch (Exception e)
             {
-                Console.WriteLine("{0} Exception when decoding client's GUID: {1}",
+                Console.WriteLine("{0}: EXCEPTION when decoding client's GUID: {1}",
                     DateTime.Now, e);
                 t.Dispose();
                 return;
@@ -361,13 +361,13 @@ namespace GT.Net
             ClientConnexion c = GetClientForClientIdentity(clientId);
             if (c == null)
             {
-                Console.WriteLine("{0}: unknown client: {1} from {2}", this, clientId, t);
+                Console.WriteLine("{0}: new client {1} via {2}", this, clientId, t);
                 c = CreateNewClient(clientId);
                 newlyAddedClients.Add(c);
             }
             else
             {
-                Console.WriteLine("{0}: found client {1} from {2}", this, clientId, t);
+                Console.WriteLine("{0}: for client {1} via {2}", this, clientId, t);
             }
             c.AddTransport(t);
         }
@@ -428,7 +428,7 @@ namespace GT.Net
                 }
                 catch (Exception e)
                 {
-                    Console.WriteLine("{0}: exception in listening loop: {1}", this, e);
+                    Console.WriteLine("{0}: EXCEPTION: in listening loop: {1}", this, e);
                     if (ErrorEvent != null)
                         ErrorEvent(null, "An error occurred in the server.", e);
                 }
@@ -509,7 +509,7 @@ namespace GT.Net
                 }
                 catch (Exception e)
                 {
-                    Console.WriteLine("{0} EXCEPTION while disposing client: {1}",
+                    Console.WriteLine("{0} EXCEPTION: while disposing client: {1}",
                         DateTime.Now, e);
                 }
             }
@@ -592,13 +592,14 @@ namespace GT.Net
             ChannelDeliveryRequirements cdr = GetChannelDeliveryRequirements(messages[0].Id);
             foreach (ClientConnexion c in list)
             {
+                //Console.WriteLine("{0}: sending to {1}", this, c);
                 try
                 {
                     c.Send(messages, mdr, cdr);
                 }
                 catch (Exception e)
                 {
-                    ErrorClientHandlerMethod(c, "exception when sending", e);
+                    ErrorClientHandlerMethod(c, "EXCEPTION: when sending", e);
                 }
             }
         }
@@ -827,13 +828,15 @@ namespace GT.Net
 
         protected void SendMessages(ITransport transport, IList<Message> messages) 
         {
+            //Console.WriteLine("{0}: Sending {1} messages to {2}", this, messages.Count, transport);
             lock (transport)
             {
                 Stream ms = transport.GetPacketStream();
                 int packetStart = (int)ms.Position;
-                while (messages.Count > 0)
+                int index = 0;
+                while (index < messages.Count)
                 {
-                    Message m = messages[0];
+                    Message m = messages[index];
                     int packetEnd = (int)ms.Position;
                     server.Marshaller.Marshal(m, ms, transport);
                     if (ms.Position - packetStart > transport.MaximumPacketSize) // uh oh, rewind and redo
@@ -845,7 +848,7 @@ namespace GT.Net
                         ms = transport.GetPacketStream();
                         packetStart = (int)ms.Position;
                     }
-                    else { messages.RemoveAt(0); }
+                    else { index++; }
                 }
                 if (ms.Position - packetStart != 0)
                 {
