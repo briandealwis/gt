@@ -81,10 +81,52 @@ namespace GT.Net
 
             output.WriteByte(m.Id);
             output.WriteByte((byte)m.MessageType);
-            Debug.Assert(m.GetType().Equals(typeof(RawMessage)));
-            RawMessage rm = (RawMessage)m;
-            ByteUtils.EncodeLength((int)rm.Bytes.Length, output);
-            output.Write(rm.Bytes, 0, rm.Bytes.Length);
+            if (m is RawMessage)
+            {
+                RawMessage rm = (RawMessage)m;
+                ByteUtils.EncodeLength((int)rm.Bytes.Length, output);
+                output.Write(rm.Bytes, 0, rm.Bytes.Length);
+            }
+            else
+            {
+                // MarshalContents, and its callers, are responsible for putting on
+                // the payload length
+                MarshalContents(m, output, t);
+            }
+        }
+
+        virtual protected void MarshalContents(Message m, Stream output, ITransport t)
+        {
+            // Individual marshalling methods are responsible for first encoding
+            // the payload length
+            switch (m.MessageType)
+            {
+            case MessageType.Session:
+                MarshalSessionAction((SessionMessage)m, output);
+                break;
+            case MessageType.System:
+                // channel Id is the system message type
+                MarshalSystemMessage((SystemMessage)m, output);
+                break;
+            default:
+                Console.WriteLine("ERROR: {0} cannot handle messages: {1}",
+                    this.GetType().Name, m.GetType().Name);
+                return;
+            }
+        }
+
+        protected void MarshalSessionAction(SessionMessage sm, Stream output)
+        {
+            ByteUtils.EncodeLength(1 + 4, output);
+            output.WriteByte((byte)sm.Action);
+            output.Write(BitConverter.GetBytes(sm.ClientId), 0, 4);
+        }
+
+        protected void MarshalSystemMessage(SystemMessage systemMessage, Stream output)
+        {
+            // SystemMessageType is the channel id
+            ByteUtils.EncodeLength(systemMessage.data.Length, output);
+            output.Write(systemMessage.data, 0, systemMessage.data.Length);
         }
 
         #endregion
@@ -97,13 +139,47 @@ namespace GT.Net
             byte id = (byte)input.ReadByte();
             byte type = (byte)input.ReadByte();
             int length = ByteUtils.DecodeLength(input);
-            byte[] data = new byte[length];
-            input.Read(data, 0, length);
-            return new RawMessage(id, (MessageType)type, data);
+            return UnmarshalContent(id, (MessageType)type, new WrappedStream(input, (uint)length));
+        }
+
+        virtual protected Message UnmarshalContent(byte id, MessageType type, Stream input)
+        {
+            switch (type)
+            {
+            case MessageType.Session:
+                return UnmarshalSessionAction(id, (MessageType)type, input);
+            case MessageType.System:
+                return UnmarshalSystemMessage(id, (MessageType)type, input);
+            default:
+                int length = (int)(input.Length - input.Position);
+                byte[] data = new byte[length];
+                input.Read(data, 0, length);
+                return new RawMessage(id, (MessageType)type, data);
+            }
+        }
+
+        protected Message UnmarshalSystemMessage(byte id, MessageType messageType, Stream input)
+        {
+            // SystemMessageType is the channel id
+            byte[] contents = new byte[input.Length - input.Position];
+            input.Read(contents, 0, contents.Length);
+            return new SystemMessage((SystemMessageType)id, contents);
+        }
+
+        protected SessionMessage UnmarshalSessionAction(byte id, MessageType type, Stream input)
+        {
+            SessionAction ac = (SessionAction)input.ReadByte();
+            return new SessionMessage(id, BitConverter.ToInt32(ReadBytes(input, 4), 0), ac);
         }
 
         #endregion
 
+        protected byte[] ReadBytes(Stream input, int length)
+        {
+            byte[] result = new byte[length];
+            input.Read(result, 0, length);
+            return result;
+        }
     }
 
     public class DotNetSerializingMarshaller :
@@ -119,23 +195,10 @@ namespace GT.Net
 
         #region Marshalling
 
-        override public void Marshal(Message m, Stream output, ITransport t)
+        override protected void MarshalContents(Message m, Stream output, ITransport t)
         {
-            Debug.Assert(output.CanSeek);
-
-            output.WriteByte(m.Id);
-            output.WriteByte((byte)m.MessageType);
-            // ok, this is crappy: because the length-encoding is adaptive, we
-            // can't predict how many bytes it will require.  So all the
-            // hard work for trying to minimize copies comes to nothing :-(
-            MemoryStream ms = new MemoryStream(64);    // guestimate
-            MarshalContents(m, ms, t);
-            ByteUtils.EncodeLength((int)ms.Length, output);
-            ms.WriteTo(output);
-        }
-
-        protected void MarshalContents(Message m, Stream output, ITransport t)
-        {
+            // Individual marshalling methods are responsible for first encoding
+            // the payload length
             switch (m.MessageType)
             {
             case MessageType.Binary:
@@ -147,61 +210,68 @@ namespace GT.Net
             case MessageType.Object:
                 MarshalObject(((ObjectMessage)m).Object, output);
                 break;
-            case MessageType.Session:
-                MarshalSessionAction((SessionMessage)m, output);
-                break;
-            case MessageType.System:
-                // channel Id is the system message type
-                MarshalSystemMessage((SystemMessage)m, output);
-                break;
             case MessageType.Tuple1D:
             case MessageType.Tuple2D:
             case MessageType.Tuple3D:
                 MarshalTupleMessage((TupleMessage)m, output);
+                break;
+            case MessageType.Session:
+                MarshalSessionAction((SessionMessage)m, output);
+                break;
+            case MessageType.System:
+                MarshalSystemMessage((SystemMessage)m, output);
                 break;
             default:
                 throw new InvalidOperationException("unknown message type: " + m.MessageType);
             }
         }
 
-        protected void MarshalSystemMessage(SystemMessage systemMessage, Stream output)
-        {
-            // SystemMessageType is the channel id
-            output.Write(systemMessage.data, 0, systemMessage.data.Length);
-        }
-
         protected void MarshalString(string s, Stream output)
         {
-            StreamWriter w = new StreamWriter(output, System.Text.UTF8Encoding.UTF8);
+            StreamWriter w = new StreamWriter(output, UTF8Encoding.UTF8);
+            ByteUtils.EncodeLength(UTF8Encoding.UTF8.GetByteCount(s), output);
             w.Write(s);
             w.Flush();
         }
 
         protected void MarshalObject(object o, Stream output)
         {
-            formatter.Serialize(output, o);
+            // adaptive length-encoding has one major downside: we
+            // can't predict how many bytes the length will require.  
+            // So all the hard work for trying to minimize copies buys
+            // us little :-(
+            // FIXME: could just reserve a fixed 3 bytes instead?
+            MemoryStream ms = new MemoryStream(64);    // guestimate
+            formatter.Serialize(ms, o);
+            ByteUtils.EncodeLength((int)ms.Length, output);
+            ms.WriteTo(output);
         }
 
         protected void MarshalBinary(byte[] bytes, Stream output)
         {
+            ByteUtils.EncodeLength(bytes.Length, output);
             output.Write(bytes, 0, bytes.Length);
-        }
-
-        protected void MarshalSessionAction(SessionMessage sm, Stream output)
-        {
-            output.WriteByte((byte)sm.Action);
-            output.Write(BitConverter.GetBytes(sm.ClientId), 0, 4);
         }
 
         protected void MarshalTupleMessage(TupleMessage tm, Stream output)
         {
-            output.Write(BitConverter.GetBytes(tm.ClientId), 0, 4);
-            if (tm.Dimension >= 1) { MarshalConvertible(tm.X, output); }
-            if (tm.Dimension >= 2) { MarshalConvertible(tm.Y, output); }
-            if (tm.Dimension >= 3) { MarshalConvertible(tm.Z, output); }
+            // adaptive length-encoding has one major downside: we
+            // can't predict how many bytes the length will require.  
+            // So all the hard work for trying to minimize copies buys
+            // us little :-(
+            // FIXME: could just reserve a fixed 3 bytes instead?
+            MemoryStream ms = new MemoryStream(64);    // guestimate
+
+            ms.Write(BitConverter.GetBytes(tm.ClientId), 0, 4);
+            if (tm.Dimension >= 1) { EncodeConvertible(tm.X, ms); }
+            if (tm.Dimension >= 2) { EncodeConvertible(tm.Y, ms); }
+            if (tm.Dimension >= 3) { EncodeConvertible(tm.Z, ms); }
+            
+            ByteUtils.EncodeLength((int)ms.Length, output);
+            ms.WriteTo(output);
         }
 
-        protected void MarshalConvertible(IConvertible value, Stream output) {
+        protected void EncodeConvertible(IConvertible value, Stream output) {
             output.WriteByte((byte)value.GetTypeCode());
             byte[] result;
             switch (value.GetTypeCode())
@@ -225,16 +295,7 @@ namespace GT.Net
 
         #region Unmarshalling
 
-        override public Message Unmarshal(Stream input, ITransport t)
-        {
-            // Could check the version or something here?
-            byte id = (byte)input.ReadByte();
-            byte type = (byte)input.ReadByte();
-            int length = ByteUtils.DecodeLength(input);
-            return UnmarshalContent(id, (MessageType)type, new WrappedStream(input, (uint)length));
-        }
-
-        protected Message UnmarshalContent(byte id, MessageType type, Stream input)
+        override protected Message UnmarshalContent(byte id, MessageType type, Stream input)
         {
             switch (type)
             {
@@ -244,25 +305,18 @@ namespace GT.Net
                 return UnmarshalString(id, (MessageType)type, input);
             case MessageType.Object:
                 return UnmarshalObject(id, (MessageType)type, input);
-            case MessageType.Session:
-                return UnmarshalSessionAction(id, (MessageType)type, input);
-            case MessageType.System:
-                return UnmarshalSystemMessage(id, (MessageType)type, input);
             case MessageType.Tuple1D:
             case MessageType.Tuple2D:
             case MessageType.Tuple3D:
                 return UnmarshalTuple(id, (MessageType)type, input);
+            case MessageType.Session:
+                return UnmarshalSessionAction(id, type, input);
+            case MessageType.System:
+                return UnmarshalSystemMessage(id, type, input);
+
             default:
                 throw new InvalidOperationException("unknown message type: " + (MessageType)type);
             }
-        }
-
-        protected Message UnmarshalSystemMessage(byte id, MessageType messageType, Stream input)
-        {
-            // SystemMessageType is the channel id
-            byte[] contents = new byte[input.Length - input.Position];
-            input.Read(contents, 0, contents.Length);
-            return new SystemMessage((SystemMessageType)id, contents);
         }
 
         protected StringMessage UnmarshalString(byte id, MessageType type, Stream input)
@@ -284,29 +338,23 @@ namespace GT.Net
             return new BinaryMessage(id, result);
         }
 
-        protected SessionMessage UnmarshalSessionAction(byte id, MessageType type, Stream input)
-        {
-            SessionAction ac = (SessionAction)input.ReadByte();
-            return new SessionMessage(id, BitConverter.ToInt32(ReadBytes(input, 4), 0), ac);
-        }
-
         protected TupleMessage UnmarshalTuple(byte id, MessageType type, Stream input)
         {
             int clientId = BitConverter.ToInt32(ReadBytes(input, 4), 0);
             switch (type)
             {
             case MessageType.Tuple1D:
-                return new TupleMessage(id, clientId, UnmarshalConvertible(input));
+                return new TupleMessage(id, clientId, DecodeConvertible(input));
             case MessageType.Tuple2D:
-                return new TupleMessage(id, clientId, UnmarshalConvertible(input), UnmarshalConvertible(input));
+                return new TupleMessage(id, clientId, DecodeConvertible(input), DecodeConvertible(input));
             case MessageType.Tuple3D:
-                return new TupleMessage(id, clientId, UnmarshalConvertible(input),
-                    UnmarshalConvertible(input), UnmarshalConvertible(input));
+                return new TupleMessage(id, clientId, DecodeConvertible(input),
+                    DecodeConvertible(input), DecodeConvertible(input));
             }
             throw new MarshallingException("MessageType is not a tuple: " + type);
         }
 
-        protected IConvertible UnmarshalConvertible(Stream input)
+        protected IConvertible DecodeConvertible(Stream input)
         {
             TypeCode tc = (TypeCode)input.ReadByte();
             switch (tc)
@@ -323,13 +371,6 @@ namespace GT.Net
             case TypeCode.UInt64: return BitConverter.ToUInt64(ReadBytes(input, 8), 0);
             default: throw new MarshallingException("Unknown IConvertible type: " + tc);
             }
-        }
-
-        protected byte[] ReadBytes(Stream input, int length)
-        {
-            byte[] result = new byte[length];
-            input.Read(result, 0, length);
-            return result;
         }
 
         #endregion

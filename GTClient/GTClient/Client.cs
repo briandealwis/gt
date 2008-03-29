@@ -45,7 +45,8 @@ namespace GT.Net
 
     public interface IStream
     {
-        /// <summary>Average latency between the client and this particluar server.</summary>
+        /// <summary>Average latency between the client and this particluar server 
+        /// (in milliseconds).</summary>
         float Delay { get; }
 
         /// <summary> Get the unique identity of the client for this server.  This will be
@@ -168,6 +169,11 @@ namespace GT.Net
         {
             if (UpdateEvent != null)
                 UpdateEvent(hpTimer);
+        }
+
+        public override string ToString()
+        {
+            return GetType().Name + "[" + connexion + "]";
         }
     }
 
@@ -530,7 +536,14 @@ namespace GT.Net
             {
                 // FIXME: and if there is an error...?
                 ITransport t = conn.Connect(Address, Port, owner.Capabilities);
-                if (t != null) { AddTransport(t); }
+                if (t != null) { 
+                    AddTransport(t); 
+                }
+                else
+                {
+                    Console.WriteLine("{0}: WARNING: Could not connect to {1}:{2} via {3}", 
+                        this, Address, Port, conn);
+                }
             }
 
             active = true;
@@ -604,16 +617,24 @@ namespace GT.Net
 
         protected void HandleNewPacket(byte[] buffer, int offset, int count, ITransport transport)
         {
-            Message msg = owner.Marshaller.Unmarshal(new MemoryStream(buffer, offset, count, false), transport);
-            if (msg.MessageType == MessageType.System)
+            Stream stream = new MemoryStream(buffer, offset, count, false);
+            while (stream.Position < stream.Length)
             {
-                HandleSystemMessage((SystemMessage)msg, transport);
-            }
-            else
-            {
-                // Hmm, this lock may not be necessary -- the Dequeueing of messages should
-                // occur in the same thread.
-                lock (receivedMessages) { receivedMessages.Enqueue(msg); }
+                Message msg = owner.Marshaller.Unmarshal(stream, transport);
+                //DebugUtils.DumpMessage("ClientConnexionConnexion.PostNewlyReceivedMessage", m);
+
+                if (msg.MessageType == MessageType.System)
+                {
+                    //Console.WriteLine("{0}: handling system message {1}", this, msg);
+                    HandleSystemMessage((SystemMessage)msg, transport);
+                }
+                else
+                {
+                    // Hmm, this lock may not be necessary -- the Dequeueing of messages should
+                    // occur in the same thread.
+                    //Console.WriteLine("{0}: posting incoming message {1}", this, msg);
+                    lock (receivedMessages) { receivedMessages.Enqueue(msg); }
+                }
             }
         }
 
@@ -731,17 +752,19 @@ namespace GT.Net
             FlushChannelMessages(id, null, null, cdr, false);
         }
 
-        /// <summary>Flushes outgoing messages on <c>msg</c>'s channel only</summary>
+        /// <summary>Flushes outgoing messages on channel <c>id</c> channel only.
+        /// <c>msg</c>, if not null, will be sent first if <c>putMsgFirst == true</c>,
+        /// or sent last if <c>putMsgFirst == false</c>.</summary>
         protected void FlushChannelMessages(byte id, Message msg, MessageDeliveryRequirements mdr,
             ChannelDeliveryRequirements cdr, bool putMsgFirst)
         {
             Queue<KeyValuePair<Message,MessageDeliveryRequirements>> list;
             if (!messagePools.TryGetValue(id, out list) || list == null || list.Count == 0)
             {
-                SendMessage(FindTransport(mdr, cdr), msg);
+                if (msg != null) { SendMessage(FindTransport(mdr, cdr), msg); }
                 return;
             }
-            if (!putMsgFirst)
+            if (!putMsgFirst && msg != null)
             {
                 list.Enqueue(new KeyValuePair<Message, MessageDeliveryRequirements>(msg, mdr));
             }
@@ -763,7 +786,7 @@ namespace GT.Net
                 {
                     stream = inProgress[transport] = transport.GetPacketStream();
                 }
-                StreamMessage(msg, transport, ref stream);
+                StreamMessage(current.Key, transport, ref stream);
                 inProgress[transport] = stream; // be sure to update inProgress
             } while (list.Count > 0);
 
@@ -777,23 +800,7 @@ namespace GT.Net
             }
         }
 
-        protected void StreamMessage(Message message, ITransport t, ref Stream stream)
-        {
-            long previousLength = stream.Length;
-            owner.Marshaller.Marshal(message, stream, t);
-            if (stream.Length < t.MaximumPacketSize) { return; }
-
-            // resulting packet is too big: go back to previous length, send what we had, 
-            stream.SetLength(previousLength);
-            Debug.Assert(stream.Length > 0);
-            t.SendPacket(stream);
-
-            // and remarshal the last message
-            stream = t.GetPacketStream();
-            owner.Marshaller.Marshal(message, stream, t);
-        }
-
-        /// <summary>Flushes all messages and then msg.</summary>
+        /// <summary>Flushes all messages and then <c>msg</c>; <c>msg</c> may be null.</summary>
         internal void FlushAllMessages(Message msg, MessageDeliveryRequirements mdr)
         {
             if (messagePools.Count == 0)
@@ -803,16 +810,19 @@ namespace GT.Net
             }
 
             Queue<KeyValuePair<Message, MessageDeliveryRequirements>> list;
-            if (!messagePools.TryGetValue(msg.Id, out list))
+            if (msg != null)
             {
-                list = messagePools[msg.Id] = new Queue<KeyValuePair<Message, MessageDeliveryRequirements>>();
+                if (!messagePools.TryGetValue(msg.Id, out list))
+                {
+                    list = messagePools[msg.Id] = new Queue<KeyValuePair<Message, MessageDeliveryRequirements>>();
+                }
+                list.Enqueue(new KeyValuePair<Message, MessageDeliveryRequirements>(msg, mdr));
             }
-            list.Enqueue(new KeyValuePair<Message, MessageDeliveryRequirements>(msg, mdr));
 
             Dictionary<ITransport, Stream> inProgress = new Dictionary<ITransport, Stream>();
             while (messagePools.Count > 0)
             {
-                // Go in round robin
+                // FIXME: This does round-robin.  Should use channel/message priorities.
                 foreach (byte id in messagePools.Keys)
                 {
                     list = messagePools[id];
@@ -839,6 +849,22 @@ namespace GT.Net
             }
         }
 
+        protected void StreamMessage(Message message, ITransport t, ref Stream stream)
+        {
+            long previousLength = stream.Length;
+            owner.Marshaller.Marshal(message, stream, t);
+            if (stream.Length < t.MaximumPacketSize) { return; }
+
+            // resulting packet is too big: go back to previous length, send what we had, 
+            stream.SetLength(previousLength);
+            Debug.Assert(stream.Length > 0);
+            t.SendPacket(stream);
+
+            // and remarshal the last message
+            stream = t.GetPacketStream();
+            owner.Marshaller.Marshal(message, stream, t);
+        }
+
         private ChannelDeliveryRequirements GetChannelDeliveryOptions(Message msg)
         {
             return owner.GetChannelDeliveryOptions(msg);
@@ -861,7 +887,7 @@ namespace GT.Net
         /// <summary>Deal with a system message in whatever way we need to.</summary>
         /// <param name="message">The incoming message.</param>
         /// <param name="transport">The transport from which the message
-	///  came.</param>
+	    ///  came.</param>
         internal void HandleSystemMessage(SystemMessage message, ITransport transport)
         {
             switch ((SystemMessageType)message.Id)
@@ -906,6 +932,11 @@ namespace GT.Net
                 if (receivedMessages.Count == 0) { return null; }
                 return receivedMessages.Dequeue();
             }
+        }
+
+        public override string ToString()
+        {
+            return GetType().Name + "[" + UniqueIdentity + "]";
         }
     }
 
@@ -1538,7 +1569,7 @@ namespace GT.Net
                     {
                         if (s.nextPingTime < timer.TimeInMilliseconds)
                         {
-                            s.nextPingTime = timer.TimeInMilliseconds + configuration.PingInterval.Milliseconds;
+                            s.nextPingTime = timer.TimeInMilliseconds + configuration.PingInterval.TotalMilliseconds;
                             s.Ping();
                         }
 
@@ -1559,21 +1590,17 @@ namespace GT.Net
                                 case MessageType.Tuple2D: twoTupleStreams[m.Id].QueueMessage(m); break;
                                 case MessageType.Tuple3D: threeTupleStreams[m.Id].QueueMessage(m); break;
                                 default:
-                                    Console.WriteLine("Client: WARNING: received message (id={0}) with unknown type: {1}",
-                                        m.Id, m.MessageType);
-                                    if (ErrorEvent != null)
-                                        ErrorEvent(s, "Received " + m.MessageType + "message for connection " + m.Id +
-                                            ", but that type does not exist.", m.MessageType);
+                                    // THIS IS NOT AN ERROR!
+                                    Console.WriteLine("Client: WARNING: received message of unknown type: {1}",
+                                        m);
                                     break;
                                 }
                             }
                             catch (KeyNotFoundException e)
                             {
-                                Console.WriteLine("Client: WARNING: received message with unmonitored id (type={0}): id={1}",
-                                    m.MessageType, m.Id);
-                                if (ErrorEvent != null)
-                                    ErrorEvent(s, "Received " + m.MessageType + "message for connection " + m.Id +
-                                        ", but that id does not exist for that type.", e);
+                                // THIS IS NOT AN ERROR!
+                                Console.WriteLine("Client: WARNING: received message for unmonitored channel: {0}",
+                                    m);
                             }
                         }
                     }
@@ -1610,7 +1637,7 @@ namespace GT.Net
         private void HandleSystemMessage(Message m)
         {
             //this should definitely not happen!  No good code leads to this point.  This should be only a placeholder.
-            Console.WriteLine("Client handled System Message.");
+            Console.WriteLine("Client: WARNING: Unknown System Message: {0}", m);
         }
 
         /// <summary>Starts a new thread that listens for new clients or new Bytes.
@@ -1678,6 +1705,18 @@ namespace GT.Net
             default:
                 throw new InvalidDataException();
             }
+        }
+
+        public override string ToString()
+        {
+            StringBuilder b = new StringBuilder(GetType().Name);
+            b.Append("(ids:");
+            foreach(ServerConnexion c in connexions) {
+                b.Append(' ');
+                b.Append(c.UniqueIdentity);
+            }
+            b.Append(")");
+            return b.ToString();
         }
     }
 }

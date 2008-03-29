@@ -11,31 +11,124 @@ using GT.Net.Local;
 
 namespace GT.UnitTests
 {
-    /// <summary>
-    /// Test basic GT functionality
-    /// </summary>
-    [TestFixture]
-    public class ZZZStreamTests
+
+    #region Useful Client and Server testing configurations
+    #region Transport-specific configurations
+    public class TestServerConfiguration : DefaultServerConfiguration
     {
-
-        private Boolean errorOccurred;
-        private Boolean responseReceived;
-        private Client client;
-
-        private static string EXPECTED_GREETING = "Hello!";
-        private static string EXPECTED_RESPONSE = "Go Away!";
-        private static int ServerSleepTime = 20;
-        private static int ClientSleepTime = 25;
-
-        [SetUp]
-        public void SetUp()
+        public TestServerConfiguration(int port)
+            : base(port)
         {
-            errorOccurred = false;
-            responseReceived = false;
         }
 
-        [TearDown]
-        public void TearDown()
+        public override ICollection<IAcceptor> CreateAcceptors()
+        {
+            ICollection<IAcceptor> acceptors = base.CreateAcceptors();
+            acceptors.Add(new LocalAcceptor("127.0.0.1:" + port)); // whatahack!
+            return acceptors;
+        }
+
+    }
+
+    public class TestClientConfiguration : DefaultClientConfiguration
+    {
+        Type transportType;
+
+        public TestClientConfiguration(Type transportType)
+        {
+            this.transportType = transportType;
+        }
+
+        public override ICollection<IConnector> CreateConnectors()
+        {
+            ICollection<IConnector> connectors = base.CreateConnectors();
+            connectors.Add(new LocalConnector());
+            return connectors;
+        }
+
+        public override ITransport SelectTransport(IList<ITransport> transports, MessageDeliveryRequirements mdr, ChannelDeliveryRequirements cdr)
+        {
+            foreach (ITransport t in transports)
+            {
+                if (transportType.IsInstanceOfType(t)) { return t; }
+            }
+            throw new NoMatchingTransport("I must insist on an instance of " + transportType);
+        }
+    }
+    #endregion
+
+    #region Local-transport configurations 
+    public class LocalServerConfiguration : DefaultServerConfiguration
+    {
+        public LocalServerConfiguration(int port)
+            : base(port)
+        {
+        }
+
+        public override ICollection<IAcceptor> CreateAcceptors()
+        {
+            ICollection<IAcceptor> acceptors = new List<IAcceptor>();
+            acceptors.Add(new LocalAcceptor("127.0.0.1:" + port)); // whatahack!
+            return acceptors;
+        }
+
+    }
+
+    public class LocalClientConfiguration : DefaultClientConfiguration
+    {
+        public override ICollection<IConnector> CreateConnectors()
+        {
+            ICollection<IConnector> connectors = new List<IConnector>();
+            connectors.Add(new LocalConnector());
+            return connectors;
+        }
+    }
+    #endregion
+
+    #endregion
+
+    #region "Server Stuff"
+
+    public class EchoingServer
+    {
+        private ServerConfiguration config;
+        private Server server;
+        private Thread serverThread;
+        private string expected;
+        private string response;
+        private bool errorOccurred;
+
+        public EchoingServer(int port, string expected, string response)
+        {
+            this.config = new TestServerConfiguration(port);
+            this.expected = expected;
+            this.response = response;
+        }
+
+        public EchoingServer(int port) : this(port, null, null) {}
+
+        public bool ErrorOccurred { get { return errorOccurred; } }
+
+        public int ServerSleepTime {
+            get { return config.TickInterval.Milliseconds; }
+            set { config.TickInterval = TimeSpan.FromMilliseconds(value); }
+        }
+
+        public void Start()
+        {
+            server = config.BuildServer();
+            server.StringMessageReceived += ServerStringMessageReceived;
+            server.BinaryMessageReceived += ServerBinaryMessageReceived;
+            server.ObjectMessageReceived += ServerObjectMessageReceived;
+            server.SessionMessageReceived += ServerSessionMessageReceived;
+            server.MessageReceived += ServerGeneralMessageReceived;
+            server.ErrorEvent += ServerErrorEvent;
+            server.Start();
+            serverThread = server.StartSeparateListeningThread(ServerSleepTime);
+            Console.WriteLine("Server started: " + server.ToString() + " [" + serverThread.Name + "]");
+        }
+
+        public void Stop()
         {
             if (serverThread != null)
             {
@@ -47,94 +140,29 @@ namespace GT.UnitTests
             serverThread = null;
             if (server != null) { server.Stop(); }
             server = null;
-
-            if (client != null) { client.Dispose(); }
-            client = null;
-            Console.WriteLine(this + " TearDown() complete");
         }
 
-        #region "Server Stuff"
-
-        public class TestServerConfiguration : DefaultServerConfiguration
+        public void Dispose()
         {
-            public TestServerConfiguration(int port)
-                : base(port)
-            {
-            }
-
-            public override ICollection<IAcceptor> CreateAcceptors()
-            {
-                ICollection<IAcceptor> acceptors = base.CreateAcceptors();
-                acceptors.Add(new LocalAcceptor("127.0.0.1:9999")); // whatahack!
-                return acceptors;
-            }
-
-        }
-
-        public class TestClientConfiguration : DefaultClientConfiguration
-        {
-            Type transportType;
-
-            public TestClientConfiguration(Type transportType)
-            {
-                this.transportType = transportType;
-            }
-
-            public override ICollection<IConnector> CreateConnectors()
-            {
-                ICollection<IConnector> connectors = base.CreateConnectors();
-                connectors.Add(new LocalConnector());
-                return connectors;
-            }
-
-            public override ITransport SelectTransport(IList<ITransport> transports, MessageDeliveryRequirements mdr, ChannelDeliveryRequirements cdr)
-            {
-                foreach (ITransport t in transports)
-                {
-                    if (transportType.IsInstanceOfType(t)) { return t; }
-                }
-                throw new NoMatchingTransport("I must insist on an instance of " + transportType);
-            }
-        }
-
-        private Server server;
-        private Thread serverThread;
-
-        // FIXME: Currently ignores expected and response.  
-        // Should be implemented as a new object
-        private void StartExpectedResponseServer(string expected, string response)
-        {
-            if (serverThread != null)
-            {
-                Assert.Fail("server already started");
-            }
-            server = new TestServerConfiguration(9999).BuildServer();
-            server.StringMessageReceived += new StringMessageHandler(ServerStringMessageReceived);
-            server.BinaryMessageReceived += new BinaryMessageHandler(ServerBinaryMessageReceived);
-            server.ObjectMessageReceived += new ObjectMessageHandler(ServerObjectMessageReceived);
-            server.SessionMessageReceived += new SessionMessageHandler(ServerSessionMessageReceived);
-            server.MessageReceived += ServerGeneralMessageReceived;
-            server.ErrorEvent += new ErrorClientHandler(server_ErrorEvent);
-            server.Start();
-            serverThread = server.StartSeparateListeningThread(ServerSleepTime);
-            Console.WriteLine("Server started: " + server.ToString() + " [" + serverThread.Name + "]");
+            Stop();
         }
 
         private void ServerStringMessageReceived(Message m, ClientConnexion client, ITransport t)
         {
             string s = ((StringMessage)m).Text;
-            if (!s.Equals(EXPECTED_GREETING))
+            if (expected != null && !s.Equals(expected))
             {
-                Console.WriteLine("Server: expected '" + EXPECTED_GREETING +
+                Console.WriteLine("Server: expected '" + expected +
                     "' but received '" + s + "'");
                 errorOccurred = true;
             }
             Console.WriteLine("Server: received greeting '" + s + "' on " + t);
-            Console.WriteLine("Server: sending response: '" + EXPECTED_RESPONSE + "'");
+            Console.WriteLine("Server: sending response: '" + response + "'");
             List<ClientConnexion> clientGroup = new List<ClientConnexion>(1);
             clientGroup.Add(client);
-            server.Send(EXPECTED_RESPONSE, m.Id, clientGroup,
-                new MessageDeliveryRequirements(t.Reliability, MessageAggregation.Immediate, Ordering.Unordered));
+            server.Send(response != null ? response : s, m.Id, clientGroup,
+                new MessageDeliveryRequirements(t.Reliability,
+                    MessageAggregation.Immediate, Ordering.Unordered));
         }
 
         private void ServerBinaryMessageReceived(Message m, ClientConnexion client, ITransport t)
@@ -195,12 +223,63 @@ namespace GT.UnitTests
         }
 
         /// <summary>This is triggered if something goes wrong</summary>
-        void server_ErrorEvent(ClientConnexion c, string explanation, object context)
+        void ServerErrorEvent(ClientConnexion c, string explanation, object context)
         {
             Console.WriteLine("Server: Error: " + explanation + "\n   context: " + context.ToString());
             errorOccurred = true;
         }
-        #endregion
+    }
+
+    #endregion
+
+    /// <summary>
+    /// Test basic GT functionality
+    /// </summary>
+    [TestFixture]
+    public class ZSStreamTests
+    {
+
+        private bool errorOccurred;
+        private bool responseReceived;
+        private Client client;
+        private EchoingServer server;
+
+        private static int ServerSleepTime = 20;
+        private static int ClientSleepTime = 25;
+        private static string EXPECTED_GREETING = "Hello!";
+        private static string EXPECTED_RESPONSE = "Go away!";
+
+        [SetUp]
+        public void SetUp()
+        {
+            errorOccurred = false;
+            responseReceived = false;
+        }
+
+        [TearDown]
+        public void TearDown()
+        {
+            if (server != null) { server.Dispose(); }
+            server = null;
+
+            if (client != null) { client.Dispose(); }
+            client = null;
+            Console.WriteLine(this + " TearDown() complete");
+        }
+
+        // FIXME: Currently ignores expected and response.  
+        // Should be implemented as a new object
+        private void StartExpectedResponseServer(string expected, string response)
+        {
+            if (server != null)
+            {
+                Assert.Fail("server already started");
+            }
+            server = new EchoingServer(9999, expected, response);
+            server.ServerSleepTime = ServerSleepTime;
+            server.Start();
+        }
+
 
         #region "Tests"
         [Test]
@@ -229,6 +308,7 @@ namespace GT.UnitTests
             {
                 client.Update();  // let the client check the network
                 Assert.IsFalse(errorOccurred);
+                Assert.IsFalse(server.ErrorOccurred);
                 client.Sleep(ClientSleepTime);
             }
             Assert.IsTrue(responseReceived, "Client: no response received from server");
@@ -372,5 +452,119 @@ namespace GT.UnitTests
         }
 
         #endregion
+    }
+
+    [TestFixture]
+    public class ZTSharedDictionaryTests
+    {
+        ClientRepeater server;
+        List<Client> clients;
+        List<AggregatingSharedDictionary> dictionaries;
+        bool errorOccurred = false;
+        int numberClientDictionaries = 3;
+
+        [SetUp]
+        public void SetUpClientsAndServer()
+        {
+            errorOccurred = false;
+
+            // ServerConfiguration sc = new TestServerConfiguration(9678);
+            ServerConfiguration sc = new DefaultServerConfiguration(9678);
+            sc.PingInterval = TimeSpan.FromMinutes(60);
+            server = new ClientRepeater(sc);
+            server.Start();
+            clients = new List<Client>();
+            dictionaries = new List<AggregatingSharedDictionary>();
+
+            // First set up the dictionaries
+            for (int i = 0; i < numberClientDictionaries; i++)
+            {
+                // Client c = new LocalClientConfiguration().BuildClient();
+                ClientConfiguration cc = new DefaultClientConfiguration();
+                cc.PingInterval = TimeSpan.FromMinutes(60);
+
+                Client c = cc.BuildClient();
+                c.ErrorEvent += ClientErrorEvent;
+                clients.Add(c);
+                c.Start();
+                AggregatingSharedDictionary d =
+                    new AggregatingSharedDictionary(c.GetObjectStream("127.0.0.1", "9678", 0,
+                        new ChannelDeliveryRequirements(Reliability.Reliable, MessageAggregation.Aggregatable,
+                            Ordering.Ordered)), 20);
+                d.ChangeEvent += DictionaryChanged;
+                dictionaries.Add(d);
+                UpdateClients();
+            }
+
+            for (int i = 0; i < numberClientDictionaries; i++)
+            {
+                AggregatingSharedDictionary d = dictionaries[i];
+                Assert.IsFalse(d.ContainsKey("foo"));
+                Assert.IsFalse(d.ContainsKey("client" + i + "/name"));
+                d["client" + i + "/name"] = i;
+                Assert.IsTrue(d.ContainsKey("client" + i + "/name"));
+            }
+        }
+
+        protected void DictionaryChanged(string key)
+        {
+            Console.WriteLine("Dictionary: key changed: {0}", key);
+        }
+
+        public void ClientErrorEvent(ServerConnexion s, string explanation, object context)
+        {
+            Console.WriteLine("ERROR: {0}: {1}: {2}", s, explanation, context);
+            errorOccurred = true;
+        }
+
+        [TearDown]
+        public void TearDown()
+        {
+            if (server != null) { server.Dispose(); }
+            if (clients != null)
+            {
+                foreach (Client c in clients) { c.Dispose(); }
+            }
+        }
+
+        protected void UpdateClients()
+        {
+            // repeat for 3 occurrences
+            for (int i = 0; i < 3; i++) 
+            {
+                foreach (Client c in clients) {
+                    c.Update(); c.Sleep(10);  
+                }
+            }
+        }
+
+        [Test]
+        public void TestAddsAndRemoves()
+        {
+            //DebugUtils.Verbose = true;
+            //server.Verbose = true;
+            Assert.IsFalse(errorOccurred);
+            foreach (AggregatingSharedDictionary d in dictionaries)
+            {
+                Assert.IsFalse(d.ContainsKey("foo"));
+            }
+            Assert.IsFalse(errorOccurred);
+            dictionaries[0]["foo"] = "bar";
+            Assert.IsFalse(errorOccurred);
+            for (int i = 1; i < dictionaries.Count; i++)
+            {
+                Assert.IsNull(dictionaries[i]["foo"]);
+            }
+            Assert.IsFalse(errorOccurred);
+            UpdateClients();
+            Assert.IsFalse(errorOccurred);
+            foreach (AggregatingSharedDictionary d in dictionaries)
+            {
+                Assert.IsTrue(d.ContainsKey("foo"));
+                Assert.AreEqual("bar", d["foo"]);
+            }
+
+        }
+
     }
 }

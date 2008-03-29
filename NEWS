@@ -50,6 +50,10 @@ Breaking Changes:
 	which encompasses the different Message{Aggregation,Order,Protocol}
 	values.
 
+  * AggregatingSharedDictionary and SimpleSharedDictionary have been
+    have been changed to use IObjectStreams rather than a IBinaryStream.
+    NOTE: AggregatingSharedDictionary is likely to disappear.
+
   * Some delegates have had their signatures changed to use the least
     specific collection classes possible
 	ClientsRemovedHandler uses ICollection

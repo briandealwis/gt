@@ -3,13 +3,17 @@ using System.Collections.Generic;
 using System.Text;
 using System.IO;
 using System.Net.Sockets;
-using GT.Net;
+using System.Threading;
 
-namespace ClientRepeater
+namespace GT.Net
 {
-    class Program
+    public class ClientRepeater : IStartable
     {
-        static Server s;
+        protected ServerConfiguration config;
+        protected Server server;
+        protected Thread serverThread;
+        protected int sessionChangesChannel = -1;
+        protected bool verbose;
 
         static void Main(string[] args)
         {
@@ -30,17 +34,60 @@ namespace ClientRepeater
                 }
             }
 
-            s = new Server(new RepeaterConfiguration(port));
-            s.MessageReceived += new MessageHandler(s_MessageReceived);
-            s.ClientsJoined += new ClientsJoinedHandler(s_ClientsJoined);
-            s.ClientsRemoved += new ClientsRemovedHandler(s_ClientsRemoved);
-            s.ErrorEvent += new ErrorClientHandler(s_ErrorEvent);
-            s.StartListening();
+            new ClientRepeater(port).Start();
         }
 
-        static void s_ErrorEvent(ClientConnexion c, string explanation, object context)
+        public ClientRepeater(int port) : this(new RepeaterConfiguration(port)) {}
+
+        public ClientRepeater(ServerConfiguration sc) {
+            config = sc;
+        }
+
+        public bool Active { get { return server != null && server.Active; } }
+        public bool Verbose
         {
-            Console.WriteLine(DateTime.Now + " Error[" + c + "]: " + explanation + ": " + context);
+            get { return verbose; }
+            set { verbose = value; }
+        }
+
+        /// <summary>
+        /// The channel id for automatically broadcasting session changes to client members.  
+        /// If &lt; 0, then not sent.
+        /// </summary>
+        public int SessionChangesChannel
+        {
+            get { return sessionChangesChannel; }
+            set { sessionChangesChannel = value; }
+        }
+
+        public void Start()
+        {
+            server = config.BuildServer();
+            server.MessageReceived += s_MessageReceived;
+            server.ClientsJoined += s_ClientsJoined;
+            server.ClientsRemoved += s_ClientsRemoved;
+            server.ErrorEvent += s_ErrorEvent;
+            server.Start();
+            serverThread = server.StartSeparateListeningThread(config.TickInterval.Milliseconds);
+        }
+
+        public void Stop()
+        {
+            if (server != null) { server.Stop(); }
+            if (serverThread != null) { serverThread.Abort(); }
+        }
+
+        public void Dispose()
+        {
+            Stop();
+            if (server != null) { server.Dispose(); }
+            server = null;
+            serverThread = null;
+        }
+
+        private void s_ErrorEvent(ClientConnexion c, string explanation, object context)
+        {
+            Console.WriteLine("{0}: Error[{1}]: {2}: {3}", DateTime.Now, c, explanation, context);
             //if (se.Equals(SocketError.NoRecovery))  // FIXME: this test is bogus -- we need more information
             //{
             //    List<ClientConnexion> removed = new List<ClientConnexion>();
@@ -49,29 +96,40 @@ namespace ClientRepeater
             //}
         }
 
-        static void s_ClientsJoined(ICollection<ClientConnexion> list)
+        private void s_ClientsJoined(ICollection<ClientConnexion> list)
         {
+            Console.WriteLine("{0}: clients joined: {1}", DateTime.Now, ToString(list));
+            if (sessionChangesChannel < 0) { return; }
+           
             foreach (ClientConnexion client in list)
             {
                 int clientId = client.UniqueIdentity;
-                Console.WriteLine(DateTime.Now + " Joined: " + clientId + " (" + client + ")");
 
-                foreach (ClientConnexion c in s.Clients)
+                foreach (ClientConnexion c in server.Clients)
                 {
-                    c.Send(clientId, SessionAction.Joined, (byte)0,
-                        new MessageDeliveryRequirements(Reliability.Reliable, MessageAggregation.Immediate, 
-                            Ordering.Unordered));
+                    try
+                    {
+                        c.Send(clientId, SessionAction.Joined, (byte)0,
+                            new MessageDeliveryRequirements(Reliability.Reliable, MessageAggregation.Immediate,
+                                Ordering.Unordered));
+                    }
+                    catch (GTException e)
+                    {
+                        Console.WriteLine("{0}: exception occurred: {1}", DateTime.Now, e);
+                    }
                 }
             }
         }
 
-        static void s_ClientsRemoved(ICollection<ClientConnexion> list)
+        private void s_ClientsRemoved(ICollection<ClientConnexion> list)
         {
+            Console.WriteLine("{0}: clients left: {1}", DateTime.Now, ToString(list));
+            if (sessionChangesChannel < 0) { return; }
+
             foreach (ClientConnexion client in list)
             {
                 //kill client
                 int clientId = client.UniqueIdentity;
-                Console.WriteLine(DateTime.Now + " Left: " + clientId + " (" + client + ")");
                 try
                 {
                     client.Dispose();
@@ -81,24 +139,46 @@ namespace ClientRepeater
                 }
 
                 //inform others client is gone
-                foreach (ClientConnexion c in s.Clients)
+                foreach (ClientConnexion c in server.Clients)
                 {
-                    c.Send(clientId, SessionAction.Left, (byte)0,
-                        new MessageDeliveryRequirements(Reliability.Reliable, MessageAggregation.Immediate,
-                            Ordering.Unordered));
+                    try {
+                        c.Send(clientId, SessionAction.Left, (byte)0,
+                            new MessageDeliveryRequirements(Reliability.Reliable, MessageAggregation.Immediate,
+                                Ordering.Unordered));
+                    }
+                    catch (GTException e)
+                    {
+                        Console.WriteLine("{0}: EXCEPTION: when sending: {1}", DateTime.Now, e);
+                    }
                 }
             }
         }
 
-        static void s_MessageReceived(Message m, ClientConnexion client, ITransport transport)
+        private void s_MessageReceived(Message m, ClientConnexion client, ITransport transport)
         {
+            if (verbose)
+            {
+                Console.WriteLine("{0}: received message: {1} from {2} via {3}", 
+                    DateTime.Now, m, client, transport);
+            }
             //repeat whatever we receive to everyone else
-            s.Send(m, s.Clients, new MessageDeliveryRequirements(transport.Reliability, 
+            server.Send(m, server.Clients, new MessageDeliveryRequirements(transport.Reliability, 
                 MessageAggregation.Immediate, transport.Ordering));
+        }
+
+        private string ToString<T>(ICollection<T> c)
+        {
+            StringBuilder b = new StringBuilder();
+            foreach (object o in c)
+            {
+                b.Append(o.ToString());
+                b.Append(", ");
+            }
+            return b.ToString();
         }
     }
 
-    internal class RepeaterConfiguration : DefaultServerConfiguration
+    public class RepeaterConfiguration : DefaultServerConfiguration
     {
         public RepeaterConfiguration(int port)
             : base(port)

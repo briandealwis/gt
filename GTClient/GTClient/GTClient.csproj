@@ -49,7 +49,6 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="AggregatingSharedDictionary.cs" />
     <Compile Include="Client.cs" />
     <Compile Include="TcpConnector.cs" />
     <Compile Include="Delay.cs" />

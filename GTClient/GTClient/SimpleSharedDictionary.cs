@@ -24,8 +24,6 @@ namespace GT.Net
     /// there is very little chance that two client will try to write to an object at the same
     /// time.  When an object is changed, an event is triggered describing which object has
     /// been updated.
-    /// 
-    /// Enjoy!
     /// </summary>
     public class SimpleSharedDictionary
     {
@@ -45,33 +43,16 @@ namespace GT.Net
         /// purposes, to prevent someone else from changing your own telepointer or avatar position or
         /// whatever else without your permission.
         /// </summary>
-        public List<string> Master;
+        public IList<string> Master;
 
-        /// <summary>
-        /// This is a very simple implementation of a shared dictionary.  It can be used
-        /// like an array of serializable objects of unknown size, where strings are used 
-        /// as keys.  If an object is put inside the array, it is pushed to other copies
-        /// of the dictionary connected to the same network and channel.  If an object is
-        /// taken from the array, the latest cached copy is returned.  If there is no
-        /// cached copy yet (that is, if the client is relatively new), then null is returned,
-        /// but the object is requested from other shared dictionaries on the network and 
-        /// channel.  The emergent behaviour is a very simple shared dictionary that performs
-        /// extremely fast reads but expensive writes, and is ideal for non-streaming datasets.
-        /// Examples of information that would be great to store in this dictionary would be
-        /// user information like colour, preferences, avatar appearance, and object descriptions.
-        /// Consistancy is achieved by assuming that each client only writes to their own keys,
-        /// like "myclientname/objectname/whatever", or that writes are infrequeny enough that
-        /// there is very little chance that two client will try to write to an object at the same
-        /// time.  When an object is changed, an event is triggered describing which object has
-        /// been updated.
-        /// </summary>
-        /// <param name="bs">A networked binary connexion of some sort.  A compressed connexion is recommended.</param>
-        public SimpleSharedDictionary(IBinaryStream bs)
+        /// <summary>Create a new shared dictionary.</summary>
+        /// <param name="s">A networked object stream.</param>
+        public SimpleSharedDictionary(IObjectStream s)
         {
-            this.stream = bs;
-            Master = new List<string>();
-            sharedList = new Dictionary<string, object>();
-            bs.BinaryNewMessageEvent += new BinaryNewMessage(bs_BinaryNewMessageEvent);
+            this.stream = s;
+            this.stream.ObjectNewMessageEvent += stream_NewMessageEvent;
+            this.Master = new List<string>();
+            this.sharedDictionary = new Dictionary<string, object>();
         }
 
         /// <summary>
@@ -84,8 +65,10 @@ namespace GT.Net
         {
             get
             {
-                if(sharedList.ContainsKey(key))
-                    return sharedList[key];
+                if (sharedDictionary.ContainsKey(key))
+                {
+                    return sharedDictionary[key];
+                }
                 PullKey(key);
                 return null;
             }
@@ -93,9 +76,21 @@ namespace GT.Net
             set
             {
                 //update our copy
-                sharedList[key] = value;
+                sharedDictionary[key] = value;
                 PushKey(key, value);
             }
+        }
+
+        /// <summary>
+        /// Does this instance contain a value for <c>key</c>?  A false result does not mean that
+        /// the group dictionary does not actually contain this value.  This method
+        /// is mostly for testing purposes.
+        /// </summary>
+        /// <param name="key"></param>
+        /// <returns></returns>
+        public bool ContainsKey(string key)
+        {
+            return sharedDictionary.ContainsKey(key);
         }
 
         /// <summary>
@@ -110,99 +105,141 @@ namespace GT.Net
             }
         }
 
-        #region Private
+        #region Implementation
 
-        private static BinaryFormatter formatter = new BinaryFormatter();
+        protected IObjectStream stream;
+        protected Dictionary<string, object> sharedDictionary;
 
-        IBinaryStream stream;
-        Dictionary<string, object> sharedList;
-
-        private void bs_BinaryNewMessageEvent(IBinaryStream stream)
+        private void stream_NewMessageEvent(IObjectStream stream)
         {
-            byte[] b;
-            while ((b = stream.DequeueMessage(0)) != null)
+            object o;
+            while ((o = stream.DequeueMessage(0)) != null)
             {
-                short nameLength = BitConverter.ToInt16(b, 0);
-                string name = ASCIIEncoding.ASCII.GetString(b, 2, nameLength);
-
-                //it's a push!
-                if (2 + nameLength < b.Length)
+                if (o is KeyValuePair<string, object>)    // push
                 {
+                    KeyValuePair<string, object> kvp = (KeyValuePair<string, object>)o;
                     //we don't accept updates on personal objects;
-                    if(Master.Contains(name))
+                    if (Master.Contains(kvp.Key))
+                    {
+                        //Console.WriteLine("{0}: key on master list: ignored push: {1}", this, kvp);
                         return;
+                    }
 
-                    int objectLength = b.Length - (2 + name.Length);
-                    object obj = BytesToObject(b, (2 + name.Length), objectLength);
-
+                    //Console.WriteLine("{0}: received push: {1}", this, kvp);
                     //update or add our copy
-                    if (sharedList.ContainsKey(name))
-                        sharedList[name] = obj;
+                    if (sharedDictionary.ContainsKey(kvp.Key))
+                    {
+                        sharedDictionary[kvp.Key] = kvp.Value;
+                    }
                     else
-                        sharedList.Add(name, obj);
+                    {
+                        sharedDictionary.Add(kvp.Key, kvp.Value);
+                    }
 
                     //inform our app that it has been updated
-                    if (ChangeEvent != null )
-                        ChangeEvent(name);
+                    if (ChangeEvent != null) { ChangeEvent(kvp.Key); }
                 }
-
-                //it's a pull.  if we have a copy, send it
+                else if (o is string)
+                {
+                    //it's a pull.  if we have a copy, send it
+                    string name = (string)o;
+                    if (sharedDictionary.ContainsKey(name))
+                    {
+                        //Console.WriteLine("{0}: fulfilling request for: {1}", this, name);
+                        PushKey(name, sharedDictionary[name]);
+                    }
+                    //else
+                    //{
+                    //    Console.WriteLine("{0}: cannot satisfy request: {1}", this, name);
+                    //}
+                }
                 else
                 {
-                    if(sharedList.ContainsKey(name))
-                        PushKey(name, sharedList[name]);
-                    return;
+                    Console.WriteLine("{0}: WARNING: received invalid object: {1} (ignored)", this, o);
                 }
             }
         }
 
-        private void PullKey(string key)
+        virtual protected void PullKey(string key)
         {
-            //pull key
-            byte[] nameInBytes = ASCIIEncoding.ASCII.GetBytes(key);
-            byte[] lengthInBytes = BitConverter.GetBytes((short)nameInBytes.Length);
-            byte[] buffer = new byte[2 + nameInBytes.Length];
-            Array.Copy(lengthInBytes, 0, buffer, 0, 2);
-            Array.Copy(nameInBytes, 0, buffer, 2, nameInBytes.Length);
-            stream.Send(buffer);
+            stream.Send(key);   // strings indicate a request
         }
 
-        private void PushKey(string key, object obj)
+        virtual protected void PushKey(string key, object obj)
         {
-            //push key and object
-            byte[] nameInBytes = ASCIIEncoding.ASCII.GetBytes(key);
-            byte[] objectInBytes = ObjectsToBytes(obj);
-            byte[] lengthInBytes = BitConverter.GetBytes((short)nameInBytes.Length);
-            byte[] buffer = new byte[2 + nameInBytes.Length + objectInBytes.Length];
-            Array.Copy(lengthInBytes, 0, buffer, 0, 2);
-            Array.Copy(nameInBytes, 0, buffer, 2, nameInBytes.Length);
-            Array.Copy(objectInBytes, 0, buffer, 2 + nameInBytes.Length, objectInBytes.Length);
-            stream.Send(buffer);
-        }
-
-        private byte[] ObjectsToBytes(object o)
-        {
-            MemoryStream ms = new MemoryStream();
-            formatter.Serialize(ms, o);
-            byte[] buffer = new byte[ms.Position];
-            ms.Position = 0;
-            ms.Read(buffer, 0, buffer.Length);
-            return buffer;
-        }
-
-        private object BytesToObject(byte[] b)
-        {
-            return BytesToObject(b, 0, b.Length);
-        }
-
-        private object BytesToObject(byte[] b, int startIndex, int length)
-        {
-            MemoryStream ms = new MemoryStream();
-            ms.Write(b, startIndex, length);
-            ms.Position = 0;
-            return formatter.Deserialize(ms);
+            stream.Send(new KeyValuePair<string, object>(key, obj));
         }
 
         #endregion
+
+        virtual public void Flush()
+        {
+            stream.Flush();
+        }
+
+        override public string ToString()
+        {
+            return GetType().Name + "(" + stream + ")";
+        }
+    }
+
+    /// <summary>
+    /// FIXME: Question: is this actually necessary?  Can't the stream channel be
+    /// aggregating?
+    /// </summary>
+    public class AggregatingSharedDictionary : SimpleSharedDictionary
+    {
+
+        /// <summary>Create a new shared dictionary.</summary>
+        /// <param name="s">A networked object stream.</param>
+        /// <param name="milliseconds">Batch updates until this amount of time has passed.</param>
+        public AggregatingSharedDictionary(IObjectStream s, int milliseconds)
+            : this(s, TimeSpan.FromMilliseconds(milliseconds))
+        { }
+
+        /// <summary>Create a new shared dictionary.</summary>
+        /// <param name="s">A networked object stream.</param>
+        /// <param name="updateTime">Batch updates until this amount of time has passed.</param>
+        public AggregatingSharedDictionary(IObjectStream s, TimeSpan updateTime)
+            : base(s)
+        {
+            this.stream.UpdateEvent += stream_UpdateEvent;
+            this.lastTimeSent = 0;
+            this.updateTime = updateTime;
+        }
+
+        private bool sendsPending = false;
+        private long lastTimeSent;  //last time we sent (in milliseconds)
+        private TimeSpan updateTime; //wait this long between sendings
+
+        //flush channel if there are possible updates to send.
+        void stream_UpdateEvent(HPTimer hpTimer)
+        {
+            //check to see if there are possibly incomingMessages to send
+            if (!sendsPending) { return; }
+            // One might ask: shouldn't this be better done through the stream aggregation?
+            if (lastTimeSent + updateTime.TotalMilliseconds > hpTimer.TimeInMilliseconds) { return; }
+            Flush();
+            lastTimeSent = hpTimer.TimeInMilliseconds;
+        }
+
+        override protected void PullKey(string key)
+        {
+            base.PullKey(key);
+            sendsPending = true;
+        }
+
+        override protected void PushKey(string key, object obj)
+        {
+            base.PushKey(key, obj);
+            sendsPending = true;
+        }
+
+        public override void Flush()
+        {
+            //if(!sendsPending) { return; }
+            base.Flush();
+            sendsPending = false;
+        }
     }
 }

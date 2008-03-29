@@ -60,26 +60,24 @@ namespace GT.Net
     internal abstract class AbstractStreamedTuple : AbstractBaseStream
     {
         protected bool changed;
-        protected int milliseconds;
-        protected long interval;
-        protected long lastTimeSent;
+        protected int updateDelay;     // milliseconds
+        protected long lastTimeSent;    // milliseconds
 
-        protected AbstractStreamedTuple(ServerConnexion s, byte id, ChannelDeliveryRequirements cdr)
-            : base(s, id, cdr)
+        protected AbstractStreamedTuple(ServerConnexion s, byte id, int updateDelay,
+                ChannelDeliveryRequirements cdr) : base(s, id, cdr)
         {
             this.changed = false;
-            this.milliseconds = milliseconds;
-            this.interval = 9999999;
+            this.updateDelay = updateDelay;
         }
 
         abstract internal void QueueMessage(Message m);
 
         override internal void Update(HPTimer hpTimer)
         {
-            this.interval = hpTimer.Frequency * milliseconds / 1000;
-            if (this.lastTimeSent + this.interval < hpTimer.Time && connexion.UniqueIdentity != 0 && changed)
+            if (lastTimeSent + updateDelay < hpTimer.TimeInMilliseconds 
+                && connexion.UniqueIdentity != 0 && changed)
             {
-                this.lastTimeSent = hpTimer.Time;
+                this.lastTimeSent = hpTimer.TimeInMilliseconds;
                 Flush();
             }
         }
@@ -116,7 +114,7 @@ namespace GT.Net
         /// <param name="milliseconds">Send the tuple only once during this interval</param>
         internal StreamedTuple(ServerConnexion connection, byte id,
             int milliseconds, ChannelDeliveryRequirements cdr)
-            : base(connection, id, cdr)
+            : base(connection, id, milliseconds, cdr)
         {
         }
 
@@ -164,7 +162,7 @@ namespace GT.Net
         /// <param name="milliseconds">Send the tuple only once during this interval</param>
         internal StreamedTuple(ServerConnexion connection, byte id,
             int milliseconds, ChannelDeliveryRequirements cdr)
-            : base(connection, id, cdr)
+            : base(connection, id, milliseconds, cdr)
         {
         }
 
@@ -206,7 +204,7 @@ namespace GT.Net
         /// <param name="milliseconds">Send the tuple only once during this interval</param>
         internal StreamedTuple(ServerConnexion connection, byte id,
             int milliseconds, ChannelDeliveryRequirements cdr)
-            : base(connection, id, cdr)
+            : base(connection, id, milliseconds, cdr)
         {
         }
 
