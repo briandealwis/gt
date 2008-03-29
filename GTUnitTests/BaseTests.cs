@@ -13,7 +13,7 @@ namespace GT.UnitTests
 {
     /// <remarks>Test basic converter functionality</remarks>
     [TestFixture]
-    public class StatisticsTests
+    public class BaseStatisticsTests
     {
         #region "Tests"
 
@@ -66,7 +66,7 @@ namespace GT.UnitTests
     /// Test wrapped streams
     /// </summary>
     [TestFixture]
-    public class WrappedStreamTests
+    public class BaseWrappedStreamTests
     {
         MemoryStream source;
         WrappedStream ws;
@@ -226,7 +226,39 @@ namespace GT.UnitTests
     }
 
     [TestFixture]
-    public class ByteUtilsTests
+    public class BaseHPTimerTests
+    {
+        [Test]
+        public void TestNoChangeOnUpdate()
+        {
+            HPTimer timer = new HPTimer();
+            timer.Start();
+            long ms = timer.TimeInMilliseconds;
+            long ticks = timer.Ticks;
+            // sleep for at least for 100 rounds of ticks
+            Thread.Sleep((int)Math.Max(1, 100 * 1000 / timer.Frequency));
+            Assert.AreEqual(ms, timer.TimeInMilliseconds);
+            Assert.AreEqual(ticks, timer.Ticks);
+        }
+
+        [Test]
+        public void TestChangesOnUpdate()
+        {
+            HPTimer timer = new HPTimer();
+            timer.Start();
+            long ms = timer.TimeInMilliseconds;
+            long ticks = timer.Ticks;
+            // sleep for at least for 100 rounds of ticks
+            Thread.Sleep((int)Math.Max(1, 100 * 1000 / timer.Frequency));
+            timer.Update();
+            Assert.Less(ms, timer.TimeInMilliseconds);
+            Assert.Less(ticks, timer.Ticks);
+            Assert.Greater(timer.Frequency / (100 * 1000), timer.ElapsedInMilliseconds);
+        }
+    }
+
+    [TestFixture]
+    public class BaseByteUtilsTests
     {
 
         #region Adaptive Length Encoding tests
@@ -326,7 +358,7 @@ namespace GT.UnitTests
     }
     /// <remarks>Test basic marshalling functionality</remarks>
     [TestFixture]
-    public class DotNetSerializingMarshallerTests
+    public class BaseDotNetSerializingMarshallerTests
     {
         #region DotNetSerializingMarshaller tests
         [Test]

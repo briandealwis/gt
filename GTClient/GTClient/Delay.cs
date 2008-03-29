@@ -10,20 +10,21 @@ namespace GT.Net
     public class DelayedBinaryStream
     {
         /// <summary>
-        /// The milliseconds of delay injected into the connexion
+        /// The milliseconds of delay injected into messages sent on the stream
         /// </summary>
-        public int InjectedDelay
+        public long InjectedDelay
         {
-            get { return (int)(injectedDelayInTicks / timer.Frequency * 1000); }
-            set { injectedDelayInTicks = value * timer.Frequency / 1000;  }
+            get { return injectedDelayMS; }
+            set { injectedDelayMS = value;  }
         }
 
         /// <summary>
-        /// The incomingMessages which have been received by this connexion, after the injected delay has passed
+        /// The incomingMessages which have been received by this connexion, after the 
+        /// injected delay has passed
         /// </summary>
-        public List<byte[]> Messages;
+        public IList<byte[]> Messages;
 
-        private long injectedDelayInTicks;
+        private long injectedDelayMS;
         private IBinaryStream bs = null;
         private SortedDictionary<long, byte[]> sendQueue;
         private SortedDictionary<long, byte[]> dequeueQueue;
@@ -41,7 +42,7 @@ namespace GT.Net
             bs.BinaryNewMessageEvent += new BinaryNewMessage(BinaryNewMessageEvent);
             Messages = new List<byte[]>();
             timer = new HPTimer();
-            this.InjectedDelay = injectedDelay;
+            injectedDelayMS = injectedDelay;
         }
 
         /// <summary>Sends a message after waiting a certain amount of time
@@ -50,24 +51,28 @@ namespace GT.Net
         public void Send(byte[] b)
         {
             timer.Update();
-            long currentTime = timer.Time;
-            long currentDelay = (long)(bs.Delay * timer.Frequency / 1000);
+            long currentTime = timer.ElapsedInMilliseconds;
+            long currentDelay = (long)bs.Delay;
 
             lock (sendQueue)
             {
                 while (sendQueue.ContainsKey(currentTime))
+                {
                     currentTime++;
+                }
                 sendQueue.Add(currentTime, b);
 
                 SortedDictionary<long, byte[]>.Enumerator e = sendQueue.GetEnumerator();
                 while (e.MoveNext())
                 {
-                    if (e.Current.Key + injectedDelayInTicks - currentDelay >= currentTime)
+                    if (e.Current.Key + injectedDelayMS - currentDelay >= currentTime)
+                    {
                         return;
+                    }
 
                     bs.Send(e.Current.Value);
-
                     sendQueue.Remove(e.Current.Key);
+                    e.Dispose();
                     e = sendQueue.GetEnumerator();
                 }
             }
@@ -80,20 +85,23 @@ namespace GT.Net
         public void SendCheck()
         {
             timer.Update();
-            long currentTime = timer.Time;
-            long currentDelay = (long)(bs.Delay * timer.Frequency / 1000);
+            long currentTime = timer.TimeInMilliseconds;
+            long currentDelay = (long)bs.Delay;
 
             lock (sendQueue)
             {
                 SortedDictionary<long, byte[]>.Enumerator e = sendQueue.GetEnumerator();
                 while (e.MoveNext())
                 {
-                    if (e.Current.Key + injectedDelayInTicks - currentDelay >= currentTime)
+                    if (e.Current.Key + injectedDelayMS - currentDelay >= currentTime)
+                    {
                         return;
+                    }
 
                     bs.Send(e.Current.Value);
 
                     sendQueue.Remove(e.Current.Key);
+                    e.Dispose();
                     e = sendQueue.GetEnumerator();
                 }
             }
@@ -106,8 +114,8 @@ namespace GT.Net
         public byte[] DequeueMessage(int index)
         {
             timer.Update();
-            long currentTime = timer.Time;
-            long currentDelay = (long)(bs.Delay * timer.Frequency / 1000);
+            long currentTime = timer.ElapsedInMilliseconds;
+            long currentDelay = (long)bs.Delay;
             byte[] b;
 
             lock (dequeueQueue)
@@ -117,16 +125,18 @@ namespace GT.Net
                 //if empty, return
                 while (e.MoveNext())
                 {
-                    if (e.Current.Key + injectedDelayInTicks - currentDelay >= currentTime)
+                    if (e.Current.Key + injectedDelayMS - currentDelay >= currentTime)
+                    {
                         break;
+                    }
                     dequeueQueue.Remove(e.Current.Key);
                     Messages.Add(e.Current.Value);
+                    e.Dispose();
                     e = dequeueQueue.GetEnumerator();
                 }
 
                 //return their message
-                if (Messages.Count <= index)
-                    return null;
+                if (Messages.Count <= index) { return null; }
                 b = Messages[index];
                 Messages.RemoveAt(index);
                 return b;
@@ -136,18 +146,20 @@ namespace GT.Net
         void BinaryNewMessageEvent(IBinaryStream stream)
         {
             timer.Update();
-            long currentTime = timer.Time;
+            long currentTime = timer.ElapsedInMilliseconds;
 
             lock (dequeueQueue)
             {
-                byte[] b;
                 if (bs.Messages.Count > 0)
+                {
+                    byte[] b;
                     while ((b = bs.DequeueMessage(0)) != null)
                     {
                         while (dequeueQueue.ContainsKey(currentTime))
                             currentTime += 1;
                         dequeueQueue.Add(currentTime, b);
                     }
+                }
             }
         }
 
