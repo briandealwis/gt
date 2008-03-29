@@ -47,7 +47,7 @@ namespace GT.Net
 
         public override Ordering Ordering
         {
-            get { return Ordering.Sequenced; }
+            get { return Ordering.Ordered; }
         }
 
         public override int MaximumPacketSize
