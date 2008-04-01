@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Text;
-using Compression;
+//using Compression;
 using GT.Net;
 
 namespace GMCCompression

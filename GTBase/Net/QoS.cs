@@ -1,6 +1,7 @@
 using System;
 using System.Net;
 using GT;
+using System.Collections.Generic;
 
 namespace GT.Net
 {
@@ -94,6 +95,30 @@ namespace GT.Net
 
         protected MessageDeliveryRequirements() {}
 
+        /// <summary>
+        /// Select a transport meeting the requirements as specified by this instance.
+        /// Assume that <c>transports</c> is in a sorted order.
+        /// </summary>
+        /// <param name="transports">the sorted list of available transports</param>
+        public virtual ITransport SelectTransport(IList<ITransport> transports) 
+        {
+            foreach(ITransport t in transports) {
+                if (MeetsRequirements(t)) { return t; }
+            }
+            return null;
+        }
+
+        /// <summary>
+        /// Test whether a transport meets the requirements as specified by this instance.
+        /// </summary>
+        /// <param name="transport">the transport to test</param>
+        protected virtual bool MeetsRequirements(ITransport transport)
+        {
+            if (transport.Reliability < Reliability) { return false; }
+            if (transport.Ordering < Ordering) { return false; }
+            return true;    // passed our test: go for gold!
+        }
+
         public static MessageDeliveryRequirements MostStrict
         {
             get
@@ -158,6 +183,33 @@ namespace GT.Net
         }
 
         protected ChannelDeliveryRequirements() {}
+
+        /// <summary>
+        /// Select a transport meeting the requirements as specified by this instance. 
+        /// Assume that <c>transports</c> is in a sorted order.
+        /// </summary>
+        /// <param name="transports">the sorted list of available transports</param>
+        public virtual ITransport SelectTransport(IList<ITransport> transports)
+        {
+            foreach (ITransport t in transports)
+            {
+                if (MeetsRequirements(t)) { return t; }
+            }
+            return null;
+        }
+
+        /// <summary>
+        /// Test whether a transport meets the requirements as specified by this instance
+        /// </summary>
+        /// <param name="transport">the transport to test</param>
+        protected virtual bool MeetsRequirements(ITransport transport)
+        {
+            if (transport.Reliability < Reliability) { return false; }
+            if (transport.Ordering < Ordering) { return false; }
+            // could do something about flow characteristics or jitter
+            return true;    // passed our test: go for gold!
+        }
+
 
         public static ChannelDeliveryRequirements MostStrict
         {

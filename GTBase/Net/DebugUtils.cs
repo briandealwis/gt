@@ -82,7 +82,7 @@ namespace GT.Net
                 Write(" id=" + buffer[offset]);
             }
             WriteLine(" #bytes:" + count);
-            Debug.Assert(count <= 300);
+            Debug.Assert(count <= 500, "Message is awfully large: " + count + " bytes");
             for (int i = offset; i < count; i++)
             {
                 Write("    ");

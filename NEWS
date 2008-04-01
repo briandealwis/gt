@@ -31,24 +31,25 @@ Breaking Changes:
     ISessionStream, ITupleStream*).  The Client.GetStreamedTuple*()
     methods now also return interfaces (i.e., IStreamedTuple).
 
-  * Previously-exposed fields have been made into properties and
-    some have been renamed to better conform to C#/.NET naming guidelines. 
-    Most notable perhaps is Server.clientList -> Server.Clients.
-
   * GT Server's Server.Client has been renamed to ClientConnexion, and similarly
     GT Client's ServerStream has been renamed to ServerConnexion.  These classes
-    represent connections between a particular client and server and should
-    be treated as only quasi-public.  Both classes have undergone cleanup:
+    have been shielded behind an interface IConnexion.  Both classes
+    have undergone cleanup:
 
       * the Dead property has been flipped to be called Active and
         made read-only;
 
-      * the class now implements IDisposable: any uses of Dead as
+      * IConnexion now implements IDisposable: any uses of Dead as
         a writable property should be changed to use IDisposable.Dispose().
 
-      * the Send() calls now take a MessageDeliverRequirements object
-	which encompasses the different Message{Aggregation,Order,Protocol}
-	values.
+      * the Send() calls now take both a MessageDeliverRequirements object
+        and a ChannelDeliveryRequirements object (one of which can be
+	null).  These objects encompass the different MessageAggregation,
+	MessageOrder, and MessageProtocol values used previously.
+
+  * Previously-exposed fields have been made into properties and
+    some have been renamed to better conform to C#/.NET naming guidelines. 
+    Most notable perhaps is Server.clientList -> Server.Clients.
 
   * AggregatingSharedDictionary and SimpleSharedDictionary have been
     have been changed to use IObjectStreams rather than a IBinaryStream.

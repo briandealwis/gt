@@ -32,27 +32,27 @@ namespace GT.UnitTests
 
     public class TestClientConfiguration : DefaultClientConfiguration
     {
-        Type transportType;
-
-        public TestClientConfiguration(Type transportType)
-        {
-            this.transportType = transportType;
-        }
-
         public override ICollection<IConnector> CreateConnectors()
         {
             ICollection<IConnector> connectors = base.CreateConnectors();
             connectors.Add(new LocalConnector());
             return connectors;
         }
+    }
 
-        public override ITransport SelectTransport(IList<ITransport> transports, MessageDeliveryRequirements mdr, ChannelDeliveryRequirements cdr)
+    public class TestChannelDeliveryRequirements : ChannelDeliveryRequirements
+    {
+        protected Type transportType;
+
+        public TestChannelDeliveryRequirements(Type transportType)
+            : base(Reliability.Unreliable, MessageAggregation.Immediate, Ordering.Unordered)
         {
-            foreach (ITransport t in transports)
-            {
-                if (transportType.IsInstanceOfType(t)) { return t; }
-            }
-            throw new NoMatchingTransport("I must insist on an instance of " + transportType);
+            this.transportType = transportType;
+        }
+
+        protected override bool MeetsRequirements(ITransport transport)
+        {
+            return transportType.IsInstanceOfType(transport);
         }
     }
     #endregion
@@ -147,7 +147,7 @@ namespace GT.UnitTests
             Stop();
         }
 
-        private void ServerStringMessageReceived(Message m, ClientConnexion client, ITransport t)
+        private void ServerStringMessageReceived(Message m, IConnexion client, ITransport t)
         {
             string s = ((StringMessage)m).Text;
             if (expected != null && !s.Equals(expected))
@@ -158,37 +158,37 @@ namespace GT.UnitTests
             }
             Console.WriteLine("Server: received greeting '" + s + "' on " + t);
             Console.WriteLine("Server: sending response: '" + response + "'");
-            List<ClientConnexion> clientGroup = new List<ClientConnexion>(1);
+            List<IConnexion> clientGroup = new List<IConnexion>(1);
             clientGroup.Add(client);
             server.Send(response != null ? response : s, m.Id, clientGroup,
                 new MessageDeliveryRequirements(t.Reliability,
                     MessageAggregation.Immediate, Ordering.Unordered));
         }
 
-        private void ServerBinaryMessageReceived(Message m, ClientConnexion client, ITransport t)
+        private void ServerBinaryMessageReceived(Message m, IConnexion client, ITransport t)
         {
             byte[] buffer = ((BinaryMessage)m).Bytes;
             Console.WriteLine("Server: received binary '" + ByteUtils.DumpBytes(buffer, 0, buffer.Length) + "' on " + t);
             Array.Reverse(buffer);
             Console.WriteLine("Server: sending response: '" + ByteUtils.DumpBytes(buffer, 0, buffer.Length) + "'");
-            List<ClientConnexion> clientGroup = new List<ClientConnexion>(1);
+            List<IConnexion> clientGroup = new List<IConnexion>(1);
             clientGroup.Add(client);
             server.Send(buffer, m.Id, clientGroup,
                 new MessageDeliveryRequirements(t.Reliability, MessageAggregation.Immediate, Ordering.Unordered));
         }
 
-        private void ServerObjectMessageReceived(Message m, ClientConnexion client, ITransport t)
+        private void ServerObjectMessageReceived(Message m, IConnexion client, ITransport t)
         {
             object o = ((ObjectMessage)m).Object;
             Console.WriteLine("Server: received object '" + o + "' on " + t);
             Console.WriteLine("Server: sending object back");
-            List<ClientConnexion> clientGroup = new List<ClientConnexion>(1);
+            List<IConnexion> clientGroup = new List<IConnexion>(1);
             clientGroup.Add(client);
             server.Send(o, m.Id, clientGroup,
                 new MessageDeliveryRequirements(t.Reliability, MessageAggregation.Immediate, Ordering.Unordered));
         }
 
-        private void ServerSessionMessageReceived(Message m, ClientConnexion client, ITransport t)
+        private void ServerSessionMessageReceived(Message m, IConnexion client, ITransport t)
         {
             SessionMessage sm = (SessionMessage)m;
             if (!sm.Action.Equals(SessionAction.Joined))
@@ -199,13 +199,13 @@ namespace GT.UnitTests
             }
             Console.WriteLine("Server: received  '" + sm.Action + "' on " + t);
             Console.WriteLine("Server: sending back as response");
-            List<ClientConnexion> clientGroup = new List<ClientConnexion>(1);
+            List<IConnexion> clientGroup = new List<IConnexion>(1);
             clientGroup.Add(client);
             server.Send(m, clientGroup,
                 new MessageDeliveryRequirements(t.Reliability, MessageAggregation.Immediate, Ordering.Unordered));
         }
 
-        private void ServerGeneralMessageReceived(Message m, ClientConnexion client, ITransport t)
+        private void ServerGeneralMessageReceived(Message m, IConnexion client, ITransport t)
         {
             switch (m.MessageType)
             {
@@ -213,7 +213,7 @@ namespace GT.UnitTests
             case MessageType.Tuple2D:
             case MessageType.Tuple3D:
                 Console.WriteLine("Server: received  tuple message on " + t);
-                List<ClientConnexion> clientGroup = new List<ClientConnexion>(1);
+                List<IConnexion> clientGroup = new List<IConnexion>(1);
                 clientGroup.Add(client);
                 server.Send(m, clientGroup,
                     new MessageDeliveryRequirements(t.Reliability, MessageAggregation.Immediate, Ordering.Unordered));
@@ -223,7 +223,7 @@ namespace GT.UnitTests
         }
 
         /// <summary>This is triggered if something goes wrong</summary>
-        void ServerErrorEvent(ClientConnexion c, string explanation, object context)
+        void ServerErrorEvent(IConnexion c, string explanation, object context)
         {
             Console.WriteLine("Server: Error: " + explanation + "\n   context: " + context.ToString());
             errorOccurred = true;
@@ -285,19 +285,19 @@ namespace GT.UnitTests
         [Test]
         public void EchoStringViaLocal()
         {
-            PerformEchos(typeof(LocalTransport), ChannelDeliveryRequirements.Data);
+            PerformEchos(new TestChannelDeliveryRequirements(typeof(LocalTransport)));
         }
 
         [Test]
         public void EchoStringViaTCP()
         {
-            PerformEchos(typeof(TcpTransport), ChannelDeliveryRequirements.Data);
+            PerformEchos(new TestChannelDeliveryRequirements(typeof(TcpTransport)));
         }
 
         [Test]
         public void EchoStringViaUDP()
         {
-            PerformEchos(typeof(BaseUdpTransport), ChannelDeliveryRequirements.Data);
+            PerformEchos(new TestChannelDeliveryRequirements(typeof(BaseUdpTransport)));
         }
 
         protected void CheckForResponse()
@@ -314,12 +314,12 @@ namespace GT.UnitTests
             Assert.IsTrue(responseReceived, "Client: no response received from server");
         }
 
-        protected void PerformEchos(Type protocolClass, ChannelDeliveryRequirements cdr)
+        protected void PerformEchos(ChannelDeliveryRequirements cdr)
         {
             StartExpectedResponseServer(EXPECTED_GREETING, EXPECTED_RESPONSE);
 
-            client = new TestClientConfiguration(protocolClass).BuildClient();  //this is a client
-            client.ErrorEvent += new GT.Net.ErrorEventHandler(client_ErrorEvent);  //triggers if there is an error
+            client = new TestClientConfiguration().BuildClient();  //this is a client
+            client.ErrorEvent += client_ErrorEvent;  //triggers if there is an error
             client.Start();
             Assert.IsFalse(errorOccurred);
             Assert.IsFalse(responseReceived);
@@ -445,7 +445,7 @@ namespace GT.UnitTests
 
 
         /// <summary>This is triggered if something goes wrong</summary>
-        void client_ErrorEvent(ServerConnexion ss, string explanation, object context)
+        void client_ErrorEvent(IConnexion ss, string explanation, object context)
         {
             Console.WriteLine("Client Error: " + explanation + "\n   context: " + context);
             errorOccurred = true;
@@ -511,7 +511,7 @@ namespace GT.UnitTests
             Console.WriteLine("Dictionary: key changed: {0}", key);
         }
 
-        public void ClientErrorEvent(ServerConnexion s, string explanation, object context)
+        public void ClientErrorEvent(IConnexion s, string explanation, object context)
         {
             Console.WriteLine("ERROR: {0}: {1}: {2}", s, explanation, context);
             errorOccurred = true;
@@ -565,6 +565,114 @@ namespace GT.UnitTests
             }
 
         }
+    }
 
+    public class DebuggingClient : Client
+    {
+        public IList<IConnexion> Connexions { 
+            get { return new List<IConnexion>(BaseConnexion.Downcast<IConnexion,ServerConnexion>(connexions)); } 
+        }
+
+        public DebuggingClient(ClientConfiguration cc) : base(cc) { }
+    }
+
+    public class DebuggingServerConnexion : ServerConnexion
+    {
+        public IList<ITransport> Transports { get { return transports; } }
+
+        public DebuggingServerConnexion(Client owner, string address, string port)
+            : base(owner, address, port) {}
+
+        internal void TriggerTransportError(ITransport transport)
+        {
+            HandleTransportError("this is a test", transport, this);
+        }
+    }
+
+    public class TcpClientConfiguration : DefaultClientConfiguration
+    {
+        public override ICollection<IConnector> CreateConnectors()
+        {
+            List<IConnector> connectors = new List<IConnector>(1);
+            connectors.Add(new TcpConnector());
+            return connectors;
+        }
+
+        public override Client BuildClient()
+        {
+            return new DebuggingClient(this);
+        }
+
+        public override ServerConnexion CreateServerConnexion(Client owner, string address, string port)
+        {
+            return new DebuggingServerConnexion(owner, address, port);
+        }
+    }
+
+    [TestFixture]
+    public class ZTTransportReconnects
+    {
+        ClientRepeater cr;
+        Client client;
+
+        [SetUp]
+        public void SetUp()
+        {
+            cr = new ClientRepeater(9999);
+            cr.Start();
+        }
+
+        [TearDown]
+        public void TearDown()
+        {
+            if (cr != null) { cr.Dispose(); }
+            cr = null;
+            if (client != null) { client.Dispose(); }
+            client = null;
+        }
+
+        public void CheckUpdates()
+        {
+            for (int i = 0; i < 3; i++)
+            {
+                client.Update();
+                client.Sleep(20);
+            }
+            client.Update();
+        }
+
+        [Test]
+        public void TestReconnect()
+        {
+            client = new TcpClientConfiguration().BuildClient();
+            client.Start();
+
+            IStringStream stream = client.GetStringStream("localhost", "9999", 0, 
+                ChannelDeliveryRequirements.MostStrict);
+            Assert.AreEqual(1, ((DebuggingClient)client).Connexions.Count);
+            Assert.IsInstanceOfType(typeof(DebuggingServerConnexion), ((DebuggingClient)client).Connexions[0]);
+            DebuggingServerConnexion sc = (DebuggingServerConnexion)((DebuggingClient)client).Connexions[0];
+            Assert.AreEqual(1, sc.Transports.Count);
+            Assert.IsInstanceOfType(typeof(TcpTransport), sc.Transports[0]);
+            TcpTransport transport = (TcpTransport)sc.Transports[0];
+
+            stream.Send("foo");
+            CheckUpdates();
+            Assert.IsTrue(stream.Count > 0);
+            Assert.AreEqual("foo", stream.DequeueMessage(0));
+
+            sc.TriggerTransportError(transport);
+
+            Assert.AreEqual(1, sc.Transports.Count);
+            Assert.IsInstanceOfType(typeof(TcpTransport), sc.Transports[0]);
+            Assert.IsFalse(transport == sc.Transports[0]);  // should be a new connection
+
+            stream.Send("foo");
+            CheckUpdates();
+            Assert.IsTrue(stream.Count > 0);
+            Assert.AreEqual("foo", stream.DequeueMessage(0));
+
+
+        }
     }
 }

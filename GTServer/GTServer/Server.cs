@@ -16,49 +16,43 @@ namespace GT.Net
     /// <summary>Handles a tick event, which is one loop of the server</summary>
     public delegate void TickHandler();
 
-    /// <summary>Handles a Message event, when a new message arrives</summary>
-    /// <param name="m">The incoming message.</param>
-    /// <param name="client">Who sent the message</param>
-    /// <param name="transport">How the message was sent</param>
-    public delegate void MessageHandler(Message m, ClientConnexion client, ITransport transport);
-
     /// <summary>Handles a SessionMessage event, when a SessionMessage arrives.</summary>
     /// <param name="m">The incoming message.</param>
     /// <param name="client">Who sent the message.</param>
     /// <param name="transport">How the message was sent</param>
-    public delegate void SessionMessageHandler(Message m, ClientConnexion client, ITransport transport);
+    public delegate void SessionMessageHandler(Message m, IConnexion client, ITransport transport);
 
     /// <summary>Handles a StringMessage event, when a StringMessage arrives.</summary>
     /// <param name="m">The incoming message.</param>
     /// <param name="client">Who sent the message.</param>
     /// <param name="transport">How the message was sent</param>
-    public delegate void StringMessageHandler(Message m, ClientConnexion client, ITransport transport);
+    public delegate void StringMessageHandler(Message m, IConnexion client, ITransport transport);
 
     /// <summary>Handles a ObjectMessage event, when a ObjectMessage arrives.</summary>
     /// <param name="m">The incoming message.</param>
     /// <param name="client">Who sent the message.</param>
     /// <param name="transport">How the message was sent</param>
-    public delegate void ObjectMessageHandler(Message m, ClientConnexion client, ITransport transport);
+    public delegate void ObjectMessageHandler(Message m, IConnexion client, ITransport transport);
 
     /// <summary>Handles a BinaryMessage event, when a BinaryMessage arrives.</summary>
     /// <param name="m">The incoming message.</param>
     /// <param name="client">Who sent the message.</param>
     /// <param name="transport">How the message was sent</param>
-    public delegate void BinaryMessageHandler(Message m, ClientConnexion client, ITransport transport);
+    public delegate void BinaryMessageHandler(Message m, IConnexion client, ITransport transport);
 
     /// <summary>Handles when clients leave the server.</summary>
     /// <param name="list">The clients who've left.</param>
-    public delegate void ClientsRemovedHandler(ICollection<ClientConnexion> list);
+    public delegate void ClientsRemovedHandler(ICollection<IConnexion> list);
 
     /// <summary>Handles when clients join the server.</summary>
     /// <param name="list">The clients who've joined.</param>
-    public delegate void ClientsJoinedHandler(ICollection<ClientConnexion> list);
+    public delegate void ClientsJoinedHandler(ICollection<IConnexion> list);
 
     /// <summary>Handles when there is an internal error that the application should know about.</summary>
     /// <param name="c">The client where the exception occurred</param>
     /// <param name="explanation">An explanation of the error encountered</param>
     /// <param name="context">A contextual object (e.g., an exception, a network error object)</param>
-    public delegate void ErrorClientHandler(ClientConnexion c, string explanation, object context);
+    public delegate void ErrorClientHandler(IConnexion c, string explanation, object context);
 
 
     #endregion
@@ -178,8 +172,9 @@ namespace GT.Net
         private Dictionary<int, ClientConnexion> clientIDs = new Dictionary<int, ClientConnexion>();
         private ICollection<ClientConnexion> newlyAddedClients = new List<ClientConnexion>();
 
-        public ICollection<ClientConnexion> Clients { get { return clientIDs.Values; } }
-
+        public ICollection<IConnexion> Clients { 
+            get { return BaseConnexion.Downcast<IConnexion,ClientConnexion>(clientIDs.Values); } 
+        }
 
         public IMarshaller Marshaller { get { return marshaller; } }
         public ServerConfiguration Configuration { get { return configuration; } }
@@ -261,8 +256,9 @@ namespace GT.Net
             return t;
         }
 
-        private void ErrorClientHandlerMethod(ClientConnexion client, string ex, object context)
+        private void ErrorClientHandlerMethod(IConnexion client, string ex, object context)
         {
+            Console.WriteLine("{0} ({1}): ERROR: {2}: {3}", this, client, ex, context);
             if (ErrorEvent != null) { ErrorEvent(client, ex, context); }
         }
 
@@ -294,7 +290,7 @@ namespace GT.Net
             }
             if (newlyAddedClients.Count > 0 && ClientsJoined != null)
             {
-                ClientsJoined(newlyAddedClients);
+                ClientsJoined(BaseConnexion.Downcast<IConnexion,ClientConnexion>(newlyAddedClients));
             }
 
             //ping, if needed
@@ -302,18 +298,18 @@ namespace GT.Net
             {
                 DebugUtils.WriteLine("Server.Update(): pinging clients");
                 lastPingTime = System.Environment.TickCount;
-                foreach (ClientConnexion c in Clients) { c.Ping(); }
+                foreach (ClientConnexion c in clientIDs.Values) { c.Ping(); }
             }
 
             DebugUtils.WriteLine("Server.Update(): Clients.Update()");
             //update all clients, reading from the network
-            foreach (ClientConnexion c in Clients) { c.Update(); }
+            foreach (ClientConnexion c in clientIDs.Values) { c.Update(); }
 
             //if anyone is listening, tell them we're done one cycle
             if (Tick != null) { Tick(); }
 
             //remove dead clients
-            List<ClientConnexion> listD = FindAll(Clients, ClientConnexion.IsDead);
+            List<ClientConnexion> listD = FindAll(clientIDs.Values, ClientConnexion.IsDead);
             if (listD.Count > 0)
             {
                 DebugUtils.WriteLine("Server.Update(): removing dead clients");
@@ -324,7 +320,7 @@ namespace GT.Net
                 }
                 if (ClientsRemoved != null)
                 {
-                    ClientsRemoved(listD);
+                    ClientsRemoved(BaseConnexion.Downcast<IConnexion,ClientConnexion>(listD));
                 }
             }
 
@@ -388,8 +384,8 @@ namespace GT.Net
         protected ClientConnexion CreateNewClient(Guid clientId)
         {
             ClientConnexion client = configuration.CreateClientConnexion(this, clientId, GenerateUniqueIdentity());
-            client.MessageReceived += new MessageHandler(ReceivedClientMessage);
-            client.ErrorEvent += new ErrorClientHandler(ErrorClientHandlerMethod);
+            client.MessageReceived += ReceivedClientMessage;
+            client.ErrorEvent += ErrorClientHandlerMethod;
 
             clientIDs.Add(client.UniqueIdentity, client);
             return client;
@@ -437,7 +433,7 @@ namespace GT.Net
 
         public void Sleep()
         {
-            Sleep(configuration.TickInterval.Milliseconds);
+            Sleep((int)configuration.TickInterval.TotalMilliseconds);
         }
 
         public void Sleep(int milliseconds)
@@ -518,7 +514,7 @@ namespace GT.Net
 
         /// <summary>Generates a unique identity number that clients can use to identify each other.</summary>
         /// <returns>The unique identity number</returns>
-        public int GenerateUniqueIdentity()
+        protected int GenerateUniqueIdentity()
         {
             int clientId = 0;
             DateTime timeStamp = DateTime.Now;
@@ -540,7 +536,7 @@ namespace GT.Net
         /// <param name="id">The channel id to be sent on</param>
         /// <param name="list">The list of clients to send it to</param>
         /// <param name="mdr">How to send it (can be null)</param>
-        public void Send(byte[] buffer, byte id, ICollection<ClientConnexion> list, MessageDeliveryRequirements mdr)
+        public void Send(byte[] buffer, byte id, ICollection<IConnexion> list, MessageDeliveryRequirements mdr)
         {
             List<Message> messages = new List<Message>(1);
             messages.Add(new BinaryMessage(id, buffer));
@@ -552,7 +548,7 @@ namespace GT.Net
         /// <param name="id">The channel id to be sent on</param>
         /// <param name="list">The list of clients to send it to</param>
         /// <param name="mdr">How to send it (can be null)</param>
-        public void Send(string s, byte id, ICollection<ClientConnexion> list, MessageDeliveryRequirements mdr)
+        public void Send(string s, byte id, ICollection<IConnexion> list, MessageDeliveryRequirements mdr)
         {
             List<Message> messages = new List<Message>(1);
             messages.Add(new StringMessage(id, s));
@@ -564,7 +560,7 @@ namespace GT.Net
         /// <param name="id">The channel id to be sent on</param>
         /// <param name="list">The list of clients to send it to</param>
         /// <param name="mdr">How to send it (can be null)</param>
-        public void Send(object o, byte id, ICollection<ClientConnexion> list, MessageDeliveryRequirements mdr)
+        public void Send(object o, byte id, ICollection<IConnexion> list, MessageDeliveryRequirements mdr)
         {
             List<Message> messages = new List<Message>(1);
             messages.Add(new ObjectMessage(id, o));
@@ -575,7 +571,7 @@ namespace GT.Net
         /// <param name="message">The message to send</param>
         /// <param name="list">The list of clients to send it to</param>
         /// <param name="mdr">How to send it (can be null)</param>
-        public void Send(Message message, ICollection<ClientConnexion> list, MessageDeliveryRequirements mdr)
+        public void Send(Message message, ICollection<IConnexion> list, MessageDeliveryRequirements mdr)
         {
             List<Message> messages = new List<Message>(1);
             messages.Add(message);
@@ -586,16 +582,15 @@ namespace GT.Net
         /// <param name="messages">The list of messages</param>
         /// <param name="list">The list of clients</param>
         /// <param name="mdr">How to send it (can be null)</param>
-        public void Send(IList<Message> messages, ICollection<ClientConnexion> list, MessageDeliveryRequirements mdr)
+        public void Send(IList<Message> messages, ICollection<IConnexion> list, MessageDeliveryRequirements mdr)
         {
             if (!running) { throw new InvalidStateException("Cannot send on a stopped server", this); }
-            ChannelDeliveryRequirements cdr = GetChannelDeliveryRequirements(messages[0].Id);
-            foreach (ClientConnexion c in list)
+            foreach (IConnexion c in list)
             {
                 //Console.WriteLine("{0}: sending to {1}", this, c);
                 try
                 {
-                    c.Send(messages, mdr, cdr);
+                    c.Send(messages, mdr, GetChannelDeliveryRequirements(messages[0].Id));
                 }
                 catch (Exception e)
                 {
@@ -622,11 +617,11 @@ namespace GT.Net
         /// <param name="m">The message.</param>
         /// <param name="client">Which client sent it.</param>
         /// <param name="t">How the message was sent</param>
-        virtual public void ReceivedClientMessage(Message m, ClientConnexion client, ITransport t)
+        virtual public void ReceivedClientMessage(Message m, IConnexion client, ITransport t)
         {
             DebugUtils.DumpMessage(this + ": MessageReceived from " + client, m);
             //send to this
-            if (MessageReceived != null) MessageReceived(m, client, t);
+            if (MessageReceived != null) { MessageReceived(m, client, t); }
 
             //sort to the correct type
             switch (m.MessageType)
@@ -642,73 +637,32 @@ namespace GT.Net
             default:
                 break;
             }
-
         }
     }
 
     /// <summary>Represents a client using the server.</summary>
-    public class ClientConnexion : IDisposable
+    public class ClientConnexion : BaseConnexion
     {
         #region Variables and Properties
 
-        /// <summary>Triggered when a message is received.</summary>
-        public event MessageHandler MessageReceived;
-        internal MessageHandler MessageReceivedDelegate;
-
         /// <summary>Triggered when an error occurs in this client.</summary>
         public event ErrorClientHandler ErrorEvent;
-        internal ErrorClientHandler ErrorEventDelegate;
-
-        /// <summary>Last exception encountered.</summary>
-        public Exception LastError;
 
         /// <summary>
         /// The client's unique identifier; this should be globally unique
         /// </summary>
         protected Guid clientId;
 
-        /// <summary>
-        /// The server's unique identifier; this is not globally unique
-        /// </summary>
-        private int uniqueIdentity;
-
         private Server server;
-        private List<ITransport> transports = new List<ITransport>();
-
-        private bool active = false;
-
-        /// <summary>
-        /// Is this client dead?
-        /// </summary>
-        public bool Active
-        {
-            get { return active; }
-        }
-
-        /// <summary>Average amount of latency between the server and this particular client.</summary>
-        public float Delay
-        {
-            get
-            {
-                float total = 0; int n = 0;
-                foreach (ITransport t in transports)
-                {
-                    float d = t.Delay;
-                    if (d > 0) { total += d; n++; }
-                }
-                return n == 0 ? 0 : total / n;
-            }
-        }
-
-        /// <summary>The server-unique identity of this client</summary>
-        public int UniqueIdentity
-        {
-            get { return uniqueIdentity; }
-        }
 
         public Guid ClientIdentity
         {
             get { return clientId; }
+        }
+
+        public override IMarshaller Marshaller
+        {
+            get { return server.Marshaller; }
         }
 
         #endregion
@@ -741,58 +695,9 @@ namespace GT.Net
 
         #endregion
 
-        #region Lifecycle
-
-        public void Dispose()
+        override public int Compare(ITransport a, ITransport b)
         {
-            active = false;
-            MessageReceived -= MessageReceivedDelegate;
-            ErrorEvent -= ErrorEventDelegate;
-        }
-
-        #endregion
-
-        override public string ToString()
-        {
-            return "ClientConnexion(" + uniqueIdentity + ")";
-        }
-
-
-        internal void AddTransport(ITransport t)
-        {
-            DebugUtils.Write(this + ": added new transport: " + t);
-            t.PacketReceivedEvent += new PacketReceivedHandler(PostNewlyReceivedPacket);
-            transports.Add(t);
-            transports.Sort(server.Configuration);
-        }
-
-        #region Sending
-
-        /// <summary>Send a byte array on the channel <c>id</c>.</summary>
-        /// <param name="buffer">The byte array to send</param>
-        /// <param name="id">The channel id to be sent on</param>
-        /// <param name="mdr">How to send it (can be null)</param>
-        public void Send(byte[] buffer, byte id, MessageDeliveryRequirements mdr)
-        {
-            Send(new BinaryMessage(id, buffer), mdr);
-        }
-
-        /// <summary>Send a string on channel <c>id</c>.</summary>
-        /// <param name="s">The string to send</param>
-        /// <param name="id">The channel id to be sent on</param>
-        /// <param name="mdr">How to send it (can be null)</param>
-        public void Send(string s, byte id, MessageDeliveryRequirements mdr)
-        {
-            Send(new StringMessage(id, s), mdr);
-        }
-
-        /// <summary>Sends an bject on channel <c>id</c>.</summary>
-        /// <param name="o">The object to send</param>
-        /// <param name="id">The channel id to be sent on</param>
-        /// <param name="mdr">How to send it (can be null)</param>
-        public void Send(object o, byte id, MessageDeliveryRequirements mdr)
-        {
-            Send(new ObjectMessage(id, o), mdr);
+            return server.Configuration.Compare(a,b);
         }
 
         /// <summary>Send SessionAction.</summary>
@@ -800,96 +705,29 @@ namespace GT.Net
         /// <param name="e">Session action to send.</param>
         /// <param name="id">Channel to send on.</param>
         /// <param name="mdr">How to send it (can be null)</param>
-        public void Send(int clientId, SessionAction e, byte id, MessageDeliveryRequirements mdr)
+        /// <param name="cdr">Requirements for the message's channel.</param>
+        public void Send(int clientId, SessionAction e, byte id, MessageDeliveryRequirements mdr,
+            ChannelDeliveryRequirements cdr)
         {
-            Send(new SessionMessage(id, clientId, e), mdr);
+            Send(new SessionMessage(id, clientId, e), mdr, cdr);
         }
 
-        /// <summary>Send a message.</summary>
-        /// <param name="message">The message to send.</param>
-        /// <param name="mdr">How to send it (can be null)</param>
-        public void Send(Message message, MessageDeliveryRequirements mdr)
+        public override void Send(IList<Message> messages, MessageDeliveryRequirements mdr,
+            ChannelDeliveryRequirements cdr)
         {
-            IList<Message> messages = new List<Message>(1);
-            messages.Add(message);
-            ChannelDeliveryRequirements cdr = server.GetChannelDeliveryRequirements(message.Id);
-            Send(messages, mdr, cdr);
-        }
-
-        public void Send(IList<Message> messages, MessageDeliveryRequirements mdr, ChannelDeliveryRequirements cdr)
-        {
-            if (!active)
+            if (!Active)
             {
                 throw new InvalidStateException("cannot send on a disposed client!", this);
             }
             ITransport t = FindTransport(mdr, cdr);
             SendMessages(t, messages);
+
         }
-
-        protected void SendMessages(ITransport transport, IList<Message> messages) 
-        {
-            //Console.WriteLine("{0}: Sending {1} messages to {2}", this, messages.Count, transport);
-            lock (transport)
-            {
-                Stream ms = transport.GetPacketStream();
-                int packetStart = (int)ms.Position;
-                int index = 0;
-                while (index < messages.Count)
-                {
-                    Message m = messages[index];
-                    int packetEnd = (int)ms.Position;
-                    server.Marshaller.Marshal(m, ms, transport);
-                    if (ms.Position - packetStart > transport.MaximumPacketSize) // uh oh, rewind and redo
-                    {
-                        ms.SetLength(packetEnd);
-                        ms.Position = packetStart;
-                        transport.SendPacket(ms);
-
-                        ms = transport.GetPacketStream();
-                        packetStart = (int)ms.Position;
-                    }
-                    else { index++; }
-                }
-                if (ms.Position - packetStart != 0)
-                {
-                    ms.Position = packetStart;
-                    transport.SendPacket(ms);
-                }
-            }
-        }
-
-        protected void SendMessage(ITransport transport, Message msg)
-        {
-            lock (transport)
-            {
-                //pack main message into a buffer and send it right away
-                Stream packet = transport.GetPacketStream();
-                server.Marshaller.Marshal(msg, packet, transport);
-
-                // and be sure to catch exceptions; log and remove transport if unable to be started
-                // if(!transport.Active) { transport.Start(); }
-                transport.SendPacket(packet);
-            }
-        }
-
-        #endregion
-
-        protected ITransport FindTransport(MessageDeliveryRequirements mdr, ChannelDeliveryRequirements cdr)
-        {
-            ITransport t = server.Configuration.SelectTransport(transports, mdr, cdr);
-            if (t == null)
-            {
-                throw new NoMatchingTransport("Cannot find matching transport!");
-            }
-            return t;
-        }
-
-
 
         /// <summary>Handles a system message in that it takes the information and does something with it.</summary>
         /// <param name="m">The message received.</param>
         /// <param name="id">What channel it came in on.</param>
-        private void HandleSystemMessage(SystemMessage m, ITransport t)
+        override protected void HandleSystemMessage(SystemMessage m, ITransport t)
         {
             switch ((SystemMessageType)m.Id)
             {
@@ -911,62 +749,6 @@ namespace GT.Net
             }
         }
 
-        /// <summary>Send a ping to a client to see if it responds.</summary>
-        internal void Ping()
-        {
-            byte[] buffer = BitConverter.GetBytes(System.Environment.TickCount);
-            foreach (ITransport t in transports)
-            {
-                SendMessage(t, new SystemMessage(SystemMessageType.PingRequest,
-                    BitConverter.GetBytes(System.Environment.TickCount)));
-            }
-        }
-
-        #region Receive
-
-        /// <summary>Go through one tick of this client.</summary>
-        public void Update()
-        {
-            lock (this)
-            {
-                if (!active) { return; }
-                foreach (ITransport t in transports)
-                {
-                    t.Update();
-                }
-            }
-        }
-
-
-        private void PostNewlyReceivedPacket(byte[] buffer, int offset, int count, ITransport t)
-        {
-            Stream stream = new MemoryStream(buffer, offset, count, false);
-            while (stream.Position < stream.Length)
-            {
-                Message m = server.Marshaller.Unmarshal(stream, t);
-                //DebugUtils.DumpMessage("ClientConnexionConnexion.PostNewlyReceivedMessage", m);
-
-                if (m.MessageType == MessageType.System)
-                {
-                    //System messages are special!  Yay!
-                    HandleSystemMessage((SystemMessage)m, t);
-                }
-                else
-                {
-                    MessageReceived(m, this, t);
-                }
-            }
-        }
-
-        private byte[] ConvertIncomingSessionMessageToNormalForm(byte[] b)
-        {
-            byte[] buffer = new byte[5];
-            buffer[4] = b[0];
-            BitConverter.GetBytes(this.uniqueIdentity).CopyTo(buffer, 0);
-            return buffer;
-        }
-
-        #endregion
     }
 
 }

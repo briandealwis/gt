@@ -71,5 +71,10 @@ namespace GT.Net
             return new TcpTransport(client);
         }
 
+        public bool Responsible(ITransport transport)
+        {
+            return transport is TcpTransport;
+        }
+
     }
 }

@@ -85,7 +85,7 @@ namespace GT.Net
             serverThread = null;
         }
 
-        private void s_ErrorEvent(ClientConnexion c, string explanation, object context)
+        private void s_ErrorEvent(IConnexion c, string explanation, object context)
         {
             Console.WriteLine("{0}: Error[{1}]: {2}: {3}", DateTime.Now, c, explanation, context);
             //if (se.Equals(SocketError.NoRecovery))  // FIXME: this test is bogus -- we need more information
@@ -96,7 +96,7 @@ namespace GT.Net
             //}
         }
 
-        private void s_ClientsJoined(ICollection<ClientConnexion> list)
+        private void s_ClientsJoined(ICollection<IConnexion> list)
         {
             Console.WriteLine("{0}: clients joined: {1}", DateTime.Now, ToString(list));
             if (sessionChangesChannel < 0) { return; }
@@ -111,7 +111,7 @@ namespace GT.Net
                     {
                         c.Send(clientId, SessionAction.Joined, (byte)0,
                             new MessageDeliveryRequirements(Reliability.Reliable, MessageAggregation.Immediate,
-                                Ordering.Unordered));
+                                Ordering.Unordered), null);
                     }
                     catch (GTException e)
                     {
@@ -121,7 +121,7 @@ namespace GT.Net
             }
         }
 
-        private void s_ClientsRemoved(ICollection<ClientConnexion> list)
+        private void s_ClientsRemoved(ICollection<IConnexion> list)
         {
             Console.WriteLine("{0}: clients left: {1}", DateTime.Now, ToString(list));
             if (sessionChangesChannel < 0) { return; }
@@ -144,7 +144,7 @@ namespace GT.Net
                     try {
                         c.Send(clientId, SessionAction.Left, (byte)0,
                             new MessageDeliveryRequirements(Reliability.Reliable, MessageAggregation.Immediate,
-                                Ordering.Unordered));
+                                Ordering.Unordered), null);
                     }
                     catch (GTException e)
                     {
@@ -154,7 +154,7 @@ namespace GT.Net
             }
         }
 
-        private void s_MessageReceived(Message m, ClientConnexion client, ITransport transport)
+        private void s_MessageReceived(Message m, IConnexion client, ITransport transport)
         {
             if (verbose)
             {

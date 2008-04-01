@@ -72,9 +72,9 @@ namespace Telepointers
             session = c.GetSessionStream(f.Result, "9999", 0, ChannelDeliveryRequirements.SessionLike);
             coords = c.GetStreamedTuple<int, int>(f.Result, "9999", 1, 50, 
                 ChannelDeliveryRequirements.TelepointerLike);
-            coords.StreamedTupleReceived += new StreamedTupleReceivedDelegate<int, int>(coords_StreamedTupleReceived);
-            c.ErrorEvent += new ErrorEventHandler(c_ErrorEvent);
-            session.SessionNewMessageEvent += new SessionNewMessage(session_SessionNewMessageEvent);
+            coords.StreamedTupleReceived += coords_StreamedTupleReceived;
+            c.ErrorEvent += c_ErrorEvent;
+            session.SessionNewMessageEvent += session_SessionNewMessageEvent;
         }
 
         void session_SessionNewMessageEvent(ISessionStream stream)
@@ -82,7 +82,7 @@ namespace Telepointers
             Console.WriteLine("h");
         }
 
-        void c_ErrorEvent(ServerConnexion ss, string explanation, object context)
+        void c_ErrorEvent(IConnexion ss, string explanation, object context)
         {
             throw new Exception("The method or operation is not implemented.");
         }

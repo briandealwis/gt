@@ -1,4 +1,8 @@
 using System.Collections.Generic;
+using GT.Utils;
+using System;
+using System.IO;
+using System.Diagnostics;
 namespace GT.Net {
 
     public abstract class BaseConfiguration : IComparer<ITransport> {
@@ -20,43 +24,381 @@ namespace GT.Net {
             return 0;
         }
 
+    }
+
+
+    /// <summary>Notification of an error event on a connexion.</summary>
+    /// <param name="ss">The connexion with the problem.</param>
+    /// <param name="explanation">A string describing the problem.</param>
+    /// <param name="context">A contextual object</param>
+    public delegate void ErrorEventNotication(IConnexion ss, string explanation, object context);
+
+    /// <summary>Handles a Message event, when a new message arrives</summary>
+    /// <param name="m">The incoming message.</param>
+    /// <param name="client">Who sent the message</param>
+    /// <param name="transport">How the message was sent</param>
+    public delegate void MessageHandler(Message m, IConnexion client, ITransport transport);
+
+
+    /// <summary>
+    /// Connexions represent a communication connection between a client and server.
+    /// Using a connexion, a client can send a message or messages to a server, and
+    /// vice-versa.
+    /// </summary>
+    public interface IConnexion : IDisposable
+    {
+        float Delay { get; }
+
+        bool Active { get; }
+
+        /// <summary>The server-unique identity of this client</summary>
+        int UniqueIdentity { get; }
+
         /// <summary>
-        /// Select a transport meeting the requirements as specified by <c>mdr</c>
-        /// and <c>cdr</c>.  <c>transports</c> is in a sorted order as defined by
-        /// this instance.  Generally the <c>mdr</c> (if provided) takes precedence 
-        /// over <c>cdr</c>.  The actual test of worthiness is implemented in
-        /// <see cref="MeetsRequirements(ITransport,MessageDeliveryOptions,ChannelDeliveryOptions">
-        /// MeetsRequirements</see>.
+        /// Notification of fatal errors occurring on the connexion.
         /// </summary>
-        /// <param name="transports">the sorted list of available transports</param>
-        /// <param name="mdr">the requirements as specified by the message; may be null.</param>
-        /// <param name="cdr">the requirements as configured by the channel</param>
-        public virtual ITransport SelectTransport(IList<ITransport> transports, 
-            MessageDeliveryRequirements mdr, ChannelDeliveryRequirements cdr) 
+        event ErrorEventNotication ErrorEvents;
+
+        // public StatisticalMoments DelayStatistics { get; }
+
+        IMarshaller Marshaller { get; }
+
+        /// <summary>Triggered when a message is received.</summary>
+        event MessageHandler MessageReceived;
+
+        /// <summary>Send a message using these parameters.  At least one of <c>mdr</c> and
+        /// <c>cdr</c> are expected to be specified (i.e., be non-null).</summary>
+        /// <param name="msg">The message to send.</param>
+        /// <param name="mdr">Requirements for this particular message; may be null.</param>
+        /// <param name="cdr">Requirements for the message's channel.</param>
+        void Send(Message msg, MessageDeliveryRequirements mdr, ChannelDeliveryRequirements cdr);
+
+        /// <summary>Send a set of messages using these parameters.  
+        /// At least one of <c>mdr</c> and <c>cdr</c> are expected to be specified 
+        /// (i.e., be non-null).</summary>
+        /// <param name="msg">The message to send.</param>
+        /// <param name="mdr">Requirements for this particular message; may be null.</param>
+        /// <param name="cdr">Requirements for the message's channel.</param>
+        void Send(IList<Message> msgs, MessageDeliveryRequirements mdr, ChannelDeliveryRequirements cdr);
+
+        /// <summary>Send a byte array on the channel <c>id</c>.
+        /// At least one of <c>mdr</c> and <c>cdr</c> are expected to be specified 
+        /// (i.e., be non-null).</summary>
+        /// <param name="buffer">The byte array to send</param>
+        /// <param name="id">The channel id to be sent on</param>
+        /// <param name="mdr">Requirements for this particular message; may be null.</param>
+        /// <param name="cdr">Requirements for the message's channel.</param>
+        void Send(byte[] buffer, byte id, MessageDeliveryRequirements mdr, ChannelDeliveryRequirements cdr);
+
+        /// <summary>Send a string on channel <c>id</c>.
+        /// At least one of <c>mdr</c> and <c>cdr</c> are expected to be specified 
+        /// (i.e., be non-null).</summary>
+        /// <param name="s">The string to send</param>
+        /// <param name="id">The channel id to be sent on</param>
+        /// <param name="mdr">Requirements for this particular message; may be null.</param>
+        /// <param name="cdr">Requirements for the message's channel.</param>
+        void Send(string s, byte id, MessageDeliveryRequirements mdr, ChannelDeliveryRequirements cdr);
+
+        /// <summary>Sends an bject on channel <c>id</c>.
+        /// At least one of <c>mdr</c> and <c>cdr</c> are expected to be specified 
+        /// (i.e., be non-null).</summary>
+        /// <param name="o">The object to send</param>
+        /// <param name="id">The channel id to be sent on</param>
+        /// <param name="mdr">Requirements for this particular message; may be null.</param>
+        /// <param name="cdr">Requirements for the message's channel.</param>
+        void Send(object o, byte id, MessageDeliveryRequirements mdr, ChannelDeliveryRequirements cdr);
+    }
+
+    public abstract class BaseConnexion : IConnexion, IComparer<ITransport>
+    {
+        protected bool active = false;
+        protected List<ITransport> transports = new List<ITransport>();
+
+        /// <summary>
+        /// Notification of fatal errors occurring on the connexion.
+        /// </summary>
+        public event ErrorEventNotication ErrorEvents;
+
+        /// <summary>
+        /// The server's unique identifier for this connexion; this is not globally unique
+        /// </summary>
+        protected int uniqueIdentity;
+
+        abstract public IMarshaller Marshaller { get; }
+
+        /// <summary>Triggered when a message is received.</summary>
+        public event MessageHandler MessageReceived;
+
+        public int UniqueIdentity
         {
-            foreach(ITransport t in transports) {
-                if (MeetsRequirements(t, mdr, cdr)) { return t; }
+            get { return uniqueIdentity; }
+        }
+
+        /// <summary>Average latency on this connexion.</summary>
+        public float Delay
+        {
+            get
+            {
+                float total = 0; int n = 0;
+                foreach (ITransport t in transports)
+                {
+                    float d = t.Delay;
+                    if (d > 0) { total += d; n++; }
+                }
+                return n == 0 ? 0 : total / n;
             }
-            return null;
         }
 
         /// <summary>
-        /// Test whether a transport meets the requirements as specified by <c>mdr</c>
-        /// and <c>cdr</c>.  Generally the <c>mdr</c> (if provided) takes precedence 
-        /// over <c>cdr</c>.
+        /// Is this client dead?
         /// </summary>
-        /// <param name="transport">the transport to test</param>
-        /// <param name="mdr">the requirements as specified by the message; may be null.</param>
-        /// <param name="cdr">the requirements as configured by the channel</param>
-        protected virtual bool MeetsRequirements(ITransport transport, MessageDeliveryRequirements mdr, 
-            ChannelDeliveryRequirements cdr)
+        public bool Active
         {
-            Reliability r = mdr != null ? mdr.Reliability : cdr.Reliability;
-            Ordering o = mdr != null ? mdr.Ordering : cdr.Ordering;
-            if (transport.Reliability < r) { return false; }
-            if (transport.Ordering < o) { return false; }
-            // could do something about flow characteristics or jitter
-            return true;    // passed our test: go for gold!
+            get { return active; }
         }
+
+        public virtual void Dispose()
+        {
+            active = false;
+            if (transports != null)
+            {
+                foreach (ITransport t in transports) { 
+                    t.Dispose(); 
+                }
+            }
+        }
+
+        /// <summary>Occurs when there is an error.</summary>
+        protected internal void NotifyError(string explanation, object generator, object context)
+        {
+            // FIXME: This should be logging
+            Console.WriteLine("Error[" + generator + "]: " + explanation + ": " + context);
+            if (ErrorEvents != null)
+            {
+                ErrorEvents(this, explanation, context);
+            }
+        }
+
+        /// <summary>Ping the other side to determine delay, as well as act as a keep-alive.</summary>
+        public void Ping()
+        {
+            foreach (ITransport t in transports)
+            {
+                SendMessage(t, new SystemMessage(SystemMessageType.PingRequest,
+                    BitConverter.GetBytes(System.Environment.TickCount)));
+            }
+        }
+
+        /// <summary>A single tick of the connexion.</summary>
+        public void Update()
+        {
+            lock (this)
+            {
+                if (!Active) { return; }
+                foreach (ITransport t in transports)
+                {
+                    try { t.Update(); }
+                    catch (Exception e)
+                    {
+                        NotifyError("Exception in updating transport", t, e);
+                    }
+                }
+            }
+        }
+
+        public void AddTransport(ITransport t)
+        {
+            DebugUtils.Write(this + ": added new transport: " + t);
+            t.PacketReceivedEvent += new PacketReceivedHandler(HandleNewPacket);
+            t.TransportErrorEvent += new TransportErrorHandler(HandleTransportError);
+            transports.Add(t);
+            transports.Sort(this);
+        }
+
+        abstract public int Compare(ITransport a, ITransport b);
+
+        protected virtual void HandleTransportError(string explanation, ITransport transport, object context)
+        {
+            Console.WriteLine("{0} WARNING: Transport error [{1}/{2}]: {3} ({4})", DateTime.Now,
+                this, transport, explanation, context);
+            if (transport != null)
+            {
+                transports.Remove(transport);
+                try { transport.Dispose(); }
+                catch (Exception e) {
+                    Console.WriteLine("{0} Exception when disposing of transport: {1}", DateTime.Now, e);
+                }
+            }
+        }
+
+
+        abstract protected void HandleSystemMessage(SystemMessage message, ITransport transport);
+
+        virtual protected void HandleNewPacket(byte[] buffer, int offset, int count, ITransport transport)
+        {
+            Stream stream = new MemoryStream(buffer, offset, count, false);
+            while (stream.Position < stream.Length)
+            {
+                Message m = Marshaller.Unmarshal(stream, transport);
+                //DebugUtils.DumpMessage("ClientConnexionConnexion.PostNewlyReceivedMessage", m);
+
+                if (m.MessageType == MessageType.System)
+                {
+                    //System messages are special!  Yay!
+                    HandleSystemMessage((SystemMessage)m, transport);
+                }
+                else
+                {
+                    if (MessageReceived == null)
+                    {
+                        Console.WriteLine("{0}: WARNING: no MessageReceived listener!", this);
+                    }
+                    else { MessageReceived(m, this, transport); }
+                }
+            }
+        }
+
+
+        protected virtual ITransport FindTransport(MessageDeliveryRequirements mdr, ChannelDeliveryRequirements cdr)
+        {
+            ITransport t = null;
+            if (mdr != null) { t = mdr.SelectTransport(transports); }
+            if (t != null) { return t; }
+            if (t == null && cdr != null) { t = cdr.SelectTransport(transports); }
+            if (t != null) { return t; }
+            throw new NoMatchingTransport("Cannot find matching transport!");
+        }
+
+        #region Sending
+
+        /// <summary>Send a byte array on the channel <c>id</c>.</summary>
+        /// <param name="buffer">The byte array to send</param>
+        /// <param name="id">The channel id to be sent on</param>
+        /// <param name="mdr">Requirements for this particular message; may be null.</param>
+        /// <param name="cdr">Requirements for the message's channel.</param>
+        public void Send(byte[] buffer, byte id, MessageDeliveryRequirements mdr, ChannelDeliveryRequirements cdr)
+        {
+            Send(new BinaryMessage(id, buffer), mdr, cdr);
+        }
+
+        /// <summary>Send a string on channel <c>id</c>.</summary>
+        /// <param name="s">The string to send</param>
+        /// <param name="id">The channel id to be sent on</param>
+        /// <param name="mdr">Requirements for this particular message; may be null.</param>
+        /// <param name="cdr">Requirements for the message's channel.</param>
+        public void Send(string s, byte id, MessageDeliveryRequirements mdr, ChannelDeliveryRequirements cdr)
+        {
+            Send(new StringMessage(id, s), mdr, cdr);
+        }
+
+        /// <summary>Sends an bject on channel <c>id</c>.</summary>
+        /// <param name="o">The object to send</param>
+        /// <param name="id">The channel id to be sent on</param>
+        /// <param name="mdr">Requirements for this particular message; may be null.</param>
+        /// <param name="cdr">Requirements for the message's channel.</param>
+        public void Send(object o, byte id, MessageDeliveryRequirements mdr, ChannelDeliveryRequirements cdr)
+        {
+            Send(new ObjectMessage(id, o), mdr, cdr);
+        }
+
+        /// <summary>Send a message.</summary>
+        /// <param name="message">The message to send.</param>
+        /// <param name="mdr">Requirements for this particular message; may be null.</param>
+        /// <param name="cdr">Requirements for the message's channel.</param>
+        public virtual void Send(Message message, MessageDeliveryRequirements mdr, ChannelDeliveryRequirements cdr)
+        {
+            IList<Message> messages = new List<Message>(1);
+            messages.Add(message);
+            Send(messages, mdr, cdr);
+        }
+
+        /// <summary>Send a set of messages.</summary>
+        /// <param name="messages">The messages to send.</param>
+        /// <param name="mdr">Requirements for this particular message; may be null.</param>
+        /// <param name="cdr">Requirements for the message's channel.</param>
+        abstract public void Send(IList<Message> messages, MessageDeliveryRequirements mdr,
+            ChannelDeliveryRequirements cdr);
+
+        /// <summary>
+        /// Short-circuit operation to send a message with no fuss, no muss, and no waiting.
+        /// This should be used very sparingly.
+        /// </summary>
+        /// <param name="transport">Where to send it</param>
+        /// <param name="msg">What to send</param>
+        protected void SendMessage(ITransport transport, Message msg)
+        {
+            //pack main message into a buffer and send it right away
+            Stream packet = transport.GetPacketStream();
+            Marshaller.Marshal(msg, packet, transport);
+
+            // and be sure to catch exceptions; log and remove transport if unable to be started
+            // if(!transport.Active) { transport.Start(); }
+            transport.SendPacket(packet);
+        }
+
+        protected void SendMessages(ITransport transport, IList<Message> messages)
+        {
+            //Console.WriteLine("{0}: Sending {1} messages to {2}", this, messages.Count, transport);
+            Stream ms = transport.GetPacketStream();
+            int packetStart = (int)ms.Position;
+            int index = 0;
+            while (index < messages.Count)
+            {
+                Message m = messages[index];
+                int packetEnd = (int)ms.Position;
+                Marshaller.Marshal(m, ms, transport);
+                if (ms.Position - packetStart > transport.MaximumPacketSize) // uh oh, rewind and redo
+                {
+                    ms.SetLength(packetEnd);
+                    ms.Position = packetStart;
+                    transport.SendPacket(ms);
+
+                    ms = transport.GetPacketStream();
+                    packetStart = (int)ms.Position;
+                }
+                else { index++; }
+            }
+            if (ms.Position - packetStart != 0)
+            {
+                ms.Position = packetStart;
+                transport.SendPacket(ms);
+            }
+        }
+
+
+
+        protected void StreamMessage(Message message, ITransport t, ref Stream stream)
+        {
+            long previousLength = stream.Length;
+            Marshaller.Marshal(message, stream, t);
+            if (stream.Length < t.MaximumPacketSize) { return; }
+
+            // resulting packet is too big: go back to previous length, send what we had, 
+            stream.SetLength(previousLength);
+            Debug.Assert(stream.Length > 0);
+            t.SendPacket(stream);
+
+            // and remarshal the last message
+            stream = t.GetPacketStream();
+            Marshaller.Marshal(message, stream, t);
+        }
+        #endregion
+
+        override public string ToString()
+        {
+            return GetType().Name + "(" + uniqueIdentity + ")";
+        }
+
+        public static ICollection<D> Downcast<D, T>(ICollection<T> c)
+            where T : D
+        {
+            List<D> downcasted = new List<D>(c.Count);
+            foreach (T value in c)
+            {
+                downcasted.Add(value);
+            }
+            return downcasted;
+        }
+
     }
 }

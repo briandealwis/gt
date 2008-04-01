@@ -110,6 +110,12 @@ namespace GT.Net.Local
             Stop();
         }
 
+        public bool Responsible(ITransport transport)
+        {
+            return transport is LocalTransport;
+        }
+
+
     }
 
     public class LocalTransport : BaseTransport

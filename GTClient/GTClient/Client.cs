@@ -29,13 +29,6 @@ namespace GT.Net
     /// /// <param name="stream">The stream that has the new message.</param>
     public delegate void BinaryNewMessage(IBinaryStream stream);
 
-    /// <summary>Handles a Error event, when an error occurs on the network.</summary>
-    /// <param name="ss">The server stream in which it occurred.  May be null if exception not in ServerConnexion.</param>
-    /// <param name="explanation">A string describing the problem.</param>
-    /// <param name="context">A contextual object</param>
-    /// <remarks>deprecated: use ErrorEvents instead</remarks>
-    public delegate void ErrorEventHandler(ServerConnexion ss, string explanation, object context);
-
     /// <summary>Occurs whenever this client is updated.</summary>
     public delegate void UpdateEventDelegate(HPTimer hpTimer);
 
@@ -465,18 +458,15 @@ namespace GT.Net
     #endregion
 
     /// <summary>Controls the sending of messages to a particular server.</summary>
-    public class ServerConnexion : IStartable
+    public class ServerConnexion : BaseConnexion, IStartable
     {
         private Client owner;
-        private bool active;
         private string address;
         private string port;
 
-        internal double nextPingTime;
-
         /// <summary>The unique identity of the client for this server.
         /// This will be different for each server, and thus could be different for each connexion.</summary>
-        public int UniqueIdentity;
+        public int UniqueIdentity { get { return uniqueIdentity; } }
 
         /// <summary>Incoming messages from the server. As messages are read in from the
         /// different transports, they are added to this list.  These messages are then
@@ -484,30 +474,19 @@ namespace GT.Net
         /// We separate these two steps to isolate potential problems.</summary>
         protected Queue<Message> receivedMessages;
 
-        /// <summary>Occurs when there is an error.</summary>
-        public event ErrorEventHandler ErrorEvent;
-
-        private List<ITransport> transports = new List<ITransport>();
         private Dictionary<byte, Queue<KeyValuePair<Message, MessageDeliveryRequirements>>> messagePools;
-
-        /// <summary>Create a new SuperStream to handle a connexion to a server.</summary>
-        /// <param name="owner">The owning client.</param>
-        /// <param name="address">Who to try to connect to.</param>
-        /// <param name="port">Which port to connect to.</param>
-        internal ServerConnexion(Client owner, string address, string port)
-        {
-            active = false;
-            this.owner = owner;
-            this.address = address;
-            this.port = port;
-        }
 
         /// <summary>
         /// Return the marshaller configured for this stream's client.
         /// </summary>
-        public IMarshaller Marshaller
+        override public IMarshaller Marshaller
         {
             get { return owner.Marshaller; }
+        }
+
+        override public int Compare(ITransport a, ITransport b)
+        {
+            return owner.Configuration.Compare(a,b);
         }
 
         /// <summary>
@@ -518,13 +497,27 @@ namespace GT.Net
             get { return owner.Guid; }
         }
 
+        #region Constructors and Destructors
+
+        /// <summary>Create a new SuperStream to handle a connexion to a server.</summary>
+        /// <param name="owner">The owning client.</param>
+        /// <param name="address">Who to try to connect to.</param>
+        /// <param name="port">Which port to connect to.</param>
+        protected internal ServerConnexion(Client owner, string address, string port)
+        {
+            active = false;
+            this.owner = owner;
+            this.address = address;
+            this.port = port;
+            this.MessageReceived += HandleIncomingMessage;
+        }
+
         /// <summary>
         /// Start this instance.
         /// </summary>
-        public void Start()
+        virtual public void Start()
         {
             if (Active) { return; }
-            nextPingTime = 0;
 
             messagePools = new Dictionary<byte, Queue<KeyValuePair<Message, MessageDeliveryRequirements>>>();
             receivedMessages = new Queue<Message>();
@@ -556,7 +549,7 @@ namespace GT.Net
             }
         }
 
-        public void Stop()
+        virtual public void Stop()
         {
             active = false;
             if (transports != null)
@@ -566,25 +559,20 @@ namespace GT.Net
                     try { t.Dispose(); }
                     catch (Exception e)
                     {
-                        ErrorEvent(this, "Exception disposing transport: " + t, e);
+                        NotifyError("Exception disposing transport", t, e);
                     }
                 }
             }
             transports = null;
         }
 
-        public void Dispose()
+        override public void Dispose()
         {
             Stop();
+            base.Dispose();
         }
 
-        public void AddTransport(ITransport t)
-        {
-            t.PacketReceivedEvent += new PacketReceivedHandler(HandleNewPacket);
-            t.TransportErrorEvent += new TransportErrorHandler(HandleTransportError);
-            transports.Add(t);
-            transports.Sort(owner.Configuration);
-        }
+        #endregion
 
         public virtual string Address
         {
@@ -596,83 +584,35 @@ namespace GT.Net
             get { return port; }
         }
 
-        public virtual bool Active
+        protected override void HandleTransportError(string explanation, ITransport transport, object context)
         {
-            get { return active; }
-        }
+            // call the super to dispose and drop the transport from our transport list
+            base.HandleTransportError(explanation, transport, context); 
+            if (owner == null) { return; }
 
-        /// <summary>Average latency between the client and this particluar server.</summary>
-        public float Delay {
-            get
+            // find the connector responsible for having connected this transport and
+            // try to reconnect.
+            foreach (IConnector conn in owner.Connectors)
             {
-                float total = 0; int n = 0;
-                foreach (ITransport t in transports)
-                {
-                    float d = t.Delay;
-                    if (d > 0) { total += d; n++; }
-                }
-                return n == 0 ? 0 : total / n;
-            }
-        }
-
-        protected void HandleNewPacket(byte[] buffer, int offset, int count, ITransport transport)
-        {
-            Stream stream = new MemoryStream(buffer, offset, count, false);
-            while (stream.Position < stream.Length)
-            {
-                Message msg = owner.Marshaller.Unmarshal(stream, transport);
-                //DebugUtils.DumpMessage("ClientConnexionConnexion.PostNewlyReceivedMessage", m);
-
-                if (msg.MessageType == MessageType.System)
-                {
-                    //Console.WriteLine("{0}: handling system message {1}", this, msg);
-                    HandleSystemMessage((SystemMessage)msg, transport);
-                }
-                else
-                {
-                    // Hmm, this lock may not be necessary -- the Dequeueing of messages should
-                    // occur in the same thread.
-                    //Console.WriteLine("{0}: posting incoming message {1}", this, msg);
-                    lock (receivedMessages) { receivedMessages.Enqueue(msg); }
+                // FIXME: and if there is an error...?
+                if(conn.Responsible(transport)) {
+                    ITransport t = conn.Connect(Address, Port, owner.Capabilities);
+                    if (t != null) { 
+                        Console.WriteLine("{0} [{1}] Reconnected: {2}", DateTime.Now, this, t);
+                        AddTransport(t); 
+                    } else {
+                        Console.WriteLine("{0} [{1}] Could not reconnect to {2}/{3}", DateTime.Now, this,
+                            Address, Port);
+                    }
                 }
             }
         }
-
-        protected void HandleTransportError(string explanation, ITransport transport, object context)
+        protected void HandleIncomingMessage(Message m, IConnexion client, ITransport transport)
         {
-            // FIXME: find the associated connector and re-connect
-            if (transport != null)
-            {
-                transports.Remove(transport);
-                transport.Dispose();
-            }
-        }
-
-        /// <summary>Occurs when there is an error.</summary>
-        protected internal void NotifyError(string explanation, object generator, object context)
-        {
-            // FIXME: This should be logging
-            Console.WriteLine("Error[" + generator + "]: " + explanation + ": " + context);
-            if (ErrorEvent != null)
-            {
-                ErrorEvent(this, explanation, context);
-            }
-        }
-
-        /// <summary>
-        /// Short-circuit operation to send a message with no fuss and no muss.
-        /// </summary>
-        /// <param name="transport">Where to send it</param>
-        /// <param name="msg">What to send</param>
-        protected void SendMessage(ITransport transport, Message msg)
-        {
-            //pack main message into a buffer and send it right away
-            Stream packet = transport.GetPacketStream();
-            owner.Marshaller.Marshal(msg, packet, transport);
-
-            // and be sure to catch exceptions; log and remove transport if unable to be started
-            // if(!transport.Active) { transport.Start(); }
-            transport.SendPacket(packet);
+            // Hmm, this lock may not be necessary -- the Dequeueing of messages should
+            // occur in the same thread.
+            //Console.WriteLine("{0}: posting incoming message {1}", this, msg);
+            lock (receivedMessages) { receivedMessages.Enqueue(m); }
         }
 
 
@@ -696,19 +636,15 @@ namespace GT.Net
         /// <summary>Send a message using these parameters.</summary>
         /// <param name="msg">The message to send.</param>
         /// <param name="mdr">Particular instructions for this message.</param>
-        /// <param name="cdr">General delivery instructions for this message's channel.</param>
-        public void Send(Message msg, MessageDeliveryRequirements mdr, ChannelDeliveryRequirements cdr)
+        /// <param name="cdr">Requirements for the message's channel.</param>
+        override public void Send(Message msg, MessageDeliveryRequirements mdr,
+            ChannelDeliveryRequirements cdr)
         {
             lock (this)
             {
-                if (!Active) { 
+                if (!Active) {
                     throw new InvalidStateException("Cannot send on a stopped client", this); 
                 }
-
-                // We resolve and use the transport for aggregation *now* rather than
-                // at flush time as it greatly simplifies our lives.  We could remember
-                // items 
-                ITransport t = FindTransport(mdr, cdr);
 
                 if (msg.MessageType == MessageType.System)
                 {
@@ -724,8 +660,8 @@ namespace GT.Net
                     return;
                 } else if (aggr == MessageAggregation.FlushAll)
                 {
-                    //Make sure ALL messages on the CLIENT are sent, then send <c>msg</c>.
-                    FlushAllMessages(msg, mdr);
+                    //Make sure ALL messages are sent, then send <c>msg</c>.
+                    FlushAllMessages(msg, mdr, cdr);
                     return;
                 }
 
@@ -737,14 +673,14 @@ namespace GT.Net
             }
         }
 
-        protected ITransport FindTransport(MessageDeliveryRequirements mdr, ChannelDeliveryRequirements cdr)
+        /// <summary>Send a message using these parameters.</summary>
+        /// <param name="msgs">The messages to send.</param>
+        /// <param name="mdr">Particular instructions for this message.</param>
+        /// <param name="cdr">Requirements for the message's channel.</param>
+        override public void Send(IList<Message> msgs, MessageDeliveryRequirements mdr,
+            ChannelDeliveryRequirements cdr)
         {
-            ITransport t = owner.Configuration.SelectTransport(transports, mdr, cdr);
-            if (t == null)
-            {
-                throw new NoMatchingTransport("Cannot find matching transport!");
-            }
-            return t;
+            foreach (Message m in msgs) { Send(m, mdr, cdr); }
         }
 
         internal void FlushChannelMessages(byte id, ChannelDeliveryRequirements cdr)
@@ -801,11 +737,12 @@ namespace GT.Net
         }
 
         /// <summary>Flushes all messages and then <c>msg</c>; <c>msg</c> may be null.</summary>
-        internal void FlushAllMessages(Message msg, MessageDeliveryRequirements mdr)
+        internal void FlushAllMessages(Message msg, MessageDeliveryRequirements mdr, 
+            ChannelDeliveryRequirements cdr)
         {
             if (messagePools.Count == 0)
             {
-                SendMessage(FindTransport(mdr, GetChannelDeliveryOptions(msg)), msg);
+                SendMessage(FindTransport(mdr, cdr), msg);
                 return;
             }
 
@@ -828,8 +765,7 @@ namespace GT.Net
                     list = messagePools[id];
                     KeyValuePair<Message, MessageDeliveryRequirements> current = list.Dequeue();
                     // FindTransport() will throw exception if not found
-                    ITransport transport = FindTransport(current.Value, 
-                        GetChannelDeliveryOptions(current.Key));
+                    ITransport transport = FindTransport(current.Value, cdr);
                     Stream stream;
                     if (!inProgress.TryGetValue(transport, out stream))
                     {
@@ -848,52 +784,17 @@ namespace GT.Net
                 if (stream != null) { t.SendPacket(stream); }
             }
         }
-
-        protected void StreamMessage(Message message, ITransport t, ref Stream stream)
-        {
-            long previousLength = stream.Length;
-            owner.Marshaller.Marshal(message, stream, t);
-            if (stream.Length < t.MaximumPacketSize) { return; }
-
-            // resulting packet is too big: go back to previous length, send what we had, 
-            stream.SetLength(previousLength);
-            Debug.Assert(stream.Length > 0);
-            t.SendPacket(stream);
-
-            // and remarshal the last message
-            stream = t.GetPacketStream();
-            owner.Marshaller.Marshal(message, stream, t);
-        }
-
-        private ChannelDeliveryRequirements GetChannelDeliveryOptions(Message msg)
-        {
-            return owner.GetChannelDeliveryOptions(msg);
-        }
-
     
-        /// <summary>A single tick of the SuperStream.</summary>
-        internal void Update()
-        {
-            lock (this)
-            {
-                if (!Active) { return; }
-                foreach (ITransport t in transports)
-                {
-                    t.Update();
-                }
-            }
-        }
-
         /// <summary>Deal with a system message in whatever way we need to.</summary>
         /// <param name="message">The incoming message.</param>
         /// <param name="transport">The transport from which the message
 	    ///  came.</param>
-        internal void HandleSystemMessage(SystemMessage message, ITransport transport)
+        override protected void HandleSystemMessage(SystemMessage message, ITransport transport)
         {
             switch ((SystemMessageType)message.Id)
             {
             case SystemMessageType.UniqueIDRequest:
-                UniqueIdentity = BitConverter.ToInt32(message.data, 0);
+                uniqueIdentity = BitConverter.ToInt32(message.data, 0);
                 break;
 
             case SystemMessageType.PingRequest:
@@ -915,16 +816,6 @@ namespace GT.Net
         }
 
         
-        /// <summary>Ping the server to determine delay, as well as act as a keep-alive.</summary>
-        internal void Ping()
-        {
-            foreach (ITransport t in transports)
-            {
-                SendMessage(t, new SystemMessage(SystemMessageType.PingRequest,
-                    BitConverter.GetBytes(System.Environment.TickCount)));
-            }
-        }
-
         internal Message DequeueMessage()
         {
             lock (receivedMessages)
@@ -1007,22 +898,23 @@ namespace GT.Net
         private ClientConfiguration configuration;
 
         private Guid guid = Guid.NewGuid();
-        private Dictionary<byte, ObjectStream> objectStreams;
-        private Dictionary<byte, BinaryStream> binaryStreams;
-        private Dictionary<byte, StringStream> stringStreams;
-        private Dictionary<byte, SessionStream> sessionStreams;
-        private Dictionary<byte, AbstractStreamedTuple> oneTupleStreams;
-        private Dictionary<byte, AbstractStreamedTuple> twoTupleStreams;
-        private Dictionary<byte, AbstractStreamedTuple> threeTupleStreams;
+        internal Dictionary<byte, ObjectStream> objectStreams;
+        internal Dictionary<byte, BinaryStream> binaryStreams;
+        internal Dictionary<byte, StringStream> stringStreams;
+        internal Dictionary<byte, SessionStream> sessionStreams;
+        internal Dictionary<byte, AbstractStreamedTuple> oneTupleStreams;
+        internal Dictionary<byte, AbstractStreamedTuple> twoTupleStreams;
+        internal Dictionary<byte, AbstractStreamedTuple> threeTupleStreams;
 
-        private IList<ServerConnexion> connexions;
-        private ICollection<IConnector> connectors;
-        private IMarshaller marshaller;
-        private HPTimer timer;
-        private bool started = false;
+        protected IList<ServerConnexion> connexions;
+        protected ICollection<IConnector> connectors;
+        protected IMarshaller marshaller;
+        protected HPTimer timer;
+        protected long lastPingTime = 0;
+        protected bool started = false;
 
         /// <summary>Occurs when there are errors on the network.</summary>
-        public event ErrorEventHandler ErrorEvent;
+        public event ErrorEventNotication ErrorEvent;
 
         /// <summary>Creates a Client object.  
         /// <strong>deprecated:</strong> The client is started</summary>
@@ -1147,7 +1039,7 @@ namespace GT.Net
         /// </summary>
         public void Sleep()
         {
-            Sleep(configuration.TickInterval.Milliseconds);
+            Sleep((int)configuration.TickInterval.TotalMilliseconds);
         }
 
         /// <summary>
@@ -1543,16 +1435,18 @@ namespace GT.Net
                 }
             }
             ServerConnexion mySC = configuration.CreateServerConnexion(this, address, port);
-            mySC.ErrorEvent += new ErrorEventHandler(mySS_ErrorEvent);
+            mySC.ErrorEvents += mySS_ErrorEvent;
             mySC.Start();
             connexions.Add(mySC);
             return mySC;
         }
 
-        private void mySS_ErrorEvent(ServerConnexion ss, string explanation, object context)
+        private void mySS_ErrorEvent(IConnexion ss, string explanation, object context)
         {
             if (ErrorEvent != null)
+            {
                 ErrorEvent(ss, explanation, context);
+            }
         }
 
         /// <summary>One tick of the network beat.  Thread-safe.</summary>
@@ -1563,15 +1457,15 @@ namespace GT.Net
             {
                 if (!started) { Start(); }  // deprecated behaviour
                 timer.Update();
+                if (timer.TimeInMilliseconds - lastPingTime > configuration.PingInterval.TotalMilliseconds)
+                {
+                    lastPingTime = timer.TimeInMilliseconds;
+                    foreach (ServerConnexion s in connexions) { s.Ping(); }
+                }
                 foreach (ServerConnexion s in connexions)
                 {
                     try
                     {
-                        if (s.nextPingTime < timer.TimeInMilliseconds)
-                        {
-                            s.nextPingTime = timer.TimeInMilliseconds + configuration.PingInterval.TotalMilliseconds;
-                            s.Ping();
-                        }
 
                         s.Update();
                         Message m;
@@ -1689,7 +1583,7 @@ namespace GT.Net
             } 
         }
 
-        internal ChannelDeliveryRequirements GetChannelDeliveryOptions(Message m)
+        internal ChannelDeliveryRequirements GetChannelDeliveryRequirements(Message m)
         {
             switch (m.MessageType)
             {

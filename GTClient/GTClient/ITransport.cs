@@ -18,6 +18,13 @@ namespace GT.Net
         /// <param name="capabilities"></param>
         /// <returns></returns>
         ITransport Connect(string address, string port, Dictionary<string, string> capabilities);
+
+        /// <summary>
+        /// Return true if this connector was responsible for connecting the provided transport.
+        /// </summary>
+        /// <param name="transport">a (presumably, but not necessarily) disconnected) transport</param>
+        /// <returns>Returns true if this instances was responsible for connecting the provided transport.</returns>
+        bool Responsible(ITransport transport);
     }
 
 }

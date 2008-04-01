@@ -71,5 +71,11 @@ namespace GT.Net
             return new UdpClientTransport(client);
         }
 
+        public bool Responsible(ITransport transport)
+        {
+            return transport is UdpClientTransport;
+        }
+
+
     }
 }
