@@ -34,11 +34,21 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="Bag.cs" />
+    <Compile Include="BitUtils.cs" />
+    <Compile Include="GMC\CompressedStream.cs" />
+    <Compile Include="GMC\HuffmanCompressor.cs" />
+    <Compile Include="GMC\TemplateBasedCompressor.cs" />
+    <Compile Include="GMC\GeneralMessageCompressor.cs" />
+    <Compile Include="GMC\GMCMarshaller.cs" />
+    <Compile Include="GMC\HuffmanEncodingTree.cs" />
+    <Compile Include="GMC\SkipCompressor.cs" />
+    <Compile Include="GMC\SuffixTrie.cs" />
+    <Compile Include="GMC\TrieCompressor.cs" />
     <Compile Include="Net\ClientServer.cs" />
     <Compile Include="Statistics.cs" />
     <Compile Include="Exceptions.cs" />
     <Compile Include="Lifecycle.cs" />
-    <Compile Include="Net\DebugUtils.cs" />
+    <Compile Include="DebugUtils.cs" />
     <Compile Include="Net\Enums.cs" />
     <Compile Include="Net\Marshalling.cs" />
     <Compile Include="Net\Messages.cs" />

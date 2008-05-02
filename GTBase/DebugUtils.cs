@@ -2,9 +2,9 @@ using System;
 using System.IO;
 using System.Text;
 using System.Diagnostics;
-using GT.Utils;
+using GT.Net;
 
-namespace GT.Net
+namespace GT.Utils
 {
     public class DebugUtils
     {
@@ -34,18 +34,15 @@ namespace GT.Net
             case MessageType.String:
                 WriteLine("String: '" + ((StringMessage)m).Text + "'");
                 break;
+
             case MessageType.Binary:
                 WriteLine("Binary: ");
                 byte[] buffer = ((BinaryMessage)m).Bytes;
-                for (int i = 0; i < buffer.Length; i++)
+                for (int i = 0; i < buffer.Length; i += 16)
                 {
-                    Write("    ");
-                    int rem = Math.Min(16, buffer.Length - i);
-                    Write(ByteUtils.DumpBytes(buffer, i, rem));
-                    Write("   ");
-                    Write(ByteUtils.AsPrintable(buffer, i, rem));
-                    WriteLine("");
-                    i += rem;
+                    WriteLine("  {0}: {1}  {2}", i.ToString("X3"), 
+                        ByteUtils.DumpBytes(buffer, i, 16),
+                        ByteUtils.AsPrintable(buffer, i, 16));
                 }
                 break;
 
@@ -120,17 +117,18 @@ namespace GT.Net
             writer.Write(ch);
         }
 
-        public static void Write(string text)
+        public static void Write(string text, params object[] args)
         {
             if (writer == null) { return; }
-            writer.Write(text);
+            writer.Write(text, args);
         }
 
-        public static void WriteLine(string text)
+        public static void WriteLine(string text, params object[] args)
         {
             if (writer == null) { return; }
-            writer.WriteLine(text);
+            writer.WriteLine(text, args);
         }
+
     }
 
     internal class ConsoleWriter : TextWriter

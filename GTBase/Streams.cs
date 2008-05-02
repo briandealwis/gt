@@ -103,4 +103,111 @@ namespace GT.Utils
             wrapped.Write(buffer, offset, count);
         }
     }
+
+
+    /// <remarks>
+    /// A stream on an array.
+    /// </remarks>
+    public class ArrayStream<T> : Stream
+    {
+        protected T[] values;
+        protected long position = 0;
+
+        public ArrayStream(T[] arr)
+        {
+            values = arr;
+            position = 0;
+        }
+
+        public override bool CanRead
+        {
+            get { return true; }
+        }
+
+        public override bool CanSeek
+        {
+            get { return true; }
+        }
+
+        public override bool CanWrite
+        {
+            get { return true; }
+        }
+
+        public override void Flush()
+        {
+        }
+
+        public override long Length
+        {
+            get { return values.Length; }
+        }
+
+        public override long Position
+        {
+            get { return position; }
+            set
+            {
+                if (value < 0 || value > values.Length)
+                {
+                    throw new ArgumentException("position exceeds stream capacity");
+                }
+                position = value;
+            }
+        }
+
+        public T Peek()
+        {
+            return values[position];
+        }
+
+        public T Read()
+        {
+            return values[position++];
+        }
+
+        public void Write(T value)
+        {
+            values[position++] = value;
+        }
+
+        public override int Read(byte[] buffer, int offset, int count)
+        {
+            throw new NotImplementedException("cannot be used on ArrayStreams");
+        }
+
+        public override long Seek(long offset, SeekOrigin origin)
+        {
+            long newPosition = 0;
+            switch (origin)
+            {
+            case SeekOrigin.Begin:
+                newPosition = offset;
+                break;
+            case SeekOrigin.Current:
+                newPosition = Position + offset;
+                break;
+            case SeekOrigin.End:
+                newPosition = values.Length + offset;
+                break;
+            }
+            if (newPosition < 0 || newPosition >= values.Length)
+            {
+                throw new ArgumentException("position exceeds stream capacity");
+            }
+            Position = newPosition;
+            return newPosition;
+        }
+
+        public override void SetLength(long value)
+        {
+            throw new NotSupportedException("cannot resize ArrayStreams");
+        }
+
+        public override void Write(byte[] buffer, int offset, int count)
+        {
+            throw new NotImplementedException("cannot be used on ArrayStreams");
+        }
+    }
+
 }

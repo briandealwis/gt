@@ -7,6 +7,7 @@ using System.Threading;
 using System.Diagnostics;
 using GT;
 using System.Net.Sockets;
+using GT.Utils;
 
 namespace GT.Net
 {
@@ -152,6 +153,7 @@ namespace GT.Net
         private static Random random = new Random();
 
         private bool running = false;
+        private int uniqueIdentity;
 
         /// <summary>
         /// A factory-like object responsible for providing the server's runtime
@@ -178,7 +180,7 @@ namespace GT.Net
 
         public IMarshaller Marshaller { get { return marshaller; } }
         public ServerConfiguration Configuration { get { return configuration; } }
-
+        public int UniqueIdentity { get { return uniqueIdentity; } }
 
         #endregion
 
@@ -236,6 +238,7 @@ namespace GT.Net
         public Server(ServerConfiguration sc)
         {
             configuration = sc;
+            uniqueIdentity = GenerateUniqueIdentity();
         }
 
 
@@ -522,8 +525,8 @@ namespace GT.Net
             {
                 clientId = (timeStamp.Hour * 100 + timeStamp.Minute) * 100 + timeStamp.Second;
                 clientId = clientId * 1000 + random.Next(0, 1000);
-
-            } while (clientIDs.ContainsKey(clientId));
+                // keep going until we create something never previously seen
+            } while (clientId == uniqueIdentity || clientIDs.ContainsKey(clientId));
             return clientId;
         }
 
@@ -658,6 +661,14 @@ namespace GT.Net
         public Guid ClientIdentity
         {
             get { return clientId; }
+        }
+
+        /// <summary>
+        /// The server has a unique identity for itself.
+        /// </summary>
+        public override int MyUniqueIdentity
+        {
+            get { return server.UniqueIdentity; }
         }
 
         public override IMarshaller Marshaller

@@ -99,16 +99,30 @@ namespace GT.Utils
     public class ByteUtils
     {
         #region Debugging Utilities
+
+        public static string DumpBytes(byte[] buffer)
+        {
+            return DumpBytes(buffer, 0, buffer.Length);
+        }
+
         public static string DumpBytes(byte[] buffer, int offset, int count)
         {
             StringBuilder sb = new StringBuilder();
             for (int j = 0; j < count; j++)
             {
-                if ((int)buffer[offset + j] < 10) { sb.Append('0'); }
-                sb.Append(Convert.ToString((int)buffer[offset + j], 16));
+                if (offset + j < buffer.Length)
+                {
+                    sb.Append(((int)buffer[offset + j]).ToString("X2"));
+                }
+                else { sb.Append("  "); }
                 if (j != count - 1) { sb.Append(' '); }
             }
             return sb.ToString();
+        }
+
+        public static string AsPrintable(byte[] buffer)
+        {
+            return AsPrintable(buffer, 0, buffer.Length);
         }
 
         public static string AsPrintable(byte[] buffer, int offset, int count)
@@ -116,17 +130,72 @@ namespace GT.Utils
             StringBuilder sb = new StringBuilder();
             for (int j = 0; j < count; j++)
             {
-                char ch = (char)buffer[offset + j];
-                if (Char.IsLetterOrDigit(ch) || Char.IsPunctuation(ch) || Char.IsSeparator(ch) ||
-                    Char.IsSymbol(ch))
+                if (offset + j < buffer.Length)
                 {
-                    sb.Append(ch);
+                    char ch = (char)buffer[offset + j];
+                    if (Char.IsLetterOrDigit(ch) || Char.IsPunctuation(ch) || Char.IsSeparator(ch) ||
+                        Char.IsSymbol(ch))
+                    {
+                        sb.Append(ch);
+                    }
+                    else { sb.Append('.'); }
                 }
-                else { sb.Append('.'); }
+                else { sb.Append(' '); }
             }
             return sb.ToString();
         }
+
+        public static void ShowDiffs(string prefix, byte[] first, byte[] second)
+        {
+            if (first.Length != second.Length)
+            {
+                Console.WriteLine(prefix + ": Messages lengths differ! ({0} vs {1})", first.Length, second.Length);
+            }
+            List<int> positions = new List<int>();
+            for (int i = 0; i < Math.Min(first.Length, second.Length); i++)
+            {
+                if (first[i] != second[i])
+                {
+                    positions.Add(i);
+                }
+            }
+            if (positions.Count == 0) { return; }
+            Console.Write(prefix + ": Messages differ @ ");
+            for (int i = 0; i < positions.Count; i++)
+            {
+                int start = positions[i];
+                int end = positions[i];
+                // skip over sequences
+                while (i + 1 < positions.Count && positions[i] + 1 == positions[i + 1]) { end = positions[i++]; }
+                if (start != end) { Console.Write("{0}-{1} ", start, end); }
+                else { Console.Write("{0} ", start); }
+            }
+            Console.WriteLine();
+            Console.WriteLine(" First array ({0} bytes):", first.Length);
+            HexDump(first);
+            Console.WriteLine(" Second array ({0} bytes)", second.Length);
+            HexDump(second);
+        }
+
+        public static void HexDump(byte[] bytes)
+        {
+            for (int i = 0; i < bytes.Length; i += 16)
+            {
+                Console.WriteLine("{0}/{1}: {2}  {3}",
+                    i.ToString("D4"),   // decimal
+                    i.ToString("X3"),   // hexadecimal
+                    ByteUtils.DumpBytes(bytes, i, 16),
+                    ByteUtils.AsPrintable(bytes, i, 16));
+            }
+        }
+
         #endregion
+
+        public static bool Compare(byte[] b1, byte[] b2)
+        {
+            if (b1.Length != b2.Length) { return false; }
+            return Compare(b1, 0, b2, 0, b1.Length);
+        }
 
         public static bool Compare(byte[] b1, int b1start, byte[] b2, int b2start, int count)
         {
@@ -138,6 +207,19 @@ namespace GT.Utils
                 }
             }
             return true;
+        }
+
+        public static void Write(byte[] buffer, Stream output)
+        {
+            output.Write(buffer, 0, buffer.Length);
+        }
+
+        public static byte[] Read(Stream input, int length)
+        {
+            byte[] bytes = new byte[length];
+            int rc = input.Read(bytes, 0, length);
+            if (rc != length) { Array.Resize(ref bytes, rc); }
+            return bytes;
         }
 
         #region Special Number Marshalling Operations
@@ -278,5 +360,7 @@ namespace GT.Utils
             return dict;
         }
         #endregion
+
+
     }
 }

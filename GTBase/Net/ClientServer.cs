@@ -120,7 +120,8 @@ namespace GT.Net {
         public event ErrorEventNotication ErrorEvents;
 
         /// <summary>
-        /// The server's unique identifier for this connexion; this is not globally unique
+        /// The server's unique identifier for this connexion; this identifier is only 
+        /// unique within the server's client group and is not globally unique.
         /// </summary>
         protected int uniqueIdentity;
 
@@ -129,10 +130,25 @@ namespace GT.Net {
         /// <summary>Triggered when a message is received.</summary>
         public event MessageHandler MessageReceived;
 
+        /// <summary>
+        /// Return the unique identity as represented by *this instance*.
+        /// For a client's server-connexion, this will be the server's id for
+        /// this client.  For a server's client-connexion, this will be the
+        /// server's id for the client represented by this connexion.
+        /// See <c>MyUniqueIdentity</c> for the local instance's identity.
+        /// </summary>
         public int UniqueIdentity
         {
             get { return uniqueIdentity; }
         }
+
+        /// <summary>
+        /// Return the unique identity for this instance's owner.  For clients,
+        /// this is the server's id for this client.  For servers, this is the
+        /// unique identity for this server.  This id may be different from
+        /// UniqueIdentity.
+        /// </summary>
+        public abstract int MyUniqueIdentity { get; }
 
         /// <summary>Average latency on this connexion.</summary>
         public float Delay
@@ -208,7 +224,7 @@ namespace GT.Net {
 
         public void AddTransport(ITransport t)
         {
-            DebugUtils.Write(this + ": added new transport: " + t);
+            DebugUtils.Write("{0}: added new transport: {1}", this, t);
             t.PacketReceivedEvent += new PacketReceivedHandler(HandleNewPacket);
             t.TransportErrorEvent += new TransportErrorHandler(HandleTransportError);
             transports.Add(t);
@@ -329,7 +345,7 @@ namespace GT.Net {
         {
             //pack main message into a buffer and send it right away
             Stream packet = transport.GetPacketStream();
-            Marshaller.Marshal(msg, packet, transport);
+            Marshaller.Marshal(MyUniqueIdentity, msg, packet, transport);
 
             // and be sure to catch exceptions; log and remove transport if unable to be started
             // if(!transport.Active) { transport.Start(); }
@@ -346,7 +362,7 @@ namespace GT.Net {
             {
                 Message m = messages[index];
                 int packetEnd = (int)ms.Position;
-                Marshaller.Marshal(m, ms, transport);
+                Marshaller.Marshal(MyUniqueIdentity, m, ms, transport);
                 if (ms.Position - packetStart > transport.MaximumPacketSize) // uh oh, rewind and redo
                 {
                     ms.SetLength(packetEnd);
@@ -370,17 +386,17 @@ namespace GT.Net {
         protected void StreamMessage(Message message, ITransport t, ref Stream stream)
         {
             long previousLength = stream.Length;
-            Marshaller.Marshal(message, stream, t);
+            Marshaller.Marshal(MyUniqueIdentity, message, stream, t);
             if (stream.Length < t.MaximumPacketSize) { return; }
 
-            // resulting packet is too big: go back to previous length, send what we had, 
+            // resulting packet is too big: go back to previous length, send what we ha
             stream.SetLength(previousLength);
             Debug.Assert(stream.Length > 0);
             t.SendPacket(stream);
 
             // and remarshal the last message
             stream = t.GetPacketStream();
-            Marshaller.Marshal(message, stream, t);
+            Marshaller.Marshal(MyUniqueIdentity, message, stream, t);
         }
         #endregion
 

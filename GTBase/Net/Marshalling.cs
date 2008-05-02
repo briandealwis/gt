@@ -25,10 +25,13 @@ namespace GT.Net
         /// <summary>
         /// Marshal the provided message in an appropriate form for the provided transport.
         /// </summary>
+        /// <param name="uniqueId">the unique id of the sender of this message
+        /// (i.e., the local client or server's server-unique identifier).  This
+        /// should generally be the same number across different invocations.</param>
         /// <param name="message">the message</param>
         /// <param name="output">the stream collecting the packet content</param>
         /// <param name="t">the transport on which the packet will be sent</param>
-        void Marshal(Message message, Stream output, ITransport t);
+        void Marshal(int uniqueId, Message message, Stream output, ITransport t);
 
         /// <summary>
         /// Unmarshal the message as encoded in the transport-specific form from the given
@@ -75,8 +78,9 @@ namespace GT.Net
 
         #region Marshalling
 
-        virtual public void Marshal(Message m, Stream output, ITransport t)
+        virtual public void Marshal(int uniqueId, Message m, Stream output, ITransport t)
         {
+            // This marshaller doesn't use the uniqueId.
             Debug.Assert(output.CanSeek);
 
             output.WriteByte(m.Id);

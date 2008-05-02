@@ -584,6 +584,14 @@ namespace GT.Net
             get { return port; }
         }
 
+        /// <summary>
+        /// Our unique identifier is the identifier bestowed upon us by the server.
+        /// </summary>
+        public override int MyUniqueIdentity
+        {
+            get { return UniqueIdentity; }
+        }
+
         protected override void HandleTransportError(string explanation, ITransport transport, object context)
         {
             // call the super to dispose and drop the transport from our transport list

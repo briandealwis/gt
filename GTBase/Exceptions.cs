@@ -88,5 +88,11 @@ namespace GT
         public InvalidStateException(string message, object cause) : base(message) {
             this.cause = cause;
         }
+
+        public static void Assert(bool condition, string text)
+        {
+            if (condition) { return; }
+            throw new InvalidStateException(text);
+        }
     }
 }

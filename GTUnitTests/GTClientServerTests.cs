@@ -168,9 +168,11 @@ namespace GT.UnitTests
         private void ServerBinaryMessageReceived(Message m, IConnexion client, ITransport t)
         {
             byte[] buffer = ((BinaryMessage)m).Bytes;
-            Console.WriteLine("Server: received binary '" + ByteUtils.DumpBytes(buffer, 0, buffer.Length) + "' on " + t);
+            Console.WriteLine("Server: received binary message from {0}", t);
+            ByteUtils.HexDump(buffer);
             Array.Reverse(buffer);
-            Console.WriteLine("Server: sending response: '" + ByteUtils.DumpBytes(buffer, 0, buffer.Length) + "'");
+            Console.WriteLine("Server: sending binary message in response");
+            ByteUtils.HexDump(buffer);
             List<IConnexion> clientGroup = new List<IConnexion>(1);
             clientGroup.Add(client);
             server.Send(buffer, m.Id, clientGroup,
