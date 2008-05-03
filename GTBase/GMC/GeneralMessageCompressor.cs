@@ -24,7 +24,7 @@ namespace GT.GMC
     }
 
     /// <summary>More information is required to decompress this data.</summary>
-    public class MissingInformationException : System.ApplicationException
+    public class MissingInformationException : MarshallingException
     {
         /// <summary>The information type that is missing</summary>
         public EnumExceptionType ExceptionType;
@@ -45,7 +45,7 @@ namespace GT.GMC
         public MissingInformationException(string message) : base(message) { }
 
         /// <summary>Creates a new, blank, MissingInformationException.</summary>
-        public MissingInformationException(string message, System.Exception inner)
+        public MissingInformationException(string message, Exception inner)
             : base(message, inner)
         {
         }
@@ -203,7 +203,9 @@ namespace GT.GMC
             CheckTemplates();
             CompressedMessagePackage cmp = null;
 
-            if (compressors.Count == 0)
+            // If we have no templated compressors yet, or we're unable to compress the
+            // message with any of the available templates, then install this message as a template.
+            if (compressors.Count == 0 || (cmp = FindBestEncoding(message)) == null)
             {
                 // If we have no templates, then we construct a template from this
                 // message and then encode this message with itself.
@@ -214,9 +216,6 @@ namespace GT.GMC
                 compressors[templateId].UpdatesAccepted();
                 return cmp;
             }
-
-            // Try encoding this message with all current templates and select the best
-            cmp = FindBestEncoding(message);
 
             float compression = (float)cmp.EstimatedMessageLength() / (float)message.Length;
             if (compression > targetRatio)
@@ -237,7 +236,7 @@ namespace GT.GMC
             time = System.Environment.TickCount - time;
             if (time > timeThreshold.TotalMilliseconds) {
                 DebugUtils.WriteLine("GMC: encoding took {0}ms > desired time of {1}ms", time, timeThreshold.TotalMilliseconds);
-                targetRatio = Math.Max(0.9, targetRatio + .05); 
+                targetRatio = Math.Min(0.9, targetRatio + .05); 
             }
             else if (time < timeThreshold.TotalMilliseconds) {
                 DebugUtils.WriteLine("GMC: encoding took {0}ms < desired time of {1}ms", time, timeThreshold.TotalMilliseconds);
@@ -315,13 +314,22 @@ namespace GT.GMC
             //boolean compressed = false
             for (short templateId = 0; templateId < compressors.Count; templateId++)
             {
-                if (compressors[templateId] == null) { continue; }
-                CompressedMessagePackage encoding = EncodeWith(templateId, message);
-
-                if (encoding.Message.Length <= bestSize)
+                Debug.Assert(compressors[templateId] != null, "How do we have a null compressor!?");
+                try
                 {
-                    best = encoding;
-                    bestSize = best.Message.Length;
+                    CompressedMessagePackage encoding = EncodeWith(templateId, message);
+
+                    if (encoding.Message.Length <= bestSize)
+                    {
+                        best = encoding;
+                        bestSize = best.Message.Length;
+                    }
+                }
+                catch (ShortcutsExhaustedException e)
+                {
+                    Console.WriteLine("WARNING: message exhausted all available shortcuts for template compressor #{0}", templateId);
+                    ByteUtils.HexDump(message);
+                    continue;
                 }
             }
             return best;

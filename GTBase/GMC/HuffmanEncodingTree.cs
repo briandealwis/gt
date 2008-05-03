@@ -102,7 +102,11 @@ namespace GT.GMC
         }
 
 
-        /** Decode a Huffed BitArray into a byte array*/
+        /// <summary>
+        /// Decode a Huffed BitArray into a byte array
+        /// </summary>
+        /// <param name="bt"></param>
+        /// <returns></returns>
         public byte[] DecodeBitArray(BitTuple bt)
         {
             int size = bt.Length;

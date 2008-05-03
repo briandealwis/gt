@@ -44,10 +44,9 @@ namespace GT.Net
     }
 
     public class MarshallingException : GTException {
-        public MarshallingException(string message) 
-            : base(message) 
-        {
-        }
+        public MarshallingException() : base() { }
+        public MarshallingException(string message) : base(message) {}
+        public MarshallingException(string message, Exception inner) : base(message, inner) { }
     }
 
     /// <summary>The lightweight marshaller is a provides the message payloads as raw 
