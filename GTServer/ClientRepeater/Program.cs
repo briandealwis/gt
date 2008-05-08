@@ -4,6 +4,7 @@ using System.Text;
 using System.IO;
 using System.Net.Sockets;
 using System.Threading;
+using System.Diagnostics;
 
 namespace GT.Net
 {
@@ -13,20 +14,38 @@ namespace GT.Net
         protected Server server;
         protected Thread serverThread;
         protected int sessionChangesChannel = -1;
-        protected bool verbose;
+        protected bool verbose = false;
 
         static void Main(string[] args)
         {
             int port = 9999;
-            if (args.Length > 1)
+            int optind;
+            bool verbose = false;
+
+            // poor man's getopt
+            for (optind = 0; optind < args.Length && args[optind].StartsWith("-"); optind++)
             {
-                Console.WriteLine("Use: <ClientRepeater.exe> [port]");
+                Debug.Assert(args[optind][0] == '-');
+                if (args[optind][1] == '-') { optind++; break; }
+                else if (args[optind][1] == 'v') { verbose = true; }
+                else
+                {
+                    Console.WriteLine("Invalid option: '{0}'", args[optind]);
+                    Console.WriteLine("Use: <ClientRepeater.exe> [-v] [port]");
+                    Console.WriteLine("[port] defaults to {0} if not specified", port);
+                    return;
+                }
+            }
+
+            if (args.Length - optind > 1)
+            {
+                Console.WriteLine("Use: <ClientRepeater.exe> [-v] [port]");
                 Console.WriteLine("[port] defaults to {0} if not specified", port);
                 return;
             }
-            else if (args.Length == 1)
+            else if (args.Length - optind == 1)
             {
-                port = Int32.Parse(args[0]);
+                port = Int32.Parse(args[optind]);
                 if (port <= 0)
                 {
                     Console.WriteLine("error: port must be greater than 0");
@@ -34,7 +53,11 @@ namespace GT.Net
                 }
             }
 
-            new ClientRepeater(port).Start();
+            if (verbose) { Console.WriteLine("Starting server on port {0}", port); }
+            ClientRepeater cr = new ClientRepeater(port);
+            cr.Verbose = verbose;
+            cr.StartListening();
+            if (verbose) { Console.WriteLine("Server stopped"); }
         }
 
         public ClientRepeater(int port) : this(new RepeaterConfiguration(port)) {}
@@ -62,14 +85,22 @@ namespace GT.Net
 
         public void Start()
         {
+            serverThread = new Thread(StartListening);
+            serverThread.Name = this.ToString();
+            serverThread.IsBackground = true;
+            serverThread.Start();
+        }
+
+        public void StartListening()
+        {
             server = config.BuildServer();
             server.MessageReceived += s_MessageReceived;
             server.ClientsJoined += s_ClientsJoined;
             server.ClientsRemoved += s_ClientsRemoved;
             server.ErrorEvent += s_ErrorEvent;
-            server.Start();
-            serverThread = server.StartSeparateListeningThread(config.TickInterval.Milliseconds);
+            server.StartListening();
         }
+
 
         public void Stop()
         {
@@ -164,6 +195,11 @@ namespace GT.Net
             //repeat whatever we receive to everyone else
             server.Send(m, server.Clients, new MessageDeliveryRequirements(transport.Reliability, 
                 MessageAggregation.Immediate, transport.Ordering));
+        }
+
+        public override string ToString()
+        {
+            return String.Format("{0}({1})", GetType().Name, server);
         }
 
         private string ToString<T>(ICollection<T> c)
