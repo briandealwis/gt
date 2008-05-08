@@ -98,7 +98,7 @@ namespace GT.GMC
             {
                 return TryEncode(message);
             }
-            catch (ShortcutsExhaustedException e)
+            catch (ShortcutsExhaustedException)
             {
                 // Try resetting all shortcuts once: if the shortcuts are exhausted again,
                 // then we'll need to rewrite this code to slip-stream new definitions into

@@ -73,7 +73,7 @@ namespace GT.Net
 
         override public bool Active { get { return handle != null; } }
 
-        virtual public void Dispose()
+        override public void Dispose()
         {
             try
             {

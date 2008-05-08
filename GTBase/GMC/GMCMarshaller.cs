@@ -354,7 +354,6 @@ namespace GT.GMC
         private uint[] DecodeFrequencies(Stream input)
         {
             uint[] result = new uint[256];
-            int j = 0;
             for (int i = 0; i < 256; i++)
             {
                 result[i] = (uint)input.ReadByte() << 24;

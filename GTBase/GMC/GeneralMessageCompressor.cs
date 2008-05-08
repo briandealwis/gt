@@ -100,8 +100,6 @@ namespace GT.GMC
         private bool useHuff;
         private TimeSpan timeThreshold;
 
-        private CompressedMessagePackage cmp;
-
         public GeneralMessageCompressor()
         {
             maximumTemplates = 30;
@@ -325,7 +323,7 @@ namespace GT.GMC
                         bestSize = best.Message.Length;
                     }
                 }
-                catch (ShortcutsExhaustedException e)
+                catch (ShortcutsExhaustedException)
                 {
                     Console.WriteLine("WARNING: message exhausted all available shortcuts for template compressor #{0}", templateId);
                     ByteUtils.HexDump(message);

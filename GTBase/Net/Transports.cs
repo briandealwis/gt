@@ -70,7 +70,7 @@ namespace GT.Net
 
         public abstract bool Active { get; }
 
-        public void Dispose() { /* empty implementation */ }
+        virtual public void Dispose() { /* empty implementation */ }
 
         #region Transport Characteristics
 

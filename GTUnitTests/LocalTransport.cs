@@ -88,7 +88,8 @@ namespace GT.Net.Local
         {
             LocalHalfPipe hp;
             if ((hp = LocalTransport.OpenConnection(address + ":" + port, capabilities)) == null) {
-                return null; 
+                throw new CannotConnectToRemoteException(String.Format("no local connection named '{0}:{1}'",
+                    address, port));
             }
             return new LocalTransport(hp);
         }

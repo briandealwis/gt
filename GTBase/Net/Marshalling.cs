@@ -71,7 +71,7 @@ namespace GT.Net
             }
         }
 
-        public void Dispose()
+        public virtual void Dispose()
         {
         }
 
@@ -190,7 +190,7 @@ namespace GT.Net
     {
         protected BinaryFormatter formatter = new BinaryFormatter();
 
-        public void Dispose()
+        override public void Dispose()
         {
             formatter = null;
             base.Dispose();

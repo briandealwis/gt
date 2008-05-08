@@ -221,7 +221,6 @@ namespace GT.GMC
         public byte[] Decode(CompressedMessagePackage cmp)
         {
             List<byte> missingAnnouncements = new List<byte>();
-            MemoryStream contents;
 
             if (cmp.FrequencyTable != null)
             {

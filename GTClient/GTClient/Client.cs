@@ -289,7 +289,7 @@ namespace GT.Net
 
         
         /// <summary>Send a string to the server, specifying how.</summary>
-        /// <param name="b">The string to send.</param>
+        /// <param name="s">The string to send.</param>
         /// <param name="mdr">Message delivery options</param>
         override public void Send(string s, MessageDeliveryRequirements mdr)
         {
@@ -464,10 +464,6 @@ namespace GT.Net
         private string address;
         private string port;
 
-        /// <summary>The unique identity of the client for this server.
-        /// This will be different for each server, and thus could be different for each connexion.</summary>
-        public int UniqueIdentity { get { return uniqueIdentity; } }
-
         /// <summary>Incoming messages from the server. As messages are read in from the
         /// different transports, they are added to this list.  These messages are then
         /// processed by Client.Update() to dispatch to their corresponding stream.
@@ -515,6 +511,8 @@ namespace GT.Net
         /// <summary>
         /// Start this instance.
         /// </summary>
+        /// <exception cref="CannotConnectToRemoteException">thrown if we cannot
+        /// connect to the specified server.</exception>
         virtual public void Start()
         {
             if (Active) { return; }
@@ -527,18 +525,21 @@ namespace GT.Net
             // FIXME: should this be done on demand?
             foreach (IConnector conn in owner.Connectors)
             {
-                // FIXME: and if there is an error...?
-                ITransport t = conn.Connect(Address, Port, owner.Capabilities);
-                if (t != null) { 
-                    AddTransport(t); 
+                try {
+                    ITransport t = conn.Connect(Address, Port, owner.Capabilities);
+                    AddTransport(t);
                 }
-                else
+                catch(CannotConnectToRemoteException e)
                 {
-                    Console.WriteLine("{0}: WARNING: Could not connect to {1}:{2} via {3}", 
-                        this, Address, Port, conn);
+                    Console.WriteLine("{0}: WARNING: Could not connect to {1}:{2} via {3}: {4}", 
+                        this, Address, Port, conn, e);
                 }
             }
-
+            if (transports.Count == 0)
+            {
+                throw new CannotConnectToRemoteException("could not connect to any transports");
+            }
+            // otherwise...
             active = true;
 
             // FIXME: This is bogus and should be changed.
@@ -604,13 +605,14 @@ namespace GT.Net
             {
                 // FIXME: and if there is an error...?
                 if(conn.Responsible(transport)) {
-                    ITransport t = conn.Connect(Address, Port, owner.Capabilities);
-                    if (t != null) { 
+                    try {
+                        ITransport t = conn.Connect(Address, Port, owner.Capabilities);
+                        Debug.Assert(t != null, "IConnector.Connect() shouldn't return null: " + conn);
                         Console.WriteLine("{0} [{1}] Reconnected: {2}", DateTime.Now, this, t);
                         AddTransport(t); 
-                    } else {
-                        Console.WriteLine("{0} [{1}] Could not reconnect to {2}/{3}", DateTime.Now, this,
-                            Address, Port);
+                    } catch(CannotConnectToRemoteException e) {
+                        Console.WriteLine("{0} [{1}] Could not reconnect to {2}/{3}: {4}", DateTime.Now, this,
+                            Address, Port, e);
                     }
                 }
             }
@@ -805,21 +807,9 @@ namespace GT.Net
                 uniqueIdentity = BitConverter.ToInt32(message.data, 0);
                 break;
 
-            case SystemMessageType.PingRequest:
-                SendMessage(transport, new SystemMessage(SystemMessageType.PingResponse, message.data));
-                break;
-
-            case SystemMessageType.PingResponse:
-                //record the difference; half of it is the latency between this client and the server
-                int newDelay = (System.Environment.TickCount - BitConverter.ToInt32(message.data, 0)) / 2;
-                // NB: transport.Delay set may (and probably will) scale this value
-                transport.Delay = newDelay;
-                break;
-
             default:
-                Debug.WriteLine("connexion.HandleSystemMessage(): Unknown message type: " +
-                    (SystemMessageType)message.Id);
-                break;
+                base.HandleSystemMessage(message, transport);
+                return;
             }
         }
 
@@ -1072,6 +1062,7 @@ namespace GT.Net
         /// <param name="port">The port to connect to</param>
         /// <param name="id">The channel id to use for this three-tuple (unique to three-tuples)</param>
         /// <param name="milliseconds">The interval in milliseconds</param>
+        /// <param name="cdr">The delivery requirements for this channel</param>
         /// <returns>The streaming tuple</returns>
         public IStreamedTuple<T_X, T_Y, T_Z> GetStreamedTuple<T_X, T_Y, T_Z>(string address, string port, 
             byte id, int milliseconds, ChannelDeliveryRequirements cdr)
@@ -1105,6 +1096,7 @@ namespace GT.Net
         /// <param name="connexion">The stream to use to send the tuple</param>
         /// <param name="id">The channel id to use for this three-tuple (unique to three-tuples)</param>
         /// <param name="milliseconds">The interval in milliseconds</param>
+        /// <param name="cdr">The delivery requirements for this channel</param>
         /// <returns>The streaming tuple</returns>
         public IStreamedTuple<T_X, T_Y, T_Z> GetStreamedTuple<T_X, T_Y, T_Z>(IConnexion connexion, 
             byte id, int milliseconds, ChannelDeliveryRequirements cdr)
@@ -1137,6 +1129,7 @@ namespace GT.Net
         /// <param name="port">The port to connect to</param>
         /// <param name="id">The channel id to use for this two-tuple (unique to two-tuples)</param>
         /// <param name="milliseconds">The interval in milliseconds</param>
+        /// <param name="cdr">The delivery requirements for this channel</param>
         /// <returns>The streaming tuple</returns>
         public IStreamedTuple<T_X, T_Y> GetStreamedTuple<T_X, T_Y>(string address, string port, byte id, int milliseconds,
             ChannelDeliveryRequirements cdr)
@@ -1167,6 +1160,7 @@ namespace GT.Net
         /// <param name="connexion">The stream to use to send the tuple</param>
         /// <param name="id">The channel id to use for this three-tuple (unique to three-tuples)</param>
         /// <param name="milliseconds">The interval in milliseconds</param>
+        /// <param name="cdr">The delivery requirements for this channel</param>
         /// <returns>The streaming tuple</returns>
         public IStreamedTuple<T_X, T_Y> GetStreamedTuple<T_X, T_Y>(IConnexion connexion, byte id, int milliseconds,
             ChannelDeliveryRequirements cdr)
@@ -1197,6 +1191,7 @@ namespace GT.Net
         /// <param name="port">The port to connect to</param>
         /// <param name="id">The channel id to use for this one-tuple (unique to one-tuples)</param>
         /// <param name="milliseconds">The interval in milliseconds</param>
+        /// <param name="cdr">The delivery requirements for this channel</param>
         /// <returns>The streaming tuple</returns>
         public IStreamedTuple<T_X> GetStreamedTuple<T_X>(string address, string port, byte id, int milliseconds,
             ChannelDeliveryRequirements cdr)
@@ -1225,6 +1220,7 @@ namespace GT.Net
         /// <param name="address">The address to connect to.  Changes old connexion if id already claimed.</param>
         /// <param name="port">The port to connect to.  Changes old connexion if id already claimed.</param>
         /// <param name="id">The channel id to claim or retrieve.</param>
+        /// <param name="cdr">The delivery requirements for this channel</param>
         /// <returns>The created or retrived SessionStream</returns>
         public ISessionStream GetSessionStream(string address, string port, byte id, ChannelDeliveryRequirements cdr)
         {
@@ -1247,6 +1243,7 @@ namespace GT.Net
         /// <summary>Gets a connexion for managing the session to this server.</summary>
         /// <param name="connexion">The connexion to use for the connexion.  Changes the server of id if the id is already claimed.</param>
         /// <param name="id">The channel id to claim or retrieve.</param>
+        /// <param name="cdr">The delivery requirements for this channel</param>
         /// <returns>The created or retrived SessionStream</returns>
         public ISessionStream GetSessionStream(IConnexion connexion, byte id, ChannelDeliveryRequirements cdr)
         {
@@ -1278,6 +1275,7 @@ namespace GT.Net
         /// <param name="address">The address to connect to.  Changes old connexion if id already claimed.</param>
         /// <param name="port">The port to connect to.  Changes old connexion if id already claimed.</param>
         /// <param name="id">The channel id to claim.</param>
+        /// <param name="cdr">The delivery requirements for this channel</param>
         /// <returns>The created or retrived StringStream</returns>
         public IStringStream GetStringStream(string address, string port, byte id, ChannelDeliveryRequirements cdr)
         {
@@ -1300,6 +1298,7 @@ namespace GT.Net
         /// <summary>Gets a connexion for transmitting strings.</summary>
         /// <param name="connexion">The connexion to use for the connexion.  Changes the server of id if the id is already claimed.</param>
         /// <param name="id">The channel id to claim.</param>
+        /// <param name="cdr">The delivery requirements for this channel</param>
         /// <returns>The created or retrived StringStream</returns>
         public IStringStream GetStringStream(IConnexion connexion, byte id, ChannelDeliveryRequirements cdr)
         {
@@ -1331,6 +1330,7 @@ namespace GT.Net
         /// <param name="address">The address to connect to.  Changes old connexion if id already claimed.</param>
         /// <param name="port">The port to connect to.  Changes old connexion if id already claimed.</param>
         /// <param name="id">The channel id to claim for this ObjectStream, unique for all ObjectStreams.</param>
+        /// <param name="cdr">The delivery requirements for this channel</param>
         /// <returns>The created or retrived ObjectStream</returns>
         public IObjectStream GetObjectStream(string address, string port, byte id, ChannelDeliveryRequirements cdr)
         {
@@ -1351,6 +1351,7 @@ namespace GT.Net
         /// <summary>Gets a connexion for transmitting objects.</summary>
         /// <param name="connexion">The connexion to use for the connexion.  Changes the server of id if the id is already claimed.</param>
         /// <param name="id">The channel id to claim for this ObjectStream, unique for all ObjectStreams.</param>
+        /// <param name="cdr">The delivery requirements for this channel</param>
         /// <returns>The created or retrived ObjectStream</returns>
         public IObjectStream GetObjectStream(IConnexion connexion, byte id, ChannelDeliveryRequirements cdr)
         {
@@ -1380,6 +1381,7 @@ namespace GT.Net
         /// <param name="address">The address to connect to.  Changes old connexion if id already claimed.</param>
         /// <param name="port">The port to connect to.  Changes old connexion if id already claimed.</param>
         /// <param name="id">The channel id to claim for this BinaryStream, unique for all BinaryStreams.</param>
+        /// <param name="cdr">The delivery requirements for this channel</param>
         /// <returns>The created or retrived BinaryStream.</returns>
         public IBinaryStream GetBinaryStream(string address, string port, byte id, ChannelDeliveryRequirements cdr)
         {
@@ -1401,6 +1403,7 @@ namespace GT.Net
         /// <summary>Gets a connexion for transmitting byte arrays.</summary>
         /// <param name="connexion">The connexion to use for the connexion.  Changes the server of id if the id is already claimed.</param>
         /// <param name="id">The channel id to claim for this BinaryStream, unique for all BinaryStreams.</param>
+        /// <param name="cdr">The delivery requirements for this channel</param>
         /// <returns>The created or retrived BinaryStream.</returns>
         public IBinaryStream GetBinaryStream(IConnexion connexion, byte id, ChannelDeliveryRequirements cdr)
         {
@@ -1433,6 +1436,8 @@ namespace GT.Net
         /// <param name="address">The address to connect to.</param>
         /// <param name="port">The port to connect to.</param>
         /// <returns>The created or retrieved connexion itself.</returns>
+        /// <exception cref="CannotConnectToRemoteException">thrown if the
+        ///     remote could not be contacted.</exception>
         protected ServerConnexion GetConnexion(string address, string port)
         {
             foreach (ServerConnexion s in connexions)
@@ -1498,7 +1503,7 @@ namespace GT.Net
                                     break;
                                 }
                             }
-                            catch (KeyNotFoundException e)
+                            catch (KeyNotFoundException)
                             {
                                 // THIS IS NOT AN ERROR!
                                 Console.WriteLine("Client: WARNING: received message for unmonitored channel: {0}",

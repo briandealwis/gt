@@ -270,7 +270,7 @@ namespace GT.Net
             {
                 ChannelDeliveryRequirements cdr = new ChannelDeliveryRequirements();
                 cdr.Reliability = Reliability.Reliable;
-                cdr.Ordering = Ordering.Unordered;
+                cdr.Ordering = Ordering.Unordered;  // ?
                 cdr.Aggregation = MessageAggregation.FlushAll;
                 return cdr;
             }
@@ -283,7 +283,7 @@ namespace GT.Net
                 ChannelDeliveryRequirements cdr = new ChannelDeliveryRequirements();
                 cdr.Reliability = Reliability.Reliable;
                 cdr.Ordering = Ordering.Ordered;
-                cdr.Aggregation = MessageAggregation.FlushChannel;
+                cdr.Aggregation = MessageAggregation.Aggregatable;
                 return cdr;
             }
         }

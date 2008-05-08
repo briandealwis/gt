@@ -222,7 +222,7 @@ namespace GT.Net {
             }
         }
 
-        public void AddTransport(ITransport t)
+        public virtual void AddTransport(ITransport t)
         {
             DebugUtils.Write("{0}: added new transport: {1}", this, t);
             t.PacketReceivedEvent += new PacketReceivedHandler(HandleNewPacket);
@@ -248,7 +248,28 @@ namespace GT.Net {
         }
 
 
-        abstract protected void HandleSystemMessage(SystemMessage message, ITransport transport);
+        virtual protected void HandleSystemMessage(SystemMessage message, ITransport transport)
+        {
+            switch ((SystemMessageType)message.Id)
+            {
+            case SystemMessageType.PingRequest:
+                SendMessage(transport, new SystemMessage(SystemMessageType.PingResponse, message.data));
+                break;
+
+            case SystemMessageType.PingResponse:
+                //record the difference; half of it is the latency between this client and the server
+                int newDelay = (System.Environment.TickCount - BitConverter.ToInt32(message.data, 0)) / 2;
+                // NB: transport.Delay set may (and probably will) scale this value
+                transport.Delay = newDelay;
+                break;
+
+            default:
+                Debug.WriteLine("connexion.HandleSystemMessage(): Unknown message type: " +
+                    (SystemMessageType)message.Id);
+                break;
+            }
+        }
+
 
         virtual protected void HandleNewPacket(byte[] buffer, int offset, int count, ITransport transport)
         {

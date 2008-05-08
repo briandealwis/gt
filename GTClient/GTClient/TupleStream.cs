@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using System.Text;
-using GT.Net;
 using System.IO;
 using GT.Net;
 
@@ -112,9 +111,10 @@ namespace GT.Net
         /// <param name="connexion">The stream to send the tuples on</param>
         /// <param name="id">the stream id</param>
         /// <param name="milliseconds">Send the tuple only once during this interval</param>
-        internal StreamedTuple(ServerConnexion connection, byte id,
+        /// <param name="cdr">The delivery requirements for this channel</param>
+        internal StreamedTuple(ServerConnexion connexion, byte id,
             int milliseconds, ChannelDeliveryRequirements cdr)
-            : base(connection, id, milliseconds, cdr)
+            : base(connexion, id, milliseconds, cdr)
         {
         }
 
@@ -160,9 +160,10 @@ namespace GT.Net
         /// <param name="connexion">The stream to send the tuples on</param>
         /// <param name="id">the stream id</param>
         /// <param name="milliseconds">Send the tuple only once during this interval</param>
-        internal StreamedTuple(ServerConnexion connection, byte id,
+        /// <param name="cdr">The delivery requirements for this channel</param>
+        internal StreamedTuple(ServerConnexion connexion, byte id,
             int milliseconds, ChannelDeliveryRequirements cdr)
-            : base(connection, id, milliseconds, cdr)
+            : base(connexion, id, milliseconds, cdr)
         {
         }
 
@@ -202,9 +203,10 @@ namespace GT.Net
         /// <param name="connexion">The stream to send the tuples on</param>
         /// <param name="id">the stream id</param>
         /// <param name="milliseconds">Send the tuple only once during this interval</param>
-        internal StreamedTuple(ServerConnexion connection, byte id,
+        /// <param name="cdr">The delivery requirements for this channel</param>
+        internal StreamedTuple(ServerConnexion connexion, byte id,
             int milliseconds, ChannelDeliveryRequirements cdr)
-            : base(connection, id, milliseconds, cdr)
+            : base(connexion, id, milliseconds, cdr)
         {
         }
 

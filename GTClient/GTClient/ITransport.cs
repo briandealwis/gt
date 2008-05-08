@@ -16,7 +16,9 @@ namespace GT.Net
         /// <param name="address"></param>
         /// <param name="port"></param>
         /// <param name="capabilities"></param>
-        /// <returns></returns>
+        /// <returns>the newly connected transport</returns>
+        /// <exception cref="CannotConnectToRemoteException">thrown if the connector
+        ///     cannot connect to the other side.</exception>
         ITransport Connect(string address, string port, Dictionary<string, string> capabilities);
 
         /// <summary>

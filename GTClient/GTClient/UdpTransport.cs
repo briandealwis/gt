@@ -23,7 +23,7 @@ namespace GT.Net
             get { return udpClient != null; }
         }
 
-        public void Dispose() {
+        override public void Dispose() {
             if (!Active) { return; }
             //kill the connexion as best we can
             lock (this)

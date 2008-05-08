@@ -711,6 +711,13 @@ namespace GT.Net
             return server.Configuration.Compare(a,b);
         }
 
+        public override void AddTransport(ITransport t)
+        {
+            base.AddTransport(t);
+            // Send their unique ID right away
+            SendMessage(t, new SystemMessage(SystemMessageType.UniqueIDRequest,
+                BitConverter.GetBytes(UniqueIdentity)));
+        }
         /// <summary>Send SessionAction.</summary>
         /// <param name="clientId">ClientConnexion who is doing the action.</param>
         /// <param name="e">Session action to send.</param>
@@ -738,24 +745,19 @@ namespace GT.Net
         /// <summary>Handles a system message in that it takes the information and does something with it.</summary>
         /// <param name="m">The message received.</param>
         /// <param name="id">What channel it came in on.</param>
-        override protected void HandleSystemMessage(SystemMessage m, ITransport t)
+        override protected void HandleSystemMessage(SystemMessage message, ITransport transport)
         {
-            switch ((SystemMessageType)m.Id)
+            switch ((SystemMessageType)message.Id)
             {
             case SystemMessageType.UniqueIDRequest:
-                //they want to know their own id
-                SendMessage(t, new SystemMessage(SystemMessageType.UniqueIDRequest,
+                //they want to know their own id?  They should have received it already...
+                // (see above in AddTransport())
+                SendMessage(transport, new SystemMessage(SystemMessageType.UniqueIDRequest,
                     BitConverter.GetBytes(UniqueIdentity)));
                 break;
 
-            case SystemMessageType.PingResponse:
-                //record the difference; half of it is the latency between this client and the server
-                int newDelay = (System.Environment.TickCount - BitConverter.ToInt32(m.data, 0)) / 2;
-                t.Delay = newDelay;
-                break;
-
-            case SystemMessageType.PingRequest:
-                SendMessage(t, new SystemMessage(SystemMessageType.PingResponse, m.data));
+            default:
+                base.HandleSystemMessage(message, transport);
                 break;
             }
         }
