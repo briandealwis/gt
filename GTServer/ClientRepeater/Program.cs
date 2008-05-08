@@ -13,7 +13,7 @@ namespace GT.Net
         protected ServerConfiguration config;
         protected Server server;
         protected Thread serverThread;
-        protected int sessionChangesChannel = -1;
+        protected int sessionChangesChannel = 0;
         protected bool verbose = false;
 
         static void Main(string[] args)
