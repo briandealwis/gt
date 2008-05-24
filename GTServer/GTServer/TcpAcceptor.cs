@@ -173,8 +173,8 @@ namespace GT.Net
                     int rc = connection.Client.Receive(data, offset, data.Length - offset,
                         SocketFlags.None, out sockError);
                     if (sockError == SocketError.WouldBlock) { return; }
-                    if (rc == 0) { throw new CannotConnectToRemoteException("unexpected EOF"); }
-                    if (sockError != SocketError.Success) { throw new CannotConnectToRemoteException(sockError.ToString()); }
+                    if (rc == 0) { throw new CannotConnectException("unexpected EOF"); }
+                    if (sockError != SocketError.Success) { throw new CannotConnectException(sockError.ToString()); }
                     offset += rc;
                 }
 
@@ -183,7 +183,7 @@ namespace GT.Net
                 case NIPState.TransportProtocol:
                     if (!ByteUtils.Compare(data, 0, acceptor.ProtocolDescriptor, 0, 4))
                     {
-                        throw new CannotConnectToRemoteException("Unknown protocol version: "
+                        throw new CannotConnectException("Unknown protocol version: "
                         + ByteUtils.DumpBytes(data, 0, 4) + " ["
                         + ByteUtils.AsPrintable(data, 0, 4) + "]");
                     }

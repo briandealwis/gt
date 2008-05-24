@@ -284,13 +284,7 @@ namespace GT.Net
             if (!Active) { Start(); }
 
             newlyAddedClients.Clear();
-            foreach (IAcceptor acc in acceptors)
-            {
-                if (acc.Active) {
-                    DebugUtils.WriteLine("Server.Update(): checking acceptor " + acc);
-                    acc.Update();
-                }
-            }
+            UpdateAcceptors();
             if (newlyAddedClients.Count > 0 && ClientsJoined != null)
             {
                 ClientsJoined(BaseConnexion.Downcast<IConnexion,ClientConnexion>(newlyAddedClients));
@@ -328,6 +322,35 @@ namespace GT.Net
             }
 
             DebugUtils.WriteLine("<<<< Server.Update() finished");
+        }
+
+        private void UpdateAcceptors()
+        {
+            List<IAcceptor> toRemove = new List<IAcceptor>();
+            foreach (IAcceptor acc in acceptors)
+            {
+                if (!acc.Active) { toRemove.Add(acc); continue; }
+                DebugUtils.WriteLine("Server.Update(): checking acceptor " + acc);
+                try { acc.Update(); }
+                catch (FatalTransportError e)
+                {
+                    Console.WriteLine("{0} {1} Error updating acceptor {2}: {3}",
+                        DateTime.Now, this, acc, e);
+                    toRemove.Add(acc);
+                }
+            }
+            if (toRemove.Count == 0) { return; }
+            DebugUtils.WriteLine("Trying to restart error-raising acceptors");
+            foreach (IAcceptor acc in toRemove)
+            {
+                try { acc.Stop(); acc.Start(); }
+                catch (Exception e)
+                {
+                    Console.WriteLine("{0} {1} ERROR: could not restart acceptor {1}",
+                        DateTime.Now, this, acc);
+                    acceptors.Remove(acc);
+                }
+            }
         }
 
         private List<T> FindAll<T>(ICollection<T> list, Predicate<T> pred)
@@ -718,6 +741,7 @@ namespace GT.Net
             SendMessage(t, new SystemMessage(SystemMessageType.UniqueIDRequest,
                 BitConverter.GetBytes(UniqueIdentity)));
         }
+
         /// <summary>Send SessionAction.</summary>
         /// <param name="clientId">ClientConnexion who is doing the action.</param>
         /// <param name="e">Session action to send.</param>

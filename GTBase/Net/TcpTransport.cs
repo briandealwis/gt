@@ -137,13 +137,13 @@ namespace GT.Net
             {
                 if (outgoingInProgress == null)
                 {
-                    DebugUtils.WriteLine(this + ": Flush: " + outstanding.Peek().Length + " bytes");
+                    //DebugUtils.WriteLine(this + ": Flush: " + outstanding.Peek().Length + " bytes");
                     outgoingInProgress = new PacketInProgress(outstanding.Peek());
                 }
                 int bytesSent = handle.Client.Send(outgoingInProgress.data, outgoingInProgress.position,
                     outgoingInProgress.bytesRemaining, SocketFlags.None, out error);
-                DebugUtils.WriteLine(Name + ": position=" + outgoingInProgress.position + " bR=" + 
-                  outgoingInProgress.bytesRemaining + ": sent " + bytesSent);
+                //DebugUtils.WriteLine("{0}: position={1} bR={2}: sent {3}", Name, 
+                //    outgoingInProgress.position, outgoingInProgress.bytesRemaining, bytesSent);
 
                 switch (error)
                 {
@@ -157,15 +157,12 @@ namespace GT.Net
                     break;
                 case SocketError.WouldBlock:
                     //don't die, but try again next time
-                    // NotifyError(null, error, this, "The TCP write buffer is full now, but the data will be saved and " +
-                    //        "sent soon.  Send less data to reduce perceived latency.");
+                    // FIXME: Some how push back to indicate that flow has been choked off
                     return;
                 default:
                     //die, because something terrible happened
-                    //dead = true;
-                    NotifyError("Failed to Send TCP Message (" + outgoingInProgress.Length + " bytes): " 
-                        + outgoingInProgress.data.ToString(), error);
-                    return;
+                    throw new FatalTransportError(this, String.Format("Error sending TCP Message ({0} bytes): {1}",
+                        outgoingInProgress.Length, error), error);
                 }
             }
         }
@@ -210,14 +207,11 @@ namespace GT.Net
 
                     default:
                         //dead = true;
-                        DebugUtils.WriteLine(this + ": CheckIncomingPacket(): ERROR reading from socket: " + error);
-                        NotifyError("Error reading TCP data", error);
-                        return;
+                        throw new FatalTransportError(this, String.Format("Error reading from socket: {0}", error), error);
                     }
                     if (bytesReceived == 0)
                     {
-                        NotifyError("Received EOF", "EOF");
-                        return;
+                        throw new TransportDecomissionedException(this);
                     }
 
                     incomingInProgress.Advance(bytesReceived);
@@ -240,10 +234,7 @@ namespace GT.Net
             catch (SocketException e)
             {   // FIXME: can this clause even happen?
                 //dead = true;
-                Console.WriteLine("{0}: CheckIncomingPacket(): SocketException reading from socket: {1}", this, e);
-                //if (ErrorEvent != null)
-                //    ErrorEvent(e, SocketError.NoRecovery, this, "Updating from TCP connection failed because of a socket exception.");
-                NotifyError("Exception reading TCP data", e);
+                throw new FatalTransportError(this, String.Format("Error reading from socket: {0}", e.SocketErrorCode), e);
             }
         }
 

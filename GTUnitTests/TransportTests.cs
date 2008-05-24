@@ -25,9 +25,7 @@ namespace GT.UnitTests
             get { return true; }
         }
 
-        public event TransportErrorHandler TransportErrorEvent;
         public event PacketReceivedHandler PacketReceivedEvent;
-
 
         public float Delay
         {
@@ -148,10 +146,15 @@ namespace GT.UnitTests
         {
             byte[] received = new byte[count];
             Array.Copy(buffer, offset, received, 0, count);
-            if (buffer[offset] != serverPacketCount + serverMissedOffset)
+            if (buffer[offset] != (byte)(serverPacketCount + serverMissedOffset))
             {
-                Console.WriteLine("server: expected packet#" + (serverPacketCount + serverMissedOffset)
+                Console.WriteLine("server: ERROR: expected packet#" + (serverPacketCount + serverMissedOffset)
                     + " but received packet #" + buffer[offset]);
+            }
+            else
+            {
+                DebugUtils.WriteLine("server: received expected packet#{0}",
+                    (byte)(serverPacketCount + serverMissedOffset));
             }
             CheckPacket(received, "server");
             if (serverPacketCount % 2 == 0)
@@ -214,11 +217,16 @@ namespace GT.UnitTests
         {
             byte[] received = new byte[count];
             bool ok = true;
-            if (buffer[offset] != clientPacketCount + clientMissedOffset)
+            if (buffer[offset] != (byte)(clientPacketCount + clientMissedOffset))
             {
-                Console.WriteLine("client: expected packet#" + (clientPacketCount + clientMissedOffset)
+                Console.WriteLine("client: ERROR: expected packet#" + (clientPacketCount + clientMissedOffset)
                     + " but received packet #" + buffer[offset]);
                 ok = false;
+            }
+            else
+            {
+                DebugUtils.WriteLine("client: received expected packet#{0}",
+                    (byte)(clientPacketCount + clientMissedOffset));
             }
             Array.Copy(buffer, offset, received, 0, count);
             if (!CheckPacket(received, "client")) { ok = false; }

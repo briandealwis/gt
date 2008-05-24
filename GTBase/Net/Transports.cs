@@ -8,11 +8,13 @@ using GT.Utils;
 namespace GT.Net
 {
 
-    public delegate void TransportErrorHandler(string explanation, ITransport transport, object context);
     public delegate void PacketReceivedHandler(byte[] buffer, int offset, int count, ITransport transport);
 
     /// <remarks>
     /// Represents a connection to either a server or a client.
+    /// Errors should be notified by throwing an instanceof FatalTransportError.
+    /// Should the transport have been cleanly shutdown by the remote side, then
+    /// throw a TransportDecomissionedException.
     /// </remarks>
     public interface ITransport : ITransportDeliveryCharacteristics, IDisposable
     {
@@ -28,7 +30,6 @@ namespace GT.Net
         bool Active { get; }
 
         event PacketReceivedHandler PacketReceivedEvent;
-        event TransportErrorHandler TransportErrorEvent;
 
         /// <summary>
         /// A set of tags describing the capabilities of the transport and of expectations/capabilities
@@ -42,6 +43,8 @@ namespace GT.Net
         /// <param name="packet">the packet of message(s) to send</param>
         /// <param name="offset">the offset into the packet to send</param>
         /// <param name="length">the number of bytes within the packet to send</param>
+        /// <exception cref="FatalTransportError">thrown on a fatal transport error.</exception>
+        /// <exception cref="TransportDecomissionedException">thrown should the transport be decommissioned.</exception>
         void SendPacket(byte[] packet, int offset, int count);
 
         /// <summary>
@@ -49,6 +52,8 @@ namespace GT.Net
         /// position</b> to the end of the stream.  <b>It is not sent from position 0.</b></b>
         /// </summary>
         /// <param name="stream">the stream encoding the packet</param>
+        /// <exception cref="FatalTransportError">thrown on a fatal transport error.</exception>
+        /// <exception cref="TransportDecomissionedException">thrown should the transport be decommissioned.</exception>
         void SendPacket(Stream stream);
 
         /// <summary>
@@ -56,6 +61,8 @@ namespace GT.Net
         /// </summary>
         Stream GetPacketStream();
 
+        /// <exception cref="FatalTransportError">thrown on a fatal transport error.</exception>
+        /// <exception cref="TransportDecomissionedException">thrown should the transport be decommissioned.</exception>
         void Update();
 
         int MaximumPacketSize { get; }
@@ -64,7 +71,6 @@ namespace GT.Net
     public abstract class BaseTransport : ITransport
     {
         private Dictionary<string, string> capabilities = new Dictionary<string, string>();
-        public event TransportErrorHandler TransportErrorEvent;
         public event PacketReceivedHandler PacketReceivedEvent;
         public abstract string Name { get; }
 
@@ -126,18 +132,5 @@ namespace GT.Net
             }
             PacketReceivedEvent(buffer, offset, count, this);
         }
-
-        protected void NotifyError(string explanation, object context)
-        {
-            //FIXME: server.NotifyError(this, e, se, explanation);
-            Console.WriteLine("{0} {1}: Error Occurred: {2}",
-                DateTime.Now, this, explanation);
-            if (context != null) { Console.WriteLine("  context={0}", context); }
-            if (TransportErrorEvent != null)
-            {
-                TransportErrorEvent(explanation, this, context);
-            }
-        }
     }
-
 }

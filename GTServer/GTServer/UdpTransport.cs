@@ -52,26 +52,31 @@ namespace GT.Net
 
         protected override void FlushOutstandingPackets()
         {
-            SocketError error = SocketError.Success;
             while (outstanding.Count > 0)
             {
                 byte[] b = outstanding.Peek();
-                handle.Send(b, 0, b.Length, out error);
-
-                switch (error)
+                try
                 {
-                case SocketError.Success:
+                    handle.Send(b, 0, b.Length);
                     outstanding.Dequeue();
-                    break;
-                case SocketError.WouldBlock:
-                    //don't die, but try again next time
-                    // NotifyError(null, error, this, "The UDP write buffer is full now, but the data will be saved and " +
-                    ///    "sent soon.  Send less data to reduce perceived latency.");
-                    return;
-                default:
-                    //something terrible happened, but this is only UDP, so stick around.
-                    NotifyError("Failed to Send UDP Message", error);
-                    return;
+                }
+                catch (SocketException e)
+                {
+                    switch (e.SocketErrorCode)
+                    {
+                    case SocketError.Success:   // this can't happen, right?
+                        outstanding.Dequeue();
+                        break;
+                    case SocketError.WouldBlock:
+                        //don't die, but try again next time; not clear if this does (can) happen with UDP
+                        // NotifyError(null, error, this, "The UDP write buffer is full now, but the data will be saved and " +
+                        ///    "sent soon.  Send less data to reduce perceived latency.");
+                        return;
+                    default:
+                        //something terrible happened, but this is only UDP, so stick around.
+                        throw new FatalTransportError(this, String.Format("Error sending UDP message ({0} bytes): {1}",
+                            b.Length, e), e);
+                    }
                 }
             }
         }
@@ -92,7 +97,8 @@ namespace GT.Net
             {
                 if (e.SocketErrorCode != SocketError.WouldBlock)
                 {
-                    NotifyError("Error while reading UDP data", e);
+                    throw new FatalTransportError(this, String.Format("Error reading UDP message: {0}", 
+                        e.SocketErrorCode), e);
                 }
             }
         }
@@ -121,7 +127,7 @@ namespace GT.Net
         public override void Start()
         {
             if (Active) { return; }
-            udpMultiplexer = new UdpMultiplexer(address, port);
+            if (udpMultiplexer == null) { udpMultiplexer = new UdpMultiplexer(address, port); }
             udpMultiplexer.SetDefaultMessageHandler(new NetPacketReceivedHandler(PreviouslyUnseenUdpEndpoint));
             udpMultiplexer.Start();
         }
@@ -146,7 +152,14 @@ namespace GT.Net
 
         public override void Update()
         {
-            udpMultiplexer.Update();
+            try
+            {
+                udpMultiplexer.Update();
+            }
+            catch (SocketException e)
+            {
+                throw new FatalTransportError(this, "UDP multiplexor is throwing a fit", e);
+            }
         }
 
         public byte[] ProtocolDescriptor

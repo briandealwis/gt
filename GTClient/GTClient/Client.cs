@@ -529,7 +529,7 @@ namespace GT.Net
                     ITransport t = conn.Connect(Address, Port, owner.Capabilities);
                     AddTransport(t);
                 }
-                catch(CannotConnectToRemoteException e)
+                catch(CannotConnectException e)
                 {
                     Console.WriteLine("{0}: WARNING: Could not connect to {1}:{2} via {3}: {4}", 
                         this, Address, Port, conn, e);
@@ -537,7 +537,7 @@ namespace GT.Net
             }
             if (transports.Count == 0)
             {
-                throw new CannotConnectToRemoteException("could not connect to any transports");
+                throw new CannotConnectException("could not connect to any transports");
             }
             // otherwise...
             active = true;
@@ -593,14 +593,18 @@ namespace GT.Net
             get { return UniqueIdentity; }
         }
 
-        protected override void HandleTransportError(string explanation, ITransport transport, object context)
+        protected override ITransport HandleTransportDisconnect(ITransport transport)
         {
+            ITransport replacement;
             // call the super to dispose and drop the transport from our transport list
-            base.HandleTransportError(explanation, transport, context); 
-            if (owner == null) { return; }
+            if ((replacement = base.HandleTransportDisconnect(transport)) != null)
+            {
+                return replacement;
+            }
 
             // find the connector responsible for having connected this transport and
             // try to reconnect.
+            if (owner == null) { return null; }
             foreach (IConnector conn in owner.Connectors)
             {
                 // FIXME: and if there is an error...?
@@ -609,14 +613,19 @@ namespace GT.Net
                         ITransport t = conn.Connect(Address, Port, owner.Capabilities);
                         Debug.Assert(t != null, "IConnector.Connect() shouldn't return null: " + conn);
                         Console.WriteLine("{0} [{1}] Reconnected: {2}", DateTime.Now, this, t);
-                        AddTransport(t); 
-                    } catch(CannotConnectToRemoteException e) {
+                        AddTransport(t);
+                        return t;
+                    } catch(CannotConnectException e) {
                         Console.WriteLine("{0} [{1}] Could not reconnect to {2}/{3}: {4}", DateTime.Now, this,
                             Address, Port, e);
                     }
                 }
             }
+            Console.WriteLine("{0} [{1}] Unable to reconnect to {2}/{3}: no connectors found", 
+                DateTime.Now, this, Address, Port);
+            return null;
         }
+
         protected void HandleIncomingMessage(Message m, IConnexion client, ITransport transport)
         {
             // Hmm, this lock may not be necessary -- the Dequeueing of messages should
@@ -742,7 +751,7 @@ namespace GT.Net
             foreach (ITransport t in inProgress.Keys)
             {
                 Stream stream = inProgress[t];
-                if (stream != null) { t.SendPacket(stream); }
+                if (stream != null) { SendPacket(t, stream); }
             }
         }
 
@@ -791,7 +800,7 @@ namespace GT.Net
             foreach (ITransport t in inProgress.Keys)
             {
                 Stream stream = inProgress[t];
-                if (stream != null) { t.SendPacket(stream); }
+                if (stream != null) { SendPacket(t, stream); }
             }
         }
     
@@ -1479,7 +1488,6 @@ namespace GT.Net
                 {
                     try
                     {
-
                         s.Update();
                         Message m;
                         while ((m = s.DequeueMessage()) != null)

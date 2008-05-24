@@ -30,7 +30,7 @@ namespace GT.Net
             IPEndPoint endPoint = null;
 
             //try to connect to the address
-            CannotConnectToRemoteException error = null;
+            CannotConnectException error = null;
             for (int i = 0; i < addr.Length; i++)
             {
                 try
@@ -47,7 +47,7 @@ namespace GT.Net
                 }
                 catch (Exception e)
                 {
-                    error = new CannotConnectToRemoteException(e);
+                    error = new CannotConnectException(e);
                 }
             }
 

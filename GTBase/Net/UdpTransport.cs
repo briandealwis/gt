@@ -47,6 +47,7 @@ namespace GT.Net
             DebugUtils.DumpMessage(this + "SendPacket", buffer);
             if (offset != 0 || length != buffer.Length)
             {
+                // FIXME: should encode an object rather than copying
                 byte[] newBuffer = new byte[length];
                 Array.Copy(buffer, offset, newBuffer, 0, length);
                 buffer = newBuffer;

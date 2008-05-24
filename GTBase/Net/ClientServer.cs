@@ -198,7 +198,9 @@ namespace GT.Net {
         /// <summary>Ping the other side to determine delay, as well as act as a keep-alive.</summary>
         public void Ping()
         {
-            foreach (ITransport t in transports)
+            // need to create new list as the ping may lead to a send error,
+            // resulting in the transport being removed from underneath us.
+            foreach (ITransport t in new List<ITransport>(transports))
             {
                 SendMessage(t, new SystemMessage(SystemMessageType.PingRequest,
                     BitConverter.GetBytes(System.Environment.TickCount)));
@@ -211,13 +213,30 @@ namespace GT.Net {
             lock (this)
             {
                 if (!Active) { return; }
+                List<ITransport> toRemove = new List<ITransport>();
                 foreach (ITransport t in transports)
                 {
+                    // Note: we only catch our GT transport exceptions and leave all others
+                    // to be percolated upward -- we should avoid swallowing exceptions
                     try { t.Update(); }
-                    catch (Exception e)
+                    catch (TransportDecomissionedException e)
                     {
-                        NotifyError("Exception in updating transport", t, e);
+                        // This is a gentle notification that something was closed
+                        DebugUtils.WriteLine("Transport closed: {0}", t);
+                        toRemove.Add(t);
                     }
+                    catch (FatalTransportError e)
+                    {
+                        // FIXME: Log the error
+                        Console.WriteLine("{0} {1} WARNING: Transport error [{2}]: {3}", 
+                            DateTime.Now, this, t, e);
+                        toRemove.Add(t);
+                        NotifyError("Transport-level error", t, e);
+                    }
+                }
+                foreach (ITransport t in toRemove)
+                {
+                    HandleTransportDisconnect(t);
                 }
             }
         }
@@ -226,25 +245,22 @@ namespace GT.Net {
         {
             DebugUtils.Write("{0}: added new transport: {1}", this, t);
             t.PacketReceivedEvent += new PacketReceivedHandler(HandleNewPacket);
-            t.TransportErrorEvent += new TransportErrorHandler(HandleTransportError);
             transports.Add(t);
             transports.Sort(this);
         }
 
         abstract public int Compare(ITransport a, ITransport b);
 
-        protected virtual void HandleTransportError(string explanation, ITransport transport, object context)
+        protected virtual ITransport HandleTransportDisconnect(ITransport transport)
         {
-            Console.WriteLine("{0} WARNING: Transport error [{1}/{2}]: {3} ({4})", DateTime.Now,
-                this, transport, explanation, context);
-            if (transport != null)
+            Debug.Assert(transport != null, "we shouldn't receive a null transport!");
+            transports.Remove(transport);
+            try { transport.Dispose(); }
+            catch (Exception e)
             {
-                transports.Remove(transport);
-                try { transport.Dispose(); }
-                catch (Exception e) {
-                    Console.WriteLine("{0} Exception when disposing of transport: {1}", DateTime.Now, e);
-                }
+                Console.WriteLine("{0} Exception occurred disposing of transport: {1}", DateTime.Now, e);
             }
+            return null;    // we don't find a replacement
         }
 
 
@@ -367,10 +383,7 @@ namespace GT.Net {
             //pack main message into a buffer and send it right away
             Stream packet = transport.GetPacketStream();
             Marshaller.Marshal(MyUniqueIdentity, msg, packet, transport);
-
-            // and be sure to catch exceptions; log and remove transport if unable to be started
-            // if(!transport.Active) { transport.Start(); }
-            transport.SendPacket(packet);
+            SendPacket(transport, packet);
         }
 
         protected void SendMessages(ITransport transport, IList<Message> messages)
@@ -398,7 +411,7 @@ namespace GT.Net {
             if (ms.Position - packetStart != 0)
             {
                 ms.Position = packetStart;
-                transport.SendPacket(ms);
+                SendPacket(transport, ms);
             }
         }
 
@@ -413,11 +426,30 @@ namespace GT.Net {
             // resulting packet is too big: go back to previous length, send what we ha
             stream.SetLength(previousLength);
             Debug.Assert(stream.Length > 0);
-            t.SendPacket(stream);
+            SendPacket(t, stream);
 
             // and remarshal the last message
             stream = t.GetPacketStream();
             Marshaller.Marshal(MyUniqueIdentity, message, stream, t);
+        }
+
+        protected void SendPacket(ITransport transport, Stream message)
+        {
+            // and be sure to catch exceptions; log and remove transport if unable to be started
+            // if(!transport.Active) { transport.Start(); }
+            while (transport != null)
+            {
+                try { transport.SendPacket(message); return; }
+                catch (FatalTransportError e)
+                {
+                    transport = HandleTransportDisconnect(transport);
+                }
+                catch (TransportDecomissionedException e)
+                {
+                    transport = HandleTransportDisconnect(transport);
+                }
+            }
+            throw new CannotConnectException("ERROR sending packet; packet dropped");
         }
         #endregion
 

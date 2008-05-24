@@ -71,14 +71,13 @@ namespace GT.Net
                             return;
                         default:
                             //something terrible happened, but this is only UDP, so stick around.
-                            NotifyError("Error sending UDP packet", error);
-                            return;
+                            throw new FatalTransportError(this, "Error sending UDP packet", error);
                     }
                 }
             }
             catch (SocketException e)
             {
-                NotifyError("Error sending UDP data", e);
+                throw new FatalTransportError(this, "Error sending UDP packet", error);
             }
         }
 
@@ -101,7 +100,7 @@ namespace GT.Net
             {
                 if (e.SocketErrorCode != SocketError.WouldBlock)
                 {
-                    NotifyError("Error reading UDP data", e);
+                    throw new FatalTransportError(this, "Error sending UDP packet", e);
                 }
             }
         }

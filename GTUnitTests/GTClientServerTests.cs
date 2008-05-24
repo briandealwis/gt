@@ -587,7 +587,7 @@ namespace GT.UnitTests
 
         internal void TriggerTransportError(ITransport transport)
         {
-            HandleTransportError("this is a test", transport, this);
+            HandleTransportDisconnect(transport);
         }
     }
 

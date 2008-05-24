@@ -60,6 +60,7 @@ namespace GT.Net
 
         public void Dispose()
         {
+            Stop();
             defaultHandler = null;
             handlers = null;
             udpClient = null;
@@ -88,56 +89,70 @@ namespace GT.Net
             return hdl;
         }
 
+        /// <summary>
+        /// Process any incoming messages from the UDP socket.
+        /// </summary>
+        /// <exception cref="SocketException">thrown if there is a socket error</exception>
         public void Update()
         {
             while (udpClient.Available > 0)
             {
                 EndPoint remote = new IPEndPoint(IPAddress.Any, 0);
-                try
+                int rc;
+                try { rc = udpClient.Client.ReceiveFrom(buffer, ref remote); }
+                catch (SocketException e)
                 {
-                    int rc = udpClient.Client.ReceiveFrom(buffer, ref remote);
-                    NetPacketReceivedHandler h;
-                    DebugUtils.WriteLine(this + ": received " + rc + " bytes from " + remote);
-                    DebugUtils.DumpMessage("UDP-Mux received", buffer, 0, rc);
-                    if (!handlers.TryGetValue(remote, out h) || h == null)
+                    if (e.SocketErrorCode == SocketError.ConnectionReset)
                     {
-                        h = defaultHandler;
-                        if (h == null)
-                        {
-                            /* FIXME: do something! */
-                            Console.WriteLine(this + ": WARNING: no handler available for " + remote);
-                            continue;
-                        }
-                        else
-                        {
-                            DebugUtils.WriteLine(this + ": no handler found; using default");
-                        }
+                        // "Windows seems to use this error code to indicate that the socket
+                        // passed to recvfrom previously sent some traffic to a local address which 
+                        // was not listening. A superficial reading of POSIX suggests that ECONNRESET 
+                        // is indeed a valid return for recvfrom()." 
+                        // <http://twistedmatrix.com/trac/ticket/2627>
+                        // FIXME: Unfortunately once this happens, the socket returns ConnectionReset 
+                        // forever more.  So on ConnectionReset we restart this demultiplexer.  Unfortunately
+                        // we don't get the remote's address so we can't actually figure out which
+                        // UdpHandle is responsible.  
+                        // Thought to implement an explicit  session-close message except that doesn't 
+                        // deal with improper shutdowns.
+                        Console.WriteLine("ECONNRESET: {0}", remote);
+                        Stop(); Start();
+                        continue;
+                    }
+                    throw e;
+                }
+                NetPacketReceivedHandler h;
+                DebugUtils.WriteLine(this + ": received " + rc + " bytes from " + remote);
+                DebugUtils.DumpMessage("UDP-Mux received", buffer, 0, rc);
+                if (!handlers.TryGetValue(remote, out h) || h == null)
+                {
+                    h = defaultHandler;
+                    if (h == null)
+                    {
+                        /* FIXME: do something! */
+                        Console.WriteLine(this + ": WARNING: no handler available for " + remote);
+                        continue;
                     }
                     else
                     {
-                        DebugUtils.WriteLine(this + ": found handler: " + h);
+                        DebugUtils.WriteLine(this + ": no handler found; using default");
                     }
-                    h.Invoke(remote, new MemoryStream(buffer, 0, rc).ToArray());
                 }
-                catch (SocketException e)
+                else
                 {
-                    if (e.SocketErrorCode != SocketError.WouldBlock) { throw e; }
+                    DebugUtils.WriteLine(this + ": found handler: " + h);
                 }
+                h.Invoke(remote, new MemoryStream(buffer, 0, rc).ToArray());
             }
         }
 
-        public int Send(byte[] buffer, int offset, int length, EndPoint remote, out SocketError error)
+        /// <summary>
+        /// Send a packet on the UDP socket.
+        /// </summary>
+        /// <exception cref="SocketException">thrown if there is a socket error</exception>
+        public int Send(byte[] buffer, int offset, int length, EndPoint remote)
         {
-            error = SocketError.Success;
-            try
-            {
-                return udpClient.Client.SendTo(buffer, offset, length, SocketFlags.None, remote);
-            }
-            catch (SocketException e)
-            {
-                error = e.SocketErrorCode;
-                return 0;
-            }
+            return udpClient.Client.SendTo(buffer, offset, length, SocketFlags.None, remote);
         }
 
     }
@@ -186,9 +201,13 @@ namespace GT.Net
             messages.Add(message);
         }
 
-        public void Send(byte[] buffer, int offset, int length, out SocketError error)
+        /// <summary>
+        /// Send a packet on the UDP socket.
+        /// </summary>
+        /// <exception cref="SocketException">thrown if there is a socket error</exception>
+        public void Send(byte[] buffer, int offset, int length)
         {
-            mux.Send(buffer, offset, length, remote, out error);
+            mux.Send(buffer, offset, length, remote);
         }
 
         public int Available { get { return messages.Count; } }
