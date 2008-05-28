@@ -48,7 +48,24 @@ namespace GT.Net
         {
             udpClient = new UdpClient(new IPEndPoint(address, port));
             udpClient.Client.Blocking = false;
-            // udp sockets don't support LingerState/SO_LINGER
+            DisableUdpConnectionResetBehaviour();
+        }
+
+        /// <summary>Hack to avoid the ConnectionReset/ECONNRESET problem described
+        /// in <a href="https://papyrus.usask.ca/trac/gt/ticket/41">bug 41</a>.</summary>
+        private void DisableUdpConnectionResetBehaviour()
+        {
+            /// Code from http://www.devnewsgroups.net/group/microsoft.public.dotnet.framework/topic47566.aspx
+            try
+            {
+                const int SIO_UDP_CONNRESET = -1744830452;
+                byte[] inValue = new byte[4];   // zeroes = false
+                udpClient.Client.IOControl(SIO_UDP_CONNRESET, inValue, null);
+                DebugUtils.WriteLine("INFO: installed SIO_UDP_CONNRESET hack for UdpMultiplexer");
+            }
+            catch (Exception e) {
+                DebugUtils.WriteLine("INFO: unable to install SIO_UDP_CONNRESET hack for UdpMultiplexer: {0}", e.Message);
+            }
         }
 
         public void Stop()
@@ -98,49 +115,24 @@ namespace GT.Net
             while (udpClient.Available > 0)
             {
                 EndPoint remote = new IPEndPoint(IPAddress.Any, 0);
-                int rc;
-                try { rc = udpClient.Client.ReceiveFrom(buffer, ref remote); }
-                catch (SocketException e)
-                {
-                    if (e.SocketErrorCode == SocketError.ConnectionReset)
-                    {
-                        // "Windows seems to use this error code to indicate that the socket
-                        // passed to recvfrom previously sent some traffic to a local address which 
-                        // was not listening. A superficial reading of POSIX suggests that ECONNRESET 
-                        // is indeed a valid return for recvfrom()." 
-                        // <http://twistedmatrix.com/trac/ticket/2627>
-                        // FIXME: Unfortunately once this happens, the socket returns ConnectionReset 
-                        // forever more.  So on ConnectionReset we restart this demultiplexer.  Unfortunately
-                        // we don't get the remote's address so we can't actually figure out which
-                        // UdpHandle is responsible.  
-                        // Thought to implement an explicit  session-close message except that doesn't 
-                        // deal with improper shutdowns.
-                        Console.WriteLine("ECONNRESET: {0}", remote);
-                        Stop(); Start();
-                        continue;
-                    }
-                    throw e;
-                }
-                NetPacketReceivedHandler h;
-                DebugUtils.WriteLine(this + ": received " + rc + " bytes from " + remote);
+                // any SocketExceptions will be caught by callers
+                int rc = udpClient.Client.ReceiveFrom(buffer, ref remote); 
+                DebugUtils.WriteLine("{0}: received {1} bytes from {2}", this, rc, remote);
                 DebugUtils.DumpMessage("UDP-Mux received", buffer, 0, rc);
+                NetPacketReceivedHandler h;
                 if (!handlers.TryGetValue(remote, out h) || h == null)
                 {
                     h = defaultHandler;
                     if (h == null)
                     {
-                        /* FIXME: do something! */
-                        Console.WriteLine(this + ": WARNING: no handler available for " + remote);
+                        Console.WriteLine("{0}: WARNING: no default handler for {1}: ignoring incoming packet", this, remote);
                         continue;
                     }
-                    else
-                    {
-                        DebugUtils.WriteLine(this + ": no handler found; using default");
-                    }
+                    DebugUtils.WriteLine("{0}: no handler found for {1}; using default handler", this, remote);
                 }
                 else
                 {
-                    DebugUtils.WriteLine(this + ": found handler: " + h);
+                    DebugUtils.WriteLine("{0}: found handler: {1}", this, h);
                 }
                 h.Invoke(remote, new MemoryStream(buffer, 0, rc).ToArray());
             }
