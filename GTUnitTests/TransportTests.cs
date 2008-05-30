@@ -285,6 +285,13 @@ namespace GT.UnitTests
             }
             Assert.AreEqual(10, serverPacketCount);
             Assert.AreEqual(10, clientPacketCount);
+
+            try
+            {
+                client.SendPacket(new byte[client.MaximumPacketSize * 2], 0, client.MaximumPacketSize * 2);
+                Assert.Fail("Transport allowed sending packets exceeding its capacity");
+            }
+            catch (ContractViolation e) { /* expected */ }
         }
 
         [Test]

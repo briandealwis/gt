@@ -31,6 +31,8 @@ namespace GT.Net
         /// <param name="message">the message</param>
         /// <param name="output">the stream collecting the packet content</param>
         /// <param name="t">the transport on which the packet will be sent</param>
+        /// <exception cref="MarshallingException">on a marshalling error, or if the
+        /// message cannot be encoded within the transport's packet capacity</exception>
         void Marshal(int uniqueId, Message message, Stream output, ITransport t);
 
         /// <summary>
@@ -82,6 +84,7 @@ namespace GT.Net
             // This marshaller doesn't use the uniqueId.
             Debug.Assert(output.CanSeek);
 
+            long startPosition = output.Position;
             output.WriteByte(m.Id);
             output.WriteByte((byte)m.MessageType);
             if (m is RawMessage)
@@ -95,6 +98,10 @@ namespace GT.Net
                 // MarshalContents, and its callers, are responsible for putting on
                 // the payload length
                 MarshalContents(m, output, t);
+            }
+            if (output.Position - startPosition > t.MaximumPacketSize)
+            {
+                throw new MarshallingException("message exceeds transport's capacity");
             }
         }
 
@@ -112,8 +119,8 @@ namespace GT.Net
                 MarshalSystemMessage((SystemMessage)m, output);
                 break;
             default:
-                Console.WriteLine("ERROR: {0} cannot handle messages: {1}",
-                    this.GetType().Name, m.GetType().Name);
+                throw new MarshallingException(String.Format("ERROR: {0} cannot handle messages of type {1}",
+                    this.GetType().Name, m.GetType().Name));
                 return;
             }
         }

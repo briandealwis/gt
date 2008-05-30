@@ -423,7 +423,7 @@ namespace GT.Net {
             Marshaller.Marshal(MyUniqueIdentity, message, stream, t);
             if (stream.Length < t.MaximumPacketSize) { return; }
 
-            // resulting packet is too big: go back to previous length, send what we ha
+            // resulting packet is too big: go back to previous length, send what we had
             stream.SetLength(previousLength);
             Debug.Assert(stream.Length > 0);
             SendPacket(t, stream);
@@ -436,6 +436,8 @@ namespace GT.Net {
         protected void SendPacket(ITransport transport, Stream message)
         {
             // and be sure to catch exceptions; log and remove transport if unable to be started
+            // FIXME: isn't this bogus?  We're sending the transport-specific stream
+            // to a different transport!
             // if(!transport.Active) { transport.Start(); }
             while (transport != null)
             {

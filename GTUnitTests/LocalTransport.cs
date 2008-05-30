@@ -197,14 +197,20 @@ namespace GT.Net.Local
 
         public override void SendPacket(byte[] message, int offset, int count)
         {
+            ContractViolation.Assert(count > 0, "cannot send 0-byte packets");
+            ContractViolation.Assert(count <= MaximumPacketSize, 
+                String.Format("packet exceeds maximum packet size: {0} > {1}", count, MaximumPacketSize));
             byte[] data = new byte[count];
             Array.Copy(message, offset, data, 0, count);
             handle.Put(data);
         }
 
-        public override void SendPacket(Stream packetStream)
+        public override void SendPacket(Stream stream)
         {
-            handle.Put(((MemoryStream)packetStream).ToArray());
+            ContractViolation.Assert(stream.Length > 0, "Cannot send 0-byte messages!");
+            ContractViolation.Assert(stream.Length - PacketHeaderSize <= MaximumPacketSize, String.Format(
+                    "Packet exceeds transport capacity: {0} > {1}", stream.Length - PacketHeaderSize, MaximumPacketSize));
+            handle.Put(((MemoryStream)stream).ToArray());
         }
 
         public override void Update()

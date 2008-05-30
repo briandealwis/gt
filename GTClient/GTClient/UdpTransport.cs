@@ -55,6 +55,10 @@ namespace GT.Net
                 while (outstanding.Count > 0 && udpClient.Client.Connected)
                 {
                     b = outstanding.Peek();
+                    ContractViolation.Assert(b.Length > 0, "Cannot send 0-byte messages!");
+                    ContractViolation.Assert(b.Length - PacketHeaderSize <= MaximumPacketSize, String.Format(
+                            "Packet exceeds transport capacity: {0} > {1}", b.Length - PacketHeaderSize, MaximumPacketSize));
+
                     udpClient.Client.Send(b, 0, b.Length, SocketFlags.None, out error);
 
                     switch (error)

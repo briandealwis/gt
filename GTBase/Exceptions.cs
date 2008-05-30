@@ -41,6 +41,26 @@ namespace GT
         public GTException(string message, Exception innerException) : base(message, innerException) {}
     }
 
+    /// <summary>
+    /// Captures situations where there is a violation of a documented contraint or
+    /// contract.
+    /// </summary>
+    public class ContractViolation : GTException
+    {
+        public ContractViolation(string message)
+            : base(message)
+        { }
+
+        public static void Assert(bool condition, string text)
+        {
+            if (condition) { return; }
+            throw new ContractViolation(text);
+        }
+    }
+
+    /// <summary>
+    /// Denotes an problem.
+    /// </summary>
     public class InvalidStateException : GTException
     {
         public object cause;
@@ -58,7 +78,7 @@ namespace GT
 
         /// <summary>
         /// Initializes a new instance of the System.Exception class
-	/// with serialized data.
+	    /// with serialized data.
         /// </summary>
         /// <param name="context">The System.Runtime.Serialization.StreamingContext that 
         /// contains contextual information about the source or destination.</param>

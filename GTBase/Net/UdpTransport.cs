@@ -44,6 +44,10 @@ namespace GT.Net
         public override void SendPacket(byte[] buffer, int offset, int length)
         {
             if (!Active) { throw new InvalidStateException("Cannot send on disposed transport"); }
+            ContractViolation.Assert(length > 0, "Cannot send 0-byte messages!");
+            ContractViolation.Assert(length <= MaximumPacketSize, String.Format(
+                    "Packet exceeds transport capacity: {0} > {1}", length, MaximumPacketSize));
+
             DebugUtils.DumpMessage(this + "SendPacket", buffer);
             if (offset != 0 || length != buffer.Length)
             {
@@ -62,6 +66,9 @@ namespace GT.Net
         public override void SendPacket(Stream ms)
         {
             if (!Active) { throw new InvalidStateException("Cannot send on disposed transport"); }
+            ContractViolation.Assert(ms.Length > 0, "Cannot send 0-byte messages!");
+            ContractViolation.Assert(ms.Length - PacketHeaderSize <= MaximumPacketSize, String.Format(
+                    "Packet exceeds transport capacity: {0} > {1}", ms.Length - PacketHeaderSize, MaximumPacketSize));
             if (!(ms is MemoryStream))
             {
                 throw new ArgumentException("Transport provided different stream!");

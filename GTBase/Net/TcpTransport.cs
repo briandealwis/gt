@@ -95,9 +95,12 @@ namespace GT.Net
         public override void SendPacket(byte[] buffer, int offset, int length)
         {
             if (!Active) { throw new InvalidStateException("Cannot send on disposed transport"); }
+            ContractViolation.Assert(length > 0, "Cannot send 0-byte messages!");
+            ContractViolation.Assert(length - PacketHeaderSize <= MaximumPacketSize, String.Format(
+                    "Packet exceeds transport capacity: {0} > {1}", length - PacketHeaderSize, MaximumPacketSize));
 
             DebugUtils.DumpMessage(this + "SendPacket", buffer, offset, length);
-            Debug.Assert(PacketHeaderSize == 4);
+            Debug.Assert(PacketHeaderSize > 0);
             byte[] wireFormat = new byte[length + PacketHeaderSize];
             BitConverter.GetBytes(length).CopyTo(wireFormat, 0);
             Array.Copy(buffer, offset, wireFormat, PacketHeaderSize, length);
@@ -111,15 +114,19 @@ namespace GT.Net
         public override void SendPacket(Stream output)
         {
             if (!Active) { throw new InvalidStateException("Cannot send on disposed transport"); }
+            Debug.Assert(PacketHeaderSize > 0);
+            ContractViolation.Assert(output.Length > 0, "Cannot send 0-byte messages!");
+            ContractViolation.Assert(output.Length - PacketHeaderSize <= MaximumPacketSize, String.Format(
+                    "Packet exceeds transport capacity: {0} > {1}", output.Length - PacketHeaderSize, MaximumPacketSize));
             if (!(output is MemoryStream))  // could check header bytes that it's the one we provided
             {
                 throw new ArgumentException("Transport provided different stream!");
             }
+
             MemoryStream ms = (MemoryStream)output;
             DebugUtils.DumpMessage(this + ": SendPacket(stream)", ms.ToArray(), PacketHeaderSize,
                 (int)(ms.Length - PacketHeaderSize));
             ms.Position = 0;
-            Debug.Assert(PacketHeaderSize == 4);
             byte[] lb = BitConverter.GetBytes((int)(ms.Length - PacketHeaderSize));
             Debug.Assert(lb.Length == 4);
             ms.Write(lb, 0, lb.Length);
@@ -139,6 +146,7 @@ namespace GT.Net
                 {
                     //DebugUtils.WriteLine(this + ": Flush: " + outstanding.Peek().Length + " bytes");
                     outgoingInProgress = new PacketInProgress(outstanding.Peek());
+                    Debug.Assert(outgoingInProgress.Length > 0);
                 }
                 int bytesSent = handle.Client.Send(outgoingInProgress.data, outgoingInProgress.position,
                     outgoingInProgress.bytesRemaining, SocketFlags.None, out error);
@@ -219,8 +227,16 @@ namespace GT.Net
                     {
                         if (incomingInProgress.IsMessageHeader())
                         {
-                            incomingInProgress = new PacketInProgress(BitConverter.ToInt32(incomingInProgress.data, 0), false);
-                            // assert incomingInProgress.IsMessageHeader()
+                            int payloadLength = BitConverter.ToInt32(incomingInProgress.data, 0);
+                            if (payloadLength <= 0)
+                            {
+                                Console.WriteLine("{0}: WARNING: received packet with 0-byte payload!", this);
+                                incomingInProgress = null;
+                            }
+                            else
+                            {
+                                incomingInProgress = new PacketInProgress(payloadLength, false);
+                            }
                         }
                         else
                         {
