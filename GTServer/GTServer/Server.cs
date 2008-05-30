@@ -438,7 +438,7 @@ namespace GT.Net
 
                     newTickCount = System.Environment.TickCount;
                     int sleepCount = Math.Max(0,
-                        configuration.TickInterval.Milliseconds - (newTickCount - oldTickCount));
+                        configuration.TickInterval.TotalMilliseconds - (newTickCount - oldTickCount));
 
                     Sleep(sleepCount);
                 }

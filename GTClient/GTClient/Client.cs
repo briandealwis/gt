@@ -1593,7 +1593,7 @@ namespace GT.Net
 
                     timer.Update();
                     newTime = timer.TimeInMilliseconds;
-                    int sleepCount = (int)(configuration.TickInterval.Milliseconds - (newTime - oldTime));
+                    int sleepCount = (int)(configuration.TickInterval.TotalMilliseconds - (newTime - oldTime));
                     Sleep(sleepCount);
                 }
             }

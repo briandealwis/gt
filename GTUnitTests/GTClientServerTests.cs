@@ -110,7 +110,7 @@ namespace GT.UnitTests
         public bool ErrorOccurred { get { return errorOccurred; } }
 
         public int ServerSleepTime {
-            get { return config.TickInterval.Milliseconds; }
+            get { return config.TickInterval.TotalMilliseconds; }
             set { config.TickInterval = TimeSpan.FromMilliseconds(value); }
         }
 
