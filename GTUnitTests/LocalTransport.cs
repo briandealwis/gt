@@ -229,7 +229,7 @@ namespace GT.Net.Local
 
         public override string ToString()
         {
-            return "Local{" + handle.Identifier + "}";
+            return "Local[" + handle.Identifier + "]";
         }
     }
 

@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using GT.Utils;
 namespace GT.Net
 {
     #region Message Classes
@@ -26,7 +27,7 @@ namespace GT.Net
 
         public override string ToString()
         {
-            return type + "(id:" + id + ")";
+            return GetType().Name + "(type:" + type + " id:" + id + ")";
         }
     }
 
@@ -59,7 +60,7 @@ namespace GT.Net
 
         public override string ToString()
         {
-            return MessageType + "(id:" + id + " content: " + text + ")";
+            return GetType().Name + "(type:" + type + " id:" + id + " text:\"" + text + "\")";
         }
 
     }
@@ -79,7 +80,7 @@ namespace GT.Net
 
         public override string ToString()
         {
-            return MessageType + "(id:" + id + " content: " + obj + ")";
+            return GetType().Name + "(type:" + type + " id:" + id + " object:\"" + obj + "\")";
         }
     }
 
@@ -107,7 +108,7 @@ namespace GT.Net
 
         public override string ToString()
         {
-            return "Session{id:" + id + " client:" + clientId + " " + action + "}";
+            return GetType().Name + "(type:" + type + " id:" + id + " client:" + clientId + " " + action + ")";
         }
     }
 
@@ -132,7 +133,8 @@ namespace GT.Net
 
         public override string ToString()
         {
-            return "System{" + ((SystemMessageType)id) + "}";
+            return GetType().Name + "(type:" + type + " id:" + id + 
+                " data:[" + ByteUtils.DumpBytes(data) + "])";
         }
     }
 

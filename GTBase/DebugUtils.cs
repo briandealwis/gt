@@ -74,7 +74,7 @@ namespace GT.Utils
             }
             Write("type=" + ((MessageType)buffer[offset + 1]).ToString());
             if (((MessageType)buffer[offset + 1]) == MessageType.System) {
-                Write("{" + ((SystemMessageType)buffer[offset]).ToString() + "}");
+                Write("[" + ((SystemMessageType)buffer[offset]).ToString() + "]");
             } else {
                 Write(" id=" + buffer[offset]);
             }

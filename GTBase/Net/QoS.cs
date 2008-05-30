@@ -341,6 +341,7 @@ namespace GT.Net
                 return cdr;
             }
         }
+        #endregion
     }
 
     public interface ITransportDeliveryCharacteristics
