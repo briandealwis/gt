@@ -63,6 +63,17 @@ namespace GT.Net {
 
         IMarshaller Marshaller { get; }
 
+        /// <summary>
+        /// Close this connexion, while telling the other side.
+        /// </summary>
+        void ShutDown();
+
+        /// <summary>
+        /// Close this connection immediately.  See <c>ShutDown()</c> for a kinder
+        /// variant that notifies the other side.
+        /// </summary>
+        void Dispose();
+
         /// <summary>Triggered when a message is received.</summary>
         event MessageHandler MessageReceived;
 
@@ -130,6 +141,8 @@ namespace GT.Net {
         /// <summary>Triggered when a message is received.</summary>
         public event MessageHandler MessageReceived;
 
+        public ICollection<ITransport> Transports { get { return transports; } }
+
         /// <summary>
         /// Return the unique identity as represented by *this instance*.
         /// For a client's server-connexion, this will be the server's id for
@@ -173,13 +186,26 @@ namespace GT.Net {
             get { return active; }
         }
 
+        public virtual void ShutDown()
+        {
+            if (transports != null)
+            {
+                foreach (ITransport t in transports)
+                {
+                    if (t.Active) { SendMessage(t, new SystemMessage(SystemMessageType.ConnexionClosing)); }
+                }
+            }
+            Dispose();
+        }
+
         public virtual void Dispose()
         {
             active = false;
             if (transports != null)
             {
-                foreach (ITransport t in transports) { 
-                    t.Dispose(); 
+                foreach (ITransport t in transports) {
+                    try { t.Dispose(); }
+                    catch (Exception e) { NotifyError("Exception disposing transport", t, e); }
                 }
             }
         }
@@ -236,7 +262,8 @@ namespace GT.Net {
                 }
                 foreach (ITransport t in toRemove)
                 {
-                    HandleTransportDisconnect(t);
+                    ITransport replacement = HandleTransportDisconnect(t);
+                    if (replacement != null) { AddTransport(replacement); }
                 }
             }
         }
@@ -260,7 +287,23 @@ namespace GT.Net {
             {
                 Console.WriteLine("{0} Exception occurred disposing of transport: {1}", DateTime.Now, e);
             }
+            if ((transport = AttemptReconnect(transport)) != null)
+            {
+                AddTransport(transport);
+                return transport;
+            }
             return null;    // we don't find a replacement
+        }
+
+        /// <summary>
+        /// A transport has been disconnected.  Provide an opportunity to reconnect.
+        /// The implementation should *not* call AddTransport().
+        /// </summary>
+        /// <param name="transport">the disconnected transport</param>
+        /// <returns>the replacement transport if successful, null otherwise.</returns>
+        virtual protected ITransport AttemptReconnect(ITransport transport) 
+        {
+            return null;
         }
 
 
@@ -278,6 +321,9 @@ namespace GT.Net {
                 // NB: transport.Delay set may (and probably will) scale this value
                 transport.Delay = newDelay;
                 break;
+
+            case SystemMessageType.ConnexionClosing:
+                throw new ConnexionClosedException();
 
             default:
                 Debug.WriteLine("connexion.HandleSystemMessage(): Unknown message type: " +

@@ -10,8 +10,20 @@ namespace GT.Net
     public enum SystemMessageType
     {
         UniqueIDRequest = 1,
+        // ids 2 and 3 are reserved (they have been deprecated and removed)
         PingRequest = 4,
-        PingResponse = 5
+        PingResponse = 5,
+
+        /// <summary>
+        /// Sent when a connexion is about to be torn down.
+        /// </summary>
+        ConnexionClosing = 6,
+
+        /// <summary>
+        /// Intended for unreliable transports where the initial connection handshake
+        /// may never have been received.
+        /// </summary>
+        UnknownConnexion = 7,
     }
 
     /// <summary>Possible message types for Messages to have.</summary>

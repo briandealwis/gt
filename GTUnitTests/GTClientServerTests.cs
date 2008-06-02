@@ -109,6 +109,8 @@ namespace GT.UnitTests
 
         public bool ErrorOccurred { get { return errorOccurred; } }
 
+        public ICollection<IConnexion> Connexions { get { return server.Clients; } }
+
         public int ServerSleepTime {
             get { return (int)config.TickInterval.TotalMilliseconds; }
             set { config.TickInterval = TimeSpan.FromMilliseconds(value); }
@@ -156,8 +158,8 @@ namespace GT.UnitTests
                     "' but received '" + s + "'");
                 errorOccurred = true;
             }
-            Console.WriteLine("Server: received greeting '" + s + "' on " + t);
-            Console.WriteLine("Server: sending response: '" + response + "'");
+            DebugUtils.WriteLine("Server: received greeting '" + s + "' on " + t);
+            DebugUtils.WriteLine("Server: sending response: '" + response + "'");
             List<IConnexion> clientGroup = new List<IConnexion>(1);
             clientGroup.Add(client);
             server.Send(response != null ? response : s, m.Id, clientGroup,
@@ -168,11 +170,11 @@ namespace GT.UnitTests
         private void ServerBinaryMessageReceived(Message m, IConnexion client, ITransport t)
         {
             byte[] buffer = ((BinaryMessage)m).Bytes;
-            Console.WriteLine("Server: received binary message from {0}", t);
-            ByteUtils.HexDump(buffer);
+            DebugUtils.WriteLine("Server: received binary message from {0}", t);
+            if (DebugUtils.Verbose) { ByteUtils.HexDump(buffer); }
             Array.Reverse(buffer);
-            Console.WriteLine("Server: sending binary message in response");
-            ByteUtils.HexDump(buffer);
+            DebugUtils.WriteLine("Server: sending binary message in response");
+            if (DebugUtils.Verbose) { ByteUtils.HexDump(buffer); }
             List<IConnexion> clientGroup = new List<IConnexion>(1);
             clientGroup.Add(client);
             server.Send(buffer, m.Id, clientGroup,
@@ -182,8 +184,8 @@ namespace GT.UnitTests
         private void ServerObjectMessageReceived(Message m, IConnexion client, ITransport t)
         {
             object o = ((ObjectMessage)m).Object;
-            Console.WriteLine("Server: received object '" + o + "' on " + t);
-            Console.WriteLine("Server: sending object back");
+            DebugUtils.WriteLine("Server: received object '" + o + "' on " + t);
+            DebugUtils.WriteLine("Server: sending object back");
             List<IConnexion> clientGroup = new List<IConnexion>(1);
             clientGroup.Add(client);
             server.Send(o, m.Id, clientGroup,
@@ -199,8 +201,8 @@ namespace GT.UnitTests
                     "' but received '" + sm.Action + "'");
                 errorOccurred = true;
             }
-            Console.WriteLine("Server: received  '" + sm.Action + "' on " + t);
-            Console.WriteLine("Server: sending back as response");
+            DebugUtils.WriteLine("Server: received  '" + sm.Action + "' on " + t);
+            DebugUtils.WriteLine("Server: sending back as response");
             List<IConnexion> clientGroup = new List<IConnexion>(1);
             clientGroup.Add(client);
             server.Send(m, clientGroup,
@@ -214,7 +216,7 @@ namespace GT.UnitTests
             case MessageType.Tuple1D:
             case MessageType.Tuple2D:
             case MessageType.Tuple3D:
-                Console.WriteLine("Server: received  tuple message on " + t);
+                DebugUtils.WriteLine("Server: received  tuple message on " + t);
                 List<IConnexion> clientGroup = new List<IConnexion>(1);
                 clientGroup.Add(client);
                 server.Send(m, clientGroup,
@@ -227,7 +229,7 @@ namespace GT.UnitTests
         /// <summary>This is triggered if something goes wrong</summary>
         void ServerErrorEvent(IConnexion c, string explanation, object context)
         {
-            Console.WriteLine("Server: Error: " + explanation + "\n   context: " + context.ToString());
+            DebugUtils.WriteLine("Server: Error: " + explanation + "\n   context: " + context.ToString());
             errorOccurred = true;
         }
     }
@@ -266,7 +268,7 @@ namespace GT.UnitTests
 
             if (client != null) { client.Dispose(); }
             client = null;
-            Console.WriteLine(this + " TearDown() complete");
+            DebugUtils.WriteLine(this + " TearDown() complete");
         }
 
         // FIXME: Currently ignores expected and response.  
@@ -302,6 +304,36 @@ namespace GT.UnitTests
             PerformEchos(new TestChannelDeliveryRequirements(typeof(BaseUdpTransport)));
         }
 
+        [Test]
+        public void TestClientShutDown()
+        {
+            StartExpectedResponseServer(EXPECTED_GREETING, EXPECTED_RESPONSE);
+
+            client = new TestClientConfiguration().BuildClient();  //this is a client
+            client.ErrorEvent += client_ErrorEvent;  //triggers if there is an error
+            client.Start();
+            Assert.IsFalse(errorOccurred);
+            Assert.IsFalse(responseReceived);
+
+            {
+                DebugUtils.WriteLine("Client: sending greeting: " + EXPECTED_GREETING);
+                IStringStream strStream = client.GetStringStream("127.0.0.1", "9999", 0,
+                    new TestChannelDeliveryRequirements(typeof(BaseUdpTransport)));  //connect here
+                strStream.StringNewMessageEvent += ClientStringMessageReceivedEvent;
+                strStream.Send(EXPECTED_GREETING);  //send a string
+                CheckForResponse();
+                Assert.AreEqual(1, strStream.Messages.Count);
+                string s = strStream.DequeueMessage(0);
+                Assert.IsNotNull(s);
+                Assert.AreEqual(EXPECTED_RESPONSE, s);
+                strStream.StringNewMessageEvent -= ClientStringMessageReceivedEvent;
+            }
+
+            client.Stop();
+            Thread.Sleep(server.ServerSleepTime * 3);
+            Assert.AreEqual(0, server.Connexions.Count);
+        }
+
         protected void CheckForResponse()
         {
             Assert.IsFalse(errorOccurred, "Client: error occurred while sending greeting");
@@ -327,7 +359,7 @@ namespace GT.UnitTests
             Assert.IsFalse(responseReceived);
 
             {
-                Console.WriteLine("Client: sending greeting: " + EXPECTED_GREETING);
+                DebugUtils.WriteLine("Client: sending greeting: " + EXPECTED_GREETING);
                 IStringStream strStream = client.GetStringStream("127.0.0.1", "9999", 0, cdr);  //connect here
                 strStream.StringNewMessageEvent += ClientStringMessageReceivedEvent;
                 strStream.Send(EXPECTED_GREETING);  //send a string
@@ -344,7 +376,7 @@ namespace GT.UnitTests
             Assert.IsFalse(errorOccurred);
 
             {
-                Console.WriteLine("Client: sending byte message: [0 1 2 3 4 5 6 7 8 9]");
+                DebugUtils.WriteLine("Client: sending byte message: [0 1 2 3 4 5 6 7 8 9]");
                 IBinaryStream binStream = client.GetBinaryStream("127.0.0.1", "9999", 0, cdr);  //connect here
                 binStream.BinaryNewMessageEvent += ClientBinaryMessageReceivedEvent;
                 binStream.Send(new byte[] { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9 });
@@ -361,7 +393,7 @@ namespace GT.UnitTests
             Assert.IsFalse(errorOccurred);
 
             {
-                Console.WriteLine("Client: sending greeting: list(\"hello\",\"world\")");
+                DebugUtils.WriteLine("Client: sending greeting: list(\"hello\",\"world\")");
                 IObjectStream objStream = client.GetObjectStream("127.0.0.1", "9999", 0, cdr);  //connect here
                 objStream.ObjectNewMessageEvent += ClientObjectMessageReceivedEvent;
                 objStream.Send(new List<string>(new string[] { "hello", "world" }));  //send a string
@@ -379,7 +411,7 @@ namespace GT.UnitTests
             Assert.IsFalse(errorOccurred);
 
             {
-                Console.WriteLine("Client: sending greeting: SessionAction.Joined");
+                DebugUtils.WriteLine("Client: sending greeting: SessionAction.Joined");
                 ISessionStream sessStream = client.GetSessionStream("127.0.0.1", "9999", 0, cdr);  //connect here
                 sessStream.SessionNewMessageEvent += ClientSessionMessageReceivedEvent;
                 sessStream.Send(SessionAction.Joined);  //send a string
@@ -396,7 +428,7 @@ namespace GT.UnitTests
             Assert.IsFalse(errorOccurred);
 
             {
-                Console.WriteLine("Client: sending tuple message: [-1, 0, 1]");
+                DebugUtils.WriteLine("Client: sending tuple message: [-1, 0, 1]");
                 IStreamedTuple<int, int, int> tupleStream = 
                     client.GetStreamedTuple<int, int, int>("127.0.0.1", "9999", 0, 20, cdr);
                 tupleStream.StreamedTupleReceived += ClientTupleMessageReceivedEvent;
@@ -414,25 +446,25 @@ namespace GT.UnitTests
 
         void ClientStringMessageReceivedEvent(IStringStream stream)
         {
-            Console.WriteLine("Client: received a string response\n");
+            DebugUtils.WriteLine("Client: received a string response\n");
             responseReceived = true;
         }
 
         void ClientBinaryMessageReceivedEvent(IBinaryStream stream)
         {
-            Console.WriteLine("Client: received a byte[] response\n");
+            DebugUtils.WriteLine("Client: received a byte[] response\n");
             responseReceived = true;
         }
 
         void ClientObjectMessageReceivedEvent(IObjectStream stream)
         {
-            Console.WriteLine("Client: received a object response\n");
+            DebugUtils.WriteLine("Client: received a object response\n");
             responseReceived = true;
         }
 
         void ClientSessionMessageReceivedEvent(ISessionStream stream)
         {
-            Console.WriteLine("Client: received a session response\n");
+            DebugUtils.WriteLine("Client: received a session response\n");
             responseReceived = true;
         }
 
@@ -449,7 +481,7 @@ namespace GT.UnitTests
         /// <summary>This is triggered if something goes wrong</summary>
         void client_ErrorEvent(IConnexion ss, string explanation, object context)
         {
-            Console.WriteLine("Client Error: " + explanation + "\n   context: " + context);
+            DebugUtils.WriteLine("Client Error: " + explanation + "\n   context: " + context);
             errorOccurred = true;
         }
 

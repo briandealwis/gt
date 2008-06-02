@@ -300,12 +300,19 @@ namespace GT.Net
 
             DebugUtils.WriteLine("Server.Update(): Clients.Update()");
             //update all clients, reading from the network
-            foreach (ClientConnexion c in clientIDs.Values) { c.Update(); }
+            foreach (ClientConnexion c in clientIDs.Values)
+            {
+                try { c.Update(); }
+                catch (ConnexionClosedException e)
+                {
+                    c.Dispose();
+                }
+            }
 
             //if anyone is listening, tell them we're done one cycle
             if (Tick != null) { Tick(); }
 
-            //remove dead clients
+            //remove dead clients (includes disposed and clients with no transports)
             List<ClientConnexion> listD = FindAll(clientIDs.Values, ClientConnexion.IsDead);
             if (listD.Count > 0)
             {
@@ -724,7 +731,7 @@ namespace GT.Net
         /// <returns>True if the client <c>c</c> </c>is dead.</returns>
         internal static bool IsDead(ClientConnexion c)
         {
-            return !c.Active;
+            return !c.Active || c.Transports.Count == 0;
         }
 
         #endregion

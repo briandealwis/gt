@@ -552,25 +552,8 @@ namespace GT.Net
 
         virtual public void Stop()
         {
-            active = false;
-            if (transports != null)
-            {
-                foreach (ITransport t in transports)
-                {
-                    try { t.Dispose(); }
-                    catch (Exception e)
-                    {
-                        NotifyError("Exception disposing transport", t, e);
-                    }
-                }
-            }
+            ShutDown();
             transports = null;
-        }
-
-        override public void Dispose()
-        {
-            Stop();
-            base.Dispose();
         }
 
         #endregion
@@ -593,27 +576,18 @@ namespace GT.Net
             get { return UniqueIdentity; }
         }
 
-        protected override ITransport HandleTransportDisconnect(ITransport transport)
+        protected override ITransport AttemptReconnect(ITransport transport)
         {
-            ITransport replacement;
-            // call the super to dispose and drop the transport from our transport list
-            if ((replacement = base.HandleTransportDisconnect(transport)) != null)
-            {
-                return replacement;
-            }
-
             // find the connector responsible for having connected this transport and
             // try to reconnect.
             if (owner == null) { return null; }
             foreach (IConnector conn in owner.Connectors)
             {
-                // FIXME: and if there is an error...?
                 if(conn.Responsible(transport)) {
                     try {
                         ITransport t = conn.Connect(Address, Port, owner.Capabilities);
                         Debug.Assert(t != null, "IConnector.Connect() shouldn't return null: " + conn);
                         Console.WriteLine("{0} [{1}] Reconnected: {2}", DateTime.Now, this, t);
-                        AddTransport(t);
                         return t;
                     } catch(CannotConnectException e) {
                         Console.WriteLine("{0} [{1}] Could not reconnect to {2}/{3}: {4}", DateTime.Now, this,
@@ -1007,14 +981,15 @@ namespace GT.Net
             {
                 if (!Active) { return; }
                 started = false;
-                foreach (IConnector conn in connectors)
+                if (connectors != null)
                 {
-                    conn.Stop();
+                    foreach (IConnector conn in connectors) { conn.Stop(); }
                 }
-                foreach(ServerConnexion s in connexions)
+                if (connexions != null)
                 {
-                    s.Stop();
+                    foreach (ServerConnexion s in connexions) { s.Stop(); }
                 }
+                connexions = null;
                 // timer.Stop();
             }
         }
@@ -1023,13 +998,16 @@ namespace GT.Net
         {
             lock (this)
             {
-                Stop();
+                if (!Active) { return; }
+                started = false;
+                if (connectors != null)
+                {
+                    foreach (IConnector conn in connectors) { conn.Dispose(); }
+                }
+                connectors = null;
                 if (connexions != null)
                 {
-                    foreach(ServerConnexion sc in connexions)
-                    {
-                        sc.Dispose();
-                    }
+                    foreach(ServerConnexion sc in connexions) { sc.Dispose(); }
                 }
                 connexions = null;
                 timer = null;
@@ -1518,7 +1496,12 @@ namespace GT.Net
                                     m);
                             }
                         }
+                        if (s.Transports.Count == 0)
+                        {
+                            s.Dispose();
+                        }
                     }
+                    catch (ConnexionClosedException) { s.Dispose(); }
                     catch (Exception e)
                     {
                         Console.WriteLine("Client: ERROR: Exception occurred in Client.Update() processing stream {0}: {1}", s, e);

@@ -36,6 +36,14 @@ namespace GT.Net
     }
 
     /// <summary>
+    /// An internal exception indicating that the connexion has been closed by the remote side.
+    /// </summary>
+    public class ConnexionClosedException : GTException
+    {
+        public ConnexionClosedException() { }
+    }
+
+    /// <summary>
     /// Indicates some kind of fatal error that cannot be handled by the underlying
     /// system object.  The underlying system object is not in a useable state.
     /// Catchers have the option of restarting / reinitializing the
