@@ -85,8 +85,8 @@ namespace GT.Net
             Debug.Assert(output.CanSeek);
 
             long startPosition = output.Position;
-            output.WriteByte(m.Id);
             output.WriteByte((byte)m.MessageType);
+            output.WriteByte(m.Id);
             if (m is RawMessage)
             {
                 RawMessage rm = (RawMessage)m;
@@ -146,8 +146,8 @@ namespace GT.Net
         virtual public Message Unmarshal(Stream input, ITransport t)
         {
             // Could check the version or something here?
-            byte id = (byte)input.ReadByte();
             byte type = (byte)input.ReadByte();
+            byte id = (byte)input.ReadByte();
             int length = ByteUtils.DecodeLength(input);
             return UnmarshalContent(id, (MessageType)type, new WrappedStream(input, (uint)length));
         }

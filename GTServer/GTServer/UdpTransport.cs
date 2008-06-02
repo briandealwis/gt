@@ -112,6 +112,7 @@ namespace GT.Net
     public class UdpAcceptor : BaseAcceptor
     {
         internal protected UdpMultiplexer udpMultiplexer;
+        protected byte[] protocolDescriptor = ASCIIEncoding.ASCII.GetBytes("GT10");
 
         public UdpAcceptor(IPAddress address, int port)
             : base(address, port)
@@ -164,15 +165,23 @@ namespace GT.Net
 
         public byte[] ProtocolDescriptor
         {
-            get { return ASCIIEncoding.ASCII.GetBytes("GT10"); }
+            get { return protocolDescriptor; }
         }
 
         public void PreviouslyUnseenUdpEndpoint(EndPoint ep, byte[] packet)
         {
+            MemoryStream ms = null;
             // Console.WriteLine(this + ": Incoming unaddressed packet from " + ep);
             if (packet.Length < 4)
             {
                 Console.WriteLine(DateTime.Now + " " + this + ": Undecipherable packet");
+                ms = new MemoryStream();
+                // NB: following follows the format used by the LightweightDotNetSerializingMarshaller 
+                ms.WriteByte((byte)MessageType.System);
+                ms.WriteByte((byte)SystemMessageType.UnknownConnexion);
+                ByteUtils.EncodeLength(ProtocolDescriptor.Length, ms);
+                ms.Write(ProtocolDescriptor, 0, ProtocolDescriptor.Length);
+                udpMultiplexer.Send(ms.ToArray(), 0, (int)ms.Length, ep);
                 return;
             }
 
@@ -181,10 +190,17 @@ namespace GT.Net
                 Console.WriteLine(DateTime.Now + " " + this + ": Unknown protocol version: "
                     + ByteUtils.DumpBytes(packet, 0, 4) + " [" 
                     + ByteUtils.AsPrintable(packet, 0, 4) + "]");
+                ms = new MemoryStream();
+                // NB: following follows the format used by the LightweightDotNetSerializingMarshaller 
+                ms.WriteByte((byte)MessageType.System);
+                ms.WriteByte((byte)SystemMessageType.IncompatibleVersion);
+                ByteUtils.EncodeLength(ProtocolDescriptor.Length, ms);
+                ms.Write(ProtocolDescriptor, 0, ProtocolDescriptor.Length);
+                udpMultiplexer.Send(ms.ToArray(), 0, (int)ms.Length, ep);
                 return;
             }
 
-            MemoryStream ms = new MemoryStream(packet, 4, packet.Length - 4);
+            ms = new MemoryStream(packet, 4, packet.Length - 4);
             Dictionary<string, string> dict = null;
             try
             {
@@ -206,6 +222,14 @@ namespace GT.Net
             {
                 Console.WriteLine("{0} {1}: Error decoding handshake from remote {2}: {3}",
                     DateTime.Now, this, ep, e);
+
+                ms = new MemoryStream();
+                // NB: following follows the format used by the LightweightDotNetSerializingMarshaller 
+                ms.WriteByte((byte)MessageType.System);
+                ms.WriteByte((byte)SystemMessageType.IncompatibleVersion);
+                ByteUtils.EncodeLength(ProtocolDescriptor.Length, ms);
+                ms.Write(ProtocolDescriptor, 0, ProtocolDescriptor.Length);
+                udpMultiplexer.Send(ms.ToArray(), 0, (int)ms.Length, ep);
                 return;
             }
         }

@@ -24,6 +24,11 @@ namespace GT.Net
         /// may never have been received.
         /// </summary>
         UnknownConnexion = 7,
+
+        /// <summary>
+        /// The remote speaks an incompatible dialect.
+        /// </summary>
+        IncompatibleVersion = 8
     }
 
     /// <summary>Possible message types for Messages to have.</summary>

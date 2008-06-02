@@ -325,6 +325,13 @@ namespace GT.Net {
             case SystemMessageType.ConnexionClosing:
                 throw new ConnexionClosedException();
 
+            case SystemMessageType.UnknownConnexion:
+                throw new FatalTransportError(SystemMessageType.UnknownConnexion,
+                    "Remote has no record of the connexion using this transport.");
+
+            case SystemMessageType.IncompatibleVersion:
+                throw new CannotConnectException("Remote does not speak a compatible protocol");
+
             default:
                 Debug.WriteLine("connexion.HandleSystemMessage(): Unknown message type: " +
                     (SystemMessageType)message.Id);
