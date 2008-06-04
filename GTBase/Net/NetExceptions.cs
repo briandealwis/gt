@@ -1,5 +1,6 @@
 using System;
 using GT;
+using System.Collections.Generic;
 
 namespace GT.Net
 {
@@ -27,12 +28,26 @@ namespace GT.Net
 
     /// <summary>
     /// No transport could be found that supports the required quality-of-service specifications.
+    /// Unsendable may contain the list of messages.
     /// </summary>
     public class NoMatchingTransport : GTException
     {
+        protected ICollection<PendingMessage> unsendable;
+
         public NoMatchingTransport(string message)
             : base(message)
         { }
+
+        public NoMatchingTransport(string message, ICollection<PendingMessage> unsendableMessages)
+            : base(message)
+        {
+            unsendable = unsendableMessages;
+        }
+
+        /// <summary>
+        /// Return the list of messages that were unsendable (if recorded)
+        /// </summary>
+        public ICollection<PendingMessage> Unsendable { get { return unsendable; } }
     }
 
     /// <summary>

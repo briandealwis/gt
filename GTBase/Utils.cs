@@ -5,28 +5,36 @@ using System.IO;
 
 namespace GT.Utils
 {
-
+    #region Queue Processing
     /// <summary>
     /// A simple interface, similar to <c>IEnumerator</c> for processing elements sequentially
     /// but with the ability to remove the current element.
     /// </summary>
-    /// <typeparam name="T"></typeparam>
+    /// <typeparam name="T">the type of the elements</typeparam>
     public interface IProcessingQueue<T>
     {
         /// <summary>
-        /// Advance and return the next element.
+        /// Return the current element.
         /// </summary>
-        /// <returns>the next element to be considered</returns>
+        /// <returns>the current element to be considered or null if there are no more
+        /// elements remaining (i.e., Empty == true).</returns>
         T Current { get; }
 
         /// <summary>
-        /// Remove the current element.
+        /// Remove the current element and advance to the next element.
         /// </summary>
         void Remove();
 
+        /// <summary>
+        /// Return true if there are no more elements remaining.
+        /// </summary>
         bool Empty { get; }
     }
 
+    /// <summary>
+    /// A processing queue on all the elements of a list.
+    /// </summary>
+    /// <typeparam name="T">the type of elements</typeparam>
     public class SequentialListProcessor<T> : IProcessingQueue<T>
         where T: class
     {
@@ -52,10 +60,17 @@ namespace GT.Utils
         }
     }
 
+
+    /// <summary>
+    /// A processing queue for a list of objects meeting the requirements defined
+    /// by a predicate.
+    /// </summary>
+    /// <typeparam name="T">the type of the elements</typeparam>
     public class PredicateListProcessor<T> : IProcessingQueue<T>
         where T: class
     {
         protected IList<T> list;
+        protected int index = 0;
         protected T current = null;
         protected Predicate<T> predicate;
 
@@ -69,13 +84,9 @@ namespace GT.Utils
         {
             get
             {
-                if (current != null) { return current; }
-                foreach (T element in list)
-                {
-                    if (predicate(element))
-                    {
-                        return current = element;
-                    }
+                while(index < list.Count) {
+                    if(predicate(list[index])) { return list[index]; }
+                    index++;
                 }
                 return null;
             }
@@ -83,16 +94,150 @@ namespace GT.Utils
 
         public void Remove()
         {
-            list.Remove(Current);
+            list.RemoveAt(index);
         }
 
         public bool Empty
         {
-            get { return Current == null; }
+            get { return index >= list.Count; }
+        }
+    }
+
+    /// <summary>
+    /// A chained set of processing queues.
+    /// </summary>
+    /// <typeparam name="T">the type of the elements</typeparam>
+    public class ProcessorChain<T> : IProcessingQueue<T>
+    {
+        protected IList<IProcessingQueue<T>> chain;
+
+        /// <summary>
+        /// Create a new instance.  The provided chain will be modified.
+        /// </summary>
+        /// <param name="chain"></param>
+        public ProcessorChain(IList<IProcessingQueue<T>> chain) {
+            this.chain = chain;
+        }
+
+        public ProcessorChain(params IProcessingQueue<T>[] queues)
+        {
+            chain = new List<IProcessingQueue<T>>(queues.Length);
+            foreach(IProcessingQueue<T> q in queues) { chain.Add(q); }
+        }
+
+        public T Current
+        {
+            get { 
+                while(chain.Count > 0) {
+                    if(chain[0].Empty) { chain.RemoveAt(0); continue; }
+                    return chain[0].Current;
+                }
+                return default(T);
+            }
+        }
+
+        public void Remove()
+        {
+            chain[0].Remove();
+            while(chain.Count > 0 && chain[0].Empty) { chain.RemoveAt(0); }
+        }
+
+        public bool Empty
+        {
+            get { 
+                while(chain.Count > 0 && chain[0].Empty) { chain.RemoveAt(0); }
+                return chain.Count == 0;
+            }
+        }
+    }
+
+    /// <summary>
+    /// A processing queue for a single element.
+    /// </summary>
+    /// <typeparam name="T">the type of the elements</typeparam>
+    public class SingleElementProcessor<T> : IProcessingQueue<T> 
+        where T: class
+    {
+        protected T element;
+
+        public SingleElementProcessor(T elmt)
+        {
+            if (elmt == null) { throw new ArgumentNullException("elmt"); }
+            element = elmt;
+        }
+
+        public T Current
+        {
+            get { return element; }
+        }
+
+        public void Remove()
+        {
+            element = null;
+        }
+
+        public bool Empty
+        {
+            get { return element == null; }
+        }
+    }
+
+    /// <summary>
+    /// A processor for a series of queues; the queues are processed in round-robin.
+    /// As a queue is depleted, it is removed from the provided set of queues.
+    /// </summary>
+    public class RoundRobinProcessor<K,V> : IProcessingQueue<V>
+        where V: class
+    {
+        // We ensure that emptied queues are removed in Remove()
+        protected IDictionary<K, Queue<V>> queues;
+        protected List<K> keys;
+        protected int index = 0;
+
+        public RoundRobinProcessor(IDictionary<K, Queue<V>> qs)
+        {
+            queues = qs;
+            keys = new List<K>(qs.Keys.Count);
+            foreach (K id in queues.Keys)
+            {
+                if (queues[id].Count == 0) { queues.Remove(id); }
+                else { keys.Add(id); }
+            }
+        }
+
+        public V Current
+        {
+            get
+            {
+                if (queues.Count == 0) { return null; }
+                return queues[keys[index]].Peek();
+            }
+        }
+
+        public void Remove()
+        {
+            if (queues.Count == 0) { return; }
+            queues[keys[index]].Dequeue();
+            if (queues[keys[index]].Count == 0)
+            {
+                queues.Remove(keys[index]);
+                keys.RemoveAt(index);
+            }
+            else { index++; }   // move onto the next queue
+            if (index >= keys.Count) { index = 0; }
+        }
+
+        public bool Empty
+        {
+            get { return queues.Count == 0; }
         }
     }
 
 
+
+    #endregion
+
+    #region Byte-related Utilities
     /// <summary>
     /// Set of useful functions for byte arrays
     /// </summary>
@@ -191,6 +336,7 @@ namespace GT.Utils
 
         #endregion
 
+        #region Byte Array Comparisons
         public static bool Compare(byte[] b1, byte[] b2)
         {
             if (b1.Length != b2.Length) { return false; }
@@ -208,7 +354,9 @@ namespace GT.Utils
             }
             return true;
         }
+        #endregion
 
+        #region Stream Utilities
         public static void Write(byte[] buffer, Stream output)
         {
             output.Write(buffer, 0, buffer.Length);
@@ -221,6 +369,7 @@ namespace GT.Utils
             if (rc != length) { Array.Resize(ref bytes, rc); }
             return bytes;
         }
+        #endregion
 
         #region Special Number Marshalling Operations
 
@@ -363,4 +512,6 @@ namespace GT.Utils
 
 
     }
+
+    #endregion
 }

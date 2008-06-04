@@ -217,4 +217,22 @@ namespace GT.Net
     }
 
     #endregion
+
+    public class PendingMessage
+    {
+        protected Message message;
+        protected MessageDeliveryRequirements mdr;
+        protected ChannelDeliveryRequirements cdr;
+
+        public PendingMessage(Message m, MessageDeliveryRequirements mdr, ChannelDeliveryRequirements cdr)
+        {
+            this.message = m;
+            this.mdr = mdr;
+            this.cdr = cdr;
+        }
+
+        public Message Message { get { return message; } }
+        public MessageDeliveryRequirements MDR { get { return mdr; } }
+        public ChannelDeliveryRequirements CDR { get { return cdr; } }
+    }
 }

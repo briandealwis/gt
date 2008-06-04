@@ -192,7 +192,11 @@ namespace GT.Net {
             {
                 foreach (ITransport t in transports)
                 {
-                    if (t.Active) { SendMessage(t, new SystemMessage(SystemMessageType.ConnexionClosing)); }
+                    if (t.Active)
+                    {
+                        Send(new SystemMessage(SystemMessageType.ConnexionClosing), 
+                            new SpecificTransportRequirement(t), null);
+                    }
                 }
             }
             Dispose();
@@ -228,8 +232,9 @@ namespace GT.Net {
             // resulting in the transport being removed from underneath us.
             foreach (ITransport t in new List<ITransport>(transports))
             {
-                SendMessage(t, new SystemMessage(SystemMessageType.PingRequest,
-                    BitConverter.GetBytes(System.Environment.TickCount)));
+                Send(new SystemMessage(SystemMessageType.PingRequest,
+                        BitConverter.GetBytes(System.Environment.TickCount)),
+                    new SpecificTransportRequirement(t), null);
             }
         }
 
@@ -312,7 +317,8 @@ namespace GT.Net {
             switch ((SystemMessageType)message.Id)
             {
             case SystemMessageType.PingRequest:
-                SendMessage(transport, new SystemMessage(SystemMessageType.PingResponse, message.data));
+                Send(new SystemMessage(SystemMessageType.PingResponse, message.data),
+                        new SpecificTransportRequirement(transport), null);
                 break;
 
             case SystemMessageType.PingResponse:

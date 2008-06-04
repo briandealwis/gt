@@ -121,7 +121,7 @@ namespace GT.Net
         /// Test whether a transport meets the requirements as specified by this instance.
         /// </summary>
         /// <param name="transport">the transport to test</param>
-        protected virtual bool MeetsRequirements(ITransport transport)
+        public virtual bool MeetsRequirements(ITransport transport)
         {
             if (transport.Reliability < Reliability) { return false; }
             if (transport.Ordering < Ordering) { return false; }
@@ -226,7 +226,7 @@ namespace GT.Net
         /// Test whether a transport meets the requirements as specified by this instance
         /// </summary>
         /// <param name="transport">the transport to test</param>
-        protected virtual bool MeetsRequirements(ITransport transport)
+        public virtual bool MeetsRequirements(ITransport transport)
         {
             if (transport.Reliability < Reliability) { return false; }
             if (transport.Ordering < Ordering) { return false; }
@@ -342,6 +342,31 @@ namespace GT.Net
             }
         }
         #endregion
+    }
+
+    /// <summary>
+    /// This is public only because internal classes cannot be accessed between different
+    /// .DLLs.  Ordinary mortals should beware!
+    /// </summary>
+    public class SpecificTransportRequirement : MessageDeliveryRequirements
+    {
+        protected ITransport transport;
+
+        public SpecificTransportRequirement(ITransport t) 
+            : this(t, MessageAggregation.Immediate)
+        {
+        }
+
+        public SpecificTransportRequirement(ITransport t, MessageAggregation aggr)
+            : base(t.Reliability, aggr, t.Ordering)
+        {
+            transport = t;
+        }
+
+        public override bool MeetsRequirements(ITransport t)
+        {
+            return transport == t;
+        }
     }
 
     public interface ITransportDeliveryCharacteristics

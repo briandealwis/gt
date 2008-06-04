@@ -745,8 +745,9 @@ namespace GT.Net
         {
             base.AddTransport(t);
             // Send their unique ID right away
-            SendMessage(t, new SystemMessage(SystemMessageType.UniqueIDRequest,
-                BitConverter.GetBytes(UniqueIdentity)));
+            Send(new SystemMessage(SystemMessageType.UniqueIDRequest,
+                    BitConverter.GetBytes(UniqueIdentity)),
+                new SpecificTransportRequirement(t), null);
         }
 
         /// <summary>Send SessionAction.</summary>
@@ -783,8 +784,9 @@ namespace GT.Net
             case SystemMessageType.UniqueIDRequest:
                 //they want to know their own id?  They should have received it already...
                 // (see above in AddTransport())
-                SendMessage(transport, new SystemMessage(SystemMessageType.UniqueIDRequest,
-                    BitConverter.GetBytes(UniqueIdentity)));
+                Send(new SystemMessage(SystemMessageType.UniqueIDRequest,
+                        BitConverter.GetBytes(UniqueIdentity)),
+                    new SpecificTransportRequirement(transport), null);
                 break;
 
             default:

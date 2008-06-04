@@ -470,7 +470,7 @@ namespace GT.Net
         /// We separate these two steps to isolate potential problems.</summary>
         protected Queue<Message> receivedMessages;
 
-        private Dictionary<byte, Queue<KeyValuePair<Message, MessageDeliveryRequirements>>> messagePools;
+        private Dictionary<byte, Queue<PendingMessage>> messageQueues;
 
         /// <summary>
         /// Return the marshaller configured for this stream's client.
@@ -517,7 +517,7 @@ namespace GT.Net
         {
             if (Active) { return; }
 
-            messagePools = new Dictionary<byte, Queue<KeyValuePair<Message, MessageDeliveryRequirements>>>();
+            messageQueues = new Dictionary<byte, Queue<PendingMessage>>();
             receivedMessages = new Queue<Message>();
 
             transports = new List<ITransport>();
@@ -546,7 +546,8 @@ namespace GT.Net
             // request our id right away
             foreach (ITransport t in transports)
             {
-                SendMessage(t, new SystemMessage(SystemMessageType.UniqueIDRequest));
+                Send(new SystemMessage(SystemMessageType.UniqueIDRequest), 
+                        new SpecificTransportRequirement(t), null);
             }
         }
 
@@ -605,7 +606,10 @@ namespace GT.Net
             // Hmm, this lock may not be necessary -- the Dequeueing of messages should
             // occur in the same thread.
             //Console.WriteLine("{0}: posting incoming message {1}", this, msg);
-            lock (receivedMessages) { receivedMessages.Enqueue(m); }
+            lock (receivedMessages) 
+            { 
+                receivedMessages.Enqueue(m); 
+            }
         }
 
 
@@ -615,15 +619,13 @@ namespace GT.Net
         /// <param name="cdr">General delivery instructions for this message's channel.</param>
         private void Aggregate(Message msg, MessageDeliveryRequirements mdr, ChannelDeliveryRequirements cdr)
         {
-            Queue<KeyValuePair<Message,MessageDeliveryRequirements>> mp;
-            if (!messagePools.TryGetValue(msg.Id, out mp))
+            Queue<PendingMessage> mp;
+            if (!messageQueues.TryGetValue(msg.Id, out mp))
             {
-                mp = messagePools[msg.Id] = new Queue<KeyValuePair<Message,MessageDeliveryRequirements>>();
+                mp = messageQueues[msg.Id] = new Queue<PendingMessage>();
             }
-            // FIXME: presumably there is some maximum size or waiting time
-            // before aggregated messages are flushed?
             // FIXME: what about QoS.Freshness -- where only the latest should be sent?
-            mp.Enqueue(new KeyValuePair<Message,MessageDeliveryRequirements>(msg, mdr));
+            mp.Enqueue(new PendingMessage(msg, mdr, cdr));
         }
 
         /// <summary>Send a message using these parameters.</summary>
@@ -639,30 +641,52 @@ namespace GT.Net
                     throw new InvalidStateException("Cannot send on a stopped client", this); 
                 }
 
-                if (msg.MessageType == MessageType.System)
+                MessageAggregation aggr = mdr == null ? cdr.Aggregation : mdr.Aggregation;
+                if (aggr == MessageAggregation.Aggregatable) {
+                    // Wait to send this message, hopefully to pack it with later messages.
+                    Aggregate(msg, mdr, cdr);
+                    return;
+                }
+
+                if (messageQueues == null || messageQueues.Count == 0)
                 {
+                    // Short circuit since there are no other messages waiting
                     SendMessage(FindTransport(mdr, cdr), msg);
                     return;
                 }
 
-                MessageAggregation aggr = mdr == null ? cdr.Aggregation : mdr.Aggregation;
-                if (aggr == MessageAggregation.Aggregatable)
+                switch (aggr)
                 {
-                    //Wait to send this message, hopefully to pack it with later messages.
-                    Aggregate(msg, mdr, cdr);
-                    return;
-                } else if (aggr == MessageAggregation.FlushAll)
-                {
-                    //Make sure ALL messages are sent, then send <c>msg</c>.
-                    FlushAllMessages(msg, mdr, cdr);
-                    return;
-                }
+                case MessageAggregation.Aggregatable:
+                    // already handled
+                    throw new InvalidStateException("MessageAggregation.Aggregatable should have been handled already");
 
-                // if aggr == FlushChannel, then must make sure ALL other messages 
-                // on this CHANNEL are sent, and then send <c>msg</c>.  Otherwise
-                // is Immediate, meaning bundle <c>msg</c> first and then cram on whatever 
-                // other messages are waiting.
-                FlushChannelMessages(msg.Id, msg, mdr, cdr, aggr == MessageAggregation.FlushChannel);
+                case MessageAggregation.FlushChannel:
+                    // make sure ALL other messages on this CHANNEL are sent, and then send <c>msg</c>.
+                    FlushMessages(new ProcessorChain<PendingMessage>(
+                        new SameChannelProcessor(msg.Id, messageQueues),
+                        new SingleElementProcessor<PendingMessage>(new PendingMessage(msg, mdr, cdr))));
+                    return;
+
+                case MessageAggregation.FlushAll:
+                    // make sure ALL messages are sent, then send <c>msg</c>.
+                    // FIXME: channels should be prioritized?  So shouldn't be round robin.
+                    FlushMessages(new ProcessorChain<PendingMessage>(
+                        new RoundRobinProcessor<byte, PendingMessage>(messageQueues),
+                        new SingleElementProcessor<PendingMessage>(new PendingMessage(msg, mdr, cdr))));
+                    return;
+
+                case MessageAggregation.Immediate:
+                    // bundle <c>msg</c> first and then cram on whatever other messages are waiting.
+                    // FIXME: channels should be prioritized?  So shouldn't be round robin.
+                    FlushMessages(new ProcessorChain<PendingMessage>(
+                        new SingleElementProcessor<PendingMessage>(new PendingMessage(msg, mdr, cdr)),
+                        new RoundRobinProcessor<byte,PendingMessage>(messageQueues)));
+                    return;
+
+                default:
+                    throw new ArgumentException("Unhandled aggregation type: " + aggr);
+                }
             }
         }
 
@@ -678,48 +702,36 @@ namespace GT.Net
 
         internal void FlushChannelMessages(byte id, ChannelDeliveryRequirements cdr)
         {
-            FlushChannelMessages(id, null, null, cdr, false);
+            FlushMessages(new SameChannelProcessor(id, messageQueues));
         }
 
-        /// <summary>Flushes outgoing messages on channel <c>id</c> channel only.
-        /// <c>msg</c>, if not null, will be sent first if <c>putMsgFirst == true</c>,
-        /// or sent last if <c>putMsgFirst == false</c>.</summary>
-        protected void FlushChannelMessages(byte id, Message msg, MessageDeliveryRequirements mdr,
-            ChannelDeliveryRequirements cdr, bool putMsgFirst)
+        protected void FlushMessages(IProcessingQueue<PendingMessage> queue)
         {
-            Queue<KeyValuePair<Message,MessageDeliveryRequirements>> list;
-            if (!messagePools.TryGetValue(id, out list) || list == null || list.Count == 0)
-            {
-                if (msg != null) { SendMessage(FindTransport(mdr, cdr), msg); }
-                return;
-            }
-            if (!putMsgFirst && msg != null)
-            {
-                list.Enqueue(new KeyValuePair<Message, MessageDeliveryRequirements>(msg, mdr));
-            }
-
             Dictionary<ITransport, Stream> inProgress = new Dictionary<ITransport, Stream>();
-            do
-            {
-                KeyValuePair<Message, MessageDeliveryRequirements> current;
-                if (putMsgFirst)
-                {
-                    current = new KeyValuePair<Message, MessageDeliveryRequirements>(msg, mdr);
-                    putMsgFirst = false;
-                }
-                else { current = list.Dequeue(); }
-                // FindTransport() will throw exception if not found
-                ITransport transport = FindTransport(current.Value, cdr);
-                Stream stream;
-                if (!inProgress.TryGetValue(transport, out stream))
-                {
-                    stream = inProgress[transport] = transport.GetPacketStream();
-                }
-                StreamMessage(current.Key, transport, ref stream);
-                inProgress[transport] = stream; // be sure to update inProgress
-            } while (list.Count > 0);
+            PendingMessage current;
+            IList<PendingMessage> unsendable = null;
 
-            if (list.Count == 0) { messagePools.Remove(id); }
+            while((current = queue.Current) != null)
+            {
+                try
+                {
+                    // FindTransport() will throw exception if not found
+                    ITransport transport = FindTransport(current.MDR, current.CDR);
+                    Stream stream;
+                    if (!inProgress.TryGetValue(transport, out stream))
+                    {
+                        stream = inProgress[transport] = transport.GetPacketStream();
+                    }
+                    StreamMessage(current.Message, transport, ref stream);
+                    inProgress[transport] = stream; // be sure to update inProgress
+                }
+                catch (NoMatchingTransport e)
+                {
+                    if (unsendable == null) { unsendable = new List<PendingMessage>(); }
+                    unsendable.Add(current);
+                }
+                queue.Remove();
+            }
 
             // send everything in progress
             foreach (ITransport t in inProgress.Keys)
@@ -727,54 +739,9 @@ namespace GT.Net
                 Stream stream = inProgress[t];
                 if (stream != null) { SendPacket(t, stream); }
             }
-        }
-
-        /// <summary>Flushes all messages and then <c>msg</c>; <c>msg</c> may be null.</summary>
-        internal void FlushAllMessages(Message msg, MessageDeliveryRequirements mdr, 
-            ChannelDeliveryRequirements cdr)
-        {
-            if (messagePools.Count == 0)
+            if (unsendable != null)
             {
-                SendMessage(FindTransport(mdr, cdr), msg);
-                return;
-            }
-
-            Queue<KeyValuePair<Message, MessageDeliveryRequirements>> list;
-            if (msg != null)
-            {
-                if (!messagePools.TryGetValue(msg.Id, out list))
-                {
-                    list = messagePools[msg.Id] = new Queue<KeyValuePair<Message, MessageDeliveryRequirements>>();
-                }
-                list.Enqueue(new KeyValuePair<Message, MessageDeliveryRequirements>(msg, mdr));
-            }
-
-            Dictionary<ITransport, Stream> inProgress = new Dictionary<ITransport, Stream>();
-            while (messagePools.Count > 0)
-            {
-                // FIXME: This does round-robin.  Should use channel/message priorities.
-                foreach (byte id in messagePools.Keys)
-                {
-                    list = messagePools[id];
-                    KeyValuePair<Message, MessageDeliveryRequirements> current = list.Dequeue();
-                    // FindTransport() will throw exception if not found
-                    ITransport transport = FindTransport(current.Value, cdr);
-                    Stream stream;
-                    if (!inProgress.TryGetValue(transport, out stream))
-                    {
-                        stream = inProgress[transport] = transport.GetPacketStream();
-                    }
-                    StreamMessage(current.Key, transport, ref stream);
-                    inProgress[transport] = stream; // be sure to update inProgress
-
-                    if (list.Count == 0) { messagePools.Remove(id); }
-                }
-            }
-            // send everything that was in progress
-            foreach (ITransport t in inProgress.Keys)
-            {
-                Stream stream = inProgress[t];
-                if (stream != null) { SendPacket(t, stream); }
+                throw new NoMatchingTransport("Could not find matching transports", unsendable);
             }
         }
     
@@ -1617,4 +1584,55 @@ namespace GT.Net
             return b.ToString();
         }
     }
+
+    /// <summary>Selected messages for a particular channel only.</summary>
+    internal class SameChannelProcessor : IProcessingQueue<PendingMessage>
+    {
+        // invariant: queue == null || queue.Count > 0
+        protected byte id;
+        protected IDictionary<byte, Queue<PendingMessage>> pendingMessages;
+        protected Queue<PendingMessage> queue;
+
+        internal SameChannelProcessor(byte channelId, IDictionary<byte, Queue<PendingMessage>> pm)
+        {
+            id = channelId;
+            pendingMessages = pm;
+
+            if (!pendingMessages.TryGetValue(id, out queue)) { queue = null; }
+            else if (queue.Count == 0)
+            {
+                queue = null;
+                pendingMessages.Remove(id);
+            }
+        }
+
+        public PendingMessage Current
+        {
+            get {
+                if (queue == null) { return null; }
+                return queue.Peek();
+            }
+        }
+
+        public void Remove()
+        {
+            if (queue == null) { return; }
+            queue.Dequeue();
+            if (queue.Count == 0)
+            {
+                queue = null;
+                pendingMessages.Remove(id);
+            }
+        }
+
+        public bool Empty
+        {
+            get {
+                if (queue == null) { return true; }
+                return queue.Count > 0;
+            }
+        }
+
+    }
+
 }

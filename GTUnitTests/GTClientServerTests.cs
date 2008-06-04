@@ -50,7 +50,7 @@ namespace GT.UnitTests
             this.transportType = transportType;
         }
 
-        protected override bool MeetsRequirements(ITransport transport)
+        public override bool MeetsRequirements(ITransport transport)
         {
             return transportType.IsInstanceOfType(transport);
         }
