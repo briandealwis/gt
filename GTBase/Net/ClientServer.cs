@@ -221,7 +221,14 @@ namespace GT.Net {
             Console.WriteLine("Error[" + generator + "]: " + explanation + ": " + context);
             if (ErrorEvents != null)
             {
-                ErrorEvents(this, explanation, context);
+                try
+                {
+                    ErrorEvents(this, explanation, context);
+                }
+                catch (Exception e)
+                {
+                    Console.WriteLine("WARNING: Application ErrorEvents event handler threw an exception: {0}", e);
+                }
             }
         }
 

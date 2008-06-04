@@ -46,15 +46,18 @@ namespace GT.Net
         FlushAll = 3,
     }
 
-    ///// <summary>Should receiving clients keep old messages?</summary>
-    ///// FIXME: Is this the same as freshness?
-    //public enum MessageTimeliness
-    //{
-    //    /// <summary>Keep old messages</summary>
-    //    NonRealTime = 0,
-    //    /// <summary>Throw away old messages</summary>
-    //    RealTime = 1,
-    //}
+    /// <summary>
+    /// Should receiving clients receive all messages sent on a channel or
+    /// do they represent intermediate values only?  (Only has an effect with
+    /// <c>MessageAggregation.Immediate</c>.)
+    /// </summary>
+    public enum Freshness
+    {
+        /// <summary>All messages are relevant and should be included.</summary>
+        IncludeAll = 0,
+        /// <summary>Throw away old messages, including only the latest message.</summary>
+        IncludeLatestOnly = 1,
+    }
 
     // Transports provide guarantees.
     // Channels and messages specify requirements or expectations.
@@ -74,7 +77,6 @@ namespace GT.Net
         protected Reliability reliability = Reliability.Unreliable;
         protected Ordering ordering = Ordering.Unordered;
         protected MessageAggregation aggregation = MessageAggregation.Aggregatable;
-        //protected MessageTimeliness timeliness;
 
         public Reliability Reliability
         {
@@ -91,15 +93,12 @@ namespace GT.Net
             get { return aggregation; }
             set { aggregation = value; }
         }
-        //public MessageTimeliness Timeliness { get { return timeliness; } }
 
         public MessageDeliveryRequirements(Reliability d, MessageAggregation a, Ordering o)
-            //, MessageTimeliness t)
         {
             reliability = d;
             aggregation = a;
             ordering = o;
-            //timeliness = t;
         }
 
         protected MessageDeliveryRequirements() {}
@@ -170,9 +169,8 @@ namespace GT.Net
         protected Reliability reliability = Reliability.Unreliable;
         protected Ordering ordering = Ordering.Unordered;
         protected MessageAggregation aggregation = MessageAggregation.Aggregatable;
-        protected int aggregationTimeout = -1;
-        //protected MessageTimeliness timeliness;
-        //protected MessageOrder ordering;
+        //protected int aggregationTimeout = -1;
+        protected Freshness freshness = Freshness.IncludeAll;
 
         public Reliability Reliability
         {
@@ -189,21 +187,27 @@ namespace GT.Net
             get { return aggregation; }
             set { aggregation = value; }
         }
-        public int AggregationTimeout
-        {
-            get { return aggregationTimeout; }
-            set { aggregationTimeout = value; }
+        //public int AggregationTimeout
+        //{
+        //    get { return aggregationTimeout; }
+        //    set { aggregationTimeout = value; }
+        //}
+        public Freshness Freshness { 
+            get { return freshness; }
+            set { freshness = value; }
         }
-        //public MessageOrder Ordering { get { return ordering; } }
-        //public MessageTimeliness Timeliness { get { return timeliness; } }
 
+        /// <summary>
+        /// Constructor to set the 3 most common value
+        /// </summary>
+        /// <param name="d">the required reliability</param>
+        /// <param name="a">the desired aggregation</param>
+        /// <param name="o">the required ordered</param>
         public ChannelDeliveryRequirements(Reliability d, MessageAggregation a, Ordering o)
-            //, MessageTimeliness t)
         {
             reliability = d;
             aggregation = a;
             ordering = o;
-            //timeliness = t;
         }
 
         protected ChannelDeliveryRequirements() {}
@@ -277,7 +281,9 @@ namespace GT.Net
                 ChannelDeliveryRequirements cdr = new ChannelDeliveryRequirements();
                 cdr.Reliability = Reliability.Unreliable;
                 cdr.Ordering = Ordering.Sequenced;
-                cdr.Aggregation = MessageAggregation.Immediate;
+                //cdr.Aggregation = MessageAggregation.Immediate;
+                cdr.Aggregation = MessageAggregation.Aggregatable;
+                cdr.Freshness = Freshness.IncludeLatestOnly;
                 return cdr;
             }
         }

@@ -624,7 +624,10 @@ namespace GT.Net
             {
                 mp = messageQueues[msg.Id] = new Queue<PendingMessage>();
             }
-            // FIXME: what about QoS.Freshness -- where only the latest should be sent?
+            else if (cdr != null && cdr.Freshness == Freshness.IncludeLatestOnly)
+            {
+                mp.Clear();
+            }
             mp.Enqueue(new PendingMessage(msg, mdr, cdr));
         }
 
