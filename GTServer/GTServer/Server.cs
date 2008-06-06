@@ -339,7 +339,7 @@ namespace GT.Net
                 if (!acc.Active) { toRemove.Add(acc); continue; }
                 DebugUtils.WriteLine("Server.Update(): checking acceptor " + acc);
                 try { acc.Update(); }
-                catch (FatalTransportError e)
+                catch (TransportError e)
                 {
                     Console.WriteLine("{0} {1} Error updating acceptor {2}: {3}",
                         DateTime.Now, this, acc, e);

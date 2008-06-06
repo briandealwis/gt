@@ -64,15 +64,15 @@ namespace GT.Net
     /// Catchers have the option of restarting / reinitializing the
     /// underlying system object.
     /// </summary>
-    public class FatalTransportError : GTException
+    public class TransportError : GTException
     {
         protected object transportObject;
         protected object transportError;
 
-        public FatalTransportError(object o, string message) : base(message) {
+        public TransportError(object o, string message) : base(message) {
             transportObject = o;
         }
-        public FatalTransportError(object t, string message, object error)
+        public TransportError(object t, string message, object error)
             : this(t, message)
         {
             transportError = error;

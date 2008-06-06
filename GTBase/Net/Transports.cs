@@ -12,7 +12,7 @@ namespace GT.Net
 
     /// <remarks>
     /// Represents a connection to either a server or a client.
-    /// Errors should be notified by throwing an instanceof FatalTransportError.
+    /// Errors should be notified by throwing an instanceof TransportError.
     /// Should the transport have been cleanly shutdown by the remote side, then
     /// throw a TransportDecomissionedException.
     /// </remarks>
@@ -43,7 +43,7 @@ namespace GT.Net
         /// <param name="packet">the packet of message(s) to send</param>
         /// <param name="offset">the offset into the packet to send</param>
         /// <param name="length">the number of bytes within the packet to send</param>
-        /// <exception cref="FatalTransportError">thrown on a fatal transport error.</exception>
+        /// <exception cref="TransportError">thrown on a fatal transport error.</exception>
         /// <exception cref="TransportDecomissionedException">thrown should the transport be decommissioned.</exception>
         void SendPacket(byte[] packet, int offset, int count);
 
@@ -52,7 +52,7 @@ namespace GT.Net
         /// position</b> to the end of the stream.  <b>It is not sent from position 0.</b></b>
         /// </summary>
         /// <param name="stream">the stream encoding the packet</param>
-        /// <exception cref="FatalTransportError">thrown on a fatal transport error.</exception>
+        /// <exception cref="TransportError">thrown on a fatal transport error.</exception>
         /// <exception cref="TransportDecomissionedException">thrown should the transport be decommissioned.</exception>
         void SendPacket(Stream stream);
 
@@ -61,7 +61,7 @@ namespace GT.Net
         /// </summary>
         Stream GetPacketStream();
 
-        /// <exception cref="FatalTransportError">thrown on a fatal transport error.</exception>
+        /// <exception cref="TransportError">thrown on a fatal transport error.</exception>
         /// <exception cref="TransportDecomissionedException">thrown should the transport be decommissioned.</exception>
         void Update();
 

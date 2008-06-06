@@ -263,7 +263,7 @@ namespace GT.Net {
                         DebugUtils.WriteLine("Transport closed: {0}", t);
                         toRemove.Add(t);
                     }
-                    catch (FatalTransportError e)
+                    catch (TransportError e)
                     {
                         // FIXME: Log the error
                         Console.WriteLine("{0} {1} WARNING: Transport error [{2}]: {3}", 
@@ -299,11 +299,11 @@ namespace GT.Net {
             {
                 Console.WriteLine("{0} Exception occurred disposing of transport: {1}", DateTime.Now, e);
             }
-            if ((transport = AttemptReconnect(transport)) != null)
-            {
-                AddTransport(transport);
-                return transport;
-            }
+            //if ((transport = AttemptReconnect(transport)) != null)
+            //{
+            //    AddTransport(transport);
+            //    return transport;
+            //}
             return null;    // we don't find a replacement
         }
 
@@ -339,7 +339,7 @@ namespace GT.Net {
                 throw new ConnexionClosedException();
 
             case SystemMessageType.UnknownConnexion:
-                throw new FatalTransportError(SystemMessageType.UnknownConnexion,
+                throw new TransportError(SystemMessageType.UnknownConnexion,
                     "Remote has no record of the connexion using this transport.");
 
             case SystemMessageType.IncompatibleVersion:
@@ -508,7 +508,7 @@ namespace GT.Net {
             while (transport != null)
             {
                 try { transport.SendPacket(message); return; }
-                catch (FatalTransportError e)
+                catch (TransportError e)
                 {
                     transport = HandleTransportDisconnect(transport);
                 }

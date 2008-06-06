@@ -169,7 +169,7 @@ namespace GT.Net
                     return;
                 default:
                     //die, because something terrible happened
-                    throw new FatalTransportError(this, String.Format("Error sending TCP Message ({0} bytes): {1}",
+                    throw new TransportError(this, String.Format("Error sending TCP Message ({0} bytes): {1}",
                         outgoingInProgress.Length, error), error);
                 }
             }
@@ -215,7 +215,7 @@ namespace GT.Net
 
                     default:
                         //dead = true;
-                        throw new FatalTransportError(this, String.Format("Error reading from socket: {0}", error), error);
+                        throw new TransportError(this, String.Format("Error reading from socket: {0}", error), error);
                     }
                     if (bytesReceived == 0)
                     {
@@ -250,7 +250,7 @@ namespace GT.Net
             catch (SocketException e)
             {   // FIXME: can this clause even happen?
                 //dead = true;
-                throw new FatalTransportError(this, String.Format("Error reading from socket: {0}", e.SocketErrorCode), e);
+                throw new TransportError(this, String.Format("Error reading from socket: {0}", e.SocketErrorCode), e);
             }
         }
 

@@ -74,7 +74,7 @@ namespace GT.Net
                         return;
                     default:
                         //something terrible happened, but this is only UDP, so stick around.
-                        throw new FatalTransportError(this, String.Format("Error sending UDP message ({0} bytes): {1}",
+                        throw new TransportError(this, String.Format("Error sending UDP message ({0} bytes): {1}",
                             b.Length, e), e);
                     }
                 }
@@ -97,7 +97,7 @@ namespace GT.Net
             {
                 if (e.SocketErrorCode != SocketError.WouldBlock)
                 {
-                    throw new FatalTransportError(this, String.Format("Error reading UDP message: {0}", 
+                    throw new TransportError(this, String.Format("Error reading UDP message: {0}", 
                         e.SocketErrorCode), e);
                 }
             }
@@ -159,7 +159,7 @@ namespace GT.Net
             }
             catch (SocketException e)
             {
-                throw new FatalTransportError(this, "UDP multiplexor is throwing a fit", e);
+                throw new TransportError(this, "UDP multiplexor is throwing a fit", e);
             }
         }
 
