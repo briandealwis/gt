@@ -454,7 +454,7 @@ namespace GT.Utils
         /// Each string is prefixed by its encoded length (in bytes as encoded in UTF-8) and then 
         /// the UTF-8 encoded string.
         /// </summary>
-        public static int EncodedDictionaryByteCount(Dictionary<string, string> dict)
+        public static int EncodedDictionaryByteCount(IDictionary<string, string> dict)
         {
             int count = 0;
             MemoryStream ms = new MemoryStream();
@@ -473,7 +473,7 @@ namespace GT.Utils
             return (int)ms.Length + count;
         }
 
-        public static void EncodeDictionary(Dictionary<string, string> dict, Stream output)
+        public static void EncodeDictionary(IDictionary<string, string> dict, Stream output)
         {
             EncodeLength(dict.Count, output);
             foreach (string key in dict.Keys)

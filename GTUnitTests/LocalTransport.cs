@@ -84,7 +84,7 @@ namespace GT.Net.Local
     {
         protected bool active = false;
 
-        public ITransport Connect(string address, string port, Dictionary<string, string> capabilities)
+        public ITransport Connect(string address, string port, IDictionary<string, string> capabilities)
         {
             LocalHalfPipe hp;
             if ((hp = LocalTransport.OpenConnection(address + ":" + port, capabilities)) == null) {
@@ -125,7 +125,7 @@ namespace GT.Net.Local
         public static Dictionary<string, LocalAcceptor> OpenConnections =
             new Dictionary<string, LocalAcceptor>();
 
-        internal static LocalHalfPipe OpenConnection(string key, Dictionary<string,string> capabilities)
+        internal static LocalHalfPipe OpenConnection(string key, IDictionary<string,string> capabilities)
         {
             LocalHalfPipe hp;
             lock (OpenConnections)

@@ -22,7 +22,7 @@ namespace GT.Net
         public bool Active { get { return active; } }
         public void Dispose() { Stop(); }
 
-        public ITransport Connect(string address, string port, Dictionary<string, string> capabilities)
+        public ITransport Connect(string address, string port, IDictionary<string, string> capabilities)
         {
             IPHostEntry he = Dns.GetHostEntry(address);
             IPAddress[] addr = he.AddressList;

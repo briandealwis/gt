@@ -19,7 +19,7 @@ namespace GT.Net
         /// <returns>the newly connected transport</returns>
         /// <exception cref="CannotConnectToRemoteException">thrown if the connector
         ///     cannot connect to the other side.</exception>
-        ITransport Connect(string address, string port, Dictionary<string, string> capabilities);
+        ITransport Connect(string address, string port, IDictionary<string, string> capabilities);
 
         /// <summary>
         /// Return true if this connector was responsible for connecting the provided transport.

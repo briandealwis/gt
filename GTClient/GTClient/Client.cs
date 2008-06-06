@@ -898,7 +898,7 @@ namespace GT.Net
 
         public ClientConfiguration Configuration { get { return configuration; } }
 
-        public Dictionary<string, string> Capabilities
+        public IDictionary<string, string> Capabilities
         {
             get
             {
@@ -917,7 +917,16 @@ namespace GT.Net
 
         public ICollection<IConnector> Connectors
         {
-            get { return connectors;  }
+            get { return connectors; }
+        }
+
+        /// <summary>
+        /// Return the list of active and usable connexions.  A usable connexion
+        /// has available transports to send and receive messages.
+        /// </summary>
+        public ICollection<IConnexion> Connexions
+        {
+            get { return BaseConnexion.SelectUsable(connexions); }
         }
 
         /// <summary>

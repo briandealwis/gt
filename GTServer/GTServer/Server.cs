@@ -174,8 +174,20 @@ namespace GT.Net
         private Dictionary<int, ClientConnexion> clientIDs = new Dictionary<int, ClientConnexion>();
         private ICollection<ClientConnexion> newlyAddedClients = new List<ClientConnexion>();
 
+        /// <summary>
+        /// Return the set of active clients to which this server is talking.
+        /// </summary>
         public ICollection<IConnexion> Clients { 
-            get { return BaseConnexion.Downcast<IConnexion,ClientConnexion>(clientIDs.Values); } 
+            get { return BaseConnexion.SelectUsable(clientIDs.Values); } 
+        }
+
+        /// <summary>
+        /// Return the set of connexions to which this server is connected to.
+        /// This set may include inactive connexions or connexions with no
+        /// transports; the caller is responsible for ensuring the connectedness.
+        /// </summary>
+        public ICollection<IConnexion> Connexions {
+            get { return BaseConnexion.Downcast<IConnexion,ClientConnexion>(clientIDs.Values); }
         }
 
         public IMarshaller Marshaller { get { return marshaller; } }
@@ -295,7 +307,10 @@ namespace GT.Net
             {
                 DebugUtils.WriteLine("Server.Update(): pinging clients");
                 lastPingTime = System.Environment.TickCount;
-                foreach (ClientConnexion c in clientIDs.Values) { c.Ping(); }
+                foreach (ClientConnexion c in clientIDs.Values)
+                {
+                    if (c.Active) { c.Ping(); }
+                }
             }
 
             DebugUtils.WriteLine("Server.Update(): Clients.Update()");
@@ -324,7 +339,7 @@ namespace GT.Net
                 }
                 if (ClientsRemoved != null)
                 {
-                    ClientsRemoved(BaseConnexion.Downcast<IConnexion,ClientConnexion>(listD));
+                    ClientsRemoved(BaseConnexion.Downcast<IConnexion, ClientConnexion>(listD));
                 }
             }
 

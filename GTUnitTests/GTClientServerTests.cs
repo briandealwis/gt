@@ -330,7 +330,7 @@ namespace GT.UnitTests
             }
 
             client.Stop();
-            Thread.Sleep(server.ServerSleepTime * 3);
+            Thread.Sleep(server.ServerSleepTime * 5);
             Assert.AreEqual(0, server.Connexions.Count);
         }
 
@@ -601,19 +601,8 @@ namespace GT.UnitTests
         }
     }
 
-    public class DebuggingClient : Client
-    {
-        public IList<IConnexion> Connexions { 
-            get { return new List<IConnexion>(BaseConnexion.Downcast<IConnexion,ServerConnexion>(connexions)); } 
-        }
-
-        public DebuggingClient(ClientConfiguration cc) : base(cc) { }
-    }
-
     public class DebuggingServerConnexion : ServerConnexion
     {
-        public IList<ITransport> Transports { get { return transports; } }
-
         public DebuggingServerConnexion(Client owner, string address, string port)
             : base(owner, address, port) {}
 
@@ -634,7 +623,7 @@ namespace GT.UnitTests
 
         public override Client BuildClient()
         {
-            return new DebuggingClient(this);
+            return new Client(this);
         }
 
         public override ServerConnexion CreateServerConnexion(Client owner, string address, string port)
@@ -644,6 +633,7 @@ namespace GT.UnitTests
     }
 
     [TestFixture]
+    [Ignore("Disabled AutoReconnecting")]
     public class ZTTransportReconnects
     {
         ClientRepeater cr;
@@ -683,9 +673,9 @@ namespace GT.UnitTests
 
             IStringStream stream = client.GetStringStream("localhost", "9999", 0, 
                 ChannelDeliveryRequirements.MostStrict);
-            Assert.AreEqual(1, ((DebuggingClient)client).Connexions.Count);
-            Assert.IsInstanceOfType(typeof(DebuggingServerConnexion), ((DebuggingClient)client).Connexions[0]);
-            DebuggingServerConnexion sc = (DebuggingServerConnexion)((DebuggingClient)client).Connexions[0];
+            Assert.AreEqual(1, client.Connexions.Count);
+            Assert.IsInstanceOfType(typeof(DebuggingServerConnexion), new List<IConnexion>(client.Connexions)[0]);
+            DebuggingServerConnexion sc = (DebuggingServerConnexion)new List<IConnexion>(client.Connexions)[0];
             Assert.AreEqual(1, sc.Transports.Count);
             Assert.IsInstanceOfType(typeof(TcpTransport), sc.Transports[0]);
             TcpTransport transport = (TcpTransport)sc.Transports[0];

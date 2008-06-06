@@ -63,6 +63,8 @@ namespace GT.Net {
 
         IMarshaller Marshaller { get; }
 
+        IList<ITransport> Transports { get; }
+
         /// <summary>
         /// Close this connexion, while telling the other side.
         /// </summary>
@@ -141,7 +143,7 @@ namespace GT.Net {
         /// <summary>Triggered when a message is received.</summary>
         public event MessageHandler MessageReceived;
 
-        public ICollection<ITransport> Transports { get { return transports; } }
+        public IList<ITransport> Transports { get { return transports; } }
 
         /// <summary>
         /// Return the unique identity as represented by *this instance*.
@@ -188,14 +190,14 @@ namespace GT.Net {
 
         public virtual void ShutDown()
         {
+            active = false;
             if (transports != null)
             {
                 foreach (ITransport t in transports)
                 {
                     if (t.Active)
                     {
-                        Send(new SystemMessage(SystemMessageType.ConnexionClosing), 
-                            new SpecificTransportRequirement(t), null);
+                        SendMessage(t, new SystemMessage(SystemMessageType.ConnexionClosing));
                     }
                 }
             }
@@ -288,17 +290,22 @@ namespace GT.Net {
             transports.Sort(this);
         }
 
+        public virtual bool RemoveTransport(ITransport t) 
+        {
+            DebugUtils.Write("{0}: removing transport: {1}", this, t);
+            t.PacketReceivedEvent -= HandleNewPacket;
+            t.Dispose();
+            return transports.Remove(t);
+        }
+
         abstract public int Compare(ITransport a, ITransport b);
 
         protected virtual ITransport HandleTransportDisconnect(ITransport transport)
         {
             Debug.Assert(transport != null, "we shouldn't receive a null transport!");
-            transports.Remove(transport);
-            try { transport.Dispose(); }
-            catch (Exception e)
-            {
-                Console.WriteLine("{0} Exception occurred disposing of transport: {1}", DateTime.Now, e);
-            }
+            RemoveTransport(transport);
+            // We can't unconditionally reconnect: consider where a server goes down,
+            // and we have unreliable transports that provide no information.
             //if ((transport = AttemptReconnect(transport)) != null)
             //{
             //    AddTransport(transport);
@@ -526,15 +533,40 @@ namespace GT.Net {
             return GetType().Name + "(" + uniqueIdentity + ")";
         }
 
-        public static ICollection<D> Downcast<D, T>(ICollection<T> c)
-            where T : D
+        /// <summary>
+        /// Filter the list of provided connexions to only include those that are usable.
+        /// A usable connexion is active and has transports available to send and receive messages.
+        /// </summary>
+        /// <typeparam name="T">an IConnexion implementation</typeparam>
+        /// <param name="connexions">the provided connexions</param>
+        /// <returns>the usable subset of <c>connexions</c></returns>
+        public static ICollection<IConnexion> SelectUsable<T>(ICollection<T> connexions)
+            where T : IConnexion
         {
-            List<D> downcasted = new List<D>(c.Count);
-            foreach (T value in c)
+            List<IConnexion> usable = new List<IConnexion>(connexions.Count);
+            foreach (T connexion in connexions)
             {
-                downcasted.Add(value);
+                if (connexion.Active && connexion.Transports.Count > 0) { usable.Add(connexion); }
             }
-            return downcasted;
+            return usable;
+        }
+
+        /// <summary>
+        /// Downcast the list of provided objects to a common superclass/interface.
+        /// </summary>
+        /// <typeparam name="S">the superclass</typeparam>
+        /// <typeparam name="T">the current list type</typeparam>
+        /// <param name="original">the original collection</param>
+        /// <returns>the downcast collection</returns>
+        public static ICollection<S> Downcast<S,T>(ICollection<T> original)
+            where T : S
+        {
+            List<S> downcast = new List<S>(original.Count);
+            foreach (T element in original)
+            {
+                downcast.Add(element);
+            }
+            return downcast;
         }
 
     }
