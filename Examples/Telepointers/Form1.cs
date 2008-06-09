@@ -58,6 +58,7 @@ namespace Telepointers
 
             this.ControlAdded += new ControlEventHandler(Form1_ControlAdded);
             this.Paint += new PaintEventHandler(Form1_Paint);
+            this.Disposed += new EventHandler(Form1_Disposed);
 
             InitializeComponent();
 
@@ -75,16 +76,21 @@ namespace Telepointers
             coords.StreamedTupleReceived += coords_StreamedTupleReceived;
             c.ErrorEvent += c_ErrorEvent;
             session.SessionNewMessageEvent += session_SessionNewMessageEvent;
+
         }
 
         void session_SessionNewMessageEvent(ISessionStream stream)
         {
-            Console.WriteLine("h");
+            SessionMessage m;
+            while ((m = stream.DequeueMessage(0)) != null)
+            {
+                Console.WriteLine("Session: " + m);
+            }
         }
 
         void c_ErrorEvent(IConnexion ss, string explanation, object context)
         {
-            throw new Exception("The method or operation is not implemented.");
+            Console.WriteLine("An error occurred on {0}: {1} ({2})", ss, explanation, context);
         }
 
         //update other person
@@ -116,6 +122,12 @@ namespace Telepointers
             controls.Add(c);
         }
 
+        void Form1_Disposed(object sender, EventArgs e)
+        {
+            c.Stop();
+            c.Dispose();
+        }
+
         void c_Paint(object sender, PaintEventArgs e)
         {
             Control c = (Control)sender;
@@ -142,6 +154,7 @@ namespace Telepointers
         private void timerRepaint_Tick(object sender, EventArgs e)
         {
             c.Update();
+            coords.Flush();
 
             Point loc = this.Location;
             Point mouse = Form1.MousePosition;

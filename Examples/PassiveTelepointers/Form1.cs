@@ -57,6 +57,7 @@ namespace PassiveTelepointers
 
             this.ControlAdded += new ControlEventHandler(Form1_ControlAdded);
             this.Paint += new PaintEventHandler(Form1_Paint);
+            this.Disposed += new EventHandler(Form1_Disposed);
 
             InitializeComponent();
 
@@ -82,6 +83,12 @@ namespace PassiveTelepointers
             Control c = (Control)sender;
             c.Paint += new PaintEventHandler(c_Paint);
             controls.Add(c);
+        }
+
+        void Form1_Disposed(object sender, EventArgs e)
+        {
+            c.Stop();
+            c.Dispose();
         }
 
         void c_Paint(object sender, PaintEventArgs e)

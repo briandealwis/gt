@@ -31,6 +31,7 @@ namespace ClientChat
             s = c.GetStringStream(host, port,0, ChannelDeliveryRequirements.ChatLike);
             session = c.GetSessionStream(host, port, 0, ChannelDeliveryRequirements.SessionLike);
             InitializeComponent();
+            this.Disposed += Form1_Disposed;
         }
 
         private void timer_Tick(object sender, EventArgs e)
@@ -55,5 +56,13 @@ namespace ClientChat
                 textBox1.Text = "";
             }
         }
+
+        void Form1_Disposed(object sender, EventArgs e)
+        {
+            c.Stop();
+            c.Dispose();
+        }
+
+
     }
 }
