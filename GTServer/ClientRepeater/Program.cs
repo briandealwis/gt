@@ -8,6 +8,43 @@ using System.Diagnostics;
 
 namespace GT.Net
 {
+
+    /// <summary>
+    /// The server configuration used for the ClientRepeater.
+    /// Note that this configuration creates a
+    /// <c>LightweightDotNetSerializingMarshaller</c> as the server's
+    /// marshaller.  This marshaller only unmarshals system messages
+    /// and session messages and passes through all other messages as
+    /// uninterpreted bytes as instances of <c>RawMessage</c>.
+    /// ClientRepeaters uses this marshaller to minimize latency.
+    /// Servers that need to process the contents of messages should
+    /// change the <c>CreateMarshaller()</c> method to use a
+    /// <c>DotNetSerializingMarshaller</c> marshaller instead.
+    /// </summary>
+    public class RepeaterConfiguration : DefaultServerConfiguration
+    {
+        public RepeaterConfiguration(int port)
+            : base(port)
+        {
+            this.PingInterval = TimeSpan.FromMilliseconds(1);
+        }
+
+        override public Server BuildServer()
+        {
+            return new Server(this);
+        }
+
+        override public IMarshaller CreateMarshaller()
+        {
+            return new LightweightDotNetSerializingMarshaller();
+        }
+    }
+
+    /// <summary>
+    /// ClientRepeater: a simple server that simply resends all incoming
+    /// messages to all the clients that have connected to it.  The
+    /// ClientRepeater also sends Joined and Left session messages too.
+    /// </summary>
     public class ClientRepeater : IStartable
     {
         protected ServerConfiguration config;
@@ -211,25 +248,6 @@ namespace GT.Net
                 b.Append(", ");
             }
             return b.ToString();
-        }
-    }
-
-    public class RepeaterConfiguration : DefaultServerConfiguration
-    {
-        public RepeaterConfiguration(int port)
-            : base(port)
-        {
-            this.PingInterval = TimeSpan.FromMilliseconds(1);
-        }
-
-        override public Server BuildServer()
-        {
-            return new Server(this);
-        }
-
-        override public IMarshaller CreateMarshaller()
-        {
-            return new LightweightDotNetSerializingMarshaller();
         }
     }
 }
