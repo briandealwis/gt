@@ -3,6 +3,7 @@ using GT.Utils;
 using System;
 using System.IO;
 using System.Diagnostics;
+
 namespace GT.Net {
 
     public abstract class BaseConfiguration : IComparer<ITransport> {
@@ -26,12 +27,36 @@ namespace GT.Net {
 
     }
 
+    /// <summary>
+    /// A code describing the summary.
+    /// </summary>
+    public enum SummaryErrorCode {
+        UserException,
+        RemoteUnavailable,
+        MessagesCannotBeSent,
+        InvalidIncomingMessage,
+        TransportBacklogged,
+    }
+
+    public struct ErrorSummary
+    {
+        public ErrorSummary(Severity sev, SummaryErrorCode sec, string msg, Exception ctxt)
+        {
+            Severity = sev;
+            ErrorCode = sec;
+            Message = msg;
+            Context = ctxt;
+        }
+
+        public Severity Severity;
+        public SummaryErrorCode ErrorCode;
+        public string Message;
+        public Exception Context;
+    }
 
     /// <summary>Notification of an error event on a connexion.</summary>
-    /// <param name="ss">The connexion with the problem.</param>
-    /// <param name="explanation">A string describing the problem.</param>
-    /// <param name="context">A contextual object</param>
-    public delegate void ErrorEventNotication(IConnexion ss, string explanation, object context);
+    /// <param name="summary">A summary of the error event.</param>
+    public delegate void ErrorEventNotication(ErrorSummary summary);
 
     /// <summary>Handles a Message event, when a new message arrives</summary>
     /// <param name="m">The incoming message.</param>
@@ -63,6 +88,10 @@ namespace GT.Net {
 
         IMarshaller Marshaller { get; }
 
+        /// <summary>
+        /// The list of currently-connected transports.  Transports are ordered as
+        /// determined by this connexion's owner (see <c>BaseConfguration</c>).
+        /// </summary>
         IList<ITransport> Transports { get; }
 
         /// <summary>
@@ -209,24 +238,18 @@ namespace GT.Net {
             active = false;
             if (transports != null)
             {
-                foreach (ITransport t in transports) {
-                    try { t.Dispose(); }
-                    catch (Exception e) { NotifyError("Exception disposing transport", t, e); }
-                }
+                foreach (ITransport t in transports) { t.Dispose(); }
             }
         }
 
         /// <summary>Occurs when there is an error.</summary>
-        protected internal void NotifyError(string explanation, object generator, object context)
+        protected internal void NotifyError(ErrorSummary summary)
         {
             // FIXME: This should be logging
-            Console.WriteLine("Error[" + generator + "]: " + explanation + ": " + context);
+            Console.WriteLine(summary.ToString());
             if (ErrorEvents != null)
             {
-                try
-                {
-                    ErrorEvents(this, explanation, context);
-                }
+                try { ErrorEvents(summary); }
                 catch (Exception e)
                 {
                     Console.WriteLine("WARNING: Application ErrorEvents event handler threw an exception: {0}", e);
@@ -241,9 +264,17 @@ namespace GT.Net {
             // resulting in the transport being removed from underneath us.
             foreach (ITransport t in new List<ITransport>(transports))
             {
-                Send(new SystemMessage(SystemMessageType.PingRequest,
-                        BitConverter.GetBytes(System.Environment.TickCount)),
-                    new SpecificTransportRequirement(t), null);
+                try
+                {
+                    Send(new SystemMessage(SystemMessageType.PingRequest,
+                            BitConverter.GetBytes(System.Environment.TickCount)),
+                        new SpecificTransportRequirement(t), null);
+                }
+                catch (GTException e)
+                {
+                    NotifyError(new ErrorSummary(Severity.Warning, SummaryErrorCode.RemoteUnavailable,
+                        "Could not ping remote using transport " + t, e));
+                }
             }
         }
 
@@ -253,31 +284,38 @@ namespace GT.Net {
             lock (this)
             {
                 if (!Active) { return; }
-                List<ITransport> toRemove = new List<ITransport>();
+                // must track transports to be removed separately to avoid concurrent
+                // modification problems.  Create list lazily to minimize creating garbage.
+                IDictionary<ITransport,GTException> toRemove = null;
                 foreach (ITransport t in transports)
                 {
+                    if (!t.Active)
+                    {
+                        if (toRemove == null) { toRemove = new Dictionary<ITransport,GTException>(); }
+                        toRemove[t] = null; 
+                        continue;
+                    }
                     // Note: we only catch our GT transport exceptions and leave all others
                     // to be percolated upward -- we should avoid swallowing exceptions
+                    // FIXME: we really should provide the user some notification
                     try { t.Update(); }
-                    catch (TransportDecomissionedException e)
-                    {
-                        // This is a gentle notification that something was closed
-                        DebugUtils.WriteLine("Transport closed: {0}", t);
-                        toRemove.Add(t);
-                    }
                     catch (TransportError e)
                     {
                         // FIXME: Log the error
                         Console.WriteLine("{0} {1} WARNING: Transport error [{2}]: {3}", 
                             DateTime.Now, this, t, e);
-                        toRemove.Add(t);
-                        NotifyError("Transport-level error", t, e);
+                        if (toRemove == null) { toRemove = new Dictionary<ITransport,GTException>(); }
+                        toRemove[t] = e;
                     }
                 }
-                foreach (ITransport t in toRemove)
+                if (toRemove == null) { return; }
+                foreach (ITransport t in toRemove.Keys)
                 {
-                    ITransport replacement = HandleTransportDisconnect(t);
-                    if (replacement != null) { AddTransport(replacement); }
+                    HandleTransportDisconnect(t);
+                    if(toRemove[t] != null) {
+                        NotifyError(new ErrorSummary(Severity.Warning, SummaryErrorCode.RemoteUnavailable,
+                            "Transport failed", toRemove[t]));
+                    }
                 }
             }
         }
@@ -285,7 +323,7 @@ namespace GT.Net {
         public virtual void AddTransport(ITransport t)
         {
             DebugUtils.Write("{0}: added new transport: {1}", this, t);
-            t.PacketReceivedEvent += new PacketReceivedHandler(HandleNewPacket);
+            t.PacketReceivedEvent += HandleNewPacket;
             transports.Add(t);
             transports.Sort(this);
         }
@@ -343,13 +381,14 @@ namespace GT.Net {
                 break;
 
             case SystemMessageType.ConnexionClosing:
-                throw new ConnexionClosedException();
+                throw new ConnexionClosedException(this);
 
             case SystemMessageType.UnknownConnexion:
                 throw new TransportError(SystemMessageType.UnknownConnexion,
-                    "Remote has no record of the connexion using this transport.");
+                    "Remote has no record of the connexion using this transport.", message);
 
             case SystemMessageType.IncompatibleVersion:
+                // Is this the right exception?
                 throw new CannotConnectException("Remote does not speak a compatible protocol");
 
             default:
@@ -392,7 +431,7 @@ namespace GT.Net {
             if (t != null) { return t; }
             if (t == null && cdr != null) { t = cdr.SelectTransport(transports); }
             if (t != null) { return t; }
-            throw new NoMatchingTransport("Cannot find matching transport!");
+            throw new NoMatchingTransport(this, mdr, cdr);
         }
 
         #region Sending
@@ -456,7 +495,8 @@ namespace GT.Net {
             //pack main message into a buffer and send it right away
             Stream packet = transport.GetPacketStream();
             Marshaller.Marshal(MyUniqueIdentity, msg, packet, transport);
-            SendPacket(transport, packet);
+            try { SendPacket(transport, packet); }
+            catch (TransportError e) { throw new CannotSendMessagesError(this, e, msg); }
         }
 
         protected void SendMessages(ITransport transport, IList<Message> messages)
@@ -474,7 +514,11 @@ namespace GT.Net {
                 {
                     ms.SetLength(packetEnd);
                     ms.Position = packetStart;
-                    transport.SendPacket(ms);
+                    try { SendPacket(transport, ms); }
+                    catch (TransportError e)
+                    {
+                        throw new CannotSendMessagesError(this, e, messages);
+                    }
 
                     ms = transport.GetPacketStream();
                     packetStart = (int)ms.Position;
@@ -484,48 +528,60 @@ namespace GT.Net {
             if (ms.Position - packetStart != 0)
             {
                 ms.Position = packetStart;
-                SendPacket(transport, ms);
-            }
-        }
-
-
-
-        protected void StreamMessage(Message message, ITransport t, ref Stream stream)
-        {
-            long previousLength = stream.Length;
-            Marshaller.Marshal(MyUniqueIdentity, message, stream, t);
-            if (stream.Length < t.MaximumPacketSize) { return; }
-
-            // resulting packet is too big: go back to previous length, send what we had
-            stream.SetLength(previousLength);
-            Debug.Assert(stream.Length > 0);
-            SendPacket(t, stream);
-
-            // and remarshal the last message
-            stream = t.GetPacketStream();
-            Marshaller.Marshal(MyUniqueIdentity, message, stream, t);
-        }
-
-        protected void SendPacket(ITransport transport, Stream message)
-        {
-            // and be sure to catch exceptions; log and remove transport if unable to be started
-            // FIXME: isn't this bogus?  We're sending the transport-specific stream
-            // to a different transport!
-            // if(!transport.Active) { transport.Start(); }
-            while (transport != null)
-            {
-                try { transport.SendPacket(message); return; }
+                try { SendPacket(transport, ms); }
                 catch (TransportError e)
                 {
-                    transport = HandleTransportDisconnect(transport);
-                }
-                catch (TransportDecomissionedException e)
-                {
-                    transport = HandleTransportDisconnect(transport);
+                    throw new CannotSendMessagesError(this, e, messages);
                 }
             }
-            throw new CannotConnectException("ERROR sending packet; packet dropped");
         }
+
+        /// <summary>
+        /// Attempt to marshal <c>message</c> onto the provided stream (assumed to have been
+        /// obtained from <c>t</c>).  Should the stream exceed the maximum packet size as
+        /// defined by <c>t</c>, back off the message, send the stream contents, and obtain
+        /// a new stream.
+        /// </summary>
+        /// <param name="message">the message to be marshalled (and eventually sent)</param>
+        /// <param name="t">the transport on which the packet is to be sent</param>
+        /// <param name="stream">the transport stream</param>
+        /// <returns>true the message was too big and a new stream was necessary</returns>
+        protected bool StreamMessage(Message message, ITransport t, ref Stream stream)
+        {
+            long previousLength = stream.Length;
+            // don't bother trying to marshal the message if the stream is already too big
+            if (stream.Length < t.MaximumPacketSize)
+            {
+                Marshaller.Marshal(MyUniqueIdentity, message, stream, t);
+                if (stream.Length < t.MaximumPacketSize) { return false; }
+                // resulting packet is too big: go back to previous length, send what we had
+                stream.SetLength(previousLength);
+            }
+            SendPacket(t, stream);
+
+            // and remarshal this message
+            stream = t.GetPacketStream();
+            Marshaller.Marshal(MyUniqueIdentity, message, stream, t);
+            return true;
+        }
+
+        protected void SendPacket(ITransport transport, Stream stream)
+        {
+            try { transport.SendPacket(stream); }
+            catch (TransportBackloggedWarning e)
+            {
+                NotifyError(new ErrorSummary(e.Severity, SummaryErrorCode.TransportBacklogged,
+                    "Transport is backlogged: there are too many messages being sent", e));
+                // rethrow the error if it's not for information purposes
+                if (e.Severity != Severity.Information) { throw e; }
+            }
+            catch (TransportError e)
+            {
+                HandleTransportDisconnect(transport);
+                throw e;
+            }
+        }
+
         #endregion
 
         override public string ToString()

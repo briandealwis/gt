@@ -32,7 +32,7 @@ namespace GT.Net
 
         override public void Update()
         {
-            if (!Active) { throw new InvalidStateException("Cannot send on disposed transport"); }
+            InvalidStateException.Assert(Active, "Cannot send on disposed transport", this);
             CheckIncomingPackets();
             FlushOutstandingPackets();
         }
@@ -43,7 +43,7 @@ namespace GT.Net
 
         public override void SendPacket(byte[] buffer, int offset, int length)
         {
-            if (!Active) { throw new InvalidStateException("Cannot send on disposed transport"); }
+            InvalidStateException.Assert(Active, "Cannot send on disposed transport", this);
             ContractViolation.Assert(length > 0, "Cannot send 0-byte messages!");
             ContractViolation.Assert(length <= MaximumPacketSize, String.Format(
                     "Packet exceeds transport capacity: {0} > {1}", length, MaximumPacketSize));
@@ -65,7 +65,7 @@ namespace GT.Net
         /// <param name="buffer">The message to send.</param>
         public override void SendPacket(Stream ms)
         {
-            if (!Active) { throw new InvalidStateException("Cannot send on disposed transport"); }
+            InvalidStateException.Assert(Active, "Cannot send on disposed transport", this);
             ContractViolation.Assert(ms.Length > 0, "Cannot send 0-byte messages!");
             ContractViolation.Assert(ms.Length - PacketHeaderSize <= MaximumPacketSize, String.Format(
                     "Packet exceeds transport capacity: {0} > {1}", ms.Length - PacketHeaderSize, MaximumPacketSize));

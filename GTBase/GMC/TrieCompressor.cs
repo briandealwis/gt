@@ -11,7 +11,9 @@ namespace GT.GMC
     /// The dictionary compressor is unable to capture the range required to
     /// encode the trie references.
     /// </summary>
-    public class ShortcutsExhaustedException : GTException { }
+    public class ShortcutsExhaustedException : GTException {
+        public ShortcutsExhaustedException() : base(Severity.Information) { }
+    }
 
     public class TrieCompressor
     {
@@ -285,33 +287,33 @@ namespace GT.GMC
         internal void CheckSameState(TrieCompressor other)
         {
             InvalidStateException.Assert(decodingTable.Count == other.decodingTable.Count,
-                "decoding tables have different lengths");
+                "decoding tables have different lengths", this);
             for (int i = 0; i < decodingTable.Count; i++)
             {
                 InvalidStateException.Assert(ByteUtils.Compare(decodingTable[i], other.decodingTable[i]),
-                    "different decoding value for " + i);
+                    "different decoding value for " + i, this);
             }
 
             InvalidStateException.Assert(shortcuts.Count == other.shortcuts.Count,
-                "shortcut dictionaries have different counts");
+                "shortcut dictionaries have different counts", this);
             InvalidStateException.Assert(inverseShortcuts.Length == other.inverseShortcuts.Length,
-                "inverse shortcut lengths have different counts");
+                "inverse shortcut lengths have different counts", this);
             InvalidStateException.Assert(inverseShortcuts[0] == 0 && inverseShortcuts[1] == 0,
-                "bytes 0 and 1 are reserved!");
+                "bytes 0 and 1 are reserved!", this);
             for (int i = MinimumShortcut; i <= MaximumShortcut; i++)
             {
                 InvalidStateException.Assert(shortcuts.ContainsValue((byte)i) == other.shortcuts.ContainsValue((byte)i),
-                    "difference in byte mapping");
+                    "difference in byte mapping", this);
                 InvalidStateException.Assert(inverseShortcuts[i] == other.inverseShortcuts[i],
-                    "difference in byte mapping");
+                    "difference in byte mapping", this);
                 if (shortcuts.ContainsValue((byte)i))
                 {
                     InvalidStateException.Assert(shortcuts[inverseShortcuts[i]] == i,
-                        "Mismatch between instance's shortcuts and inverseShortcuts!");
+                        "Mismatch between instance's shortcuts and inverseShortcuts!", this);
                     InvalidStateException.Assert(inverseShortcuts[i] == other.inverseShortcuts[i],
-                        "Mismatch between instances' inverseShortcuts!");
+                        "Mismatch between instances' inverseShortcuts!", this);
                     InvalidStateException.Assert(shortcuts[inverseShortcuts[i]] == other.shortcuts[other.inverseShortcuts[i]],
-                        "Mismatch between instances' inverseShortcuts!");
+                        "Mismatch between instances' inverseShortcuts!", this);
                 }
             }
         }

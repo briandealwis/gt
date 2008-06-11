@@ -49,13 +49,6 @@ namespace GT.Net
     /// <param name="list">The clients who've joined.</param>
     public delegate void ClientsJoinedHandler(ICollection<IConnexion> list);
 
-    /// <summary>Handles when there is an internal error that the application should know about.</summary>
-    /// <param name="c">The client where the exception occurred</param>
-    /// <param name="explanation">An explanation of the error encountered</param>
-    /// <param name="context">A contextual object (e.g., an exception, a network error object)</param>
-    public delegate void ErrorClientHandler(IConnexion c, string explanation, object context);
-
-
     #endregion
 
     public abstract class ServerConfiguration : BaseConfiguration
@@ -178,7 +171,7 @@ namespace GT.Net
         /// Return the set of active clients to which this server is talking.
         /// </summary>
         public ICollection<IConnexion> Clients { 
-            get { return BaseConnexion.SelectUsable(clientIDs.Values); } 
+            get { return BaseConnexion.SelectUsable<ClientConnexion>(clientIDs.Values); } 
         }
 
         /// <summary>
@@ -213,8 +206,10 @@ namespace GT.Net
         /// <summary>Invoked each time a client connects.</summary>
         public event ClientsJoinedHandler ClientsJoined;
 
-        /// <summary>Invoked each time an error occurs.</summary>
-        public event ErrorClientHandler ErrorEvent;
+        /// <summary>Occurs when there are errors on the network.</summary>
+        public event ErrorEventNotication ErrorEvent;
+
+
 
         #endregion
 
@@ -271,10 +266,16 @@ namespace GT.Net
             return t;
         }
 
-        private void ErrorClientHandlerMethod(IConnexion client, string ex, object context)
+        private void ErrorClientHandlerMethod(ErrorSummary es)
         {
-            Console.WriteLine("{0} ({1}): ERROR: {2}: {3}", this, client, ex, context);
-            if (ErrorEvent != null) { ErrorEvent(client, ex, context); }
+            Console.WriteLine("{0}[{1}]: {2}: {3}", es.Severity, es.ErrorCode, es.Message, es.Context);
+            if (ErrorEvent == null) { return; }
+            try { ErrorEvent(es); }
+            catch (Exception e)
+            {
+                ErrorEvent(new ErrorSummary(Severity.Information, SummaryErrorCode.UserException,
+                    "Exception occurred when processing application error event handlers", e));
+            }
         }
 
         /// <summary>
@@ -320,12 +321,10 @@ namespace GT.Net
                 try { c.Update(); }
                 catch (ConnexionClosedException e)
                 {
+                    Debug.Assert(e.SourceComponent == c);
                     c.Dispose();
                 }
             }
-
-            //if anyone is listening, tell them we're done one cycle
-            if (Tick != null) { Tick(); }
 
             //remove dead clients (includes disposed and clients with no transports)
             List<ClientConnexion> listD = FindAll(clientIDs.Values, ClientConnexion.IsDead);
@@ -343,12 +342,15 @@ namespace GT.Net
                 }
             }
 
+            //if anyone is listening, tell them we're done one cycle
+            if (Tick != null) { Tick(); }
+
             DebugUtils.WriteLine("<<<< Server.Update() finished");
         }
 
         private void UpdateAcceptors()
         {
-            List<IAcceptor> toRemove = new List<IAcceptor>();
+            List<IAcceptor> toRemove = null;
             foreach (IAcceptor acc in acceptors)
             {
                 if (!acc.Active) { toRemove.Add(acc); continue; }
@@ -356,23 +358,23 @@ namespace GT.Net
                 try { acc.Update(); }
                 catch (TransportError e)
                 {
-                    Console.WriteLine("{0} {1} Error updating acceptor {2}: {3}",
-                        DateTime.Now, this, acc, e);
-                    toRemove.Add(acc);
+                    try {
+                        DebugUtils.WriteLine("Trying to restart error-raising acceptors");
+                        acc.Stop(); acc.Start();
+                        Console.WriteLine("{0} {1} Warning: error in acceptor {2}: {3}",
+                            DateTime.Now, this, acc, e);
+                    }
+                    catch (TransportError)
+                    {
+                        Console.WriteLine("{0} {1} ERROR: could not restart acceptor {1}",
+                            DateTime.Now, this, acc);
+                        if (toRemove == null) { toRemove = new List<IAcceptor>(); }
+                        toRemove.Add(acc);
+                    }
                 }
             }
-            if (toRemove.Count == 0) { return; }
-            DebugUtils.WriteLine("Trying to restart error-raising acceptors");
-            foreach (IAcceptor acc in toRemove)
-            {
-                try { acc.Stop(); acc.Start(); }
-                catch (Exception e)
-                {
-                    Console.WriteLine("{0} {1} ERROR: could not restart acceptor {1}",
-                        DateTime.Now, this, acc);
-                    acceptors.Remove(acc);
-                }
-            }
+            if (toRemove == null) { return; }
+            foreach (IAcceptor acc in toRemove) { acceptors.Remove(acc); }
         }
 
         private List<T> FindAll<T>(ICollection<T> list, Predicate<T> pred)
@@ -473,9 +475,21 @@ namespace GT.Net
                 catch (Exception e)
                 {
                     Console.WriteLine("{0}: EXCEPTION: in listening loop: {1}", this, e);
-                    if (ErrorEvent != null)
-                        ErrorEvent(null, "An error occurred in the server.", e);
+                    NotifyError(new ErrorSummary(Severity.Warning,
+                                SummaryErrorCode.RemoteUnavailable,
+                                "Exception occurred processing a connexion", e));
                 }
+            }
+        }
+
+        protected void NotifyError(ErrorSummary es)
+        {
+            if (ErrorEvent == null) { return; }
+            try { ErrorEvent(es); }
+            catch (Exception e)
+            {
+                ErrorEvent(new ErrorSummary(Severity.Information, SummaryErrorCode.UserException,
+                    "Exception occurred when processing application error event handlers", e));
             }
         }
 
@@ -529,8 +543,7 @@ namespace GT.Net
                     try { acc.Dispose(); }
                     catch (Exception e)
                     {
-                        ErrorEvent(null, 
-                            "Acceptor " + acc + " threw exception on dispose", e);
+                        Console.WriteLine("Acceptor {0} threw exception on dispose", acc, e);
                     }
                 }
                 acceptors = null;
@@ -632,7 +645,7 @@ namespace GT.Net
         /// <param name="mdr">How to send it (can be null)</param>
         public void Send(IList<Message> messages, ICollection<IConnexion> list, MessageDeliveryRequirements mdr)
         {
-            if (!running) { throw new InvalidStateException("Cannot send on a stopped server", this); }
+            InvalidStateException.Assert(Active, "Cannot send on a stopped server", this);
             foreach (IConnexion c in list)
             {
                 //Console.WriteLine("{0}: sending to {1}", this, c);
@@ -640,9 +653,10 @@ namespace GT.Net
                 {
                     c.Send(messages, mdr, GetChannelDeliveryRequirements(messages[0].Id));
                 }
-                catch (Exception e)
+                catch (GTException e)
                 {
-                    ErrorClientHandlerMethod(c, "EXCEPTION: when sending", e);
+                    NotifyError(new ErrorSummary(Severity.Warning, SummaryErrorCode.MessagesCannotBeSent,
+                        "Exception when sending messages", e));
                 }
             }
         }
@@ -694,7 +708,7 @@ namespace GT.Net
         #region Variables and Properties
 
         /// <summary>Triggered when an error occurs in this client.</summary>
-        public event ErrorClientHandler ErrorEvent;
+        public event ErrorEventNotication ErrorEvent;
 
         /// <summary>
         /// The client's unique identifier; this should be globally unique
@@ -784,9 +798,16 @@ namespace GT.Net
             {
                 throw new InvalidStateException("cannot send on a disposed client!", this);
             }
-            ITransport t = FindTransport(mdr, cdr);
-            SendMessages(t, messages);
-
+            try
+            {
+                ITransport t = FindTransport(mdr, cdr);
+                SendMessages(t, messages);
+            }
+            catch (GTException e)
+            {
+                NotifyError(new ErrorSummary(e.Severity, SummaryErrorCode.MessagesCannotBeSent,
+                    e.Message, e));
+            }
         }
 
         /// <summary>Handles a system message in that it takes the information and does something with it.</summary>

@@ -7,6 +7,16 @@ namespace GT.Net
 {
     public delegate void NewClientHandler(ITransport transport, Dictionary<string,string> capabilities);
 
+    /// <summary>
+    /// An object responsible for negotiating and accepting incoming connections.
+    /// The remote service is often implemented using an <c>IConnector</c>.
+    /// See
+    ///    DC Schmidt (1997). Acceptor and connector: A family of object 
+    ///    creational patterns for initializing communication services. 
+    ///    In R Martin, F Buschmann, D Riehle (Eds.), Pattern Languages of 
+    ///    Program Design 3. Addison-Wesley
+    ///    http://www.cs.wustl.edu/~schmidt/PDF/Acc-Con.pdf
+    /// </summary>
     public interface IAcceptor : IStartable
     {
         event NewClientHandler NewClientEvent;

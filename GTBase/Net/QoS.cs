@@ -2,6 +2,7 @@ using System;
 using System.Net;
 using GT;
 using System.Collections.Generic;
+using System.Text;
 
 namespace GT.Net
 {
@@ -102,6 +103,17 @@ namespace GT.Net
         }
 
         protected MessageDeliveryRequirements() {}
+
+        public override string ToString()
+        {
+            StringBuilder sb = new StringBuilder();
+            sb.Append(reliability);
+            sb.Append(',');
+            sb.Append(ordering);
+            sb.Append(',');
+            sb.Append(aggregation);
+            return sb.ToString();
+        }
 
         /// <summary>
         /// Select a transport meeting the requirements as specified by this instance.
@@ -211,6 +223,19 @@ namespace GT.Net
         }
 
         protected ChannelDeliveryRequirements() {}
+
+        public override string ToString()
+        {
+            StringBuilder sb = new StringBuilder();
+            sb.Append(reliability);
+            sb.Append(',');
+            sb.Append(ordering);
+            sb.Append(',');
+            sb.Append(aggregation);
+            sb.Append(',');
+            sb.Append(freshness);
+            return sb.ToString();
+        }
 
         /// <summary>
         /// Select a transport meeting the requirements as specified by this instance. 

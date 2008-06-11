@@ -47,7 +47,9 @@ namespace GT.Net
                 }
                 catch (Exception e)
                 {
-                    error = new CannotConnectException(e);
+                    error = new CannotConnectException(String.Format("Cannot connect to {0}/{1}: {2}",
+                        address, port, e.Message), e);
+                    error.SourceComponent = this;
                 }
             }
 

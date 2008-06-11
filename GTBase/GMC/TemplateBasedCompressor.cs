@@ -140,10 +140,8 @@ namespace GT.GMC
         {
             Debug.Assert(templateId == this.templateId);
             //Console.WriteLine("[tid={0}] TBC.HandleNewAnnouncement: {1} <--> {2}", templateId, longForm, shortForm);
-            if (dictionaryAdditions.ContainsKey(longForm))
-            {
-                throw new InvalidStateException("Announcements have wrapped");
-            }
+            InvalidStateException.Assert(!dictionaryAdditions.ContainsKey(longForm),
+                "Announcements have wrapped", this);
             dictionaryAdditions[longForm] = shortForm;
         }
 
@@ -237,12 +235,9 @@ namespace GT.GMC
             }
 
             byte[] message = cmp.Message;
-            if (cmp.Huffed) { message = hc.Decode(message);
-            if (message == null)
-            {
-                throw new InvalidStateException();
-            }
-            }
+            Debug.Assert(message != null);
+            if (cmp.Huffed) { message = hc.Decode(message); }
+            Debug.Assert(message != null);
             /// if(cmp.Gmced) { 
             message = tc.Decode(message);
             /// }

@@ -7,6 +7,20 @@ using System.IO;
 
 namespace GT.Net
 {
+    /// <summary>
+    /// An object responsible for initiating connections to some remote service.
+    /// The remote service is often implemented using an <c>IAcceptor</c>.
+    /// See
+    ///    DC Schmidt (1997). Acceptor and connector: A family of object 
+    ///    creational patterns for initializing communication services. 
+    ///    In R Martin, F Buschmann, D Riehle (Eds.), Pattern Languages of 
+    ///    Program Design 3. Addison-Wesley
+    ///    http://www.cs.wustl.edu/~schmidt/PDF/Acc-Con.pdf
+    /// FIXME: this interface currently blocks until completion.
+    /// Perhaps we should be providing an event on connection, with
+    /// <c>Connect()</c> initiating a connection, and requiring periodic
+    /// calls to an Update() method.
+    /// </summary>
     public interface IConnector : IStartable
     {
         /// <summary>
@@ -17,7 +31,7 @@ namespace GT.Net
         /// <param name="port"></param>
         /// <param name="capabilities"></param>
         /// <returns>the newly connected transport</returns>
-        /// <exception cref="CannotConnectToRemoteException">thrown if the connector
+        /// <exception cref="CannotConnectException">thrown if the connector
         ///     cannot connect to the other side.</exception>
         ITransport Connect(string address, string port, IDictionary<string, string> capabilities);
 

@@ -21,6 +21,7 @@ namespace GT.Net
         public static int CappedMessageSize = 512;
 
         private TcpClient handle;
+        private EndPoint remoteEndPoint;
         private Queue<byte[]> outstanding;
 
         private PacketInProgress incomingInProgress;
@@ -33,6 +34,7 @@ namespace GT.Net
             h.NoDelay = true;
             h.Client.Blocking = false;
             handle = h;
+            remoteEndPoint = handle.Client.RemoteEndPoint;
         }
 
         override public string Name
@@ -68,7 +70,7 @@ namespace GT.Net
 
         public IPAddress Address
         {
-            get { return ((IPEndPoint)handle.Client.RemoteEndPoint).Address; }
+            get { return ((IPEndPoint)remoteEndPoint).Address; }
         }
 
         override public bool Active { get { return handle != null; } }
@@ -94,7 +96,7 @@ namespace GT.Net
         /// <param name="buffer">The message to send.</param>
         public override void SendPacket(byte[] buffer, int offset, int length)
         {
-            if (!Active) { throw new InvalidStateException("Cannot send on disposed transport"); }
+            InvalidStateException.Assert(Active, "Cannot send on disposed transport", this);
             ContractViolation.Assert(length > 0, "Cannot send 0-byte messages!");
             ContractViolation.Assert(length - PacketHeaderSize <= MaximumPacketSize, String.Format(
                     "Packet exceeds transport capacity: {0} > {1}", length - PacketHeaderSize, MaximumPacketSize));
@@ -113,7 +115,7 @@ namespace GT.Net
         /// <param name="buffer">The message to send.</param>
         public override void SendPacket(Stream output)
         {
-            if (!Active) { throw new InvalidStateException("Cannot send on disposed transport"); }
+            InvalidStateException.Assert(Active, "Cannot send on disposed transport", this);
             Debug.Assert(PacketHeaderSize > 0);
             ContractViolation.Assert(output.Length > 0, "Cannot send 0-byte messages!");
             ContractViolation.Assert(output.Length - PacketHeaderSize <= MaximumPacketSize, String.Format(
@@ -163,10 +165,10 @@ namespace GT.Net
                         outgoingInProgress = null;
                     }
                     break;
+
                 case SocketError.WouldBlock:
-                    //don't die, but try again next time
-                    // FIXME: Some how push back to indicate that flow has been choked off
-                    return;
+                    throw new TransportBackloggedWarning(this);
+
                 default:
                     //die, because something terrible happened
                     throw new TransportError(this, String.Format("Error sending TCP Message ({0} bytes): {1}",
@@ -177,7 +179,7 @@ namespace GT.Net
 
         override public void Update()
         {
-            if (!Active) { throw new InvalidStateException("Cannot send on disposed transport"); }
+            InvalidStateException.Assert(Active, "Cannot send on disposed transport", this);
             CheckIncomingPackets();
             FlushOutstandingPackets();
         }
@@ -185,8 +187,6 @@ namespace GT.Net
         virtual protected void CheckIncomingPackets()
         {
             SocketError error = SocketError.Success;
-            try
-            {
                 while (handle.Available > 0)
                 {
                     // This is a simple state machine: we're either:
@@ -210,8 +210,7 @@ namespace GT.Net
                         break;
 
                     case SocketError.WouldBlock:
-                        // Console.WriteLine("{0}: CheckIncomingPacket(): would block", this);
-                        return;
+                        return; // nothing to do!
 
                     default:
                         //dead = true;
@@ -219,7 +218,7 @@ namespace GT.Net
                     }
                     if (bytesReceived == 0)
                     {
-                        throw new TransportDecomissionedException(this);
+                        throw new TransportError(this, "Socket was closed", SocketError.Disconnecting);
                     }
 
                     incomingInProgress.Advance(bytesReceived);
@@ -246,17 +245,19 @@ namespace GT.Net
                         }
                     }
                 }
-            }
-            catch (SocketException e)
-            {   // FIXME: can this clause even happen?
-                //dead = true;
-                throw new TransportError(this, String.Format("Error reading from socket: {0}", e.SocketErrorCode), e);
-            }
         }
 
         public override string ToString()
         {
-            return "TcpTransport(" + handle.Client.LocalEndPoint + " -> " + handle.Client.RemoteEndPoint + ")";
+            if (handle != null)
+            {
+                return String.Format("{0}: {1} -> {2})", Name,
+                    handle.Client.LocalEndPoint, handle.Client.RemoteEndPoint);
+            }
+            else
+            {
+                return String.Format("{0}: {1})", Name, remoteEndPoint);
+            }
         }
     }
 

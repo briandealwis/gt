@@ -153,9 +153,10 @@ namespace GT.Net
             serverThread = null;
         }
 
-        private void s_ErrorEvent(IConnexion c, string explanation, object context)
+        private void s_ErrorEvent(ErrorSummary es)
         {
-            Console.WriteLine("{0}: Error[{1}]: {2}: {3}", DateTime.Now, c, explanation, context);
+            Console.WriteLine("{0}: {1}[{2}]: {3}: {4}", DateTime.Now, es.Severity, es.ErrorCode,
+                es.Message, es.Context);
             //if (se.Equals(SocketError.NoRecovery))  // FIXME: this test is bogus -- we need more information
             //{
             //    List<ClientConnexion> removed = new List<ClientConnexion>();
@@ -242,9 +243,12 @@ namespace GT.Net
         private string ToString<T>(ICollection<T> c)
         {
             StringBuilder b = new StringBuilder();
-            foreach (object o in c)
-            {
-                b.Append(o.ToString());
+            IEnumerator<T> it = c.GetEnumerator();
+            if (!it.MoveNext()) { return ""; }
+            while (true)
+            { 
+                b.Append(it.Current.ToString());
+                if(!it.MoveNext()) { break; }
                 b.Append(", ");
             }
             return b.ToString();

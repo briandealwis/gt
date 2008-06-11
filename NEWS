@@ -88,6 +88,15 @@ Breaking Changes:
         the required QoS specifications.  Potentially thrown by the
 	various flavours of Send().
 
+  * Error reporting has changed somewhat dramatically.  The old
+    ErrorEventHandler delegates are now a delegate named ErrorEventNofication:
+
+	public delegate void ErrorEventNotication(ErrorSummary summary);
+
+    The ErrorSummary object contains an assessment of the severity
+    of the error, an actionable descriptive error code, and
+    debugging information.
+
 New additions
 
   * Added a lifecycle protocol, IStartable, consisting of Start(),

@@ -88,9 +88,10 @@ namespace Telepointers
             }
         }
 
-        void c_ErrorEvent(IConnexion ss, string explanation, object context)
+        void c_ErrorEvent(ErrorSummary e)
         {
-            Console.WriteLine("An error occurred on {0}: {1} ({2})", ss, explanation, context);
+            Console.WriteLine("{0}[{1}]: {2}: {3}", e.Severity, e.ErrorCode,
+                e.Message, e.Context);
         }
 
         //update other person

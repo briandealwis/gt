@@ -4,21 +4,95 @@ using System.Collections.Generic;
 
 namespace GT.Net
 {
+    public class CannotSendMessagesError : GTCompositeException
+    {
+        protected IDictionary<Exception, IList<PendingMessage>> messages;
+
+        public CannotSendMessagesError(IConnexion source)
+            : base(Severity.Warning)
+        {
+            SourceComponent = source;
+        }
+
+        public CannotSendMessagesError(IConnexion source, Exception ex, PendingMessage msg)
+            : this(source)
+        {
+            Add(ex, msg);
+        }
+
+        public CannotSendMessagesError(IConnexion source, Exception ex, ICollection<PendingMessage> msgs)
+            : this(source)
+        {
+            AddAll(ex, msgs);
+        }
+
+        public CannotSendMessagesError(IConnexion source, Exception ex, Message msg)
+            : this(source)
+        {
+            Add(ex, msg);
+        }
+
+        public CannotSendMessagesError(IConnexion source, Exception ex, ICollection<Message> msgs)
+            : this(source)
+        {
+            AddAll(ex, msgs);
+        }
+
+        override public ICollection<Exception> SubExceptions
+        {
+            get
+            {
+                if (messages == null) { return null; }
+                return messages.Keys;
+            }
+        }
+
+        public IDictionary<Exception, IList<PendingMessage>> Messages { get { return messages; } }
+
+        public void Add(Exception e, PendingMessage m)
+        {
+            IList<PendingMessage> list;
+            if (messages == null) { messages = new Dictionary<Exception, IList<PendingMessage>>(); }
+            if (!messages.TryGetValue(e, out list)) { list = messages[e] = new List<PendingMessage>(); }
+            list.Add(m);
+        }
+
+        public void AddAll(Exception e, ICollection<PendingMessage> msgs)
+        {
+            IList<PendingMessage> list;
+            if (messages == null) { messages = new Dictionary<Exception, IList<PendingMessage>>(); }
+            if (!messages.TryGetValue(e, out list)) { list = messages[e] = new List<PendingMessage>(); }
+            foreach (PendingMessage m in msgs) { list.Add(m); }
+        }
+
+        public void Add(Exception e, Message m)
+        {
+            Add(e, new PendingMessage(m, null, null));
+        }
+
+        public void AddAll(Exception e, ICollection<Message> msgs)
+        {
+            foreach (Message m in msgs) { Add(e, new PendingMessage(m, null, null)); }
+        }
+
+        public void ThrowIfApplicable()
+        {
+            if (messages != null && messages.Count > 0)
+            {
+                throw this;
+            }
+        }
+    }
+
     public class CannotConnectException : GTException
     {
         public CannotConnectException(string m)
-            : base(m)
-        {
-        }
+            : base(Severity.Error, m)
+        { }
 
-        public CannotConnectException(Exception e)
-            : base("unable to connect", e)
-        {
-        }
-
-        //public CannotConnectToRemoteException()
-        //{
-        //}
+        public CannotConnectException(string m, Exception e)
+            : base(Severity.Error, m, e)
+        { }
 
         // "There was a problem connecting to the server you specified. " +
         //"The address or port you provided may be improper, the receiving server may be down, " +
@@ -32,22 +106,20 @@ namespace GT.Net
     /// </summary>
     public class NoMatchingTransport : GTException
     {
-        protected ICollection<PendingMessage> unsendable;
+        protected MessageDeliveryRequirements mdr;
+        protected ChannelDeliveryRequirements cdr;
 
-        public NoMatchingTransport(string message)
-            : base(message)
-        { }
-
-        public NoMatchingTransport(string message, ICollection<PendingMessage> unsendableMessages)
-            : base(message)
+        public NoMatchingTransport(IConnexion connexion, MessageDeliveryRequirements mdr,
+            ChannelDeliveryRequirements cdr)
+            : base(Severity.Warning, String.Format("Could not find capable transport (mdr={0}, cdr={1})", mdr, cdr))
         {
-            unsendable = unsendableMessages;
+            SourceComponent = connexion;
+            this.mdr = mdr;
+            this.cdr = cdr;
         }
 
-        /// <summary>
-        /// Return the list of messages that were unsendable (if recorded)
-        /// </summary>
-        public ICollection<PendingMessage> Unsendable { get { return unsendable; } }
+        public MessageDeliveryRequirements MessageDeliveryRequirements { get { return mdr; } }
+        public ChannelDeliveryRequirements ChannelDeliveryRequirements { get { return cdr; } }
     }
 
     /// <summary>
@@ -55,7 +127,11 @@ namespace GT.Net
     /// </summary>
     public class ConnexionClosedException : GTException
     {
-        public ConnexionClosedException() { }
+        public ConnexionClosedException(IConnexion connexion)
+            : base(Severity.Warning)
+        {
+            SourceComponent = connexion;
+        }
     }
 
     /// <summary>
@@ -66,35 +142,29 @@ namespace GT.Net
     /// </summary>
     public class TransportError : GTException
     {
-        protected object transportObject;
         protected object transportError;
 
-        public TransportError(object o, string message) : base(message) {
-            transportObject = o;
-        }
-        public TransportError(object t, string message, object error)
-            : this(t, message)
+        public TransportError(object source, string message, object error)
+            : base(Severity.Error, message)
         {
+            SourceComponent = source;
             transportError = error;
         }
 
-        public object TransportObject { get { return transportObject; } }
         public object ErrorObject { get { return transportError; } }
     }
 
-    /// <summary>
-    /// This transport object has been cleanly invalidated somehow
-    /// (e.g., remote has closed the socket) and should be decomissioned.
-    /// </summary>
-    public class TransportDecomissionedException : GTException
+    public class TransportBackloggedWarning : GTException
     {
-        protected object transportObject;
+        public TransportBackloggedWarning(ITransport t) 
+            : this(Severity.Information, t)
+        {}
 
-        public TransportDecomissionedException(object t)
+        public TransportBackloggedWarning(Severity sev, ITransport t)
+            : base(sev)
         {
-            transportObject = t;
+            SourceComponent = t;
         }
-
-        public object TransportObject { get { return transportObject; } }
     }
+
 }

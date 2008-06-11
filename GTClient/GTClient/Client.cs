@@ -177,7 +177,7 @@ namespace GT.Net
         /// <summary>Received messages from the server.</summary>
         public IList<Message> Messages { get { return messages; } }
 
-        /// <summary> This streak uses this connexion. </summary>
+        /// <summary> This stream uses this connexion. </summary>
         /// <remarks>deprecated</remarks>
         public ServerConnexion Connection { get { return connexion; } }
 
@@ -589,6 +589,7 @@ namespace GT.Net
                         ITransport t = conn.Connect(Address, Port, owner.Capabilities);
                         Debug.Assert(t != null, "IConnector.Connect() shouldn't return null: " + conn);
                         Console.WriteLine("{0} [{1}] Reconnected: {2}", DateTime.Now, this, t);
+                        AddTransport(t);
                         return t;
                     } catch(CannotConnectException e) {
                         Console.WriteLine("{0} [{1}] Could not reconnect to {2}/{3}: {4}", DateTime.Now, this,
@@ -644,51 +645,61 @@ namespace GT.Net
                     throw new InvalidStateException("Cannot send on a stopped client", this); 
                 }
 
-                MessageAggregation aggr = mdr == null ? cdr.Aggregation : mdr.Aggregation;
-                if (aggr == MessageAggregation.Aggregatable) {
-                    // Wait to send this message, hopefully to pack it with later messages.
-                    Aggregate(msg, mdr, cdr);
-                    return;
-                }
-
-                if (messageQueues == null || messageQueues.Count == 0)
+                try
                 {
-                    // Short circuit since there are no other messages waiting
-                    SendMessage(FindTransport(mdr, cdr), msg);
-                    return;
+                    MessageAggregation aggr = mdr == null ? cdr.Aggregation : mdr.Aggregation;
+                    if (aggr == MessageAggregation.Aggregatable)
+                    {
+                        // Wait to send this message, hopefully to pack it with later messages.
+                        Aggregate(msg, mdr, cdr);
+                        return;
+                    }
+
+                    if (messageQueues == null || messageQueues.Count == 0)
+                    {
+                        // Short circuit since there are no other messages waiting
+                        SendMessage(FindTransport(mdr, cdr), msg);
+                        return;
+                    }
+
+                    switch (aggr)
+                    {
+                    case MessageAggregation.Aggregatable:
+                        // already handled
+                        Console.WriteLine("INTERNAL ERROR: MessageAggregation.Aggregatable should have been handled already");
+                        return;
+
+                    case MessageAggregation.FlushChannel:
+                        // make sure ALL other messages on this CHANNEL are sent, and then send <c>msg</c>.
+                        FlushMessages(new ProcessorChain<PendingMessage>(
+                            new SameChannelProcessor(msg.Id, messageQueues),
+                            new SingleElementProcessor<PendingMessage>(new PendingMessage(msg, mdr, cdr))));
+                        return;
+
+                    case MessageAggregation.FlushAll:
+                        // make sure ALL messages are sent, then send <c>msg</c>.
+                        // FIXME: channels should be prioritized?  So shouldn't be round robin.
+                        FlushMessages(new ProcessorChain<PendingMessage>(
+                            new RoundRobinProcessor<byte, PendingMessage>(messageQueues),
+                            new SingleElementProcessor<PendingMessage>(new PendingMessage(msg, mdr, cdr))));
+                        return;
+
+                    case MessageAggregation.Immediate:
+                        // bundle <c>msg</c> first and then cram on whatever other messages are waiting.
+                        // FIXME: channels should be prioritized?  So shouldn't be round robin.
+                        FlushMessages(new ProcessorChain<PendingMessage>(
+                            new SingleElementProcessor<PendingMessage>(new PendingMessage(msg, mdr, cdr)),
+                            new RoundRobinProcessor<byte, PendingMessage>(messageQueues)));
+                        return;
+
+                    default:
+                        throw new ArgumentException("Unhandled aggregation type: " + aggr);
+                    }
                 }
-
-                switch (aggr)
+                catch (GTException e)
                 {
-                case MessageAggregation.Aggregatable:
-                    // already handled
-                    throw new InvalidStateException("MessageAggregation.Aggregatable should have been handled already");
-
-                case MessageAggregation.FlushChannel:
-                    // make sure ALL other messages on this CHANNEL are sent, and then send <c>msg</c>.
-                    FlushMessages(new ProcessorChain<PendingMessage>(
-                        new SameChannelProcessor(msg.Id, messageQueues),
-                        new SingleElementProcessor<PendingMessage>(new PendingMessage(msg, mdr, cdr))));
-                    return;
-
-                case MessageAggregation.FlushAll:
-                    // make sure ALL messages are sent, then send <c>msg</c>.
-                    // FIXME: channels should be prioritized?  So shouldn't be round robin.
-                    FlushMessages(new ProcessorChain<PendingMessage>(
-                        new RoundRobinProcessor<byte, PendingMessage>(messageQueues),
-                        new SingleElementProcessor<PendingMessage>(new PendingMessage(msg, mdr, cdr))));
-                    return;
-
-                case MessageAggregation.Immediate:
-                    // bundle <c>msg</c> first and then cram on whatever other messages are waiting.
-                    // FIXME: channels should be prioritized?  So shouldn't be round robin.
-                    FlushMessages(new ProcessorChain<PendingMessage>(
-                        new SingleElementProcessor<PendingMessage>(new PendingMessage(msg, mdr, cdr)),
-                        new RoundRobinProcessor<byte,PendingMessage>(messageQueues)));
-                    return;
-
-                default:
-                    throw new ArgumentException("Unhandled aggregation type: " + aggr);
+                    NotifyError(new ErrorSummary(e.Severity, SummaryErrorCode.MessagesCannotBeSent,
+                        e.Message, e));
                 }
             }
         }
@@ -700,38 +711,69 @@ namespace GT.Net
         override public void Send(IList<Message> msgs, MessageDeliveryRequirements mdr,
             ChannelDeliveryRequirements cdr)
         {
+            // GTExceptions caught by Send()
             foreach (Message m in msgs) { Send(m, mdr, cdr); }
         }
 
         internal void FlushChannelMessages(byte id, ChannelDeliveryRequirements cdr)
         {
-            FlushMessages(new SameChannelProcessor(id, messageQueues));
+            try
+            {
+                FlushMessages(new SameChannelProcessor(id, messageQueues));
+            }
+            catch (CannotSendMessagesError e)
+            {
+                NotifyError(new ErrorSummary(Severity.Warning, SummaryErrorCode.MessagesCannotBeSent,
+                    String.Format("Unable to flush channel {0}", id), e));
+            }
         }
 
         protected void FlushMessages(IProcessingQueue<PendingMessage> queue)
         {
             Dictionary<ITransport, Stream> inProgress = new Dictionary<ITransport, Stream>();
-            PendingMessage current;
-            IList<PendingMessage> unsendable = null;
+            Dictionary<ITransport, IList<PendingMessage>> dequeuedMessages = 
+                new Dictionary<ITransport, IList<PendingMessage>>();
+            PendingMessage pm;
+            CannotSendMessagesError csme = new CannotSendMessagesError(this);
 
-            while((current = queue.Current) != null)
+            while ((pm = queue.Current) != null)
             {
+                ITransport transport;
                 try
                 {
-                    // FindTransport() will throw exception if not found
-                    ITransport transport = FindTransport(current.MDR, current.CDR);
-                    Stream stream;
-                    if (!inProgress.TryGetValue(transport, out stream))
-                    {
-                        stream = inProgress[transport] = transport.GetPacketStream();
-                    }
-                    StreamMessage(current.Message, transport, ref stream);
-                    inProgress[transport] = stream; // be sure to update inProgress
+                    transport = FindTransport(pm.MDR, pm.CDR);
                 }
                 catch (NoMatchingTransport e)
                 {
-                    if (unsendable == null) { unsendable = new List<PendingMessage>(); }
-                    unsendable.Add(current);
+                    csme.Add(e, pm);
+                    continue;
+                }
+                Stream stream;
+                IList<PendingMessage> pending;
+                if (!inProgress.TryGetValue(transport, out stream))
+                {
+                    stream = inProgress[transport] = transport.GetPacketStream();
+                }
+                if (!dequeuedMessages.TryGetValue(transport, out pending))
+                {
+                    pending = dequeuedMessages[transport] = new List<PendingMessage>();
+                }
+                try
+                {
+                    // if true, then the previous contents were sent & a new stream was allocated
+                    // regardless: pm will not have been sent.
+                    if (StreamMessage(pm.Message, transport, ref stream))
+                    {
+                        pending.Clear();
+                    }
+                    inProgress[transport] = stream; // be sure to update inProgress
+                    pending.Add(pm);
+                }
+                catch (TransportError e)
+                {
+                    pending.Add(pm);
+                    csme.AddAll(e, pending);
+                    HandleTransportDisconnect(transport);
                 }
                 queue.Remove();
             }
@@ -740,12 +782,15 @@ namespace GT.Net
             foreach (ITransport t in inProgress.Keys)
             {
                 Stream stream = inProgress[t];
-                if (stream != null) { SendPacket(t, stream); }
+                try { t.SendPacket(stream); }
+                catch (TransportError e)
+                {
+                    csme.AddAll(e, dequeuedMessages[t]);
+                    HandleTransportDisconnect(t);
+                }
             }
-            if (unsendable != null)
-            {
-                throw new NoMatchingTransport("Could not find matching transports", unsendable);
-            }
+            // No point re-queuing the messages since there's no available transport
+            csme.ThrowIfApplicable();
         }
     
         /// <summary>Deal with a system message in whatever way we need to.</summary>
@@ -864,6 +909,10 @@ namespace GT.Net
         protected long lastPingTime = 0;
         protected bool started = false;
 
+        // Keep track of the previous warning messages; it's annoying to have hundreds scroll by
+        protected IDictionary<byte, byte> previouslyWarnedChannels;
+        protected IDictionary<MessageType, MessageType> previouslyWarnedMessageTypes;
+
         /// <summary>Occurs when there are errors on the network.</summary>
         public event ErrorEventNotication ErrorEvent;
 
@@ -941,6 +990,9 @@ namespace GT.Net
             lock (this)
             {
                 if(Active) { return; }
+                previouslyWarnedChannels = new Dictionary<byte, byte>();
+                previouslyWarnedMessageTypes = new Dictionary<MessageType, MessageType>();
+
                 marshaller = configuration.CreateMarshaller();
                 connexions = new List<ServerConnexion>();
                 timer.Start();
@@ -1414,17 +1466,20 @@ namespace GT.Net
                 }
             }
             ServerConnexion mySC = configuration.CreateServerConnexion(this, address, port);
-            mySC.ErrorEvents += mySS_ErrorEvent;
+            mySC.ErrorEvents += NotifyError;
             mySC.Start();
             connexions.Add(mySC);
             return mySC;
         }
 
-        private void mySS_ErrorEvent(IConnexion ss, string explanation, object context)
+        private void NotifyError(ErrorSummary es)
         {
-            if (ErrorEvent != null)
+            if (ErrorEvent == null) { return; }
+            try { ErrorEvent(es); }
+            catch (Exception e)
             {
-                ErrorEvent(ss, explanation, context);
+                ErrorEvent(new ErrorSummary(Severity.Information, SummaryErrorCode.UserException,
+                    "Exception occurred when processing application error event handlers", e));
             }
         }
 
@@ -1463,16 +1518,24 @@ namespace GT.Net
                                 case MessageType.Tuple3D: threeTupleStreams[m.Id].QueueMessage(m); break;
                                 default:
                                     // THIS IS NOT AN ERROR!
-                                    Console.WriteLine("Client: WARNING: received message of unknown type: {1}",
-                                        m);
+                                    if (!previouslyWarnedMessageTypes.ContainsKey(m.MessageType))
+                                    {
+                                        Console.WriteLine("Client: WARNING: received message of unknown type: {1}",
+                                            m);
+                                        previouslyWarnedMessageTypes[m.MessageType] = m.MessageType;
+                                    }
                                     break;
                                 }
                             }
                             catch (KeyNotFoundException)
                             {
                                 // THIS IS NOT AN ERROR!
-                                Console.WriteLine("Client: WARNING: received message for unmonitored channel: {0}",
-                                    m);
+                                if (!previouslyWarnedChannels.ContainsKey(m.Id))
+                                {
+                                    Console.WriteLine("Client: WARNING: received message for unmonitored channel: {0}",
+                                        m);
+                                    previouslyWarnedChannels[m.Id] = m.Id;
+                                }
                             }
                         }
                         if (s.Transports.Count == 0)
@@ -1481,13 +1544,15 @@ namespace GT.Net
                         }
                     }
                     catch (ConnexionClosedException) { s.Dispose(); }
-                    catch (Exception e)
+                    catch (GTException e)
                     {
                         Console.WriteLine("Client: ERROR: Exception occurred in Client.Update() processing stream {0}: {1}", s, e);
-                        if (ErrorEvent != null)
-                            ErrorEvent(s, "Exception occurred when trying to queue message.", e);
+                        NotifyError(new ErrorSummary(Severity.Warning, 
+                                    SummaryErrorCode.RemoteUnavailable, 
+                                    "Exception occurred processing a connexion", e));
                     }
                 }
+
 
 
                 //let each stream update itself

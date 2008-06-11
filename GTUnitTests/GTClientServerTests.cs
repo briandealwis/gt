@@ -227,9 +227,10 @@ namespace GT.UnitTests
         }
 
         /// <summary>This is triggered if something goes wrong</summary>
-        void ServerErrorEvent(IConnexion c, string explanation, object context)
+        void ServerErrorEvent(ErrorSummary es)
         {
-            DebugUtils.WriteLine("Server: Error: " + explanation + "\n   context: " + context.ToString());
+            DebugUtils.WriteLine("Server: {0}: {1}[{2}]: {3}: {4}", DateTime.Now, es.Severity, es.ErrorCode,
+                es.Message, es.Context);
             errorOccurred = true;
         }
     }
@@ -242,7 +243,6 @@ namespace GT.UnitTests
     [TestFixture]
     public class ZSStreamTests
     {
-
         private bool errorOccurred;
         private bool responseReceived;
         private Client client;
@@ -479,9 +479,10 @@ namespace GT.UnitTests
 
 
         /// <summary>This is triggered if something goes wrong</summary>
-        void client_ErrorEvent(IConnexion ss, string explanation, object context)
+        void client_ErrorEvent(ErrorSummary es)
         {
-            DebugUtils.WriteLine("Client Error: " + explanation + "\n   context: " + context);
+            DebugUtils.WriteLine("Client: {0}[{1}]: {2}: {3}", es.Severity, es.ErrorCode,
+                es.Message, es.Context);
             errorOccurred = true;
         }
 
@@ -545,9 +546,10 @@ namespace GT.UnitTests
             Console.WriteLine("Dictionary: key changed: {0}", key);
         }
 
-        public void ClientErrorEvent(IConnexion s, string explanation, object context)
+        public void ClientErrorEvent(ErrorSummary es)
         {
-            Console.WriteLine("ERROR: {0}: {1}: {2}", s, explanation, context);
+            Console.WriteLine("Client: {0}[{1}]: {2}: {3}", es.Severity, es.ErrorCode,
+                es.Message, es.Context);
             errorOccurred = true;
         }
 
