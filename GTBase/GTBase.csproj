@@ -44,6 +44,7 @@
     <Compile Include="GMC\SkipCompressor.cs" />
     <Compile Include="GMC\SuffixTrie.cs" />
     <Compile Include="GMC\TrieCompressor.cs" />
+    <Compile Include="HPTimer.cs" />
     <Compile Include="Net\ClientServer.cs" />
     <Compile Include="Statistics.cs" />
     <Compile Include="Exceptions.cs" />

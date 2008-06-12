@@ -53,7 +53,6 @@
     <Compile Include="TcpConnector.cs" />
     <Compile Include="Delay.cs" />
     <Compile Include="Framed.cs" />
-    <Compile Include="HPTimer.cs" />
     <Compile Include="IConnector.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="SimpleSharedDictionary.cs" />

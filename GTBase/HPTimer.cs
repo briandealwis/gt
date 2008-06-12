@@ -4,9 +4,11 @@ using System.ComponentModel;
 using System.Threading;
 using System.Diagnostics;
 
-namespace GT.Net
+namespace GT
 {
-    /// <summary>A high-resolution high-performance timer.</summary>
+    /// <summary>A high-resolution high-performance timer.  The time is stable, only updated
+    /// when explicitly commanded.
+    /// </summary>
     public class HPTimer : IStartable
     {
         private Stopwatch stopwatch;
