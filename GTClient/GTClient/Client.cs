@@ -730,6 +730,7 @@ namespace GT.Net
 
         protected void FlushMessages(IProcessingQueue<PendingMessage> queue)
         {
+            // FIXME: this method is too long
             Dictionary<ITransport, Stream> inProgress = new Dictionary<ITransport, Stream>();
             Dictionary<ITransport, IList<PendingMessage>> dequeuedMessages = 
                 new Dictionary<ITransport, IList<PendingMessage>>();
@@ -746,36 +747,63 @@ namespace GT.Net
                 catch (NoMatchingTransport e)
                 {
                     csme.Add(e, pm);
+                    queue.Remove();
                     continue;
                 }
                 Stream stream;
                 IList<PendingMessage> pending;
-                if (!inProgress.TryGetValue(transport, out stream))
+                if (!inProgress.TryGetValue(transport, out stream) || stream == null)
                 {
                     stream = inProgress[transport] = transport.GetPacketStream();
                 }
-                if (!dequeuedMessages.TryGetValue(transport, out pending))
+                if (!dequeuedMessages.TryGetValue(transport, out pending) || pending == null)
                 {
                     pending = dequeuedMessages[transport] = new List<PendingMessage>();
                 }
+
+                /// Attempt to marshal pm onto the transport stream.  Should the stream 
+                /// exceed the maximum packet size as defined by <c>t</c>, back off the 
+                /// message, send the stream contents, and obtain a new stream.
+                long previousLength = stream.Length;
                 try
                 {
-                    // if true, then the previous contents were sent & a new stream was allocated
-                    // regardless: pm will not have been sent.
-                    if (StreamMessage(pm.Message, transport, ref stream))
-                    {
-                        pending.Clear();
-                    }
-                    inProgress[transport] = stream; // be sure to update inProgress
-                    pending.Add(pm);
+                    Marshaller.Marshal(MyUniqueIdentity, pm.Message, stream, transport);
                 }
-                catch (TransportError e)
+                catch (MarshallingException e)
                 {
-                    pending.Add(pm);
-                    csme.AddAll(e, pending);
-                    HandleTransportDisconnect(transport);
+                    csme.Add(e, pm.Message);
+                    queue.Remove();
+                    stream.SetLength(previousLength);
+                    continue;
                 }
-                queue.Remove();
+                if (stream.Length < transport.MaximumPacketSize)
+                {
+                    queue.Remove(); // remove current message
+                    pending.Add(pm);
+                }
+                else
+                {
+                    // resulting packet is too big: go back to previous length, send what we had
+                    stream.SetLength(previousLength);
+                    try { SendPacket(transport, stream); }
+                    catch (TransportError e)
+                    {
+                        // requeue these messages to try them again on a different transport
+                        // FIXME: some of the messages might have actually been sent!
+                        csme.AddAll(e, pending);
+                        pending.Clear();
+                        HandleTransportDisconnect(transport);
+                        continue;
+                    }
+                    catch (TransportBackloggedWarning e)
+                    {
+                        // The packet is still outstanding; just warn the user 
+                        NotifyError(new ErrorSummary(Severity.Information, SummaryErrorCode.TransportBacklogged,
+                            "Transport backlogged: " + transport, e));
+                    }
+                    inProgress[transport] = stream = transport.GetPacketStream();
+                    pending.Clear();
+                }
             }
 
             // send everything in progress
@@ -787,6 +815,12 @@ namespace GT.Net
                 {
                     csme.AddAll(e, dequeuedMessages[t]);
                     HandleTransportDisconnect(t);
+                }
+                catch (TransportBackloggedWarning e)
+                {
+                    // The packet is still outstanding; just warn the user 
+                    NotifyError(new ErrorSummary(Severity.Information, SummaryErrorCode.TransportBacklogged,
+                        "Transport backlogged: " + t, e));
                 }
             }
             // No point re-queuing the messages since there's no available transport

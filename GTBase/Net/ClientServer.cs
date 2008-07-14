@@ -536,35 +536,6 @@ namespace GT.Net {
             }
         }
 
-        /// <summary>
-        /// Attempt to marshal <c>message</c> onto the provided stream (assumed to have been
-        /// obtained from <c>t</c>).  Should the stream exceed the maximum packet size as
-        /// defined by <c>t</c>, back off the message, send the stream contents, and obtain
-        /// a new stream.
-        /// </summary>
-        /// <param name="message">the message to be marshalled (and eventually sent)</param>
-        /// <param name="t">the transport on which the packet is to be sent</param>
-        /// <param name="stream">the transport stream</param>
-        /// <returns>true the message was too big and a new stream was necessary</returns>
-        protected bool StreamMessage(Message message, ITransport t, ref Stream stream)
-        {
-            long previousLength = stream.Length;
-            // don't bother trying to marshal the message if the stream is already too big
-            if (stream.Length < t.MaximumPacketSize)
-            {
-                Marshaller.Marshal(MyUniqueIdentity, message, stream, t);
-                if (stream.Length < t.MaximumPacketSize) { return false; }
-                // resulting packet is too big: go back to previous length, send what we had
-                stream.SetLength(previousLength);
-            }
-            SendPacket(t, stream);
-
-            // and remarshal this message
-            stream = t.GetPacketStream();
-            Marshaller.Marshal(MyUniqueIdentity, message, stream, t);
-            return true;
-        }
-
         protected void SendPacket(ITransport transport, Stream stream)
         {
             try { transport.SendPacket(stream); }
