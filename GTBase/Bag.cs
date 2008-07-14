@@ -100,5 +100,97 @@ namespace GT.Utils
         #endregion
     }
 
-    #endregion
+    public class SingleItem<T> : IList<T>
+    {
+        protected T item;
+
+        public SingleItem(T item) {
+            this.item = item;
+        }
+
+        public int IndexOf(T item)
+        {
+            return item.Equals(item) ? 0 : -1;
+        }
+
+        public void Insert(int index, T item)
+        {
+            throw new NotSupportedException("SingleItem cannot grow or shrink");
+        }
+
+        public void RemoveAt(int index)
+        {
+            throw new NotSupportedException("SingleItem cannot grow or shrink");
+        }
+
+        public T this[int index]
+        {
+            get
+            {
+                if(index == 0) { return item; }
+                throw new ArgumentOutOfRangeException("index");
+            }
+            set
+            {
+                if(index == 0) { item = value; }
+                throw new ArgumentOutOfRangeException("index");
+            }
+        }
+
+        public void Add(T item)
+        {
+            throw new NotSupportedException("SingleItem cannot grow or shrink");
+        }
+
+        public void Clear()
+        {
+            throw new NotSupportedException("SingleItem cannot grow or shrink");
+        }
+
+        public bool Contains(T item)
+        {
+            return item.Equals(item);
+        }
+
+        public void CopyTo(T[] array, int arrayIndex)
+        {
+            array[arrayIndex] = item;
+        }
+
+        public int Count
+        {
+            get { return 1; }
+        }
+
+        public bool IsReadOnly
+        {
+            get { return true; }
+        }
+
+        public bool Remove(T item)
+        {
+            throw new NotSupportedException("SingleItem cannot grow or shrink");
+        }
+
+        #endregion
+
+        #region IEnumerable<T> Members
+
+        public IEnumerator<T> GetEnumerator()
+        {
+            throw new Exception("The method or operation is not implemented.");
+        }
+
+        #endregion
+
+        #region IEnumerable Members
+
+        System.Collections.IEnumerator System.Collections.IEnumerable.GetEnumerator()
+        {
+            throw new Exception("The method or operation is not implemented.");
+        }
+
+        #endregion
+    }
+
 }
