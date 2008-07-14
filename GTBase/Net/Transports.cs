@@ -42,9 +42,8 @@ namespace GT.Net
         /// </summary>
         /// <param name="packet">the packet of message(s) to send</param>
         /// <param name="offset">the offset into the packet to send</param>
-        /// <param name="length">the number of bytes within the packet to send</param>
+        /// <param name="count">the number of bytes within the packet to send</param>
         /// <exception cref="TransportError">thrown on a fatal transport error.</exception>
-        /// <exception cref="TransportDecomissionedException">thrown should the transport be decommissioned.</exception>
         void SendPacket(byte[] packet, int offset, int count);
 
         /// <summary>
@@ -53,7 +52,6 @@ namespace GT.Net
         /// </summary>
         /// <param name="stream">the stream encoding the packet</param>
         /// <exception cref="TransportError">thrown on a fatal transport error.</exception>
-        /// <exception cref="TransportDecomissionedException">thrown should the transport be decommissioned.</exception>
         void SendPacket(Stream stream);
 
         /// <summary>
@@ -62,7 +60,6 @@ namespace GT.Net
         Stream GetPacketStream();
 
         /// <exception cref="TransportError">thrown on a fatal transport error.</exception>
-        /// <exception cref="TransportDecomissionedException">thrown should the transport be decommissioned.</exception>
         void Update();
 
         int MaximumPacketSize { get; }
