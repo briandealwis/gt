@@ -1581,7 +1581,7 @@ namespace GT.Net
                     catch (GTException e)
                     {
                         Console.WriteLine("Client: ERROR: Exception occurred in Client.Update() processing stream {0}: {1}", s, e);
-                        NotifyError(new ErrorSummary(Severity.Warning, 
+                        NotifyError(new ErrorSummary(e.Severity, 
                                     SummaryErrorCode.RemoteUnavailable, 
                                     "Exception occurred processing a connexion", e));
                     }

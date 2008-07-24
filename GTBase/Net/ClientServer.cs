@@ -52,6 +52,12 @@ namespace GT.Net {
         public SummaryErrorCode ErrorCode;
         public string Message;
         public Exception Context;
+
+        public override string ToString()
+        {
+            return String.Format("{0}[{1}]: {2}: {3}", Severity, ErrorCode,
+                Message, Context);
+        }
     }
 
     /// <summary>Notification of an error event on a connexion.</summary>

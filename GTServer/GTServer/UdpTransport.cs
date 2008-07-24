@@ -22,17 +22,7 @@ namespace GT.Net
 
         override public int MaximumPacketSize
         {
-            get
-            {
-                try
-                {
-                    return Math.Min(CappedMessageSize, handle.MaximumPacketSize);
-                }
-                catch (Exception)
-                {
-                    return CappedMessageSize;
-                }
-            }
+            get { return CappedMessageSize; }
         }
 
         virtual public void Dispose()
@@ -48,7 +38,6 @@ namespace GT.Net
             }
             handle = null;
         }
-
 
         protected override void FlushOutstandingPackets()
         {

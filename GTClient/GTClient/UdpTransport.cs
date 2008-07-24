@@ -111,18 +111,7 @@ namespace GT.Net
 
         public override int MaximumPacketSize
         {
-            get
-            {
-                try
-                {
-                    return Math.Min(CappedMessageSize, 
-                        udpClient.Client.SendBufferSize);
-                }
-                catch (Exception)
-                {
-                    return CappedMessageSize;
-                }
-            }
+            get { return CappedMessageSize; }
         }
 
     }

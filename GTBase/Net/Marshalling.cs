@@ -101,7 +101,9 @@ namespace GT.Net
             }
             if (output.Position - startPosition > t.MaximumPacketSize)
             {
-                throw new MarshallingException("message exceeds transport's capacity");
+                throw new MarshallingException(
+                    String.Format("marshalled message exceeds transport's capacity ({0} vs {1} max)",
+                    output.Position - startPosition, t.MaximumPacketSize));
             }
         }
 

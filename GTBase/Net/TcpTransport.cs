@@ -54,18 +54,7 @@ namespace GT.Net
 
         public override int MaximumPacketSize
         {
-            get
-            {
-                try
-                {
-                    return Math.Min(CappedMessageSize,
-                        handle.Client.SendBufferSize);
-                }
-                catch (Exception)
-                {
-                    return CappedMessageSize;
-                }
-            }
+            get { return CappedMessageSize; }
         }
 
         public IPAddress Address
