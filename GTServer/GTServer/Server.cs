@@ -147,6 +147,7 @@ namespace GT.Net
 
         private bool running = false;
         private int uniqueIdentity;
+        private Thread listeningThread;
 
         /// <summary>
         /// A factory-like object responsible for providing the server's runtime
@@ -252,18 +253,18 @@ namespace GT.Net
         #region Vital Server Mechanics
         /// <summary>Starts a new thread that listens for new clients or
         /// new messages.  Abort the returned thread at any time
-        /// to stop listening.
+        /// to stop listening.  
         /// <param name="interval">The interval in milliseconds at which to check 
         /// for new connections or new message.</param> </summary>
         public Thread StartSeparateListeningThread(int interval)
         {
             configuration.TickInterval = TimeSpan.FromMilliseconds(interval);
 
-            Thread t = new Thread(new ThreadStart(StartListening));
-            t.Name = "Server Thread[" + this.ToString() + "]";
-            t.IsBackground = true;
-            t.Start();
-            return t;
+            listeningThread = new Thread(new ThreadStart(StartListening));
+            listeningThread.Name = "Server Thread[" + this.ToString() + "]";
+            listeningThread.IsBackground = true;
+            listeningThread.Start();
+            return listeningThread;
         }
 
         private void ErrorClientHandlerMethod(ErrorSummary es)
@@ -523,6 +524,11 @@ namespace GT.Net
         {
             // we were told to die.  die gracefully.
             running = false;
+            if(listeningThread != null)
+            {
+                listeningThread.Abort();
+                listeningThread = null;
+            }
             if (acceptors != null)
             {
                 foreach (IAcceptor acc in acceptors)
@@ -553,6 +559,11 @@ namespace GT.Net
         public bool Active
         {
             get { return running; }
+        }
+
+        public ICollection<IAcceptor> Acceptors
+        {
+            get { return acceptors; }
         }
 
         private void KillAll()
