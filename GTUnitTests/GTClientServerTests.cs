@@ -109,6 +109,8 @@ namespace GT.UnitTests
 
         public bool ErrorOccurred { get { return errorOccurred; } }
 
+        public Server Server { get { return server; } }
+
         public ICollection<IConnexion> Connexions { get { return server.Clients; } }
 
         public int ServerSleepTime {
@@ -126,7 +128,7 @@ namespace GT.UnitTests
             server.MessageReceived += ServerGeneralMessageReceived;
             server.ErrorEvent += ServerErrorEvent;
             server.Start();
-            serverThread = server.StartSeparateListeningThread(ServerSleepTime);
+            serverThread = server.StartSeparateListeningThread();
             Console.WriteLine("Server started: " + server.ToString() + " [" + serverThread.Name + "]");
         }
 

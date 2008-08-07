@@ -184,8 +184,19 @@ namespace GT.Net
             get { return BaseConnexion.Downcast<IConnexion,ClientConnexion>(clientIDs.Values); }
         }
 
+	/// <summary>
+	/// Return the associated marshaller
+	/// </summary>
         public IMarshaller Marshaller { get { return marshaller; } }
+
+	/// <summary>
+	/// Return the server configuration object.
+	/// </summary>
         public ServerConfiguration Configuration { get { return configuration; } }
+
+	/// <summary>
+	/// Return this server's unique identity.
+	/// </summary>
         public int UniqueIdentity { get { return uniqueIdentity; } }
 
         #endregion
@@ -254,12 +265,8 @@ namespace GT.Net
         /// <summary>Starts a new thread that listens for new clients or
         /// new messages.  Abort the returned thread at any time
         /// to stop listening.  
-        /// <param name="interval">The interval in milliseconds at which to check 
-        /// for new connections or new message.</param> </summary>
-        public Thread StartSeparateListeningThread(int interval)
+        public Thread StartSeparateListeningThread()
         {
-            configuration.TickInterval = TimeSpan.FromMilliseconds(interval);
-
             listeningThread = new Thread(new ThreadStart(StartListening));
             listeningThread.Name = "Server Thread[" + this.ToString() + "]";
             listeningThread.IsBackground = true;
@@ -504,7 +511,7 @@ namespace GT.Net
             Trace.TraceInformation("{0}: sleeping for {1}ms", this, milliseconds);
 
             // FIXME: This should be more clever and use Socket.Select()
-            Thread.Sleep(milliseconds);
+            Thread.Sleep(Math.Max(0, milliseconds));
         }
 
         public void Start()
@@ -522,21 +529,25 @@ namespace GT.Net
 
         public void Stop()
         {
-            // we were told to die.  die gracefully.
-            running = false;
-            if(listeningThread != null)
+            lock (this)
             {
-                listeningThread.Abort();
+                // we were told to die.  die gracefully.
+                if (!Active) { return; }
+                running = false;
+
+                Thread t = listeningThread;
                 listeningThread = null;
-            }
-            if (acceptors != null)
-            {
-                foreach (IAcceptor acc in acceptors)
+                if (t != null && t != Thread.CurrentThread) { t.Abort(); }
+
+                if (acceptors != null)
                 {
-                    acc.Stop(); // FIXME: trap exceptions?
+                    foreach (IAcceptor acc in acceptors)
+                    {
+                        acc.Stop(); // FIXME: trap exceptions?
+                    }
                 }
+                KillAll();
             }
-            KillAll();
         }
 
         public void Dispose()
@@ -610,9 +621,8 @@ namespace GT.Net
         /// <param name="mdr">How to send it (can be null)</param>
         public void Send(byte[] buffer, byte id, ICollection<IConnexion> list, MessageDeliveryRequirements mdr)
         {
-            List<Message> messages = new List<Message>(1);
-            messages.Add(new BinaryMessage(id, buffer));
-            Send(messages, list, mdr);
+            Send(new SingleItem<Message>(new BinaryMessage(id, buffer)),
+		list, mdr);
         }
 
         /// <summary>Sends a string on channel <c>id</c> to many clients in an efficient manner.</summary>
@@ -622,9 +632,7 @@ namespace GT.Net
         /// <param name="mdr">How to send it (can be null)</param>
         public void Send(string s, byte id, ICollection<IConnexion> list, MessageDeliveryRequirements mdr)
         {
-            List<Message> messages = new List<Message>(1);
-            messages.Add(new StringMessage(id, s));
-            Send(messages, list, mdr);
+            Send(new SingleItem<Message>(new StringMessage(id, s)), list, mdr);
         }
 
         /// <summary>Sends an object on channel <c>id</c> to many clients in an efficient manner.</summary>
@@ -634,9 +642,7 @@ namespace GT.Net
         /// <param name="mdr">How to send it (can be null)</param>
         public void Send(object o, byte id, ICollection<IConnexion> list, MessageDeliveryRequirements mdr)
         {
-            List<Message> messages = new List<Message>(1);
-            messages.Add(new ObjectMessage(id, o));
-            Send(messages, list, mdr);
+            Send(new SingleItem<Message>(new ObjectMessage(id, o)), list, mdr);
         }
 
         /// <summary>Send a message to many clients in an efficient manner.</summary>
@@ -645,9 +651,7 @@ namespace GT.Net
         /// <param name="mdr">How to send it (can be null)</param>
         public void Send(Message message, ICollection<IConnexion> list, MessageDeliveryRequirements mdr)
         {
-            List<Message> messages = new List<Message>(1);
-            messages.Add(message);
-            Send(messages, list, mdr);
+            Send(new SingleItem<Message>(message), list, mdr);
         }
 
         /// <summary>Sends a collection of messages in an efficient way to a list of clients.</summary>
@@ -822,8 +826,8 @@ namespace GT.Net
         }
 
         /// <summary>Handles a system message in that it takes the information and does something with it.</summary>
-        /// <param name="m">The message received.</param>
-        /// <param name="id">What channel it came in on.</param>
+	/// <param name="message">The message received.</param>
+	/// <param name="transport">What channel it came in on.</param>
         override protected void HandleSystemMessage(SystemMessage message, ITransport transport)
         {
             switch ((SystemMessageType)message.Id)

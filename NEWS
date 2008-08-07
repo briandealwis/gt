@@ -97,6 +97,13 @@ Breaking Changes:
     of the error, an actionable descriptive error code, and
     debugging information.
 
+  * Client.StartListeningOnSeperateThread(int) has been renamed to
+    Client.StartSeparateListeningThread() to be consistent with
+    Server.  Both Client and Server's StartSeparateListeningThread()
+    have had their tick-interval argument removed in favour of being
+    specified using the configuration's TickInterval property.
+
+
 New additions
 
   * Added a lifecycle protocol, IStartable, consisting of Start(),

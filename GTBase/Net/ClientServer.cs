@@ -159,25 +159,37 @@ namespace GT.Net {
 
     public abstract class BaseConnexion : IConnexion, IComparer<ITransport>
     {
-        protected bool active = false;
-        protected List<ITransport> transports = new List<ITransport>();
+	#region Events
 
         /// <summary>
         /// Notification of fatal errors occurring on the connexion.
         /// </summary>
         public event ErrorEventNotication ErrorEvents;
 
-        /// <summary>
-        /// The server's unique identifier for this connexion; this identifier is only 
-        /// unique within the server's client group and is not globally unique.
-        /// </summary>
-        protected int uniqueIdentity;
-
-        abstract public IMarshaller Marshaller { get; }
-
         /// <summary>Triggered when a message is received.</summary>
         public event MessageHandler MessageReceived;
 
+	#endregion
+
+        protected bool active = false;
+        protected List<ITransport> transports = new List<ITransport>();
+
+        /// <summary>
+        /// The server's unique identifier for this connexion; this
+	/// identifier is only unique within the server's client
+	/// group and is not globally unique.
+        /// </summary>
+        protected int uniqueIdentity;
+
+	/// <summary>
+	/// Return the appropriate marshaller for this connexion.
+	/// </summary>
+        abstract public IMarshaller Marshaller { get; }
+
+	/// <summary>
+	/// Retrieve the transports associated with this connexion.
+	/// Intended only for statistical use.
+	/// </summary>
         public IList<ITransport> Transports { get { return transports; } }
 
         /// <summary>

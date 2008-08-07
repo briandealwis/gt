@@ -56,7 +56,10 @@ namespace GT.Net
                 Array.Copy(buffer, offset, newBuffer, 0, length);
                 buffer = newBuffer;
             }
-            outstanding.Enqueue(buffer);
+            lock (this)
+            {
+                outstanding.Enqueue(buffer);
+            }
             FlushOutstandingPackets();
         }
 
@@ -74,7 +77,10 @@ namespace GT.Net
                 throw new ArgumentException("Transport provided different stream!");
             }
             MemoryStream output = (MemoryStream)ms;
-            outstanding.Enqueue(output.ToArray());
+            lock (this)
+            {
+                outstanding.Enqueue(output.ToArray());
+            }
             FlushOutstandingPackets();
         }
 

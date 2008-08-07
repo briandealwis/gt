@@ -942,6 +942,8 @@ namespace GT.Net
         protected HPTimer timer;
         protected long lastPingTime = 0;
         protected bool started = false;
+        protected Thread listeningThread;
+
 
         // Keep track of the previous warning messages; it's annoying to have hundreds scroll by
         protected IDictionary<byte, byte> previouslyWarnedChannels;
@@ -1046,6 +1048,11 @@ namespace GT.Net
             {
                 if (!Active) { return; }
                 started = false;
+
+                Thread t = listeningThread;
+                listeningThread = null;
+                if (t != null && t != Thread.CurrentThread) { t.Abort(); }
+
                 if (connectors != null)
                 {
                     foreach (IConnector conn in connectors) { conn.Stop(); }
@@ -1063,6 +1070,10 @@ namespace GT.Net
         {
             lock (this)
             {
+                Thread t = listeningThread;
+                listeningThread = null;
+                if (t != null && t != Thread.CurrentThread) { t.Abort(); }
+
                 if (!Active) { return; }
                 started = false;
                 if (connectors != null)
@@ -1101,7 +1112,7 @@ namespace GT.Net
         {
             // FIXME: this should do something smarter
             // Socket.Select(listenList, null, null, 1000);
-            Thread.Sleep(milliseconds);
+            Thread.Sleep(Math.Max(0, milliseconds));
         }
 
         #region Streams
@@ -1488,7 +1499,7 @@ namespace GT.Net
         /// <param name="address">The address to connect to.</param>
         /// <param name="port">The port to connect to.</param>
         /// <returns>The created or retrieved connexion itself.</returns>
-        /// <exception cref="CannotConnectToRemoteException">thrown if the
+        /// <exception cref="CannotConnectException">thrown if the
         ///     remote could not be contacted.</exception>
         protected ServerConnexion GetConnexion(string address, string port)
         {
@@ -1618,20 +1629,18 @@ namespace GT.Net
 
         /// <summary>Starts a new thread that listens for new clients or new Bytes.
         /// Abort returned thread at any time to stop listening.</summary>
-        public Thread StartListeningOnSeperateThread(int interval)
+        public Thread StartSeparateListeningThread()
         {
-            configuration.TickInterval = TimeSpan.FromMilliseconds(interval);
-
-            Thread t = new Thread(new ThreadStart(StartListening));
-            t.Name = "Listening Thread";
-            t.IsBackground = true;
-            t.Start();
-            return t;
+            listeningThread = new Thread(new ThreadStart(StartListening));
+            listeningThread.Name = "Listening Thread";
+            listeningThread.IsBackground = true;
+            listeningThread.Start();
+            return listeningThread;
         }
 
-        /// <summary>Enter an infinite loop, which will listen for incoming Bytes.
-        /// Use this to dedicate the current thread of execution to listening.
-        /// If there are any exceptions, you should can catch them.
+        /// <summary>Enter an infinite loop, which will listen for incoming
+	    /// bytes.  Use this to dedicate the current thread of execution to
+	    /// listening.  If there are any exceptions, you should can catch them.
         /// Aborting this thread of execution will cause this thread to die
         /// gracefully, and is recommended.
         /// </summary>

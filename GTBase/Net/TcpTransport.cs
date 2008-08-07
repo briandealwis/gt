@@ -96,7 +96,10 @@ namespace GT.Net
             BitConverter.GetBytes(length).CopyTo(wireFormat, 0);
             Array.Copy(buffer, offset, wireFormat, PacketHeaderSize, length);
 
-            outstanding.Enqueue(wireFormat);
+            lock (this)
+            {
+                outstanding.Enqueue(wireFormat);
+            }
             FlushOutstandingPackets();
         }
 
@@ -123,45 +126,52 @@ namespace GT.Net
             ms.Write(lb, 0, lb.Length);
 
             //FIXME: should use a PacketInProgress with the stream length
-            outstanding.Enqueue(ms.ToArray());
+            lock (this)
+            {
+                outstanding.Enqueue(ms.ToArray());
+            }
             FlushOutstandingPackets();
         }
 
         virtual protected void FlushOutstandingPackets()
         {
             SocketError error = SocketError.Success;
-
-            while (outstanding.Count > 0)
+            lock (this)
             {
-                if (outgoingInProgress == null)
+                while (outstanding.Count > 0)
                 {
-                    //DebugUtils.WriteLine(this + ": Flush: " + outstanding.Peek().Length + " bytes");
-                    outgoingInProgress = new PacketInProgress(outstanding.Peek());
-                    Debug.Assert(outgoingInProgress.Length > 0);
-                }
-                int bytesSent = handle.Client.Send(outgoingInProgress.data, outgoingInProgress.position,
-                    outgoingInProgress.bytesRemaining, SocketFlags.None, out error);
-                //DebugUtils.WriteLine("{0}: position={1} bR={2}: sent {3}", Name, 
-                //    outgoingInProgress.position, outgoingInProgress.bytesRemaining, bytesSent);
-
-                switch (error)
-                {
-                case SocketError.Success:
-                    outgoingInProgress.Advance(bytesSent);
-                    if (outgoingInProgress.bytesRemaining <= 0)
+                    if (outgoingInProgress == null)
                     {
-                        outstanding.Dequeue();
-                        outgoingInProgress = null;
+                        //DebugUtils.WriteLine(this + ": Flush: " + outstanding.Peek().Length + " bytes");
+                        outgoingInProgress = new PacketInProgress(outstanding.Peek());
+                        Debug.Assert(outgoingInProgress.Length > 0);
                     }
-                    break;
+                    int bytesSent = handle.Client.Send(outgoingInProgress.data,
+                        outgoingInProgress.position,
+                        outgoingInProgress.bytesRemaining, SocketFlags.None, out error);
+                    //DebugUtils.WriteLine("{0}: position={1} bR={2}: sent {3}", Name, 
+                    //    outgoingInProgress.position, outgoingInProgress.bytesRemaining, bytesSent);
 
-                case SocketError.WouldBlock:
-                    throw new TransportBackloggedWarning(this);
+                    switch (error)
+                    {
+                    case SocketError.Success:
+                        outgoingInProgress.Advance(bytesSent);
+                        if (outgoingInProgress.bytesRemaining <= 0)
+                        {
+                            outstanding.Dequeue();
+                            outgoingInProgress = null;
+                        }
+                        break;
 
-                default:
-                    //die, because something terrible happened
-                    throw new TransportError(this, String.Format("Error sending TCP Message ({0} bytes): {1}",
-                        outgoingInProgress.Length, error), error);
+                    case SocketError.WouldBlock:
+                        throw new TransportBackloggedWarning(this);
+
+                    default:
+                        //die, because something terrible happened
+                        throw new TransportError(this,
+                            String.Format("Error sending TCP Message ({0} bytes): {1}",
+                                outgoingInProgress.Length, error), error);
+                    }
                 }
             }
         }
@@ -176,6 +186,8 @@ namespace GT.Net
         virtual protected void CheckIncomingPackets()
         {
             SocketError error = SocketError.Success;
+            lock (this)
+            {
                 while (handle.Available > 0)
                 {
                     // This is a simple state machine: we're either:
@@ -190,7 +202,8 @@ namespace GT.Net
                         // assert incomingInProgress.IsMessageHeader();
                     }
 
-                    int bytesReceived = handle.Client.Receive(incomingInProgress.data, incomingInProgress.position,
+                    int bytesReceived = handle.Client.Receive(incomingInProgress.data,
+                        incomingInProgress.position,
                         incomingInProgress.bytesRemaining, SocketFlags.None, out error);
                     switch (error)
                     {
@@ -203,11 +216,13 @@ namespace GT.Net
 
                     default:
                         //dead = true;
-                        throw new TransportError(this, String.Format("Error reading from socket: {0}", error), error);
+                        throw new TransportError(this,
+                            String.Format("Error reading from socket: {0}", error), error);
                     }
                     if (bytesReceived == 0)
                     {
-                        throw new TransportError(this, "Socket was closed", SocketError.Disconnecting);
+                        throw new TransportError(this, "Socket was closed",
+                            SocketError.Disconnecting);
                     }
 
                     incomingInProgress.Advance(bytesReceived);
@@ -218,7 +233,8 @@ namespace GT.Net
                             int payloadLength = BitConverter.ToInt32(incomingInProgress.data, 0);
                             if (payloadLength <= 0)
                             {
-                                Console.WriteLine("{0}: WARNING: received packet with 0-byte payload!", this);
+                                Console.WriteLine(
+                                    "{0}: WARNING: received packet with 0-byte payload!", this);
                                 incomingInProgress = null;
                             }
                             else
@@ -228,12 +244,15 @@ namespace GT.Net
                         }
                         else
                         {
-                            DebugUtils.DumpMessage(this + ": CheckIncomingMessage", incomingInProgress.data);
-                            NotifyPacketReceived(incomingInProgress.data, 0, incomingInProgress.data.Length);
+                            DebugUtils.DumpMessage(this + ": CheckIncomingMessage",
+                                incomingInProgress.data);
+                            NotifyPacketReceived(incomingInProgress.data, 0,
+                                incomingInProgress.data.Length);
                             incomingInProgress = null;
                         }
                     }
                 }
+            }
         }
 
         public override string ToString()

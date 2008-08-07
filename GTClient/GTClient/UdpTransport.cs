@@ -50,19 +50,23 @@ namespace GT.Net
             byte[] b;
             SocketError error = SocketError.Success;
 
-            try
+            lock (this)
             {
-                while (outstanding.Count > 0 && udpClient.Client.Connected)
+                try
                 {
-                    b = outstanding.Peek();
-                    ContractViolation.Assert(b.Length > 0, "Cannot send 0-byte messages!");
-                    ContractViolation.Assert(b.Length - PacketHeaderSize <= MaximumPacketSize, String.Format(
-                            "Packet exceeds transport capacity: {0} > {1}", b.Length - PacketHeaderSize, MaximumPacketSize));
-
-                    udpClient.Client.Send(b, 0, b.Length, SocketFlags.None, out error);
-
-                    switch (error)
+                    while (outstanding.Count > 0 && udpClient.Client.Connected)
                     {
+                        b = outstanding.Peek();
+                        ContractViolation.Assert(b.Length > 0, "Cannot send 0-byte messages!");
+                        ContractViolation.Assert(b.Length - PacketHeaderSize <= MaximumPacketSize,
+                            String.Format(
+                                "Packet exceeds transport capacity: {0} > {1}",
+                                b.Length - PacketHeaderSize, MaximumPacketSize));
+
+                        udpClient.Client.Send(b, 0, b.Length, SocketFlags.None, out error);
+
+                        switch (error)
+                        {
                         case SocketError.Success:
                             outstanding.Dequeue();
                             break;
@@ -76,35 +80,39 @@ namespace GT.Net
                         default:
                             //something terrible happened, but this is only UDP, so stick around.
                             throw new TransportError(this, "Error sending UDP packet", error);
+                        }
                     }
                 }
-            }
-            catch (SocketException e)
-            {
-                throw new TransportError(this, "Error sending UDP packet", error);
+                catch (SocketException e)
+                {
+                    throw new TransportError(this, "Error sending UDP packet", error);
+                }
             }
         }
 
         protected override void CheckIncomingPackets()
         {
-            try
+            lock (this)
             {
-                //while there are more packets to read
-                while (udpClient.Client.Available > 0)
+                try
                 {
-                    IPEndPoint ep = null;
-                    byte[] buffer = udpClient.Receive(ref ep);
+                    //while there are more packets to read
+                    while (udpClient.Client.Available > 0)
+                    {
+                        IPEndPoint ep = null;
+                        byte[] buffer = udpClient.Receive(ref ep);
 
-                    DebugUtils.DumpMessage(this + ": Update()", buffer);
-                    Debug.Assert(ep.Equals(udpClient.Client.RemoteEndPoint));
-                    NotifyPacketReceived(buffer, 0, buffer.Length);
+                        DebugUtils.DumpMessage(this + ": Update()", buffer);
+                        Debug.Assert(ep.Equals(udpClient.Client.RemoteEndPoint));
+                        NotifyPacketReceived(buffer, 0, buffer.Length);
+                    }
                 }
-            }
-            catch (SocketException e)
-            {
-                if (e.SocketErrorCode != SocketError.WouldBlock)
+                catch (SocketException e)
                 {
-                    throw new TransportError(this, "Error sending UDP packet", e);
+                    if (e.SocketErrorCode != SocketError.WouldBlock)
+                    {
+                        throw new TransportError(this, "Error sending UDP packet", e);
+                    }
                 }
             }
         }

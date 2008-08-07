@@ -27,44 +27,54 @@ namespace GT.Net
 
         virtual public void Dispose()
         {
-            try
+            lock (this)
             {
-                if (handle != null) { handle.Dispose(); }
+                try
+                {
+                    if (handle != null)
+                    {
+                        handle.Dispose();
+                    }
+                }
+                catch (Exception e)
+                {
+                    Console.WriteLine("{0} Warning: exception when closing UDP handle: {1}",
+                        DateTime.Now, e);
+                }
+                handle = null;
             }
-            catch (Exception e)
-            {
-                Console.WriteLine("{0} Warning: exception when closing UDP handle: {1}",
-                    DateTime.Now, e);
-            }
-            handle = null;
         }
 
         protected override void FlushOutstandingPackets()
         {
-            while (outstanding.Count > 0)
+            lock (this)
             {
-                byte[] b = outstanding.Peek();
-                try
+                while (outstanding.Count > 0)
                 {
-                    handle.Send(b, 0, b.Length);
-                    outstanding.Dequeue();
-                }
-                catch (SocketException e)
-                {
-                    switch (e.SocketErrorCode)
+                    byte[] b = outstanding.Peek();
+                    try
                     {
-                    case SocketError.Success:   // this can't happen, right?
+                        handle.Send(b, 0, b.Length);
                         outstanding.Dequeue();
-                        break;
-                    case SocketError.WouldBlock:
-                        //don't die, but try again next time; not clear if this does (can) happen with UDP
-                        // NotifyError(null, error, this, "The UDP write buffer is full now, but the data will be saved and " +
-                        ///    "sent soon.  Send less data to reduce perceived latency.");
-                        return;
-                    default:
-                        //something terrible happened, but this is only UDP, so stick around.
-                        throw new TransportError(this, String.Format("Error sending UDP message ({0} bytes): {1}",
-                            b.Length, e), e);
+                    }
+                    catch (SocketException e)
+                    {
+                        switch (e.SocketErrorCode)
+                        {
+                        case SocketError.Success: // this can't happen, right?
+                            outstanding.Dequeue();
+                            break;
+                        case SocketError.WouldBlock:
+                            //don't die, but try again next time; not clear if this does (can) happen with UDP
+                            // NotifyError(null, error, this, "The UDP write buffer is full now, but the data will be saved and " +
+                            ///    "sent soon.  Send less data to reduce perceived latency.");
+                            return;
+                        default:
+                            //something terrible happened, but this is only UDP, so stick around.
+                            throw new TransportError(this,
+                                String.Format("Error sending UDP message ({0} bytes): {1}",
+                                    b.Length, e), e);
+                        }
                     }
                 }
             }
@@ -72,22 +82,26 @@ namespace GT.Net
 
         protected override void CheckIncomingPackets()
         {
-            try
+            lock (this)
             {
-                //while there are more packets to read
-                while (handle.Available > 0)
+                try
                 {
-                    //get a packet
-                    byte[] buffer = handle.Receive();
-                    NotifyPacketReceived(buffer, 0, buffer.Length);
+                    //while there are more packets to read
+                    while (handle.Available > 0)
+                    {
+                        //get a packet
+                        byte[] buffer = handle.Receive();
+                        NotifyPacketReceived(buffer, 0, buffer.Length);
+                    }
                 }
-            }
-            catch (SocketException e)
-            {
-                if (e.SocketErrorCode != SocketError.WouldBlock)
+                catch (SocketException e)
                 {
-                    throw new TransportError(this, String.Format("Error reading UDP message: {0}", 
-                        e.SocketErrorCode), e);
+                    if (e.SocketErrorCode != SocketError.WouldBlock)
+                    {
+                        throw new TransportError(this,
+                            String.Format("Error reading UDP message: {0}",
+                                e.SocketErrorCode), e);
+                    }
                 }
             }
         }
@@ -144,7 +158,10 @@ namespace GT.Net
         {
             try
             {
-                udpMultiplexer.Update();
+                lock (this)
+                {
+                    udpMultiplexer.Update();
+                }
             }
             catch (SocketException e)
             {
