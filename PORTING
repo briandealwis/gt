@@ -1,0 +1,34 @@
+Simple steps to port code using the "classic" GT to "new" GT:
+
+ 1. Replace the old GT .DLLs (e.g., GTClient.dll, GTServer.dll); add
+    the new GTBase.dll
+ 2. Replace all namespace references:
+	GTClient -> GT.Net
+	GTServer -> GT.Net
+
+ 3. Replace internal class references to their new corresponding interfaces:
+	ObjectStream -> IObjectStream
+	StringStream -> IStringStream
+	SessionStream -> ISessionStream
+	ByteStream -> IByteStream
+
+ 4. Change calls to Client.StartListeningOnSeperateThread(int) and
+    Server.StartSeparateListeningThread(int) to just use 
+    StartSeparateListeningThread(), and configure the listen interval
+    as the configuration's TickInterval.
+
+ 5. Adjust calls to Client.Get*Stream() to provide a
+    ChannelDeliveryRequirements object.  ChannelDeliveryRequirements
+    provides a number of predefined requirements:
+	LeastStrict: Unreliable, Unordered, can be aggregated
+	TelepointerLike: Unreliable, Sequenced, must be sent immediately
+	ChatLike: Reliable, Ordered, unaggregatable and should first
+	    flush all other messages on this channel
+	CommandsLike: Reliable, Ordered, unaggregatable and should first
+	    flush all other messages on this channel
+	SessionLike: Reliable, Unordered (?), unaggregatable and
+	    must flush all outstanding messages.
+	Data: Reliable, Ordered, aggregatable.
+	MostStrict: Reliable, Ordered, unaggregatable and must flush
+	    all outstanding messages.
+
