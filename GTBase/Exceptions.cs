@@ -13,25 +13,25 @@ namespace GT
         /// <summary>
         /// Fatal: an error has occurred such that GT cannot continue in its operation.
         /// </summary>
-        Fatal,
+        Fatal = 3,
 
         /// <summary>
         /// Error: an error has occurred; the application will likely be able to continue, but GT functionality 
         /// may be significantly limited.
         /// </summary>
-        Error,
+        Error = 2,
 
         /// <summary>
         /// Warning: an error has occurred such that GT is able to continue, but the application's 
         /// functionality may be compromised.
         /// </summary>
-        Warning,
+        Warning = 1,
 
         /// <summary>
         /// Information: a problem has occurred but has been dealt with; the error is being 
         /// reported purely for informational purposes.
         /// </summary>
-        Information
+        Information = 0
     }
 
     public class GTException : Exception
