@@ -1,10 +1,9 @@
 using System;
+using System.Collections;
 using System.Collections.Generic;
-using System.Text;
 
 namespace GT.Utils
 {
-    #region Utility Classes
 
     public class Bag<T> : ICollection<T>
     {
@@ -13,8 +12,15 @@ namespace GT.Utils
 
         public Bag()
         {
-            this.contents = new Dictionary<T, int>();
+            contents = new Dictionary<T, int>();
             totalSize = 0;
+        }
+
+        public int Occurrences(T key)
+        {
+            int count;
+            if(!contents.TryGetValue(key, out count)) { return 0; }
+            return count;
         }
 
         #region ICollection<T> Members
@@ -43,12 +49,15 @@ namespace GT.Utils
 
         public void CopyTo(T[] array, int arrayIndex)
         {
-            foreach (T item in contents.Keys)
+            if(array == null) { throw new ArgumentNullException("array"); }
+            if(arrayIndex < 0) { throw new ArgumentOutOfRangeException("arrayIndex"); }
+            if(array.Length - arrayIndex < Count)
             {
-                for (int count = contents[item]; count > 0; count--)
-                {
-                    array[arrayIndex++] = item;
-                }
+                throw new ArgumentException("array is too small", "array");
+            }
+            foreach (T item in this)
+            {
+                array[arrayIndex++] = item;
             }
         }
 
@@ -85,18 +94,55 @@ namespace GT.Utils
 
         public IEnumerator<T> GetEnumerator()
         {
-            return contents.Keys.GetEnumerator();
+            return new BagEnumerator(this);
         }
 
-        #endregion
-
-        #region IEnumerable Members
-
-        System.Collections.IEnumerator System.Collections.IEnumerable.GetEnumerator()
+        IEnumerator IEnumerable.GetEnumerator()
         {
-            return contents.Keys.GetEnumerator();
+            return new BagEnumerator(this);
         }
 
+        private class BagEnumerator : IEnumerator<T>
+        {
+            private Bag<T> bag;
+            private IEnumerator<T> keys;
+            private int count = -1;
+
+            internal BagEnumerator(Bag<T> ts)
+            {
+                bag = ts;
+                Reset();
+            }
+
+            public bool MoveNext()
+            {
+                if (--count > 0) { return true; }
+                if(!keys.MoveNext()) { return false; }
+                count = bag.Occurrences(keys.Current);
+                return true;
+            }
+
+            public void Reset()
+            {
+                keys = bag.contents.Keys.GetEnumerator();
+                count = -1;
+            }
+
+            public T Current
+            {
+                get { return keys.Current; }
+            }
+
+            object IEnumerator.Current
+            {
+                get { return keys.Current; }
+            }
+
+            public void Dispose()
+            {
+                keys.Dispose();
+            }
+        }
         #endregion
     }
 
@@ -108,12 +154,12 @@ namespace GT.Utils
             this.item = item;
         }
 
-        public int IndexOf(T item)
+        public int IndexOf(T i)
         {
-            return item.Equals(item) ? 0 : -1;
+            return item.Equals(i) ? 0 : -1;
         }
 
-        public void Insert(int index, T item)
+        public void Insert(int index, T i)
         {
             throw new NotSupportedException("SingleItem cannot grow or shrink");
         }
@@ -137,7 +183,7 @@ namespace GT.Utils
             }
         }
 
-        public void Add(T item)
+        public void Add(T i)
         {
             throw new NotSupportedException("SingleItem cannot grow or shrink");
         }
@@ -147,13 +193,20 @@ namespace GT.Utils
             throw new NotSupportedException("SingleItem cannot grow or shrink");
         }
 
-        public bool Contains(T item)
+        public bool Contains(T i)
         {
-            return item.Equals(item);
+            return item.Equals(i);
         }
 
         public void CopyTo(T[] array, int arrayIndex)
         {
+            if (array == null) { throw new ArgumentNullException("array"); }
+            if (arrayIndex < 0) { throw new ArgumentOutOfRangeException("arrayIndex"); }
+            if (arrayIndex >= array.Length)
+            {
+                throw new ArgumentException(
+                    "arrayIndex is equal to or greater than the length of array", "arrayIndex");
+            }
             array[arrayIndex] = item;
         }
 
@@ -167,30 +220,60 @@ namespace GT.Utils
             get { return true; }
         }
 
-        public bool Remove(T item)
+        public bool Remove(T i)
         {
             throw new NotSupportedException("SingleItem cannot grow or shrink");
         }
 
-        #endregion
-
-        #region IEnumerable<T> Members
-
         public IEnumerator<T> GetEnumerator()
         {
-            throw new Exception("The method or operation is not implemented.");
+            return new SingleItemEnumerator(this);
         }
 
-        #endregion
-
-        #region IEnumerable Members
-
-        System.Collections.IEnumerator System.Collections.IEnumerable.GetEnumerator()
+        IEnumerator IEnumerable.GetEnumerator()
         {
-            throw new Exception("The method or operation is not implemented.");
+            return new SingleItemEnumerator(this);
         }
 
-        #endregion
+        private class SingleItemEnumerator : IEnumerator<T>
+        {
+            bool seen = false;
+            private readonly SingleItem<T> si;
+
+            internal SingleItemEnumerator(SingleItem<T> si)
+            {
+                this.si = si;
+            }
+
+            public void Dispose()
+            {
+                /* nothing required */
+            }
+
+            public bool MoveNext()
+            {
+                // there is only one element, so once seen, we can't do more
+                if (seen) { return false; }
+                seen = true;
+                return true;   
+            }
+
+            public void Reset()
+            {
+                seen = false;
+            }
+
+            public T Current
+            {
+                get { return si[0]; }
+            }
+
+            object IEnumerator.Current
+            {
+                get { return si[0]; }
+            }
+        }
+
     }
 
 }
