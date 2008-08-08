@@ -28,6 +28,8 @@ namespace GT.UnitTests
         
         [Test]
         public void StressTest() {
+            int totalSeconds = 30;
+            Console.WriteLine("Starting Stress Test ({0} seconds)", totalSeconds);
             running = true;
             server = new EchoingServer(serverPort);
             server.Start();
@@ -93,14 +95,17 @@ namespace GT.UnitTests
                     switch (random.Next(0, 2))
                     {
                         case 0:
+                            Console.Write('o');
                             objectStreams[index].Send(new object());
                             break;
 
                         case 1:
+                            Console.Write('s');
                             stringStreams[index].Send("mary had a little lamb " + index);
                             break;
 
                         case 2:
+                            Console.Write('b');
                             binaryStreams[index].Send(new byte[] { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, (byte)index });
                             break;
 
@@ -136,15 +141,18 @@ namespace GT.UnitTests
                     switch (random.Next(0, 2))
                     {
                         case 0:
+                            Console.Write('O');
                             server_SendMessage(new ObjectMessage(0, new object()), index);
                             break;
 
                         case 1:
+                            Console.Write('S');
                             server_SendMessage(new StringMessage(1, "its fleece was white as snow"),
                                 index);
                             break;
 
                         case 2:
+                            Console.Write('B');
                             server_SendMessage(new BinaryMessage(2, new byte[] { 0, 1, 2, 3, 4, 5 }),
                                 index);
                             break;
