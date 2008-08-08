@@ -185,9 +185,18 @@ namespace GT.Net
 
         virtual protected void CheckIncomingPackets()
         {
-            SocketError error = SocketError.Success;
+            byte[] packet;
+            while ((packet = FetchIncomingPacket()) != null)
+            {
+                NotifyPacketReceived(packet, 0, packet.Length);
+            }
+        }
+
+        virtual protected byte[] FetchIncomingPacket()
+        {
             lock (this)
             {
+                SocketError error = SocketError.Success;
                 while (handle.Available > 0)
                 {
                     // This is a simple state machine: we're either:
@@ -212,7 +221,7 @@ namespace GT.Net
                         break;
 
                     case SocketError.WouldBlock:
-                        return; // nothing to do!
+                        return null; // nothing to do!
 
                     default:
                         //dead = true;
@@ -246,13 +255,14 @@ namespace GT.Net
                         {
                             DebugUtils.DumpMessage(this + ": CheckIncomingMessage",
                                 incomingInProgress.data);
-                            NotifyPacketReceived(incomingInProgress.data, 0,
-                                incomingInProgress.data.Length);
+                            byte[] packet = incomingInProgress.data;
                             incomingInProgress = null;
+                            return packet;
                         }
                     }
                 }
             }
+            return null;
         }
 
         public override string ToString()

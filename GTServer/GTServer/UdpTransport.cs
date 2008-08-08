@@ -82,6 +82,15 @@ namespace GT.Net
 
         protected override void CheckIncomingPackets()
         {
+            byte[] packet;
+            while ((packet = FetchIncomingPacket()) != null)
+            {
+                NotifyPacketReceived(packet, 0, packet.Length);
+            }
+        }
+
+        virtual protected byte[] FetchIncomingPacket()
+        {
             lock (this)
             {
                 try
@@ -91,7 +100,7 @@ namespace GT.Net
                     {
                         //get a packet
                         byte[] buffer = handle.Receive();
-                        NotifyPacketReceived(buffer, 0, buffer.Length);
+                        return buffer;
                     }
                 }
                 catch (SocketException e)
@@ -104,6 +113,7 @@ namespace GT.Net
                     }
                 }
             }
+            return null;
         }
 
         public override string ToString()

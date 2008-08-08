@@ -92,19 +92,28 @@ namespace GT.Net
 
         protected override void CheckIncomingPackets()
         {
+            byte[] packet;
+            while ((packet = FetchIncomingPacket()) != null)
+            {
+                NotifyPacketReceived(packet, 0, packet.Length);
+            }
+        }
+
+        virtual protected byte[] FetchIncomingPacket()
+        {
             lock (this)
             {
                 try
                 {
                     //while there are more packets to read
-                    while (udpClient.Client.Available > 0)
+                    if (udpClient.Client.Available > 0)
                     {
                         IPEndPoint ep = null;
                         byte[] buffer = udpClient.Receive(ref ep);
 
                         DebugUtils.DumpMessage(this + ": Update()", buffer);
                         Debug.Assert(ep.Equals(udpClient.Client.RemoteEndPoint));
-                        NotifyPacketReceived(buffer, 0, buffer.Length);
+                        return buffer;
                     }
                 }
                 catch (SocketException e)
@@ -115,6 +124,7 @@ namespace GT.Net
                     }
                 }
             }
+            return null;
         }
 
         public override int MaximumPacketSize
