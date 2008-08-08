@@ -24,8 +24,7 @@ namespace GT.Net
 
         public ITransport Connect(string address, string port, IDictionary<string, string> capabilities)
         {
-            IPHostEntry he = Dns.GetHostEntry(address);
-            IPAddress[] addr = he.AddressList;
+            IPAddress[] addr = Dns.GetHostAddresses(address);
             UdpClient client = new UdpClient();
             IPEndPoint endPoint = null;
 
