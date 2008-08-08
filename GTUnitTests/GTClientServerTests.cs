@@ -332,7 +332,11 @@ namespace GT.UnitTests
             }
 
             client.Stop();
-            Thread.Sleep(server.ServerSleepTime * 5);
+            // Unfortunately waiting for the message to percolate through can take time
+            for (int i = 0; i < 10 && server.Connexions.Count > 0; i++)
+            {
+                Thread.Sleep(server.ServerSleepTime);
+            }
             Assert.AreEqual(0, server.Connexions.Count);
         }
 
