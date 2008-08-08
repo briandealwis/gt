@@ -863,21 +863,34 @@ namespace GT.Net
 
     public abstract class ClientConfiguration : BaseConfiguration
     {
+        /// <summary>
+        /// Create the marsheller for the server instance.
+        /// </summary>
+        /// <returns>the marshaller</returns>
         abstract public IMarshaller CreateMarshaller();
+
+        /// <summary>
+        /// Create the appropriate transport connectors.
+        /// </summary>
+        /// <returns>a collection of connectors</returns>
         abstract public ICollection<IConnector> CreateConnectors();
+        
+        /// <summary>
+        /// Create a client instance as repreented by this configuration instance.
+        /// </summary>
+        /// <returns>the created client</returns>
+        virtual public Client BuildClient()
+        {
+            return new Client(this);
+        }
 
         /// <summary>
-        /// The time between pings to servers.
+        /// Create an connexion representing a server.
         /// </summary>
-        abstract public TimeSpan PingInterval { get; set; }
-
-        /// <summary>
-        /// The time between client ticks.
-        /// </summary>
-        abstract public TimeSpan TickInterval { get; set; }
-
-        abstract public Client BuildClient();
-
+        /// <param name="owner">the associated client instance</param>
+        /// <param name="address">the server's address component</param>
+        /// <param name="port">the server's port component</param>
+        /// <returns>the server connexion</returns>
         virtual public ServerConnexion CreateServerConnexion(Client owner,
             string address, string port)
         {
@@ -885,10 +898,14 @@ namespace GT.Net
         }
     }
 
+    /// <summary>
+    /// A sample clien t configuration.  <strong>This class definition may change 
+    /// in dramatic  ways in future releases.</strong>  This configuration should 
+    /// serve only as an example, and applications should make their own client 
+    /// configurations by copying this instance.  
+    /// </summary>
     public class DefaultClientConfiguration : ClientConfiguration
     {
-        protected TimeSpan pingInterval = TimeSpan.FromMilliseconds(10000);
-        protected TimeSpan tickInterval = TimeSpan.FromMilliseconds(10);
         protected int port = 9999;
 
         public override IMarshaller CreateMarshaller()
@@ -902,23 +919,6 @@ namespace GT.Net
             connectors.Add(new TcpConnector());
             connectors.Add(new UdpConnector());
             return connectors;
-        }
-
-        override public TimeSpan PingInterval
-        {
-            get { return pingInterval; }
-            set { pingInterval = value; }
-        }
-
-        override public TimeSpan TickInterval
-        {
-            get { return tickInterval; }
-            set { tickInterval = value; }
-        }
-
-        public override Client BuildClient()
-        {
-            return new Client(this);
         }
     }
 

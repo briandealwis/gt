@@ -6,7 +6,28 @@ using System.Diagnostics;
 
 namespace GT.Net {
 
-    public abstract class BaseConfiguration : IComparer<ITransport> {
+    public abstract class BaseConfiguration : IComparer<ITransport> 
+    {
+        protected TimeSpan pingInterval = TimeSpan.FromMilliseconds(10000);
+        protected TimeSpan tickInterval = TimeSpan.FromMilliseconds(10);
+
+        /// <summary>
+        /// The time between pings to clients.
+        /// </summary>
+        virtual public TimeSpan PingInterval
+        {
+            get { return pingInterval; }
+            set { pingInterval = value; }
+        }
+
+        /// <summary>
+        /// The time between server ticks.
+        /// </summary>
+        virtual public TimeSpan TickInterval
+        {
+            get { return tickInterval; }
+            set { tickInterval = value; }
+        }
 
         /// <summary>
         /// Default transport orderer: orders by reliability, then sequencing, then delay.
@@ -24,7 +45,6 @@ namespace GT.Net {
             if (x.Delay > y.Delay) { return 1; }
             return 0;
         }
-
     }
 
     /// <summary>

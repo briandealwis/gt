@@ -53,41 +53,67 @@ namespace GT.Net
 
     public abstract class ServerConfiguration : BaseConfiguration
     {
+        /// <summary>
+        /// Create the marsheller for the server instance.
+        /// </summary>
+        /// <returns>the marshaller</returns>
         abstract public IMarshaller CreateMarshaller();
+
+        /// <summary>
+        /// Create the appropriate transport acceptors.
+        /// </summary>
+        /// <returns>a collection of acceptors</returns>
         abstract public ICollection<IAcceptor> CreateAcceptors();
 
         /// <summary>
-        /// The time between pings to clients.
+        /// Create a server instance as repreented by this configuration instance.
         /// </summary>
-        abstract public TimeSpan PingInterval { get; set; }
+        /// <returns>the created server</returns>
+        virtual public Server BuildServer()
+        {
+            return new Server(this);
+        }
 
         /// <summary>
-        /// The time between server ticks.
+        /// Create an connexion representing the client.
         /// </summary>
-        abstract public TimeSpan TickInterval { get; set; }
-
-        abstract public Server BuildServer();
-
+        /// <param name="owner">the associated server instance</param>
+        /// <param name="clientId">the client's GUID</param>
+        /// <param name="uniqueId">the server-unique client id</param>
+        /// <returns>the client connexion</returns>
         virtual public ClientConnexion CreateClientConnexion(Server owner, 
             Guid clientId, int uniqueId)
         {
             return new ClientConnexion(owner, clientId, uniqueId);
         }
 
+        /// <summary>
+        /// Return the default channel requirements for channels without specified
+        /// channel requirements.
+        /// </summary>
+        /// <returns>the channel requirements</returns>
         virtual public ChannelDeliveryRequirements DefaultChannelRequirements()
         {
             return ChannelDeliveryRequirements.LeastStrict;
         }
     }
 
+    /// <summary>
+    /// A sample server configuration.  <strong>This class definition may change 
+    /// in dramatic  ways in future releases.</strong>  This configuration should 
+    /// serve only as an example, and applications should make their own server 
+    /// configurations by copying this instance.  
+    /// </summary>
     public class DefaultServerConfiguration : ServerConfiguration
     {
-        protected TimeSpan pingInterval = TimeSpan.FromMilliseconds(10000);
-        protected TimeSpan tickInterval = TimeSpan.FromMilliseconds(10);
         protected int port = 9999;
 
         public DefaultServerConfiguration() { }
 
+        /// <summary>
+        /// Construct the configuration instance using the provided port.
+        /// </summary>
+        /// <param name="port">the IP port for the server to use</param>
         public DefaultServerConfiguration(int port)
         {
             Debug.Assert(port > 0);
@@ -106,17 +132,19 @@ namespace GT.Net
             this.pingInterval = TimeSpan.FromMilliseconds(pingInterval);
         }
 
-        public override Server BuildServer()
-        {
-            return new Server(this);
-        }
-
-
+        /// <summary>
+        /// Create the marsheller for the server instance.
+        /// </summary>
+        /// <returns>the marshaller</returns>
         public override IMarshaller CreateMarshaller()
         {
             return new DotNetSerializingMarshaller();
         }
 
+        /// <summary>
+        /// Create the appropriate transport acceptors.
+        /// </summary>
+        /// <returns>a collection of acceptors</returns>
         public override ICollection<IAcceptor> CreateAcceptors()
         {
             ICollection<IAcceptor> acceptors = new List<IAcceptor>();
@@ -125,17 +153,6 @@ namespace GT.Net
             return acceptors;
         }
 
-        override public TimeSpan PingInterval
-        {
-            get { return pingInterval; }
-            set { pingInterval = value; }
-        }
-
-        override public TimeSpan TickInterval
-        {
-            get { return tickInterval; }
-            set { tickInterval = value; }
-        }
     }
 
     /// <summary>Represents traditional server.</summary>
