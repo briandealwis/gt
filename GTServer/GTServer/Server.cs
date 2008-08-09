@@ -279,10 +279,11 @@ namespace GT.Net
 
 
         #region Vital Server Mechanics
+
         /// <summary>Starts a new thread that listens for new clients or
         /// new messages.  Abort the returned thread at any time
         /// to stop listening.  
-        public Thread StartSeparateListeningThread()
+        virtual public Thread StartSeparateListeningThread()
         {
             listeningThread = new Thread(new ThreadStart(StartListening));
             listeningThread.Name = "Server Thread[" + this.ToString() + "]";
@@ -293,7 +294,7 @@ namespace GT.Net
 
         private void ErrorClientHandlerMethod(ErrorSummary es)
         {
-            Console.WriteLine("{0}[{1}]: {2}: {3}", es.Severity, es.ErrorCode, es.Message, es.Context);
+            DebugUtils.WriteLine("{0}[{1}]: {2}: {3}", es.Severity, es.ErrorCode, es.Message, es.Context);
             if (ErrorEvent == null) { return; }
             try { ErrorEvent(es); }
             catch (Exception e)
@@ -312,61 +313,74 @@ namespace GT.Net
             return this.GetType().Name + "(" + Clients.Count + " clients)";
         }
 
-        /// <summary>Process a single tick of the server.
-        /// <strong>deprecated:</strong> the server is started if not active.
+        /// <summary>Process a single tick of the server.  This method is <strong>not</strong> 
+        /// re-entrant and should not be called from GT callbacks.
+        /// <strong>deprecated behaviour:</strong> the server is started if not active.
         /// </summary>
-        public void Update()
+        virtual public void Update()
         {
-            DebugUtils.WriteLine(">>>> Server.Update() started");
-
-            if (!Active) { Start(); }
-
-            newlyAddedClients.Clear();
-            UpdateAcceptors();
-            if (newlyAddedClients.Count > 0 && ClientsJoined != null)
+            lock (this)
             {
-                ClientsJoined(BaseConnexion.Downcast<IConnexion,ClientConnexion>(newlyAddedClients));
-            }
+                DebugUtils.WriteLine(">>>> Server.Update() started");
 
-            //ping, if needed
-            if (System.Environment.TickCount - lastPingTime >= configuration.PingInterval.Ticks)
-            {
-                DebugUtils.WriteLine("Server.Update(): pinging clients");
-                lastPingTime = System.Environment.TickCount;
+                if (!Active)
+                {
+                    Start();
+                }
+
+                newlyAddedClients.Clear();
+                UpdateAcceptors();
+                if (newlyAddedClients.Count > 0 && ClientsJoined != null)
+                {
+                    ClientsJoined(
+                        BaseConnexion.Downcast<IConnexion, ClientConnexion>(newlyAddedClients));
+                }
+
+                //ping, if needed
+                if (System.Environment.TickCount - lastPingTime >= configuration.PingInterval.Ticks)
+                {
+                    DebugUtils.WriteLine("Server.Update(): pinging clients");
+                    lastPingTime = System.Environment.TickCount;
+                    foreach (ClientConnexion c in clientIDs.Values)
+                    {
+                        if (c.Active)
+                        {
+                            c.Ping();
+                        }
+                    }
+                }
+
+                DebugUtils.WriteLine("Server.Update(): Clients.Update()");
+                //update all clients, reading from the network
                 foreach (ClientConnexion c in clientIDs.Values)
                 {
-                    if (c.Active) { c.Ping(); }
+                    try
+                    {
+                        c.Update();
+                    }
+                    catch (ConnexionClosedException e)
+                    {
+                        Debug.Assert(e.SourceComponent == c);
+                        c.Dispose();
+                    }
+                }
+
+                //remove dead clients (includes disposed and clients with no transports)
+                List<ClientConnexion> listD = FindAll(clientIDs.Values, ClientConnexion.IsDead);
+                if (listD.Count > 0)
+                {
+                    DebugUtils.WriteLine("Server.Update(): removing dead clients");
+                    foreach (ClientConnexion c in listD)
+                    {
+                        clientIDs.Remove(c.UniqueIdentity);
+                        c.Dispose(); //make sure it's gone
+                    }
+                    if (ClientsRemoved != null)
+                    {
+                        ClientsRemoved(BaseConnexion.Downcast<IConnexion, ClientConnexion>(listD));
+                    }
                 }
             }
-
-            DebugUtils.WriteLine("Server.Update(): Clients.Update()");
-            //update all clients, reading from the network
-            foreach (ClientConnexion c in clientIDs.Values)
-            {
-                try { c.Update(); }
-                catch (ConnexionClosedException e)
-                {
-                    Debug.Assert(e.SourceComponent == c);
-                    c.Dispose();
-                }
-            }
-
-            //remove dead clients (includes disposed and clients with no transports)
-            List<ClientConnexion> listD = FindAll(clientIDs.Values, ClientConnexion.IsDead);
-            if (listD.Count > 0)
-            {
-                DebugUtils.WriteLine("Server.Update(): removing dead clients");
-                foreach (ClientConnexion c in listD)
-                {
-                    clientIDs.Remove(c.UniqueIdentity);
-                    c.Dispose();  //make sure it's gone
-                }
-                if (ClientsRemoved != null)
-                {
-                    ClientsRemoved(BaseConnexion.Downcast<IConnexion, ClientConnexion>(listD));
-                }
-            }
-
             //if anyone is listening, tell them we're done one cycle
             if (Tick != null) { Tick(); }
 
@@ -415,7 +429,7 @@ namespace GT.Net
             return results;
         }
 
-        protected void NewClient(ITransport t, Dictionary<string, string> capabilities)
+        virtual protected void NewClient(ITransport t, Dictionary<string, string> capabilities)
         {
             Guid clientId;
             try
@@ -447,7 +461,7 @@ namespace GT.Net
         /// <param name="uniqueIdentity">The unique identity of this client</param>
         /// <returns>The client with that unique identity.  If the number doesn't 
         /// match a client, then it returns null.</returns>
-        protected ClientConnexion GetClientForClientIdentity(Guid id)
+        virtual protected ClientConnexion GetClientForClientIdentity(Guid id)
         {
             foreach (ClientConnexion c in Clients)
             {
@@ -456,7 +470,7 @@ namespace GT.Net
             return null;
         }
 
-        protected ClientConnexion CreateNewClient(Guid clientId)
+        virtual protected ClientConnexion CreateNewClient(Guid clientId)
         {
             ClientConnexion client = configuration.CreateClientConnexion(this, clientId, GenerateUniqueIdentity());
             client.MessageReceived += ReceivedClientMessage;
@@ -468,7 +482,7 @@ namespace GT.Net
 
         /// <summary>Starts a new thread that listens for new clients or
         /// new messages on the current thread.</summary>
-        public void StartListening()
+        virtual public void StartListening()
         {
             int oldTickCount;
             int newTickCount;
@@ -507,7 +521,7 @@ namespace GT.Net
             }
         }
 
-        protected void NotifyError(ErrorSummary es)
+        virtual protected void NotifyError(ErrorSummary es)
         {
             if (ErrorEvent == null) { return; }
             try { ErrorEvent(es); }
@@ -518,12 +532,12 @@ namespace GT.Net
             }
         }
 
-        public void Sleep()
+        virtual public void Sleep()
         {
             Sleep((int)configuration.TickInterval.TotalMilliseconds);
         }
 
-        public void Sleep(int milliseconds)
+        virtual public void Sleep(int milliseconds)
         {
             Trace.TraceInformation("{0}: sleeping for {1}ms", this, milliseconds);
 
@@ -531,7 +545,7 @@ namespace GT.Net
             Thread.Sleep(Math.Max(0, milliseconds));
         }
 
-        public void Start()
+        virtual public void Start()
         {
             if (Active) { return; }
             acceptors = configuration.CreateAcceptors();
@@ -544,7 +558,7 @@ namespace GT.Net
             running = true;
         }
 
-        public void Stop()
+        virtual public void Stop()
         {
             lock (this)
             {
@@ -567,7 +581,7 @@ namespace GT.Net
             }
         }
 
-        public void Dispose()
+        virtual public void Dispose()
         {
             Stop();
             if (acceptors != null)
@@ -584,7 +598,7 @@ namespace GT.Net
             }
         }
 
-        public bool Active
+        virtual public bool Active
         {
             get { return running; }
         }
@@ -609,12 +623,12 @@ namespace GT.Net
                         DateTime.Now, e);
                 }
             }
-            clientIDs.Clear();
+            clientIDs = null;
         }
 
         /// <summary>Generates a unique identity number that clients can use to identify each other.</summary>
         /// <returns>The unique identity number</returns>
-        protected int GenerateUniqueIdentity()
+        virtual protected int GenerateUniqueIdentity()
         {
             int clientId = 0;
             DateTime timeStamp = DateTime.Now;
@@ -636,7 +650,7 @@ namespace GT.Net
         /// <param name="id">The channel id to be sent on</param>
         /// <param name="list">The list of clients to send it to</param>
         /// <param name="mdr">How to send it (can be null)</param>
-        public void Send(byte[] buffer, byte id, ICollection<IConnexion> list, MessageDeliveryRequirements mdr)
+        virtual public void Send(byte[] buffer, byte id, ICollection<IConnexion> list, MessageDeliveryRequirements mdr)
         {
             Send(new SingleItem<Message>(new BinaryMessage(id, buffer)),
 		list, mdr);
@@ -647,7 +661,7 @@ namespace GT.Net
         /// <param name="id">The channel id to be sent on</param>
         /// <param name="list">The list of clients to send it to</param>
         /// <param name="mdr">How to send it (can be null)</param>
-        public void Send(string s, byte id, ICollection<IConnexion> list, MessageDeliveryRequirements mdr)
+        virtual public void Send(string s, byte id, ICollection<IConnexion> list, MessageDeliveryRequirements mdr)
         {
             Send(new SingleItem<Message>(new StringMessage(id, s)), list, mdr);
         }
@@ -657,7 +671,7 @@ namespace GT.Net
         /// <param name="id">The channel id to be sent on</param>
         /// <param name="list">The list of clients to send it to</param>
         /// <param name="mdr">How to send it (can be null)</param>
-        public void Send(object o, byte id, ICollection<IConnexion> list, MessageDeliveryRequirements mdr)
+        virtual public void Send(object o, byte id, ICollection<IConnexion> list, MessageDeliveryRequirements mdr)
         {
             Send(new SingleItem<Message>(new ObjectMessage(id, o)), list, mdr);
         }
@@ -666,7 +680,7 @@ namespace GT.Net
         /// <param name="message">The message to send</param>
         /// <param name="list">The list of clients to send it to</param>
         /// <param name="mdr">How to send it (can be null)</param>
-        public void Send(Message message, ICollection<IConnexion> list, MessageDeliveryRequirements mdr)
+        virtual public void Send(Message message, ICollection<IConnexion> list, MessageDeliveryRequirements mdr)
         {
             Send(new SingleItem<Message>(message), list, mdr);
         }
@@ -675,7 +689,7 @@ namespace GT.Net
         /// <param name="messages">The list of messages</param>
         /// <param name="list">The list of clients</param>
         /// <param name="mdr">How to send it (can be null)</param>
-        public void Send(IList<Message> messages, ICollection<IConnexion> list, MessageDeliveryRequirements mdr)
+        virtual public void Send(IList<Message> messages, ICollection<IConnexion> list, MessageDeliveryRequirements mdr)
         {
             InvalidStateException.Assert(Active, "Cannot send on a stopped server", this);
             foreach (IConnexion c in list)
@@ -693,14 +707,14 @@ namespace GT.Net
             }
         }
 
-        public ChannelDeliveryRequirements GetChannelDeliveryRequirements(byte id)
+        virtual public ChannelDeliveryRequirements GetChannelDeliveryRequirements(byte id)
         {
             ChannelDeliveryRequirements cdr;
             if (channelRequirements.TryGetValue(id, out cdr)) { return cdr; }
             return configuration.DefaultChannelRequirements();
         }
 
-        public void SetChannelDeliveryRequirements(byte id, ChannelDeliveryRequirements cdr)
+        virtual public void SetChannelDeliveryRequirements(byte id, ChannelDeliveryRequirements cdr)
         {
             channelRequirements[id] = cdr;
         }

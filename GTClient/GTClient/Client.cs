@@ -983,7 +983,7 @@ namespace GT.Net
 
         public ClientConfiguration Configuration { get { return configuration; } }
 
-        public IDictionary<string, string> Capabilities
+        virtual public IDictionary<string, string> Capabilities
         {
             get
             {
@@ -1021,7 +1021,7 @@ namespace GT.Net
             get { return guid; }
         }
 
-        public void Start()
+        virtual public void Start()
         {
             lock (this)
             {
@@ -1042,7 +1042,7 @@ namespace GT.Net
             }
         }
 
-        public void Stop()
+        virtual public void Stop()
         {
             lock (this)
             {
@@ -1066,7 +1066,7 @@ namespace GT.Net
             }
         }
 
-        public void Dispose()
+        virtual public void Dispose()
         {
             lock (this)
             {
@@ -1090,7 +1090,7 @@ namespace GT.Net
             }
         }
 
-        public bool Active
+        virtual public bool Active
         {
             get { return started; }
         }
@@ -1098,7 +1098,7 @@ namespace GT.Net
         /// <summary>
         /// Sleep for the tick-time from the configuration
         /// </summary>
-        public void Sleep()
+        virtual public void Sleep()
         {
             Sleep((int)configuration.TickInterval.TotalMilliseconds);
         }
@@ -1108,7 +1108,7 @@ namespace GT.Net
         /// configuration
         /// </summary>
         /// <param name="milliseconds"></param>
-        public void Sleep(int milliseconds)
+        virtual public void Sleep(int milliseconds)
         {
             // FIXME: this should do something smarter
             // Socket.Select(listenList, null, null, 1000);
@@ -1501,7 +1501,7 @@ namespace GT.Net
         /// <returns>The created or retrieved connexion itself.</returns>
         /// <exception cref="CannotConnectException">thrown if the
         ///     remote could not be contacted.</exception>
-        protected ServerConnexion GetConnexion(string address, string port)
+        virtual protected ServerConnexion GetConnexion(string address, string port)
         {
             foreach (ServerConnexion s in connexions)
             {
@@ -1517,8 +1517,9 @@ namespace GT.Net
             return mySC;
         }
 
-        private void NotifyError(ErrorSummary es)
+        protected void NotifyError(ErrorSummary es)
         {
+            DebugUtils.WriteLine(es.ToString());
             if (ErrorEvent == null) { return; }
             try { ErrorEvent(es); }
             catch (Exception e)
@@ -1528,10 +1529,11 @@ namespace GT.Net
             }
         }
 
-        /// <summary>One tick of the network beat.  Thread-safe.</summary>
-        public void Update()
+        /// <summary>Process a single tick of the server.  This method is <strong>not</strong> 
+        /// re-entrant and should not be called from GT callbacks.</summary>
+        virtual public void Update()
         {
-            DebugUtils.WriteLine(this + ": Update() started");
+            DebugUtils.WriteLine("{0}: Update() started", this);
             lock (this)
             {
                 if (!started) { Start(); }  // deprecated behaviour
@@ -1616,7 +1618,7 @@ namespace GT.Net
                 foreach (AbstractStreamedTuple s in threeTupleStreams.Values)
                     s.Update(timer);
             }
-            DebugUtils.WriteLine(this + ": Update() finished");
+            DebugUtils.WriteLine("{0}: Update() finished", this);
         }
 
         /// <summary>This is a placeholder for more possible system message handling.</summary>
@@ -1629,7 +1631,7 @@ namespace GT.Net
 
         /// <summary>Starts a new thread that listens for new clients or new Bytes.
         /// Abort returned thread at any time to stop listening.</summary>
-        public Thread StartSeparateListeningThread()
+        virtual public Thread StartSeparateListeningThread()
         {
             listeningThread = new Thread(new ThreadStart(StartListening));
             listeningThread.Name = "Listening Thread";
@@ -1644,7 +1646,7 @@ namespace GT.Net
         /// Aborting this thread of execution will cause this thread to die
         /// gracefully, and is recommended.
         /// </summary>
-        public void StartListening()
+        virtual public void StartListening()
         {
             double oldTime;
             double newTime;

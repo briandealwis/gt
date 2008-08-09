@@ -118,7 +118,7 @@ namespace GT.UnitTests
             set { config.TickInterval = TimeSpan.FromMilliseconds(value); }
         }
 
-        public void Start()
+        virtual public void Start()
         {
             server = config.BuildServer();
             server.StringMessageReceived += ServerStringMessageReceived;
@@ -132,7 +132,7 @@ namespace GT.UnitTests
             Console.WriteLine("Server started: " + server.ToString() + " [" + serverThread.Name + "]");
         }
 
-        public void Stop()
+        virtual public void Stop()
         {
             if (serverThread != null)
             {
@@ -146,7 +146,7 @@ namespace GT.UnitTests
             server = null;
         }
 
-        public void Dispose()
+        virtual public void Dispose()
         {
             Stop();
         }
