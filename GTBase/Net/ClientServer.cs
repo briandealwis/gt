@@ -80,16 +80,42 @@ namespace GT.Net {
         }
     }
 
+    #region Delegate Definitions
+
     /// <summary>Notification of an error event on a connexion.</summary>
     /// <param name="summary">A summary of the error event.</param>
     public delegate void ErrorEventNotication(ErrorSummary summary);
 
-    /// <summary>Handles a Message event, when a new message arrives</summary>
-    /// <param name="m">The incoming message.</param>
-    /// <param name="client">Who sent the message</param>
+    /// <summary>Notification of a message having been sent or received.</summary>
+    /// <param name="m">The message.</param>
+    /// <param name="client">The source or destination of the message</param>
     /// <param name="transport">How the message was sent</param>
     public delegate void MessageHandler(Message m, IConnexion client, ITransport transport);
 
+    /// <summary>
+    /// Notification that a transport was either added or removed.
+    /// </summary>
+    /// <param name="connexion"></param>
+    /// <param name="newTransport"></param>
+    public delegate void TransportLifecyleNotification(IConnexion connexion, ITransport newTransport);
+
+    /// <summary>
+    /// Notification of a ping having been sent.
+    /// </summary>
+    /// <param name="transport">The transport used for the ping</param>
+    /// <param name="sequence">The sequence number for this ping.</param>
+    public delegate void PingingNotification(ITransport transport, uint sequence);
+
+    /// <summary>
+    /// Notification of a response to a ping request.
+    /// </summary>
+    /// <param name="transport">The transport from which the ping was received</param>
+    /// <param name="sequence">The sequence number of the ping</param>
+    /// <param name="milliseconds">The delay in sending the ping to it being received
+    ///     (half of the total ping time); may be negative due to counter overflow.</param>
+    public delegate void PingedNotification(ITransport transport, uint sequence, int milliseconds);
+
+    #endregion
 
     /// <summary>
     /// Connexions represent a communication connection between a client and server.
@@ -98,8 +124,14 @@ namespace GT.Net {
     /// </summary>
     public interface IConnexion : IDisposable
     {
+        /// <summary>
+        /// The smoothed delay seen for this connexion (in milliseconds).
+        /// </summary>
         float Delay { get; }
 
+        /// <summary>
+        /// Return true if this instance is active
+        /// </summary>
         bool Active { get; }
 
         /// <summary>The server-unique identity of this client</summary>
@@ -109,6 +141,18 @@ namespace GT.Net {
         /// Notification of fatal errors occurring on the connexion.
         /// </summary>
         event ErrorEventNotication ErrorEvents;
+
+        /// <summary>Triggered when a message is received.</summary>
+        event MessageHandler MessageReceived;
+
+        /// <summary>Triggered when a message is sent.</summary>
+        event MessageHandler MessageSent;
+
+        event TransportLifecyleNotification TransportAdded;
+        event TransportLifecyleNotification TransportRemoved;
+
+        event PingingNotification PingRequested;
+        event PingedNotification PingReceived;
 
         // public StatisticalMoments DelayStatistics { get; }
 
@@ -131,9 +175,6 @@ namespace GT.Net {
         /// </summary>
         void Dispose();
 
-        /// <summary>Triggered when a message is received.</summary>
-        event MessageHandler MessageReceived;
-
         /// <summary>Send a message using these parameters.  At least one of <c>mdr</c> and
         /// <c>cdr</c> are expected to be specified (i.e., be non-null).</summary>
         /// <param name="msg">The message to send.</param>
@@ -144,7 +185,7 @@ namespace GT.Net {
         /// <summary>Send a set of messages using these parameters.  
         /// At least one of <c>mdr</c> and <c>cdr</c> are expected to be specified 
         /// (i.e., be non-null).</summary>
-        /// <param name="msg">The message to send.</param>
+        /// <param name="msgs">The message to send.</param>
         /// <param name="mdr">Requirements for this particular message; may be null.</param>
         /// <param name="cdr">Requirements for the message's channel.</param>
         void Send(IList<Message> msgs, MessageDeliveryRequirements mdr, ChannelDeliveryRequirements cdr);
@@ -179,7 +220,7 @@ namespace GT.Net {
 
     public abstract class BaseConnexion : IConnexion, IComparer<ITransport>
     {
-	#region Events
+	    #region Events
 
         /// <summary>
         /// Notification of fatal errors occurring on the connexion.
@@ -189,27 +230,37 @@ namespace GT.Net {
         /// <summary>Triggered when a message is received.</summary>
         public event MessageHandler MessageReceived;
 
-	#endregion
+        /// <summary>Triggered when a message is sent.</summary>
+        public event MessageHandler MessageSent;
+
+        public event TransportLifecyleNotification TransportAdded;
+        public event TransportLifecyleNotification TransportRemoved;
+
+        public event PingingNotification PingRequested;
+        public event PingedNotification PingReceived;
+
+	    #endregion
 
         protected bool active = false;
         protected List<ITransport> transports = new List<ITransport>();
+        protected uint pingSequence = 0;
 
         /// <summary>
         /// The server's unique identifier for this connexion; this
-	/// identifier is only unique within the server's client
-	/// group and is not globally unique.
+	    /// identifier is only unique within the server's client
+	    /// group and is not globally unique.
         /// </summary>
         protected int uniqueIdentity;
 
-	/// <summary>
-	/// Return the appropriate marshaller for this connexion.
+	    /// <summary>
+	    /// Return the appropriate marshaller for this connexion.
 	/// </summary>
         abstract public IMarshaller Marshaller { get; }
 
-	/// <summary>
-	/// Retrieve the transports associated with this connexion.
-	/// Intended only for statistical use.
-	/// </summary>
+	    /// <summary>
+	    /// Retrieve the transports associated with this connexion.
+	    /// Intended only for statistical use.
+	    /// </summary>
         public IList<ITransport> Transports { get { return transports; } }
 
         /// <summary>
@@ -284,7 +335,7 @@ namespace GT.Net {
         protected internal void NotifyError(ErrorSummary summary)
         {
             // FIXME: This should be logging
-            Console.WriteLine(summary.ToString());
+            // Console.WriteLine(summary.ToString());
             if (ErrorEvents != null)
             {
                 try { ErrorEvents(summary); }
@@ -300,13 +351,17 @@ namespace GT.Net {
         {
             // need to create new list as the ping may lead to a send error,
             // resulting in the transport being removed from underneath us.
+            pingSequence++;
             foreach (ITransport t in new List<ITransport>(transports))
             {
                 try
                 {
-                    Send(new SystemMessage(SystemMessageType.PingRequest,
-                            BitConverter.GetBytes(System.Environment.TickCount)),
+                    byte[] pingmsg = new byte[8];
+                    BitConverter.GetBytes(Environment.TickCount).CopyTo(pingmsg, 0);
+                    BitConverter.GetBytes(pingSequence).CopyTo(pingmsg, 4);
+                    Send(new SystemMessage(SystemMessageType.PingRequest, pingmsg),
                         new SpecificTransportRequirement(t), null);
+                    if (PingRequested != null) { PingRequested(t, pingSequence); }
                 }
                 catch (GTException e)
                 {
@@ -364,14 +419,17 @@ namespace GT.Net {
             t.PacketReceivedEvent += HandleNewPacket;
             transports.Add(t);
             transports.Sort(this);
+            if (TransportAdded != null) { TransportAdded(this, t); }
         }
 
         public virtual bool RemoveTransport(ITransport t) 
         {
             DebugUtils.Write("{0}: removing transport: {1}", this, t);
+            bool removed = transports.Remove(t);
             t.PacketReceivedEvent -= HandleNewPacket;
+            if (TransportRemoved != null) { TransportRemoved(this, t); }
             t.Dispose();
-            return transports.Remove(t);
+            return removed;
         }
 
         abstract public int Compare(ITransport a, ITransport b);
@@ -413,9 +471,12 @@ namespace GT.Net {
 
             case SystemMessageType.PingResponse:
                 //record the difference; half of it is the latency between this client and the server
-                int newDelay = (System.Environment.TickCount - BitConverter.ToInt32(message.data, 0)) / 2;
+                // Tickcount is the # milliseconds (fixme: this could wrap...)
+                int newDelay = (Environment.TickCount - BitConverter.ToInt32(message.data, 0)) / 2;
+                uint sequence = BitConverter.ToUInt32(message.data, 4);
                 // NB: transport.Delay set may (and probably will) scale this value
                 transport.Delay = newDelay;
+                if (PingReceived != null) { PingReceived(transport, sequence, newDelay); }
                 break;
 
             case SystemMessageType.ConnexionClosing:
@@ -535,6 +596,7 @@ namespace GT.Net {
             Marshaller.Marshal(MyUniqueIdentity, msg, packet, transport);
             try { SendPacket(transport, packet); }
             catch (TransportError e) { throw new CannotSendMessagesError(this, e, msg); }
+            if (MessageSent != null) { MessageSent(msg, this, transport); }
         }
 
         protected void SendMessages(ITransport transport, IList<Message> messages)
@@ -557,6 +619,10 @@ namespace GT.Net {
                     {
                         throw new CannotSendMessagesError(this, e, messages);
                     }
+                    if (MessageSent != null)
+                    {
+                        foreach (Message msg in messages) { MessageSent(msg, this, transport); }
+                    }
 
                     ms = transport.GetPacketStream();
                     packetStart = (int)ms.Position;
@@ -566,10 +632,17 @@ namespace GT.Net {
             if (ms.Position - packetStart != 0)
             {
                 ms.Position = packetStart;
-                try { SendPacket(transport, ms); }
+                try
+                {
+                    SendPacket(transport, ms);
+                }
                 catch (TransportError e)
                 {
                     throw new CannotSendMessagesError(this, e, messages);
+                }
+                if (MessageSent != null)
+                {
+                    foreach (Message msg in messages) { MessageSent(msg, this, transport); }
                 }
             }
         }

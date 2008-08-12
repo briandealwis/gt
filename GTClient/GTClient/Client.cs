@@ -29,10 +29,18 @@ namespace GT.Net
     /// /// <param name="stream">The stream that has the new message.</param>
     public delegate void BinaryNewMessage(IBinaryStream stream);
 
-    /// <summary>Occurs whenever this client is updated.</summary>
+    /// <summary>Occurs whenever a client is updated.</summary>
     public delegate void UpdateEventDelegate(HPTimer hpTimer);
 
+    /// <summary>
+    /// Notification that a connexion was either added or removed to a client/server instance
+    /// </summary>
+    /// <param name="connexion"></param>
+    public delegate void ConnexionLifecycleNotification(IConnexion connexion);
+
     #endregion
+
+    #region Streams
 
     #region Type Stream Interfaces
 
@@ -118,8 +126,6 @@ namespace GT.Net
     }
 
     #endregion
-
-    #region Type Stream Implementations
 
     public abstract class AbstractBaseStream : IStream
     {
@@ -845,7 +851,6 @@ namespace GT.Net
             }
         }
 
-        
         internal Message DequeueMessage()
         {
             lock (receivedMessages)
@@ -949,8 +954,15 @@ namespace GT.Net
         protected IDictionary<byte, byte> previouslyWarnedChannels;
         protected IDictionary<MessageType, MessageType> previouslyWarnedMessageTypes;
 
+        #region Events
+
         /// <summary>Occurs when there are errors on the network.</summary>
         public event ErrorEventNotication ErrorEvent;
+
+        public event ConnexionLifecycleNotification ConnexionAdded;
+        public event ConnexionLifecycleNotification ConnexionRemoved;
+
+        #endregion
 
         /// <summary>Creates a Client object.  
         /// <strong>deprecated:</strong> The client is started</summary>
@@ -1059,6 +1071,7 @@ namespace GT.Net
                 }
                 if (connexions != null)
                 {
+                    // Should we call ConnexionRemoved on stop?
                     foreach (ServerConnexion s in connexions) { s.Stop(); }
                 }
                 connexions = null;
@@ -1514,6 +1527,7 @@ namespace GT.Net
             mySC.ErrorEvents += NotifyError;
             mySC.Start();
             connexions.Add(mySC);
+            if (ConnexionAdded != null) { ConnexionAdded(mySC); }
             return mySC;
         }
 
@@ -1536,12 +1550,19 @@ namespace GT.Net
             DebugUtils.WriteLine("{0}: Update() started", this);
             lock (this)
             {
-                if (!started) { Start(); }  // deprecated behaviour
+                if (!started)
+                {
+                    Start();
+                } // deprecated behaviour
                 timer.Update();
-                if (timer.TimeInMilliseconds - lastPingTime > configuration.PingInterval.TotalMilliseconds)
+                if (timer.TimeInMilliseconds - lastPingTime
+                    > configuration.PingInterval.TotalMilliseconds)
                 {
                     lastPingTime = timer.TimeInMilliseconds;
-                    foreach (ServerConnexion s in connexions) { s.Ping(); }
+                    foreach (ServerConnexion s in connexions)
+                    {
+                        s.Ping();
+                    }
                 }
                 foreach (ServerConnexion s in connexions)
                 {
@@ -1555,19 +1576,36 @@ namespace GT.Net
                             {
                                 switch (m.MessageType)
                                 {
-                                case MessageType.System: HandleSystemMessage(m); break;
-                                case MessageType.Binary: binaryStreams[m.Id].QueueMessage(m); break;
-                                case MessageType.Object: objectStreams[m.Id].QueueMessage(m); break;
-                                case MessageType.Session: sessionStreams[m.Id].QueueMessage(m); break;
-                                case MessageType.String: stringStreams[m.Id].QueueMessage(m); break;
-                                case MessageType.Tuple1D: oneTupleStreams[m.Id].QueueMessage(m); break;
-                                case MessageType.Tuple2D: twoTupleStreams[m.Id].QueueMessage(m); break;
-                                case MessageType.Tuple3D: threeTupleStreams[m.Id].QueueMessage(m); break;
+                                case MessageType.System:
+                                    HandleSystemMessage(m);
+                                    break;
+                                case MessageType.Binary:
+                                    binaryStreams[m.Id].QueueMessage(m);
+                                    break;
+                                case MessageType.Object:
+                                    objectStreams[m.Id].QueueMessage(m);
+                                    break;
+                                case MessageType.Session:
+                                    sessionStreams[m.Id].QueueMessage(m);
+                                    break;
+                                case MessageType.String:
+                                    stringStreams[m.Id].QueueMessage(m);
+                                    break;
+                                case MessageType.Tuple1D:
+                                    oneTupleStreams[m.Id].QueueMessage(m);
+                                    break;
+                                case MessageType.Tuple2D:
+                                    twoTupleStreams[m.Id].QueueMessage(m);
+                                    break;
+                                case MessageType.Tuple3D:
+                                    threeTupleStreams[m.Id].QueueMessage(m);
+                                    break;
                                 default:
                                     // THIS IS NOT AN ERROR!
                                     if (!previouslyWarnedMessageTypes.ContainsKey(m.MessageType))
                                     {
-                                        Console.WriteLine("Client: WARNING: received message of unknown type: {1}",
+                                        Console.WriteLine(
+                                            "Client: WARNING: received message of unknown type: {1}",
                                             m);
                                         previouslyWarnedMessageTypes[m.MessageType] = m.MessageType;
                                     }
@@ -1579,47 +1617,53 @@ namespace GT.Net
                                 // THIS IS NOT AN ERROR!
                                 if (!previouslyWarnedChannels.ContainsKey(m.Id))
                                 {
-                                    Console.WriteLine("Client: WARNING: received message for unmonitored channel: {0}",
+                                    Console.WriteLine(
+                                        "Client: WARNING: received message for unmonitored channel: {0}",
                                         m);
                                     previouslyWarnedChannels[m.Id] = m.Id;
                                 }
                             }
                         }
-                        if (s.Transports.Count == 0)
-                        {
-                            s.Dispose();
-                        }
                     }
                     catch (ConnexionClosedException) { s.Dispose(); }
                     catch (GTException e)
                     {
-                        Console.WriteLine("Client: ERROR: Exception occurred in Client.Update() processing stream {0}: {1}", s, e);
-                        NotifyError(new ErrorSummary(e.Severity, 
-                                    SummaryErrorCode.RemoteUnavailable, 
-                                    "Exception occurred processing a connexion", e));
+                        Console.WriteLine(
+                            "Client: ERROR: Exception occurred in Client.Update() processing stream {0}: {1}",
+                            s, e);
+                        NotifyError(new ErrorSummary(e.Severity,
+                            SummaryErrorCode.RemoteUnavailable,
+                            "Exception occurred processing a connexion", e));
                     }
                 }
 
-
-
                 //let each stream update itself
-                foreach (SessionStream s in sessionStreams.Values)
-                    s.Update(timer);
-                foreach (StringStream s in stringStreams.Values)
-                    s.Update(timer);
-                foreach (ObjectStream s in objectStreams.Values)
-                    s.Update(timer);
-                foreach (BinaryStream s in binaryStreams.Values)
-                    s.Update(timer);
-                foreach (AbstractStreamedTuple s in oneTupleStreams.Values)
-                    s.Update(timer);
-                foreach (AbstractStreamedTuple s in twoTupleStreams.Values)
-                    s.Update(timer);
-                foreach (AbstractStreamedTuple s in threeTupleStreams.Values)
-                    s.Update(timer);
+                foreach (SessionStream s in sessionStreams.Values) s.Update(timer);
+                foreach (StringStream s in stringStreams.Values) s.Update(timer);
+                foreach (ObjectStream s in objectStreams.Values) s.Update(timer);
+                foreach (BinaryStream s in binaryStreams.Values) s.Update(timer);
+                foreach (AbstractStreamedTuple s in oneTupleStreams.Values) s.Update(timer);
+                foreach (AbstractStreamedTuple s in twoTupleStreams.Values) s.Update(timer);
+                foreach (AbstractStreamedTuple s in threeTupleStreams.Values) s.Update(timer);
+
+                // Remove dead connexions
+                for (int i = 0; i < connexions.Count;)
+                {
+                    if (connexions[i].Active && connexions[i].Transports.Count > 0)
+                    {
+                        i++;
+                    }
+                    else
+                    {
+                        connexions[i].Dispose();
+                        if (ConnexionRemoved != null) { ConnexionRemoved(connexions[i]); }
+                        connexions.RemoveAt(i);
+                    }
+                }
             }
             DebugUtils.WriteLine("{0}: Update() finished", this);
         }
+
 
         /// <summary>This is a placeholder for more possible system message handling.</summary>
         /// <param name="m">The message we're handling.</param>

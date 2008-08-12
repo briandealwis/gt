@@ -17,6 +17,12 @@ namespace GT.Net
     /// <summary>Handles a tick event, which is one loop of the server</summary>
     public delegate void TickHandler();
 
+    /// <summary>Notification of outgoing messages</summary>
+    /// <param name="msgs">The outgoing messages.</param>
+    /// <param name="list">The destinations for the messages</param>
+    /// <param name="mdr">How the message is to be sent</param>
+    public delegate void MessagesSentNotification(IList<Message> msgs, ICollection<IConnexion> list, MessageDeliveryRequirements mdr);
+
     /// <summary>Handles a SessionMessage event, when a SessionMessage arrives.</summary>
     /// <param name="m">The incoming message.</param>
     /// <param name="client">Who sent the message.</param>
@@ -223,12 +229,6 @@ namespace GT.Net
         /// <summary>Invoked each cycle of the server.</summary>
         public event TickHandler Tick;
 
-        /// <summary>Invoked each time a message is received.</summary>
-        public event MessageHandler MessageReceived;
-
-        /// <summary>Invoked each time a session message is received.</summary>
-        public event SessionMessageHandler SessionMessageReceived;
-
         /// <summary>Invoked each time a client disconnects.</summary>
         public event ClientsRemovedHandler ClientsRemoved;
 
@@ -238,11 +238,14 @@ namespace GT.Net
         /// <summary>Occurs when there are errors on the network.</summary>
         public event ErrorEventNotication ErrorEvent;
 
+        /// <summary>Invoked each time a message is sent.</summary>
+        public event MessagesSentNotification MessagesSent;
 
+        /// <summary>Invoked each time a message is received.</summary>
+        public event MessageHandler MessageReceived;
 
-        #endregion
-
-
+        /// <summary>Invoked each time a session message is received.</summary>
+        public event SessionMessageHandler SessionMessageReceived;
 
         /// <summary>Invoked each time a string message is received.</summary>
         public event StringMessageHandler StringMessageReceived;
@@ -252,6 +255,9 @@ namespace GT.Net
 
         /// <summary>Invoked each time a binary mesage is received.</summary>
         public event BinaryMessageHandler BinaryMessageReceived;
+
+        #endregion
+
 
         /// <summary>Creates a new Server object.</summary>
         /// <param name="port">The port to listen on.</param>
@@ -692,6 +698,8 @@ namespace GT.Net
         virtual public void Send(IList<Message> messages, ICollection<IConnexion> list, MessageDeliveryRequirements mdr)
         {
             InvalidStateException.Assert(Active, "Cannot send on a stopped server", this);
+            if(MessagesSent != null) { MessagesSent(messages, list, mdr); }
+
             foreach (IConnexion c in list)
             {
                 //Console.WriteLine("{0}: sending to {1}", this, c);

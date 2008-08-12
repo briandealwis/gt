@@ -340,6 +340,71 @@ namespace GT.UnitTests
             Assert.AreEqual(0, server.Connexions.Count);
         }
 
+        [Test]
+        public void TestMessageEvents()
+        {
+            StartExpectedResponseServer(EXPECTED_GREETING, EXPECTED_RESPONSE);
+
+            client = new TestClientConfiguration().BuildClient();  //this is a client
+            client.ErrorEvent += client_ErrorEvent;  //triggers if there is an error
+
+            bool connexionAdded = false, connexionRemoved = false;
+            bool messageReceived = false, messageSent = false;
+            bool pingRequested = false, pingReceived = false;
+            client.ConnexionAdded += delegate(IConnexion c)
+            {
+                connexionAdded = true;
+                c.MessageReceived += delegate(Message m, IConnexion conn, ITransport transport) { messageReceived = true; };
+                c.MessageSent += delegate(Message m, IConnexion conn, ITransport transport) { messageSent = true; };
+                c.PingRequested += delegate(ITransport transport, uint sequence) { pingRequested = true; };
+                c.PingReceived += delegate(ITransport transport, uint sequence, int milliseconds) { pingReceived = true; };
+            };
+            client.ConnexionRemoved += delegate(IConnexion c) { connexionRemoved = true; };
+
+
+            client.Start();
+            Assert.IsFalse(errorOccurred);
+            Assert.IsFalse(responseReceived);
+
+            {
+                DebugUtils.WriteLine("Client: sending greeting: " + EXPECTED_GREETING);
+                IStringStream strStream = client.GetStringStream("127.0.0.1", "9999", 0,
+                    new TestChannelDeliveryRequirements(typeof(BaseUdpTransport)));  //connect here
+                strStream.StringNewMessageEvent += ClientStringMessageReceivedEvent;
+                strStream.Send(EXPECTED_GREETING);  //send a string
+                CheckForResponse();
+                Assert.AreEqual(1, strStream.Messages.Count);
+                string s = strStream.DequeueMessage(0);
+                Assert.IsNotNull(s);
+                Assert.AreEqual(EXPECTED_RESPONSE, s);
+                strStream.StringNewMessageEvent -= ClientStringMessageReceivedEvent;
+            }
+
+            foreach (IConnexion c in client.Connexions) { ((ServerConnexion)c).Ping(); }
+            for (int i = 0; i < 10 && !pingReceived; i++)
+            {
+                client.Update();
+                Thread.Sleep(server.ServerSleepTime);
+            }
+
+            // Trigger connexion removed -- as not sent from client.Stop()
+            foreach(IConnexion c in client.Connexions) { c.Dispose(); }
+            client.Update();
+
+            client.Stop();
+            // Unfortunately waiting for the message to percolate through can take time
+            for (int i = 0; i < 10 && server.Connexions.Count > 0; i++)
+            {
+                Thread.Sleep(server.ServerSleepTime);
+            }
+            Assert.IsTrue(connexionAdded);
+            Assert.IsTrue(messageSent);
+            Assert.IsTrue(messageReceived);
+            Assert.IsTrue(pingRequested);
+            Assert.IsTrue(pingReceived);
+            Assert.IsTrue(connexionRemoved);
+        }
+
         protected void CheckForResponse()
         {
             Assert.IsFalse(errorOccurred, "Client: error occurred while sending greeting");

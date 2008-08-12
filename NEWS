@@ -31,10 +31,10 @@ Breaking Changes:
     ISessionStream, ITupleStream*).  The Client.GetStreamedTuple*()
     methods now also return interfaces (i.e., IStreamedTuple).
 
-  * GT Server's Server.Client has been renamed to ClientConnexion, and similarly
-    GT Client's ServerStream has been renamed to ServerConnexion.  These classes
-    have been shielded behind an interface IConnexion.  Both classes
-    have undergone cleanup:
+  * GT Server's Server.Client has been renamed to ClientConnexion,
+    and similarly GT Client's ServerStream has been renamed to
+    ServerConnexion.  These classes have been shielded behind an
+    interface IConnexion.  Both classes have undergone cleanup:
 
       * the Dead property has been flipped to be called Active and
         made read-only;
@@ -130,6 +130,15 @@ New additions
   * We have also introduced some new components in the GT.Utils and GT.UI
     namespaces.  The intent is to provide components that are helpful
     for quickly prototyping groupware apps.
+
+  * We have added some handy events to notify of interesting situations:
+      * notification of messages sent on server instances
+      * notification of the addition and removal of connexions to
+        client or server instances
+      * notification of the addition and removal of transports from
+        connexions. 
+      * notification of ping-sent and ping-received on connexions for
+        particular transports.
 
   * Began creating unit tests using NUnit <http://nunit.org>
 
