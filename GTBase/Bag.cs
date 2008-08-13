@@ -1,10 +1,10 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Threading;
 
 namespace GT.Utils
 {
-
     public class Bag<T> : ICollection<T>
     {
         protected Dictionary<T, int> contents;
@@ -274,6 +274,63 @@ namespace GT.Utils
             }
         }
 
+    }
+
+
+    /// <summary>
+    /// A thread-safe shared queue.  Inpired by various sources on the
+    /// internet.
+    /// </summary>
+    public class SharedQueue<T>
+    {
+        readonly object queueLock = new object();
+        Queue<T> queue = new Queue<T>();
+
+        public void Enqueue(T o)
+        {
+            lock (queueLock)
+            {
+                queue.Enqueue(o);
+
+                // We always need to pulse, even if the queue wasn't
+                // empty before. Otherwise, if we add several items
+                // in quick succession, we may only pulse once, waking
+                // a single thread up, even if there are multiple
+                // threads waiting for items.            
+                Monitor.Pulse(queueLock);
+            }
+        }
+
+        public T Dequeue()
+        {
+            lock (queueLock)
+            {
+                // If the queue is empty, wait for an item to be added
+                // Note that this is a while loop, as we may be pulsed
+                // but not actually run before another thread has come in and
+                // consumed the newly added object. In such a case, we
+                // need to wait again for another pulse.
+                while (queue.Count == 0)
+                {
+                    // This releases queueLock, only reacquiring it
+                    // after being woken up by a call to Pulse
+                    Monitor.Wait(queueLock);
+                }
+                return queue.Dequeue();
+            }
+        }
+
+
+        public int Count
+        {
+            get
+            {
+                lock (queueLock)
+                {
+                    return queue.Count;
+                }
+            }
+        }
     }
 
 }
