@@ -69,7 +69,7 @@ namespace GT.UnitTests
                         Thread.Sleep(10000 + random.Next(-5000, 5000));
                     }
                     int index = random.Next(0, Server.Clients.Count - 1);
-                    switch (random.Next(0, 2))
+                    switch (random.Next(3))     // integer >= 0 but < 3
                     {
                         case 0:
                             Console.Write('O');
@@ -196,7 +196,7 @@ namespace GT.UnitTests
             {
                 while (running)
                 {
-                    switch (random.Next(0, 2))
+                    switch (random.Next(3)) // integer >= 0 but < 3
                     {
                         case 0:
                             Console.Write('o');
