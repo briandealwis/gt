@@ -22,7 +22,7 @@
         "Entry"
         {
         "MsmKey" = "8:_0E22D342E1388A8DD6537444BE7C813C"
-        "OwnerKey" = "8:_887A65EBFF51A0724E60B4E71CF11D89"
+        "OwnerKey" = "8:_798D72399B91061CAF187382BDA6F21C"
         "MsmSig" = "8:_UNDEFINED"
         }
         "Entry"
@@ -34,12 +34,24 @@
         "Entry"
         {
         "MsmKey" = "8:_0E22D342E1388A8DD6537444BE7C813C"
-        "OwnerKey" = "8:_798D72399B91061CAF187382BDA6F21C"
+        "OwnerKey" = "8:_887A65EBFF51A0724E60B4E71CF11D89"
         "MsmSig" = "8:_UNDEFINED"
         }
         "Entry"
         {
         "MsmKey" = "8:_18064CA89CD9495F916074F375970216"
+        "OwnerKey" = "8:_UNDEFINED"
+        "MsmSig" = "8:_UNDEFINED"
+        }
+        "Entry"
+        {
+        "MsmKey" = "8:_4DF5C97EDC4F4FCDBD051BF892514728"
+        "OwnerKey" = "8:_UNDEFINED"
+        "MsmSig" = "8:_UNDEFINED"
+        }
+        "Entry"
+        {
+        "MsmKey" = "8:_5115CD0D881948A3A2CDE2F615D0FD58"
         "OwnerKey" = "8:_UNDEFINED"
         "MsmSig" = "8:_UNDEFINED"
         }
@@ -58,6 +70,12 @@
         "Entry"
         {
         "MsmKey" = "8:_A9606D69A5D7483B9AE27687599E4970"
+        "OwnerKey" = "8:_UNDEFINED"
+        "MsmSig" = "8:_UNDEFINED"
+        }
+        "Entry"
+        {
+        "MsmKey" = "8:_B0F26A48A5C14C94BA70DB0C69A9C097"
         "OwnerKey" = "8:_UNDEFINED"
         "MsmSig" = "8:_UNDEFINED"
         }
@@ -123,7 +141,7 @@
         "DisplayName" = "8:Debug"
         "IsDebugOnly" = "11:TRUE"
         "IsReleaseOnly" = "11:FALSE"
-        "OutputFilename" = "8:GT.Setup.msi"
+        "OutputFilename" = "8:GT_Setup.msi"
         "PackageFilesAs" = "3:2"
         "PackageFileSize" = "3:-2147483648"
         "CabType" = "3:1"
@@ -211,7 +229,7 @@
             {
             "AssemblyRegister" = "3:1"
             "AssemblyIsInGAC" = "11:FALSE"
-            "AssemblyAsmDisplayName" = "8:GTBase, Version=1.1.0.0, Culture=neutral, PublicKeyToken=6a4d186fa821c042, processorArchitecture=MSIL"
+            "AssemblyAsmDisplayName" = "8:GTBase, Version=2.0.0.0, Culture=neutral, PublicKeyToken=6a4d186fa821c042, processorArchitecture=MSIL"
                 "ScatterAssemblies"
                 {
                     "_0E22D342E1388A8DD6537444BE7C813C"
@@ -238,11 +256,51 @@
             "IsDependency" = "11:TRUE"
             "IsolateTo" = "8:"
             }
+            "{1FB2D0AE-D3B9-43D4-B9DD-F88EC61E35DE}:_4DF5C97EDC4F4FCDBD051BF892514728"
+            {
+            "SourcePath" = "8:..\\PORTING"
+            "TargetName" = "8:PORTING"
+            "Tag" = "8:"
+            "Folder" = "8:_0458607A7A714D0FB9693B371225D9F3"
+            "Condition" = "8:"
+            "Transitive" = "11:FALSE"
+            "Vital" = "11:TRUE"
+            "ReadOnly" = "11:FALSE"
+            "Hidden" = "11:FALSE"
+            "System" = "11:FALSE"
+            "Permanent" = "11:FALSE"
+            "SharedLegacy" = "11:FALSE"
+            "PackageAs" = "3:1"
+            "Register" = "3:1"
+            "Exclude" = "11:FALSE"
+            "IsDependency" = "11:FALSE"
+            "IsolateTo" = "8:"
+            }
+            "{1FB2D0AE-D3B9-43D4-B9DD-F88EC61E35DE}:_5115CD0D881948A3A2CDE2F615D0FD58"
+            {
+            "SourcePath" = "8:..\\README.html"
+            "TargetName" = "8:README.html"
+            "Tag" = "8:"
+            "Folder" = "8:_0458607A7A714D0FB9693B371225D9F3"
+            "Condition" = "8:"
+            "Transitive" = "11:FALSE"
+            "Vital" = "11:TRUE"
+            "ReadOnly" = "11:FALSE"
+            "Hidden" = "11:FALSE"
+            "System" = "11:FALSE"
+            "Permanent" = "11:FALSE"
+            "SharedLegacy" = "11:FALSE"
+            "PackageAs" = "3:1"
+            "Register" = "3:1"
+            "Exclude" = "11:FALSE"
+            "IsDependency" = "11:FALSE"
+            "IsolateTo" = "8:"
+            }
             "{9F6F8455-1EF1-4B85-886A-4223BCC8E7F7}:_798D72399B91061CAF187382BDA6F21C"
             {
             "AssemblyRegister" = "3:1"
             "AssemblyIsInGAC" = "11:FALSE"
-            "AssemblyAsmDisplayName" = "8:GTServer, Version=1.1.0.0, Culture=neutral, PublicKeyToken=8c21b7813f658ae0, processorArchitecture=MSIL"
+            "AssemblyAsmDisplayName" = "8:GTServer, Version=2.0.0.0, Culture=neutral, PublicKeyToken=8c21b7813f658ae0, processorArchitecture=MSIL"
                 "ScatterAssemblies"
                 {
                     "_798D72399B91061CAF187382BDA6F21C"
@@ -273,7 +331,7 @@
             {
             "AssemblyRegister" = "3:1"
             "AssemblyIsInGAC" = "11:FALSE"
-            "AssemblyAsmDisplayName" = "8:GTClient, Version=1.1.0.0, Culture=neutral, PublicKeyToken=8d64d07e2854ff42, processorArchitecture=MSIL"
+            "AssemblyAsmDisplayName" = "8:GTClient, Version=2.0.0.0, Culture=neutral, PublicKeyToken=8d64d07e2854ff42, processorArchitecture=MSIL"
                 "ScatterAssemblies"
                 {
                     "_887A65EBFF51A0724E60B4E71CF11D89"
@@ -298,6 +356,26 @@
             "Register" = "3:1"
             "Exclude" = "11:FALSE"
             "IsDependency" = "11:TRUE"
+            "IsolateTo" = "8:"
+            }
+            "{1FB2D0AE-D3B9-43D4-B9DD-F88EC61E35DE}:_B0F26A48A5C14C94BA70DB0C69A9C097"
+            {
+            "SourcePath" = "8:..\\NEWS"
+            "TargetName" = "8:NEWS"
+            "Tag" = "8:"
+            "Folder" = "8:_0458607A7A714D0FB9693B371225D9F3"
+            "Condition" = "8:"
+            "Transitive" = "11:FALSE"
+            "Vital" = "11:TRUE"
+            "ReadOnly" = "11:FALSE"
+            "Hidden" = "11:FALSE"
+            "System" = "11:FALSE"
+            "Permanent" = "11:FALSE"
+            "SharedLegacy" = "11:FALSE"
+            "PackageAs" = "3:1"
+            "Register" = "3:1"
+            "Exclude" = "11:FALSE"
+            "IsDependency" = "11:FALSE"
             "IsolateTo" = "8:"
             }
         }
@@ -412,7 +490,7 @@
         "Name" = "8:Microsoft Visual Studio"
         "ProductName" = "8:GT"
         "ProductCode" = "8:{21BAFF59-B8C1-41C0-8050-69C44BE097E0}"
-        "PackageCode" = "8:{E454FEB0-603C-48EB-92AF-29D1070CC87E}"
+        "PackageCode" = "8:{87F7998E-784B-4D57-B8FF-D633B4EA1F1D}"
         "UpgradeCode" = "8:{F4618C1E-547D-4C4D-B229-BAA0D8BD8233}"
         "RestartWWWService" = "11:FALSE"
         "RemovePreviousVersions" = "11:FALSE"

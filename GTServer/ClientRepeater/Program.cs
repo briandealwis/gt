@@ -11,21 +11,26 @@ namespace GT.Net
 
     /// <summary>
     /// The server configuration used for the ClientRepeater.
-    /// Note that this configuration creates a
-    /// <c>LightweightDotNetSerializingMarshaller</c> as the server's
-    /// marshaller.  This marshaller only unmarshals system messages
-    /// and session messages and passes through all other messages as
-    /// uninterpreted bytes as instances of <c>RawMessage</c>.
-    /// ClientRepeaters uses this marshaller to minimize latency.
-    /// Servers that need to process the contents of messages should
+    /// </summary>
+    /// <remarks>
+    /// This configuration specifies the
+    /// <see cref="LightweightDotNetSerializingMarshaller"/> as the
+    /// marshaller to be used.  This is a lightweight marshaller 
+    /// that unmarshals only system messages and session messages, and leaves
+    /// all other messages as uninterpreted bytes, passed as instances of 
+    /// <c>RawMessage</c>.  ClientRepeaters uses this marshaller to avoid
+    /// unnecessary unmarshalling and remarshalling of messages
+    /// that it will not use, and thus reduce message processing latency.
+    /// Servers that need to use the contents of messages should
     /// change the <c>CreateMarshaller()</c> method to use a
     /// <c>DotNetSerializingMarshaller</c> marshaller instead.
-    /// </summary>
+    /// </remarks>
     public class RepeaterConfiguration : DefaultServerConfiguration
     {
         public RepeaterConfiguration(int port)
             : base(port)
         {
+            // Sleep at most 1 ms between updates
             this.PingInterval = TimeSpan.FromMilliseconds(1);
         }
 
@@ -157,12 +162,6 @@ namespace GT.Net
         {
             Console.WriteLine("{0}: {1}[{2}]: {3}: {4}", DateTime.Now, es.Severity, es.ErrorCode,
                 es.Message, es.Context);
-            //if (se.Equals(SocketError.NoRecovery))  // FIXME: this test is bogus -- we need more information
-            //{
-            //    List<ClientConnexion> removed = new List<ClientConnexion>();
-            //    removed.Add(c);
-            //    s_ClientsRemoved(removed);
-            //}
         }
 
         private void s_ClientsJoined(ICollection<IConnexion> list)
@@ -184,7 +183,7 @@ namespace GT.Net
                     }
                     catch (GTException e)
                     {
-                        Console.WriteLine("{0}: exception occurred: {1}", DateTime.Now, e);
+                        Console.WriteLine("{0}: EXCEPTION: when sending: {1}", DateTime.Now, e);
                     }
                 }
             }
