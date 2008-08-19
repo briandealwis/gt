@@ -1,6 +1,6 @@
 ﻿
-Microsoft Visual Studio Solution File, Format Version 9.00
-# Visual Studio 2005
+Microsoft Visual Studio Solution File, Format Version 10.00
+# Visual Studio 2008
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "GTClient", "GTClient\GTClient\GTClient.csproj", "{621EB577-E34F-4833-A978-9DCA342D9F6C}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Lobby", "GTClient\Lobby\Lobby.csproj", "{5140F22E-6865-40DA-BA8F-6B516D16F4D6}"
@@ -18,6 +18,14 @@ EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "GTUnitTests", "GTUnitTests\GTUnitTests.csproj", "{855C7346-A594-466E-9250-087A5CC62ABC}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "GTBase", "GTBase\GTBase.csproj", "{EEC385BF-261C-4F5B-A602-D3ECDFC2AC30}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "StressorClient", "StressorClient\StressorClient.csproj", "{AB104363-9201-4CAB-B5C4-8CFA5B2B2ED0}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "StressorServer", "StressorServer\StressorServer.csproj", "{CF0CFB3D-6825-44CD-B891-12AA39116DB9}"
+EndProject
+Project("{54435603-DBB4-11D2-8724-00A0C9A8B90C}") = "GT.MergeModule", "Setup\GT.MergeModule.vdproj", "{4468E7F2-9FB1-48EE-A446-1893F791A0E6}"
+EndProject
+Project("{54435603-DBB4-11D2-8724-00A0C9A8B90C}") = "GT.Setup", "Setup\GT.Setup.vdproj", "{FA50BF6C-90AB-4333-9465-BA18828AECFC}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -61,6 +69,22 @@ Global
 		{EEC385BF-261C-4F5B-A602-D3ECDFC2AC30}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{EEC385BF-261C-4F5B-A602-D3ECDFC2AC30}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{EEC385BF-261C-4F5B-A602-D3ECDFC2AC30}.Release|Any CPU.Build.0 = Release|Any CPU
+		{AB104363-9201-4CAB-B5C4-8CFA5B2B2ED0}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{AB104363-9201-4CAB-B5C4-8CFA5B2B2ED0}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{AB104363-9201-4CAB-B5C4-8CFA5B2B2ED0}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{AB104363-9201-4CAB-B5C4-8CFA5B2B2ED0}.Release|Any CPU.Build.0 = Release|Any CPU
+		{CF0CFB3D-6825-44CD-B891-12AA39116DB9}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{CF0CFB3D-6825-44CD-B891-12AA39116DB9}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{CF0CFB3D-6825-44CD-B891-12AA39116DB9}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{CF0CFB3D-6825-44CD-B891-12AA39116DB9}.Release|Any CPU.Build.0 = Release|Any CPU
+		{4468E7F2-9FB1-48EE-A446-1893F791A0E6}.Debug|Any CPU.ActiveCfg = Debug
+		{4468E7F2-9FB1-48EE-A446-1893F791A0E6}.Debug|Any CPU.Build.0 = Debug
+		{4468E7F2-9FB1-48EE-A446-1893F791A0E6}.Release|Any CPU.ActiveCfg = Release
+		{4468E7F2-9FB1-48EE-A446-1893F791A0E6}.Release|Any CPU.Build.0 = Release
+		{FA50BF6C-90AB-4333-9465-BA18828AECFC}.Debug|Any CPU.ActiveCfg = Debug
+		{FA50BF6C-90AB-4333-9465-BA18828AECFC}.Debug|Any CPU.Build.0 = Debug
+		{FA50BF6C-90AB-4333-9465-BA18828AECFC}.Release|Any CPU.ActiveCfg = Release
+		{FA50BF6C-90AB-4333-9465-BA18828AECFC}.Release|Any CPU.Build.0 = Release
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

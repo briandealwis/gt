@@ -10,4 +10,10 @@ GT*/*/obj
 GT*/*/bin
 Examples/*/obj
 Examples/*/bin
+Setup/*.msm
+Setup/*.msi
+Setup/setup.exe
+Setup/Release
+Setup/Debug
 _ReSharper.gt-all
+gt-all.4.0.resharper*
