@@ -69,6 +69,12 @@
         }
         "Entry"
         {
+        "MsmKey" = "8:_A56587BD6A604EF3A9C27D0C4F739B58"
+        "OwnerKey" = "8:_UNDEFINED"
+        "MsmSig" = "8:_UNDEFINED"
+        }
+        "Entry"
+        {
         "MsmKey" = "8:_A9606D69A5D7483B9AE27687599E4970"
         "OwnerKey" = "8:_UNDEFINED"
         "MsmSig" = "8:_UNDEFINED"
@@ -76,6 +82,12 @@
         "Entry"
         {
         "MsmKey" = "8:_B0F26A48A5C14C94BA70DB0C69A9C097"
+        "OwnerKey" = "8:_UNDEFINED"
+        "MsmSig" = "8:_UNDEFINED"
+        }
+        "Entry"
+        {
+        "MsmKey" = "8:_D6A8B311696C4ECF8B0A6C3FF68529BB"
         "OwnerKey" = "8:_UNDEFINED"
         "MsmSig" = "8:_UNDEFINED"
         }
@@ -241,7 +253,7 @@
             "SourcePath" = "8:GTBase.dll"
             "TargetName" = "8:"
             "Tag" = "8:"
-            "Folder" = "8:_0458607A7A714D0FB9693B371225D9F3"
+            "Folder" = "8:_645EDADA806045B6BEF2E8888E44A695"
             "Condition" = "8:"
             "Transitive" = "11:FALSE"
             "Vital" = "11:TRUE"
@@ -312,7 +324,7 @@
             "SourcePath" = "8:GTServer.dll"
             "TargetName" = "8:"
             "Tag" = "8:"
-            "Folder" = "8:_0458607A7A714D0FB9693B371225D9F3"
+            "Folder" = "8:_645EDADA806045B6BEF2E8888E44A695"
             "Condition" = "8:"
             "Transitive" = "11:FALSE"
             "Vital" = "11:TRUE"
@@ -343,7 +355,7 @@
             "SourcePath" = "8:GTClient.dll"
             "TargetName" = "8:"
             "Tag" = "8:"
-            "Folder" = "8:_0458607A7A714D0FB9693B371225D9F3"
+            "Folder" = "8:_645EDADA806045B6BEF2E8888E44A695"
             "Condition" = "8:"
             "Transitive" = "11:FALSE"
             "Vital" = "11:TRUE"
@@ -394,6 +406,17 @@
             "Property" = "8:TARGETDIR"
                 "Folders"
                 {
+                    "{9EF0B969-E518-4E46-987F-47570745A589}:_645EDADA806045B6BEF2E8888E44A695"
+                    {
+                    "Name" = "8:bin"
+                    "AlwaysCreate" = "11:FALSE"
+                    "Condition" = "8:"
+                    "Transitive" = "11:FALSE"
+                    "Property" = "8:_0DFD1BB671D2407A900F42D1F335143A"
+                        "Folders"
+                        {
+                        }
+                    }
                     "{9EF0B969-E518-4E46-987F-47570745A589}:_798C175E69D74A80A800F53258FDF7FA"
                     {
                     "Name" = "8:ClientRepeater"
@@ -490,7 +513,7 @@
         "Name" = "8:Microsoft Visual Studio"
         "ProductName" = "8:GT"
         "ProductCode" = "8:{21BAFF59-B8C1-41C0-8050-69C44BE097E0}"
-        "PackageCode" = "8:{87F7998E-784B-4D57-B8FF-D633B4EA1F1D}"
+        "PackageCode" = "8:{80FE51F7-7C27-4926-A9C0-63FBC52F11B5}"
         "UpgradeCode" = "8:{F4618C1E-547D-4C4D-B229-BAA0D8BD8233}"
         "RestartWWWService" = "11:FALSE"
         "RemovePreviousVersions" = "11:FALSE"
@@ -634,6 +657,48 @@
             "Target" = "8:_DE0CB8853FE74E3A95131A51A19059E6"
             "Folder" = "8:_252369E1B63D422CB2FD0560DEACBA55"
             "WorkingFolder" = "8:_798C175E69D74A80A800F53258FDF7FA"
+            "Icon" = "8:"
+            "Feature" = "8:"
+            }
+            "{970C0BB2-C7D0-45D7-ABFA-7EC378858BC0}:_78EE238CC8DA4FBEB34B8B5E728ABFE9"
+            {
+            "Name" = "8:README.html"
+            "Arguments" = "8:"
+            "Description" = "8:"
+            "ShowCmd" = "3:1"
+            "IconIndex" = "3:0"
+            "Transitive" = "11:FALSE"
+            "Target" = "8:_5115CD0D881948A3A2CDE2F615D0FD58"
+            "Folder" = "8:_252369E1B63D422CB2FD0560DEACBA55"
+            "WorkingFolder" = "8:_0458607A7A714D0FB9693B371225D9F3"
+            "Icon" = "8:"
+            "Feature" = "8:"
+            }
+            "{970C0BB2-C7D0-45D7-ABFA-7EC378858BC0}:_DDA4F9B7A39A4B148C0B823464E87D9D"
+            {
+            "Name" = "8:PORTING"
+            "Arguments" = "8:"
+            "Description" = "8:"
+            "ShowCmd" = "3:1"
+            "IconIndex" = "3:0"
+            "Transitive" = "11:FALSE"
+            "Target" = "8:_4DF5C97EDC4F4FCDBD051BF892514728"
+            "Folder" = "8:_252369E1B63D422CB2FD0560DEACBA55"
+            "WorkingFolder" = "8:_0458607A7A714D0FB9693B371225D9F3"
+            "Icon" = "8:"
+            "Feature" = "8:"
+            }
+            "{970C0BB2-C7D0-45D7-ABFA-7EC378858BC0}:_F181EEB93F65442F83B767882C49CEC3"
+            {
+            "Name" = "8:NEWS"
+            "Arguments" = "8:"
+            "Description" = "8:"
+            "ShowCmd" = "3:1"
+            "IconIndex" = "3:0"
+            "Transitive" = "11:FALSE"
+            "Target" = "8:_B0F26A48A5C14C94BA70DB0C69A9C097"
+            "Folder" = "8:_252369E1B63D422CB2FD0560DEACBA55"
+            "WorkingFolder" = "8:_0458607A7A714D0FB9693B371225D9F3"
             "Icon" = "8:"
             "Feature" = "8:"
             }
@@ -1249,7 +1314,7 @@
             "SourcePath" = "8:"
             "TargetName" = "8:"
             "Tag" = "8:"
-            "Folder" = "8:_0458607A7A714D0FB9693B371225D9F3"
+            "Folder" = "8:_645EDADA806045B6BEF2E8888E44A695"
             "Condition" = "8:"
             "Transitive" = "11:FALSE"
             "Vital" = "11:TRUE"
@@ -1266,6 +1331,34 @@
             "ProjectOutputGroupRegister" = "3:1"
             "OutputConfiguration" = "8:"
             "OutputGroupCanonicalName" = "8:Symbols"
+            "OutputProjectGuid" = "8:{709C5E40-E732-4196-A2F0-5B72206B7179}"
+            "ShowKeyOutput" = "11:TRUE"
+                "ExcludeFilters"
+                {
+                }
+            }
+            "{5259A561-127C-4D43-A0A1-72F10C7B3BF8}:_A56587BD6A604EF3A9C27D0C4F739B58"
+            {
+            "SourcePath" = "8:..\\GTServer\\GTServer\\bin\\Debug\\GTServer.XML"
+            "TargetName" = "8:"
+            "Tag" = "8:"
+            "Folder" = "8:_645EDADA806045B6BEF2E8888E44A695"
+            "Condition" = "8:"
+            "Transitive" = "11:FALSE"
+            "Vital" = "11:TRUE"
+            "ReadOnly" = "11:FALSE"
+            "Hidden" = "11:FALSE"
+            "System" = "11:FALSE"
+            "Permanent" = "11:FALSE"
+            "SharedLegacy" = "11:FALSE"
+            "PackageAs" = "3:1"
+            "Register" = "3:1"
+            "Exclude" = "11:FALSE"
+            "IsDependency" = "11:FALSE"
+            "IsolateTo" = "8:"
+            "ProjectOutputGroupRegister" = "3:1"
+            "OutputConfiguration" = "8:"
+            "OutputGroupCanonicalName" = "8:Documentation"
             "OutputProjectGuid" = "8:{709C5E40-E732-4196-A2F0-5B72206B7179}"
             "ShowKeyOutput" = "11:TRUE"
                 "ExcludeFilters"
@@ -1401,7 +1494,7 @@
             "SourcePath" = "8:"
             "TargetName" = "8:"
             "Tag" = "8:"
-            "Folder" = "8:_0458607A7A714D0FB9693B371225D9F3"
+            "Folder" = "8:_645EDADA806045B6BEF2E8888E44A695"
             "Condition" = "8:"
             "Transitive" = "11:FALSE"
             "Vital" = "11:TRUE"
@@ -1452,6 +1545,62 @@
                 {
                 }
             }
+            "{5259A561-127C-4D43-A0A1-72F10C7B3BF8}:_D67A452F653F457B847BAFBF9574E135"
+            {
+            "SourcePath" = "8:..\\GTBase\\bin\\Debug\\GTBase.XML"
+            "TargetName" = "8:"
+            "Tag" = "8:"
+            "Folder" = "8:_645EDADA806045B6BEF2E8888E44A695"
+            "Condition" = "8:"
+            "Transitive" = "11:FALSE"
+            "Vital" = "11:TRUE"
+            "ReadOnly" = "11:FALSE"
+            "Hidden" = "11:FALSE"
+            "System" = "11:FALSE"
+            "Permanent" = "11:FALSE"
+            "SharedLegacy" = "11:FALSE"
+            "PackageAs" = "3:1"
+            "Register" = "3:1"
+            "Exclude" = "11:FALSE"
+            "IsDependency" = "11:FALSE"
+            "IsolateTo" = "8:"
+            "ProjectOutputGroupRegister" = "3:1"
+            "OutputConfiguration" = "8:"
+            "OutputGroupCanonicalName" = "8:Documentation"
+            "OutputProjectGuid" = "8:{EEC385BF-261C-4F5B-A602-D3ECDFC2AC30}"
+            "ShowKeyOutput" = "11:TRUE"
+                "ExcludeFilters"
+                {
+                }
+            }
+            "{5259A561-127C-4D43-A0A1-72F10C7B3BF8}:_D6A8B311696C4ECF8B0A6C3FF68529BB"
+            {
+            "SourcePath" = "8:..\\GTClient\\GTClient\\bin\\Debug\\GTClient.xml"
+            "TargetName" = "8:"
+            "Tag" = "8:"
+            "Folder" = "8:_645EDADA806045B6BEF2E8888E44A695"
+            "Condition" = "8:"
+            "Transitive" = "11:FALSE"
+            "Vital" = "11:TRUE"
+            "ReadOnly" = "11:FALSE"
+            "Hidden" = "11:FALSE"
+            "System" = "11:FALSE"
+            "Permanent" = "11:FALSE"
+            "SharedLegacy" = "11:FALSE"
+            "PackageAs" = "3:1"
+            "Register" = "3:1"
+            "Exclude" = "11:FALSE"
+            "IsDependency" = "11:FALSE"
+            "IsolateTo" = "8:"
+            "ProjectOutputGroupRegister" = "3:1"
+            "OutputConfiguration" = "8:"
+            "OutputGroupCanonicalName" = "8:Documentation"
+            "OutputProjectGuid" = "8:{621EB577-E34F-4833-A978-9DCA342D9F6C}"
+            "ShowKeyOutput" = "11:TRUE"
+                "ExcludeFilters"
+                {
+                }
+            }
             "{5259A561-127C-4D43-A0A1-72F10C7B3BF8}:_DE0CB8853FE74E3A95131A51A19059E6"
             {
             "SourcePath" = "8:..\\GTServer\\ClientRepeater\\obj\\Debug\\ClientRepeater.exe"
@@ -1485,7 +1634,7 @@
             "SourcePath" = "8:"
             "TargetName" = "8:"
             "Tag" = "8:"
-            "Folder" = "8:_0458607A7A714D0FB9693B371225D9F3"
+            "Folder" = "8:_645EDADA806045B6BEF2E8888E44A695"
             "Condition" = "8:"
             "Transitive" = "11:FALSE"
             "Vital" = "11:TRUE"
