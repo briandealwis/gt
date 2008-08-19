@@ -123,7 +123,6 @@ namespace GT.Net
             default:
                 throw new MarshallingException(String.Format("ERROR: {0} cannot handle messages of type {1}",
                     this.GetType().Name, m.GetType().Name));
-                return;
             }
         }
 

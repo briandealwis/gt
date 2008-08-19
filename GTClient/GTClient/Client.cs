@@ -176,6 +176,14 @@ namespace GT.Net
         }
     }
 
+    /// <summary>
+    /// The base implementation for the client stream abstraction.
+    /// We differentiate between <typeparamref name="SI"/> and <typeparamref name="RI"/>
+    /// as some streams, particularly the session stream, send and return 
+    /// different types of items.
+    /// </summary>
+    /// <typeparam name="SI">the type of stream items</typeparam>
+    /// <typeparam name="RI">the type of returned items</typeparam>
     public abstract class AbstractStream<SI,RI> : AbstractBaseStream, IGenericStream<SI,RI>
     {
         protected List<Message> messages;
@@ -197,15 +205,30 @@ namespace GT.Net
             messages = new List<Message>();
         }
 
+        /// <summary>
+        /// See <see cref="IGenericStream{SI,RI}.Count"/>
+        /// </summary>
         public virtual int Count { get { return messages.Count; } }
 
+        /// <summary>
+        /// See <see cref="IGenericStream{SI,RI}.Send(SI)"/>
+        /// </summary>
+        /// <param name="item">the item to send</param>
         public void Send(SI item)
         {
             Send(item, null);
         }
 
+        /// <summary>
+        /// See <see cref="IGenericStream{SI,RI}.Send(SI,MessageDeliveryRequirements)"/>
+        /// </summary>
+        /// <param name="item">the item to send</param>
         public abstract void Send(SI item, MessageDeliveryRequirements mdr);
 
+        /// <summary>
+        /// See <see cref="IGenericStream{SI,RI}.DequeueMessage"/>
+        /// </summary>
+        /// <param name="index">the message to dequeue (FIFO order)</param>
         public abstract RI DequeueMessage(int index);
 
         /// <summary>Flush all aggregated messages on this connexion</summary>

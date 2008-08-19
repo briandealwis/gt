@@ -25,7 +25,7 @@ namespace GT.Net
             get { return CappedMessageSize; }
         }
 
-        virtual public void Dispose()
+        public override void Dispose()
         {
             lock (this)
             {

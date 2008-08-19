@@ -125,6 +125,11 @@ namespace GT.GMC
             return false;
         }
 
+        public override int GetHashCode()
+        {
+            return template.GetHashCode();
+        }
+
         public TrieCompressor TrieCompressor { get { return tc; } }
         public HuffmanCompressor HuffmanCompressor { get { return hc; } }
 

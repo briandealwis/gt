@@ -120,7 +120,9 @@ namespace GT.Net {
     /// <summary>
     /// Connexions represent a communication connection between a client and server.
     /// Using a connexion, a client can send a message or messages to a server, and
-    /// vice-versa.
+    /// vice-versa.  Note that the <see cref="IDisposable.Dispose"/> method
+    /// does not perform a friendly shutdown, such that the opposite side will be 
+    /// notified of the closing of this connexion; use <see cref="ShutDown"/> instead.
     /// </summary>
     public interface IConnexion : IDisposable
     {
@@ -173,7 +175,7 @@ namespace GT.Net {
         /// Close this connection immediately.  See <c>ShutDown()</c> for a kinder
         /// variant that notifies the other side.
         /// </summary>
-        void Dispose();
+        //void Dispose();
 
         /// <summary>Send a message using these parameters.  At least one of <c>mdr</c> and
         /// <c>cdr</c> are expected to be specified (i.e., be non-null).</summary>

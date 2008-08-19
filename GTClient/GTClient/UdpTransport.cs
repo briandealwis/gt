@@ -10,10 +10,21 @@ using GT.Utils;
 
 namespace GT.Net
 {
+    /// <summary>
+    /// The client varient of <see cref="BaseUdpTransport"/>.  This
+    /// varient uses a dedicated UDP socket.
+    /// </summary>
     public class UdpClientTransport : BaseUdpTransport
     {
+        /// <summary>
+        /// The UDP socket instance.
+        /// </summary>
         protected UdpClient udpClient;
 
+        /// <summary>
+        /// Create a new instance on the provided socket.
+        /// </summary>
+        /// <param name="udpc">the UDP socket to use</param>
         public UdpClientTransport(UdpClient udpc) {
             udpClient = udpc;
         }
@@ -85,7 +96,7 @@ namespace GT.Net
                 }
                 catch (SocketException e)
                 {
-                    throw new TransportError(this, "Error sending UDP packet", error);
+                    throw new TransportError(this, "Error sending UDP packet", e);
                 }
             }
         }
