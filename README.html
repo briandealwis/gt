@@ -21,6 +21,22 @@ development of simple groupware applications by allowing developers
 to create distributed systems without the need to program lower-level
 networking code.</P>
 
+<P>This distribution includes the GT source code, prebuilt binaries,
+and several demonstration programs.  The demonstration clients use
+a simple broadcasting server called the <TT>ClientRepeater</TT>.</P>
+
+
+<H2>Requirements</H2>
+<UL>
+<LI> GT# is developed against .NET 2.0</LI>
+<LI> GT# has been developed using Microsoft VisualStudio 2008 Professional.
+    We recommend you use a minimum of VS2005 SP1 -- there are reports
+    that the VS2005 pre-SP1 installation may have some faulty
+    networking code.</LI>
+</UL>
+
+<H2>Programming Model</H2>
+
 <P>GT maintains a strong separation of clients and servers. Although
 peer-to-peer systems can be implemented by having a node maintain both a
 client and a server, this has not been GT's focus.</P>
@@ -36,16 +52,6 @@ Applications are required to periodically poll by calling the Update()
 method on their GT interface (e.g., Client.Update() or Server.Update()).
 Events are signalled through .NET events. Applications are responsible
 for implementing equivalent blocking semantics when required.</P>
-
-
-<H2>Requirements</H2>
-<UL>
-<LI> GT# is developed against .NET 2.0</LI>
-<LI> GT# has been developed using Microsoft VisualStudio 2008 Professional.
-    We recommend you use a minimum of VS2005 SP1 -- there are reports
-    that the VS2005 pre-SP1 installation may have some faulty
-    networking code.</LI>
-</UL>
 
 <H2>Architectural Overview</H2>
 

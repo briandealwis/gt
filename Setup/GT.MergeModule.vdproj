@@ -63,7 +63,7 @@
         "DisplayName" = "8:Debug"
         "IsDebugOnly" = "11:TRUE"
         "IsReleaseOnly" = "11:FALSE"
-        "OutputFilename" = "8:GT_MergeModule.msm"
+        "OutputFilename" = "8:GT-2.0.0.msm"
         "PackageFilesAs" = "3:2"
         "PackageFileSize" = "3:-2147483648"
         "CabType" = "3:1"
@@ -150,7 +150,7 @@
             {
             "AssemblyRegister" = "3:1"
             "AssemblyIsInGAC" = "11:FALSE"
-            "AssemblyAsmDisplayName" = "8:GTBase, Version=1.1.0.0, Culture=neutral, PublicKeyToken=6a4d186fa821c042, processorArchitecture=MSIL"
+            "AssemblyAsmDisplayName" = "8:GTBase, Version=2.0.0.0, Culture=neutral, PublicKeyToken=6a4d186fa821c042, processorArchitecture=MSIL"
                 "ScatterAssemblies"
                 {
                     "_0A5CD1F50FA4E66B85BEA808A5A86ADD"
