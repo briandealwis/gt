@@ -6,6 +6,12 @@
 <META HTTP-EQUIV="Content-Type" CONTENT="text/html; charset=iso-8859-1">
 <LINK REL="made" HREF="http://www.cs.ubc.ca/~bsd/">
 <LINK REL="stylesheet" HREF="style.css" TYPE="text/css">
+<STYLE type="text/css">
+dl dt { float:left; clear:left; margin-left:1em; margin-right:1em; font-weight:bold; }
+dt:after { content: ':'; }
+dl dd { margin-left:2.5em; }
+</STYLE>
+
 </HEAD>
 
 <BODY>
@@ -28,11 +34,13 @@ a simple broadcasting server called the <TT>ClientRepeater</TT>.</P>
 
 <H2>Requirements</H2>
 <UL>
-<LI> GT# is developed against .NET 2.0</LI>
-<LI> GT# has been developed using Microsoft VisualStudio 2008 Professional.
-    We recommend you use a minimum of VS2005 SP1 -- there are reports
-    that the VS2005 pre-SP1 installation may have some faulty
-    networking code.</LI>
+<LI> GT has been developed against .NET 2.0.  Unfortunately
+    the MSI installers seem to require .NET 3.5, due to GT being
+    developed on VisualStudio 2008.  The actual DLLs are 2.0
+    however.</LI>
+<LI> We recommend you use a minimum of VS2005 SP1 for your own
+    development -- there are reports that the VS2005 pre-SP1 installation
+    may have some faulty networking code.</LI>
 </UL>
 
 <H2>Programming Model</H2>
@@ -150,7 +158,7 @@ structure between messages.  This scheme is described in:</P>
     Supported Cooperative Work (CSCW), 119--128.
     (<A HREF="http://dx.doi.org/10.1145/1180875.1180894">doi:10.1145/1180875.1180894</A>,
     <A HREF="http://hci.usask.ca/publications/2006/compression.pdf">pdf</A>)
-<BLOCKQUOTE>
+</BLOCKQUOTE>
 <P>Although GMC is fully functional, it is currently only supported
 across reliable and ordered transports.</P>
 
@@ -180,7 +188,7 @@ occur:</P>
 <LI> Errors due to resource issues (i.e., all the above, but on the
     remote side)</LI>
 <LI> Errors due to network problems.</LI>
-<UL>
+</UL>
 <P>GT will raise exceptions on API violations or truly exceptional
 occurrences. Otherwise exceptions and errors are reported using the
 error event mechanism.</P>
@@ -279,11 +287,12 @@ represent the implications of the error:</P>
 
 <H2>Reporting Feedback, Problems, and Requesting Help</H2>
 
-We're interested in hearing about your experiences with GT.  Feel free
-to send e-mail to both Brian de Alwis
+We're interested in hearing about your experiences with GT! 
+Feel free to send feedback, criticisms, and questions to both
+Brian de&nbsp;Alwis
 (<A HREF="mailto:brian.de.alwis@usask.ca">brian.de.alwis@usask.ca</A>)
-and Carl Gutwin (<A
-HREF="mailto:gutwin@cs.usask.ca</A>gutwin@cs.usask.ca</A>).
+and Carl Gutwin
+(<A HREF="mailto:gutwin@cs.usask.ca">gutwin@cs.usask.ca</A>).
 Please report any problems, etc. through the 
 <A HREF="https://papyrus.usask.ca/trac/gt/">GT Trac</A> at:</P>
 <BLOCKQUOTE>
