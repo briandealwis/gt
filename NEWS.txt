@@ -1,6 +1,6 @@
 GT NEWS
 
-GT has undergone a significant re-architecturing to promote more
+GT 2.0 has undergone a significant re-architecturing to promote more
 flexibility and extensibility.  There have been a number of breaking
 changes, primarily dealing with type renaming.
 

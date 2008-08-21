@@ -1,4 +1,4 @@
-Simple steps to port code using the "classic" GT to "new" GT:
+Simple steps to port code using the "classic" GT to GT 2.0:
 
  1. Replace the old GT .DLLs (e.g., GTClient.dll, GTServer.dll); add
     the new GTBase.dll
@@ -32,3 +32,4 @@ Simple steps to port code using the "classic" GT to "new" GT:
 	MostStrict: Reliable, Ordered, unaggregatable and must flush
 	    all outstanding messages.
 
+See the NEWS.txt for more details on the changes.
