@@ -16,14 +16,20 @@ namespace GT.Net
     }
 
     /// <summary>
-    /// Guarantees or requirements for ordering of packets/messages.  If two packets are
-    /// sent in a particular order, does the transport guarantee that the packets
-    /// will be received in that order?
+    /// Guarantees or requirements for ordering of packets/messages. 
+    /// If two packets are sent in a particular order, and both are
+    /// received (see <see cref="Reliability"/>), does the transport
+    /// guarantee that the packets will be received in that order?
     /// </summary>
     public enum Ordering
     {
+	/// <summary>There are no guarantees on packet order.</summary>
         Unordered = 0,
+	/// <summary>Packets are received in order, but there may be
+	// duplicated.</summary>
         Sequenced = 1,
+	/// <summary>Packets are received in order, and with no
+	// duplicates.</summary>
         Ordered = 2,
     }
 
