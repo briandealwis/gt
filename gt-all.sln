@@ -27,6 +27,8 @@ Project("{54435603-DBB4-11D2-8724-00A0C9A8B90C}") = "GT.MergeModule", "Setup\GT.
 EndProject
 Project("{54435603-DBB4-11D2-8724-00A0C9A8B90C}") = "GT.Setup", "Setup\GT.Setup.vdproj", "{FA50BF6C-90AB-4333-9465-BA18828AECFC}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "StatsGraphs", "StatsGraphs\StatsGraphs.csproj", "{84CE1F11-4F03-4C54-8B50-6FAD15DEF6F5}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -85,6 +87,10 @@ Global
 		{FA50BF6C-90AB-4333-9465-BA18828AECFC}.Debug|Any CPU.Build.0 = Debug
 		{FA50BF6C-90AB-4333-9465-BA18828AECFC}.Release|Any CPU.ActiveCfg = Release
 		{FA50BF6C-90AB-4333-9465-BA18828AECFC}.Release|Any CPU.Build.0 = Release
+		{84CE1F11-4F03-4C54-8B50-6FAD15DEF6F5}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{84CE1F11-4F03-4C54-8B50-6FAD15DEF6F5}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{84CE1F11-4F03-4C54-8B50-6FAD15DEF6F5}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{84CE1F11-4F03-4C54-8B50-6FAD15DEF6F5}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

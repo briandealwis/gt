@@ -63,6 +63,7 @@ namespace GT.Net
                         {
                         case SocketError.Success: // this can't happen, right?
                             outstanding.Dequeue();
+                            NotifyPacketSent(b, 0, b.Length);
                             break;
                         case SocketError.WouldBlock:
                             //don't die, but try again next time; not clear if this does (can) happen with UDP

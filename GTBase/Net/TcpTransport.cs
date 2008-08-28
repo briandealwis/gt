@@ -21,8 +21,8 @@ namespace GT.Net
         public static int CappedMessageSize = 512;
 
         private TcpClient handle;
-        private EndPoint remoteEndPoint;
-        private Queue<byte[]> outstanding;
+        private readonly EndPoint remoteEndPoint;
+        private Queue<byte[]> outstanding = new Queue<byte[]>();
 
         private PacketInProgress incomingInProgress;
         private PacketInProgress outgoingInProgress;
@@ -30,7 +30,6 @@ namespace GT.Net
         public TcpTransport(TcpClient h)
         {
             PacketHeaderSize = 4;   // GT TCP 1.0 protocol has 4 bytes for packet length
-            outstanding = new Queue<byte[]>();
             h.NoDelay = true;
             h.Client.Blocking = false;
             handle = h;
@@ -56,6 +55,8 @@ namespace GT.Net
         {
             get { return CappedMessageSize; }
         }
+
+        public override uint Backlog { get { return (uint)outstanding.Count; } }
 
         public IPAddress Address
         {
@@ -159,7 +160,11 @@ namespace GT.Net
                         if (outgoingInProgress.bytesRemaining <= 0)
                         {
                             outstanding.Dequeue();
+                            PacketInProgress oip = outgoingInProgress;
                             outgoingInProgress = null;
+                            // ok, strictly speaking this won't be right if we've sent a
+                            // subsequence of the oip's data array
+                            NotifyPacketSent(oip.data, 0, oip.data.Length);
                         }
                         break;
 

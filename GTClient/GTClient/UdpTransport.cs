@@ -80,6 +80,7 @@ namespace GT.Net
                         {
                         case SocketError.Success:
                             outstanding.Dequeue();
+                            NotifyPacketSent(b, 0, b.Length);
                             break;
                         case SocketError.WouldBlock:
                             //don't die, but try again next time

@@ -25,20 +25,21 @@ namespace GT.UnitTests
             get { return true; }
         }
 
-        public event PacketReceivedHandler PacketReceivedEvent;
+        public uint Backlog { get { return 0; } }
+
+        public event PacketHandler PacketReceivedEvent;
+        public event PacketHandler PacketSentEvent;
 
         public float Delay
         {
-            get
-            {
-                return 0;
-            }
+            get { return 0; }
             set
             {
+                /* do nothing */
             }
         }
 
-        public Dictionary<string, string> Capabilities
+        public IDictionary<string, string> Capabilities
         {
             get { return new Dictionary<string, string>(); }
         }
@@ -134,7 +135,7 @@ namespace GT.UnitTests
 
         protected void RunServer()
         {
-            server.PacketReceivedEvent += new PacketReceivedHandler(ServerReceivedPacket);
+            server.PacketReceivedEvent += new PacketHandler(ServerReceivedPacket);
             while (server.Active)
             {
                 server.Update();
@@ -268,7 +269,7 @@ namespace GT.UnitTests
 
             client = connector.Connect(address, port, new Dictionary<string, string>());
             Assert.IsNotNull(client);
-            client.PacketReceivedEvent += new PacketReceivedHandler(ClientReceivedPacket);
+            client.PacketReceivedEvent += new PacketHandler(ClientReceivedPacket);
 
             for (int i = 0; i < 10; i++)
             {
@@ -291,7 +292,7 @@ namespace GT.UnitTests
                 client.SendPacket(new byte[client.MaximumPacketSize * 2], 0, client.MaximumPacketSize * 2);
                 Assert.Fail("Transport allowed sending packets exceeding its capacity");
             }
-            catch (ContractViolation e) { /* expected */ }
+            catch (ContractViolation) { /* expected */ }
         }
 
         [Test]

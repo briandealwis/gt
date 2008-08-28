@@ -1,7 +1,6 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Text;
 using GT.UnitTests;
+using GT.StatsGraphs;
 
 namespace StressorClient
 {
@@ -18,6 +17,9 @@ namespace StressorClient
             try
             {
                 client.Start();
+
+                StatisticsDialog.On(client.Client);
+
                 Console.WriteLine("Client started; press a key to stop");
                 Console.ReadKey();
             }

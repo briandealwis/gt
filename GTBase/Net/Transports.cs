@@ -8,7 +8,7 @@ using GT.Utils;
 namespace GT.Net
 {
 
-    public delegate void PacketReceivedHandler(byte[] buffer, int offset, int count, ITransport transport);
+    public delegate void PacketHandler(byte[] buffer, int offset, int count, ITransport transport);
 
     /// <remarks>
     /// Represents a connection to either a server or a client.
@@ -29,13 +29,19 @@ namespace GT.Net
         /// </summary>
         bool Active { get; }
 
-        event PacketReceivedHandler PacketReceivedEvent;
+        /// <summary>
+        /// How many packets are backlogged waiting to be sent?
+        /// </summary>
+        uint Backlog { get; }
+
+        event PacketHandler PacketReceivedEvent;
+        event PacketHandler PacketSentEvent;
 
         /// <summary>
         /// A set of tags describing the capabilities of the transport and of expectations/capabilities
         /// of the users of this transport.
         /// </summary>
-        Dictionary<string,string> Capabilities { get; }
+        IDictionary<string,string> Capabilities { get; }
 
         /// <summary>
         /// Send the given message to the server.
@@ -68,9 +74,10 @@ namespace GT.Net
     public abstract class BaseTransport : ITransport
     {
         private Dictionary<string, string> capabilities = new Dictionary<string, string>();
-        public event PacketReceivedHandler PacketReceivedEvent;
+        public event PacketHandler PacketReceivedEvent;
+        public event PacketHandler PacketSentEvent;
         public abstract string Name { get; }
-
+        public abstract uint Backlog { get; }
         public abstract bool Active { get; }
 
         virtual public void Dispose() { /* empty implementation */ }
@@ -79,6 +86,7 @@ namespace GT.Net
 
         public abstract Reliability Reliability { get; }
         public abstract Ordering Ordering { get; }
+        public abstract int MaximumPacketSize { get; }
 
         /// <summary>The average amount of latency between this server 
         /// and the client (in milliseconds).</summary>
@@ -98,7 +106,7 @@ namespace GT.Net
 
         #endregion
 
-        public Dictionary<string, string> Capabilities
+        public IDictionary<string, string> Capabilities
         {
             get { return capabilities; }
         }
@@ -117,11 +125,9 @@ namespace GT.Net
         }
 
         public abstract void Update();
-        public abstract int MaximumPacketSize { get; }
 
         protected void NotifyPacketReceived(byte[] buffer, int offset, int count)
         {
-            DebugUtils.DumpMessage(this.ToString() + " notifying of received message", buffer, offset, count);
             if (PacketReceivedEvent == null)
             {
                 Debug.WriteLine(DateTime.Now + " ERROR: transport has nobody to receive incoming messages!");
@@ -129,5 +135,12 @@ namespace GT.Net
             }
             PacketReceivedEvent(buffer, offset, count, this);
         }
+
+        protected void NotifyPacketSent(byte[] buffer, int offset, int count)
+        {
+            if (PacketSentEvent == null) { return; }
+            PacketSentEvent(buffer, offset, count, this);
+        }
+
     }
 }

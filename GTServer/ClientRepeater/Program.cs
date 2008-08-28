@@ -58,6 +58,8 @@ namespace GT.Net
         protected int sessionChangesChannel = 0;
         protected bool verbose = false;
 
+        public Server Server { get { return server; } }
+
         static void Main(string[] args)
         {
             int port = 9999;
@@ -125,14 +127,26 @@ namespace GT.Net
             set { sessionChangesChannel = value; }
         }
 
+        /// <summary>
+        /// Start an independently running client-repeater instance.
+        /// Note that the new thread may not have started before the
+        /// calling thread has returned: this instance may not yet
+        /// be functional on return.
+        /// </summary>
         public void Start()
         {
             serverThread = new Thread(StartListening);
             serverThread.Name = this.ToString();
             serverThread.IsBackground = true;
             serverThread.Start();
+            Thread.Sleep(0);  // try to give the listening thread a chance to run
         }
 
+        /// <summary>
+        /// Start the client-repeater instance, running on the calling thread.
+        /// Execution will not return to the caller until the server has been
+        /// stopped.
+        /// </summary>
         public void StartListening()
         {
             server = config.BuildServer();

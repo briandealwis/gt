@@ -21,7 +21,7 @@ namespace GT.UnitTests
             {
                 b.CopyTo(new string[0], 0);
             }
-            catch (Exception e)
+            catch (Exception)
             {
                 Assert.Fail("CopyTo() shouldn't touch parameter array if nothing to copy");
             }
@@ -175,7 +175,7 @@ namespace GT.UnitTests
                 b.CopyTo(new string[0], 0);
                 Assert.Fail("CopyTo() shouldn't copy to an invalid arrayIndex");
             }
-            catch (ArgumentException e) { /* expected result */ }
+            catch (ArgumentException) { /* expected result */ }
         }
 
         [Test]

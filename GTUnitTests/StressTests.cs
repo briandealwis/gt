@@ -3,23 +3,45 @@ using System.Collections.Generic;
 using System.Threading;
 using GT.Net;
 using NUnit.Framework;
+using GT.Utils;
+using System.Collections;
 
 namespace GT.UnitTests
 {
+    internal class StandardObjects
+    {
+        internal static readonly byte[] ByteMessage = new byte[] { 0, 1, 2, 3, 4, 5 };
+        internal static readonly string StringMessage = "This is a test of faith";
+        internal static readonly object ObjectMessage = new List<string>(new[] { "hello", "world" });
+
+        public static bool Equivalent(object a, object b) {
+            if (a.GetType() != b.GetType()) { return false; }
+            if (a is IList) { return Equivalent((IList)a, (IList)b); }
+            return false;
+        }
+
+        public static bool Equivalent(IList a, IList b)
+        {
+            if (a.Count != b.Count) { return false; }
+            for (int i = 0; i < a.Count; i++)
+            {
+                if (!a[i].Equals(b[i])) { return false; }
+            }
+            return true;
+        }
+    }
+
     public class StressingServer : EchoingServer
     {
         public int minSleep = 0, maxSleep = 2000;  // each client should sleep between 0 to 2000 ms
         public int numberSenders = 10;
 
-        private bool errorOccurred = false;
         private bool running = false;
-        private IList<Thread> threads = new List<Thread>();
-        private Random random = new Random();
+        private readonly IList<Thread> threads = new List<Thread>();
+        private readonly Random random = new Random();
 
         public StressingServer(int port)
             : base(port) {}
-
-        public bool ErrorOccurred { get { return errorOccurred; } }
 
         public override void Start()
         {
@@ -73,18 +95,18 @@ namespace GT.UnitTests
                     {
                         case 0:
                             Console.Write('O');
-                            server_SendMessage(new ObjectMessage(0, new object()), index);
+                            server_SendMessage(new ObjectMessage(0, StandardObjects.ObjectMessage), index);
                             break;
 
                         case 1:
                             Console.Write('S');
-                            server_SendMessage(new StringMessage(1, "its fleece was white as snow"),
+                            server_SendMessage(new StringMessage(1, StandardObjects.StringMessage),
                                 index);
                             break;
 
                         case 2:
                             Console.Write('B');
-                            server_SendMessage(new BinaryMessage(2, new byte[] { 0, 1, 2, 3, 4, 5 }),
+                            server_SendMessage(new BinaryMessage(2, StandardObjects.ByteMessage),
                                 index);
                             break;
 
@@ -98,6 +120,35 @@ namespace GT.UnitTests
 
         private void server_MessageReceived(Message m, IConnexion client, ITransport transport)
         {
+            switch (m.MessageType)
+            {
+            case MessageType.Binary:
+                if (!ByteUtils.Compare(((BinaryMessage) m).Bytes, StandardObjects.ByteMessage))
+                {
+                    Console.WriteLine("Invalid byte message: {0}",
+                        ByteUtils.DumpBytes(((BinaryMessage) m).Bytes));
+                    errorOccurred = true;
+                }
+                break;
+            case MessageType.String:
+                if (!StandardObjects.StringMessage.Equals(((StringMessage) m).Text))
+                {
+                    Console.WriteLine("Invalid strings message: {0}",
+                        ((StringMessage) m).Text);
+                    errorOccurred = true;
+                }
+                break;
+
+            case MessageType.Object:
+                if (!StandardObjects.Equivalent(StandardObjects.ObjectMessage, ((ObjectMessage) m).Object))
+                {
+                    Console.WriteLine("Invalid object message: {0}",
+                        ((ObjectMessage) m).Object);
+                    errorOccurred = true;
+                }
+                break;
+            }
+
             // Randomly send a message elsewhere 10% of the time;
             // this has multiple senders from outside of the server's listening loop
             if (random.Next(0, 100) < 10)
@@ -134,12 +185,14 @@ namespace GT.UnitTests
 
         private bool errorOccurred = false;
         private bool running = false;
-        private IList<Thread> threads = new List<Thread>();
-        private Random random = new Random();
+        private readonly IList<Thread> threads = new List<Thread>();
+        private readonly Random random = new Random();
 
         private IObjectStream objectStream;
         private IBinaryStream binaryStream;
         private IStringStream stringStream;
+
+        public Client Client { get { return client; } }
 
         public StressingClient(string host, string port)
         {
@@ -200,17 +253,17 @@ namespace GT.UnitTests
                     {
                         case 0:
                             Console.Write('o');
-                            objectStream.Send(new object());
+                            objectStream.Send(StandardObjects.ObjectMessage);
                             break;
 
                         case 1:
                             Console.Write('s');
-                            stringStream.Send("mary had a little lamb");
+                            stringStream.Send(StandardObjects.StringMessage);
                             break;
 
                         case 2:
                             Console.Write('b');
-                            binaryStream.Send(new byte[] { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9 });
+                            binaryStream.Send(StandardObjects.ByteMessage);
                             break;
 
                     }
@@ -223,7 +276,15 @@ namespace GT.UnitTests
         private void client_ReceivedBinaryMessage(IBinaryStream stream)
         {
             byte[] message;
-            while ((message = stream.DequeueMessage(0)) != null) {
+            while ((message = stream.DequeueMessage(0)) != null)
+            {
+                if (!ByteUtils.Compare(message, StandardObjects.ByteMessage))
+                {
+                    Console.WriteLine("Invalid byte message: {0}",
+                        ByteUtils.DumpBytes(message));
+                    errorOccurred = true;
+                }
+
                 if (random.Next(0, 100) < 10)
                 {
                     binaryStream.Send(message);
@@ -236,6 +297,13 @@ namespace GT.UnitTests
             string message;
             while ((message = stream.DequeueMessage(0)) != null)
             {
+                if (!StandardObjects.StringMessage.Equals(message))
+                {
+                    Console.WriteLine("Invalid strings message: {0}",
+                        message);
+                    errorOccurred = true;
+                }
+
                 if (random.Next(0, 100) < 10)
                 {
                     stringStream.Send(message);
@@ -248,6 +316,13 @@ namespace GT.UnitTests
             object message;
             while ((message = stream.DequeueMessage(0)) != null)
             {
+                if (!StandardObjects.Equivalent(StandardObjects.ObjectMessage, message))
+                {
+                    Console.WriteLine("Invalid object message: {0}",
+                        message);
+                    errorOccurred = true;
+                }
+
                 if (random.Next(0, 100) < 10)
                 {
                     objectStream.Send(message);
@@ -264,17 +339,15 @@ namespace GT.UnitTests
     [TestFixture]
     public class ZZZZStressTests
     {
-        int serverPort = 9876;
+        private const int serverPort = 9876;
         private EchoingServer server;
-        bool running = false;
 
         private IList<StressingClient> clients = new List<StressingClient>();
         
         [Test]
         public void StressTest() {
-            int totalSeconds = 30;
+            const int totalSeconds = 30;
             Console.WriteLine("Starting Stress Test ({0} seconds)", totalSeconds);
-            running = true;
             server = new EchoingServer(serverPort);
             server.Start();
 
@@ -287,7 +360,6 @@ namespace GT.UnitTests
             }
 
             Thread.Sleep(30000);
-            running = false;
             Assert.IsFalse(server.ErrorOccurred);
             foreach (StressingClient c in clients)
             {

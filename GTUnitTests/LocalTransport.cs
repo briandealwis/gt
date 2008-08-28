@@ -70,7 +70,8 @@ namespace GT.Net.Local
                     }
                     catch (Exception e)
                     {
-                        Console.WriteLine("WARNING: {0}: connection negotiation failed", hp);
+                        Console.WriteLine("WARNING: {0}: connection negotiation failed: {1}", 
+                            hp, e);
                     }
                     toBeRemoved.Add(hp);
                 }
@@ -193,6 +194,8 @@ namespace GT.Net.Local
             get { return Ordering.Ordered; }
         }
 
+        public override uint Backlog { get { return 0; } }
+
         public override bool Active
         {
             get { return handle != null; }
@@ -206,6 +209,7 @@ namespace GT.Net.Local
             byte[] data = new byte[count];
             Array.Copy(message, offset, data, 0, count);
             handle.Put(data);
+            NotifyPacketSent(data, 0, data.Length);
         }
 
         public override void SendPacket(Stream stream)
@@ -213,7 +217,9 @@ namespace GT.Net.Local
             ContractViolation.Assert(stream.Length > 0, "Cannot send 0-byte messages!");
             ContractViolation.Assert(stream.Length - PacketHeaderSize <= MaximumPacketSize, String.Format(
                     "Packet exceeds transport capacity: {0} > {1}", stream.Length - PacketHeaderSize, MaximumPacketSize));
-            handle.Put(((MemoryStream)stream).ToArray());
+            byte[] data = ((MemoryStream)stream).ToArray();
+            handle.Put(data);
+            NotifyPacketSent(data, 0, data.Length);
         }
 
         public override void Update()

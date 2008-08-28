@@ -30,6 +30,8 @@ namespace GT.Net
 
         public override string Name { get { return "UDP"; } }
 
+        public override uint Backlog { get { return (uint)outstanding.Count; } }
+
         override public void Update()
         {
             InvalidStateException.Assert(Active, "Cannot send on disposed transport", this);

@@ -1,6 +1,5 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Text;
+using GT.StatsGraphs;
 using GT.UnitTests;
 
 namespace StressorServer
@@ -18,6 +17,9 @@ namespace StressorServer
             try
             {
                 server.Start();
+
+                StatisticsDialog.On(server.Server);
+
                 Console.WriteLine("Server started; press a key to stop");
                 Console.ReadKey();
             }

@@ -96,7 +96,7 @@ namespace GT.UnitTests
         private Thread serverThread;
         private string expected;
         private string response;
-        private bool errorOccurred;
+        protected bool errorOccurred;
 
         public EchoingServer(int port, string expected, string response)
         {
@@ -162,9 +162,7 @@ namespace GT.UnitTests
             }
             DebugUtils.WriteLine("Server: received greeting '" + s + "' on " + t);
             DebugUtils.WriteLine("Server: sending response: '" + response + "'");
-            List<IConnexion> clientGroup = new List<IConnexion>(1);
-            clientGroup.Add(client);
-            server.Send(response != null ? response : s, m.Id, clientGroup,
+            server.Send(response != null ? response : s, m.Id, new SingleItem<IConnexion>(client),
                 new MessageDeliveryRequirements(t.Reliability,
                     MessageAggregation.Immediate, Ordering.Unordered));
         }
@@ -174,12 +172,10 @@ namespace GT.UnitTests
             byte[] buffer = ((BinaryMessage)m).Bytes;
             DebugUtils.WriteLine("Server: received binary message from {0}", t);
             if (DebugUtils.Verbose) { ByteUtils.HexDump(buffer); }
-            Array.Reverse(buffer);
+            // Array.Reverse(buffer);
             DebugUtils.WriteLine("Server: sending binary message in response");
             if (DebugUtils.Verbose) { ByteUtils.HexDump(buffer); }
-            List<IConnexion> clientGroup = new List<IConnexion>(1);
-            clientGroup.Add(client);
-            server.Send(buffer, m.Id, clientGroup,
+            server.Send(buffer, m.Id, new SingleItem<IConnexion>(client),
                 new MessageDeliveryRequirements(t.Reliability, MessageAggregation.Immediate, Ordering.Unordered));
         }
 
@@ -188,9 +184,7 @@ namespace GT.UnitTests
             object o = ((ObjectMessage)m).Object;
             DebugUtils.WriteLine("Server: received object '" + o + "' on " + t);
             DebugUtils.WriteLine("Server: sending object back");
-            List<IConnexion> clientGroup = new List<IConnexion>(1);
-            clientGroup.Add(client);
-            server.Send(o, m.Id, clientGroup,
+            server.Send(o, m.Id, new SingleItem<IConnexion>(client),
                 new MessageDeliveryRequirements(t.Reliability, MessageAggregation.Immediate, Ordering.Unordered));
         }
 
@@ -205,9 +199,7 @@ namespace GT.UnitTests
             }
             DebugUtils.WriteLine("Server: received  '" + sm.Action + "' on " + t);
             DebugUtils.WriteLine("Server: sending back as response");
-            List<IConnexion> clientGroup = new List<IConnexion>(1);
-            clientGroup.Add(client);
-            server.Send(m, clientGroup,
+            server.Send(m, new SingleItem<IConnexion>(client),
                 new MessageDeliveryRequirements(t.Reliability, MessageAggregation.Immediate, Ordering.Unordered));
         }
 
@@ -219,9 +211,7 @@ namespace GT.UnitTests
             case MessageType.Tuple2D:
             case MessageType.Tuple3D:
                 DebugUtils.WriteLine("Server: received  tuple message on " + t);
-                List<IConnexion> clientGroup = new List<IConnexion>(1);
-                clientGroup.Add(client);
-                server.Send(m, clientGroup,
+                server.Send(m, new SingleItem<IConnexion>(client),
                     new MessageDeliveryRequirements(t.Reliability, MessageAggregation.Immediate, Ordering.Unordered));
                 break;
             }
@@ -447,15 +437,16 @@ namespace GT.UnitTests
             Assert.IsFalse(errorOccurred);
 
             {
+                byte[] sentBytes = new byte[] { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9 };
                 DebugUtils.WriteLine("Client: sending byte message: [0 1 2 3 4 5 6 7 8 9]");
                 IBinaryStream binStream = client.GetBinaryStream("127.0.0.1", "9999", 0, cdr);  //connect here
                 binStream.BinaryNewMessageEvent += ClientBinaryMessageReceivedEvent;
-                binStream.Send(new byte[] { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9 });
+                binStream.Send(sentBytes);
                 CheckForResponse();
                 Assert.AreEqual(1, binStream.Messages.Count);
                 byte[] bytes = binStream.DequeueMessage(0);
                 Assert.IsNotNull(bytes);
-                Assert.AreEqual(new byte[] { 9, 8, 7, 6, 5, 4, 3, 2, 1, 0 }, bytes);
+                Assert.AreEqual(sentBytes, bytes);
                 binStream.BinaryNewMessageEvent -= ClientBinaryMessageReceivedEvent;
             }
 
