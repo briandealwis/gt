@@ -118,7 +118,15 @@ namespace GT.Net
 
         public override string ToString()
         {
-            return "UdpServerTransport(" + handle.RemoteEndPoint + ")";
+            if (handle != null)
+            {
+                try
+                {
+                    return String.Format("{0}: {1}", Name, handle.RemoteEndPoint);
+                }
+                catch (SocketException) { /* FALLTHROUGH */ }
+            }
+            return String.Format("{0}", Name);
         }
     }
 
@@ -175,7 +183,7 @@ namespace GT.Net
             }
             catch (SocketException e)
             {
-                throw new TransportError(this, "UDP multiplexor is throwing a fit", e);
+                throw new TransportError(this, "Exception raised by UDP multiplexor", e);
             }
         }
 

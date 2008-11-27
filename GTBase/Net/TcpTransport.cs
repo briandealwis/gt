@@ -269,13 +269,15 @@ namespace GT.Net
         {
             if (handle != null)
             {
-                return String.Format("{0}: {1} -> {2})", Name,
-                    handle.Client.LocalEndPoint, handle.Client.RemoteEndPoint);
+		        try
+		        {
+		            return String.Format("{0}: {1} -> {2}", Name,
+			        handle.Client.LocalEndPoint,
+			        handle.Client.RemoteEndPoint);
+		        }
+		        catch(SocketException) { /* FALLTHROUGH */ }
             }
-            else
-            {
-                return String.Format("{0}: {1})", Name, remoteEndPoint);
-            }
+    	    return String.Format("{0}: {1}", Name, remoteEndPoint);
         }
     }
 

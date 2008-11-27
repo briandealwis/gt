@@ -121,10 +121,10 @@ namespace GT.Net
 
         protected void NotifyPacketReceived(byte[] buffer, int offset, int count)
         {
-            DebugUtils.DumpMessage(this.ToString() + " notifying of received message", buffer, offset, count);
+            // DebugUtils.DumpMessage(this.ToString() + " notifying of received message", buffer, offset, count);
             if (PacketReceivedEvent == null)
             {
-                Debug.WriteLine(DateTime.Now + " ERROR: transport has nobody to receive incoming messages!");
+                Debug.WriteLine(DateTime.Now + " WARNING: transport has nobody to receive incoming messages!");
                 return;
             }
             PacketReceivedEvent(buffer, offset, count, this);

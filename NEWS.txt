@@ -1,8 +1,42 @@
 GT NEWS
 
-GT 2.0 has undergone a significant re-architecturing to promote more
-flexibility and extensibility.  There have been a number of breaking
-changes, primarily dealing with type renaming.
+=== GT 2.0.1 ===
+
+Some bugs have been fixed since GT 2.0:
+
+  * Server.UpdateAcceptors() threw an NullRefEx as it wasn't properly
+    handling case where an acceptor was inactive but the first to 
+    be removed.
+
+  * Add lock() around FlushChannelMessages (called by IStream.Flush())
+    <https://papyrus.usask.ca/trac/gt/ticket/66>.
+
+  * ClientRepeater configuration should use TickInterval, not 
+    PingInterval!  <https://papyrus.usask.ca/trac/gt/ticket/64>
+
+  * Allow Server instances to be stopped and restarted by not nilling
+    clientIDs in KillAll()  <https://papyrus.usask.ca/trac/gt/ticket/60>
+
+  * Wrap TcpTransport.ToString() to avoid throwing exceptions on invalid handles.
+
+  * Ensure Server and Client are started at the end of
+    StartSeparateListeningThread() <https://papyrus.usask.ca/trac/gt/ticket/56>
+
+  * Client.Get*Stream(): check that streams are still active
+    <https://papyrus.usask.ca/trac/gt/ticket/71>
+
+  * Exposed an IStream's connexion through a Connexion property
+
+  * UdpAccept and TcpAcceptor should now properly trap and report
+    exceptions <https://papyrus.usask.ca/trac/gt/ticket/55>
+
+
+=== GT 2.0 ===
+
+GT 2.0 has undergone a significant re-architecturing from GT 1.0
+to promote more flexibility and extensibility.  There have been a
+number of breaking changes, primarily dealing with type renaming.
+
 
 Breaking Changes:
 
