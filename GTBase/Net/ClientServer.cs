@@ -313,11 +313,22 @@ namespace GT.Net {
             active = false;
             if (transports != null)
             {
-                foreach (ITransport t in transports)
+                // FIXME: should rearrange code so that transports is never
+                // modified except from Update(), Stop(), and ShutDown()
+		        // See ServerConnexion.Start()
+                foreach (ITransport t in new List<ITransport>(transports))
                 {
                     if (t.Active)
                     {
-                        SendMessage(t, new SystemMessage(SystemMessageType.ConnexionClosing));
+                        try
+                        {
+                            SendMessage(t, new SystemMessage(SystemMessageType.ConnexionClosing));
+                        }
+                        catch(CannotSendMessagesError)
+                        {
+                            // ignore since we're shutting down anyways:
+                            // the ConnexionClosing is sent as a courtesy
+                        }
                     }
                 }
             }

@@ -31,7 +31,7 @@ namespace GT.Net
             : base(port)
         {
             // Sleep at most 1 ms between updates
-            this.PingInterval = TimeSpan.FromMilliseconds(1);
+            this.TickInterval = TimeSpan.FromMilliseconds(1);
         }
 
         override public Server BuildServer()
