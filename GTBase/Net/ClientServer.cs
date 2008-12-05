@@ -1,10 +1,193 @@
 using System.Collections.Generic;
+using System.Threading;
 using GT.Utils;
 using System;
 using System.IO;
 using System.Diagnostics;
 
 namespace GT.Net {
+
+    /// <summary>Handles a tick event, which is one loop of the server</summary>
+    public delegate void TickHandler();
+
+    /// <summary>
+    /// Notification that a connexion was either added or removed to a client/server instance
+    /// </summary>
+    /// <param name="connexion"></param>
+    public delegate void ConnexionLifecycleNotification(IConnexion connexion);
+
+    /// <summary>
+    /// A base-level class encompassing the commonalities between GT Client
+    /// and GT Server instances.
+    /// </summary>
+    public abstract class Communicator : IStartable
+    {
+        protected IList<IConnexion> connexions = new List<IConnexion>();
+
+        #region Events
+
+        /// <summary>Occurs when there are errors on the network.</summary>
+        public event ErrorEventNotication ErrorEvent;
+
+        public event ConnexionLifecycleNotification ConnexionAdded;
+        public event ConnexionLifecycleNotification ConnexionRemoved;
+
+        /// <summary>Invoked each cycle of the server.</summary>
+        public event TickHandler Tick;
+
+        #endregion
+
+        /// <summary>
+        /// Return the list of current connexions.  This list may include 
+        /// inactive or now-dead connexions; it is the caller's responsibility 
+        /// to check the status of the connexion before use.  This method may
+        /// return the live list used by this instance; the caller should be
+        /// aware that any GT actions may cause this list to be changed from
+        /// underneath the caller.
+        /// </summary>
+        public virtual ICollection<IConnexion> Connexions
+        {
+            get { return connexions; }
+        }
+
+        /// <summary>
+        /// Return the marshaller configured for this client.
+        /// </summary>
+        public abstract IMarshaller Marshaller { get; }
+
+        /// <summary>
+        /// Return true if the instance has been started (<see cref="Start"/>)
+        /// and neither stopped nor disposed (<see cref="Stop"/> and 
+        /// <see cref="Dispose"/>).
+        /// </summary>
+        public abstract bool Active { get; }
+
+        /// <summary>
+        /// Start the instance.  Starting an instance may throw an exception on error.
+        /// </summary>
+        public abstract void Start();
+
+        /// <summary>
+        /// Stop the instance.  Instances can be stopped multiple times.
+        /// Stopping an instance may throw an exception on error.
+        /// </summary>
+        public abstract void Stop();
+
+        /// <summary>
+        /// Dispose of any system resources that may be held onto by this
+        /// instance.  There should never be an exception thrown.
+        /// </summary>
+        public abstract void Dispose();
+
+        /// <summary>
+        /// Run a cycle to process any pending events for the connexions or
+        /// other related objects for this instance.  This method is <strong>not</strong> 
+        /// re-entrant and should not be called from GT callbacks.
+        /// </summary>
+        public abstract void Update();
+
+        /// <summary>
+        /// Starts a new thread that listens to periodically call 
+        /// <see cref="Update"/>.  This thread instance will be stopped
+        /// on <see cref="Stop"/> or <see cref="Dispose"/>.
+        /// The frequency between calls to <see cref="Update"/> is controlled
+        /// by the configuration's <see cref="BaseConfiguration.TickInterval"/>.
+        /// </summary>
+        public abstract Thread StartSeparateListeningThread();
+
+        /// <summary>
+        /// Process the connexions lists to remove dead connexions.
+        /// </summary>
+        protected void RemoveDeadConnexions()
+        {
+            for (int i = 0; i < connexions.Count; )
+            {
+                if (connexions[i].Active && connexions[i].Transports.Count > 0)
+                {
+                    i++;
+                }
+                else
+                {
+                    IConnexion c = connexions[i];
+                    connexions.RemoveAt(i);
+                    try
+                    {
+                        RemovedConnexion(c);
+                    } catch(Exception e)
+                    {
+                        NotifyErrorEvent(new ErrorSummary(Severity.Information,
+                            SummaryErrorCode.UserException,
+                            "An exception occurred when removing a connexion", e));
+                    }
+                    try { c.Dispose(); }
+                    catch (Exception e) {
+                        DebugUtils.WriteLine("{0} Exception thrown while disposing connexion: {1}",
+                            DateTime.Now, e);
+                    }
+                }
+            }
+        }
+
+        protected virtual void TerminateAllConnexions()
+        {
+            while(connexions.Count > 0)
+            {
+                IConnexion c = connexions[0];
+                connexions.RemoveAt(0);
+                try { c.Dispose(); }
+                catch (Exception e)
+                {
+                    DebugUtils.WriteLine("{0} Exception thrown while disposing connexion: {1}",
+                        DateTime.Now, e);
+                }
+            }
+        }
+
+
+
+        protected virtual void AddConnexion(IConnexion cnx)
+        {
+            connexions.Add(cnx);
+            if(ConnexionAdded != null)
+            {
+                ConnexionAdded(cnx);
+            }
+        }
+
+        /// <summary>
+        /// Remove the connexion at the provided index.  Overrides of
+        /// this method should remove any state associated with the connexion
+        /// at the provided index.
+        /// </summary>
+        /// <param name="cnx">the connexion being removed</param>
+        protected virtual void RemovedConnexion(IConnexion cnx)
+        {
+            if (ConnexionRemoved != null) { ConnexionRemoved(cnx); }
+        }
+
+        /// <summary>
+        /// Notify any listeners to the <see cref="Tick"/> event that this
+        /// instance has seen a tick of <see cref="Update"/>.
+        /// </summary>
+        protected void OnUpdateTick()
+        {
+            if (Tick != null) { Tick(); }
+        }
+
+        protected void NotifyErrorEvent(ErrorSummary es)
+        {
+            DebugUtils.WriteLine(es.ToString());
+            if (ErrorEvent == null) { return; }
+            try { ErrorEvent(es); }
+            catch (Exception e)
+            {
+                ErrorEvent(new ErrorSummary(Severity.Information, SummaryErrorCode.UserException,
+                    "Exception occurred when processing application error event handlers", e));
+            }
+        }
+
+
+    }
 
     public abstract class BaseConfiguration : IComparer<ITransport> 
     {

@@ -1,4 +1,6 @@
 ﻿using System;
+using System.Threading;
+using GT.Net;
 using GT.UnitTests;
 using GT.StatsGraphs;
 
@@ -14,17 +16,18 @@ namespace StressorClient
                 return;
             }
             StressingClient client = new StressingClient(args[0], args[1]);
+            Thread dialogThread = null;
             try
             {
                 client.Start();
-
-                StatisticsDialog.On(client.Client);
+                dialogThread = StatisticsDialog.On(client.Client);
 
                 Console.WriteLine("Client started; press a key to stop");
                 Console.ReadKey();
             }
             finally
             {
+                if (dialogThread != null) { dialogThread.Abort(); }
                 client.Stop();
                 client.Dispose();
             }
