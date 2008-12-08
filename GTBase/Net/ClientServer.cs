@@ -408,10 +408,17 @@ namespace GT.Net {
                     catch (TransportError e)
                     {
                         // FIXME: Log the error
-                        Console.WriteLine("{0} {1} WARNING: Transport error [{2}]: {3}", 
-                            DateTime.Now, this, t, e);
+                        // Console.WriteLine("{0} {1} WARNING: Transport error [{2}]: {3}", 
+                        //    DateTime.Now, this, t, e);
                         if (toRemove == null) { toRemove = new Dictionary<ITransport,GTException>(); }
                         toRemove[t] = e;
+                    }
+                    catch (TransportBackloggedWarning e)
+                    {
+                        // The packet is still outstanding; just warn the user 
+                        NotifyError(new ErrorSummary(Severity.Information,
+                            SummaryErrorCode.TransportBacklogged,
+                            "Transport backlogged: " + t, e));
                     }
                 }
                 if (toRemove == null) { return; }
