@@ -174,19 +174,27 @@ namespace GT.Net {
             if (Tick != null) { Tick(); }
         }
 
+        bool nullWarningIssued = false;
+
         protected void NotifyErrorEvent(ErrorSummary es)
         {
             DebugUtils.WriteLine(es.ToString());
-            if (ErrorEvent == null) { return; }
+            if (ErrorEvent == null) {
+                if (!nullWarningIssued)
+                {
+                    Console.WriteLine("WARNING: no ErrorEvent handler registered on {0}; redirecting all ErrorEvents to console", this);
+                    nullWarningIssued = true;
+                }
+                Console.WriteLine(es.ToString());
+                return; 
+            }
             try { ErrorEvent(es); }
             catch (Exception e)
             {
                 ErrorEvent(new ErrorSummary(Severity.Information, SummaryErrorCode.UserException,
-                    "Exception occurred when processing application error event handlers", e));
+                    "Exception occurred when processing application ErrorEvent handlers", e));
             }
         }
-
-
     }
 
     public abstract class BaseConfiguration : IComparer<ITransport> 
