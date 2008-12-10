@@ -230,6 +230,38 @@ namespace GT.UnitTests
     #endregion
 
     /// <summary>
+    /// Test server basics
+    /// </summary>
+    [TestFixture]
+    public class ZAServerBasics
+    {
+        [Test]
+        public void TestRestartingServer()
+        {
+            Server s = new Server(9876);
+            s.Start();
+            s.StartSeparateListeningThread();
+            Thread.Sleep(200);
+            s.Stop();
+            Thread.Sleep(200);
+            try
+            {
+                s.Start();
+                s.StartSeparateListeningThread();
+                Thread.Sleep(200);
+            }
+            catch (Exception e)
+            {
+                Assert.Fail("Unexpected exception");
+            }
+            finally
+            {
+                s.Stop();
+            }
+        }
+    }
+
+    /// <summary>
     /// Test basic GT functionality
     /// </summary>
     [TestFixture]
@@ -297,40 +329,6 @@ namespace GT.UnitTests
         }
 
         [Test]
-        public void TestClientShutDown()
-        {
-            StartExpectedResponseServer(EXPECTED_GREETING, EXPECTED_RESPONSE);
-
-            client = new TestClientConfiguration().BuildClient();  //this is a client
-            client.ErrorEvent += client_ErrorEvent;  //triggers if there is an error
-            client.Start();
-            Assert.IsFalse(errorOccurred);
-            Assert.IsFalse(responseReceived);
-
-            {
-                DebugUtils.WriteLine("Client: sending greeting: " + EXPECTED_GREETING);
-                IStringStream strStream = client.GetStringStream("127.0.0.1", "9999", 0,
-                    new TestChannelDeliveryRequirements(typeof(BaseUdpTransport)));  //connect here
-                strStream.StringNewMessageEvent += ClientStringMessageReceivedEvent;
-                strStream.Send(EXPECTED_GREETING);  //send a string
-                CheckForResponse();
-                Assert.AreEqual(1, strStream.Messages.Count);
-                string s = strStream.DequeueMessage(0);
-                Assert.IsNotNull(s);
-                Assert.AreEqual(EXPECTED_RESPONSE, s);
-                strStream.StringNewMessageEvent -= ClientStringMessageReceivedEvent;
-            }
-
-            client.Stop();
-            // Unfortunately waiting for the message to percolate through can take time
-            for (int i = 0; i < 10 && server.Connexions.Count > 0; i++)
-            {
-                Thread.Sleep(server.ServerSleepTime);
-            }
-            Assert.AreEqual(0, server.Connexions.Count);
-        }
-
-        [Test]
         public void TestMessageEvents()
         {
             StartExpectedResponseServer(EXPECTED_GREETING, EXPECTED_RESPONSE);
@@ -394,6 +392,90 @@ namespace GT.UnitTests
             Assert.IsTrue(pingReceived);
             Assert.IsTrue(connexionRemoved);
         }
+
+        [Test]
+        public void TestClientReceivesId()
+        {
+            StartExpectedResponseServer(EXPECTED_GREETING, EXPECTED_RESPONSE);
+
+            client = new TestClientConfiguration().BuildClient(); //this is a client
+            client.ErrorEvent += client_ErrorEvent; //triggers if there is an error
+            client.Start();
+            Assert.IsFalse(errorOccurred);
+            Assert.IsFalse(responseReceived);
+
+            IStringStream strStream = client.GetStringStream("127.0.0.1", "9999", 0,
+                new TestChannelDeliveryRequirements(typeof(BaseUdpTransport))); //connect here
+            strStream.StringNewMessageEvent += ClientStringMessageReceivedEvent;
+            strStream.Send(EXPECTED_GREETING); //send a string
+            CheckForResponse();
+
+            Assert.IsFalse(strStream.UniqueIdentity == 0, "Unique identity should be received");
+        }
+
+        [Test]
+        public void TestGetStreamDisconnects()
+        {
+            StartExpectedResponseServer(EXPECTED_GREETING, EXPECTED_RESPONSE);
+
+            client = new TestClientConfiguration().BuildClient(); //this is a client
+            client.ErrorEvent += client_ErrorEvent; //triggers if there is an error
+            client.Start();
+            Assert.IsFalse(errorOccurred);
+            Assert.IsFalse(responseReceived);
+
+            IStringStream origStream = client.GetStringStream("127.0.0.1", "9999", 0,
+                new TestChannelDeliveryRequirements(typeof(TcpTransport))); //connect here
+
+            Assert.IsTrue(client.Connexions.Count == 1);
+            foreach (IConnexion cnx in client.Connexions) {
+                cnx.ShutDown(); cnx.Dispose();
+            }
+            Assert.IsFalse(origStream.Connexion.Active, "connexion should now be closed");
+            
+            IStringStream newStream = client.GetStringStream("127.0.0.1", "9999", 0,
+                new TestChannelDeliveryRequirements(typeof(TcpTransport))); //connect here
+            Assert.IsTrue(newStream.Connexion.Active, "a new stream should have been provided");
+        }
+
+        [Test]
+        public void TestClientShutDown()
+        {
+            StartExpectedResponseServer(EXPECTED_GREETING, EXPECTED_RESPONSE);
+
+            client = new TestClientConfiguration().BuildClient();  //this is a client
+            client.ErrorEvent += client_ErrorEvent;  //triggers if there is an error
+            client.Start();
+            Assert.IsFalse(errorOccurred);
+            Assert.IsFalse(responseReceived);
+
+            {
+                DebugUtils.WriteLine("Client: sending greeting: " + EXPECTED_GREETING);
+                IStringStream strStream = client.GetStringStream("127.0.0.1", "9999", 0,
+                    new TestChannelDeliveryRequirements(typeof(BaseUdpTransport)));  //connect here
+                strStream.StringNewMessageEvent += ClientStringMessageReceivedEvent;
+                strStream.Send(EXPECTED_GREETING);  //send a string
+                CheckForResponse();
+                Assert.AreEqual(1, strStream.Messages.Count);
+                string s = strStream.DequeueMessage(0);
+                Assert.IsNotNull(s);
+                Assert.AreEqual(EXPECTED_RESPONSE, s);
+                strStream.StringNewMessageEvent -= ClientStringMessageReceivedEvent;
+            }
+
+            client.Stop();
+            // Unfortunately waiting for the message to percolate through can take time
+            for (int i = 0; i < 10 && server.Connexions.Count > 0; i++)
+            {
+                Thread.Sleep(server.ServerSleepTime);
+            }
+            Assert.AreEqual(0, server.Connexions.Count);
+        }
+
+
+        #endregion
+
+        #region Tests Infrastructure 
 
         protected void CheckForResponse()
         {

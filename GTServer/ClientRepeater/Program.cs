@@ -31,7 +31,7 @@ namespace GT.Net
             : base(port)
         {
             // Sleep at most 1 ms between updates
-            this.PingInterval = TimeSpan.FromMilliseconds(1);
+            this.TickInterval = TimeSpan.FromMilliseconds(1);
         }
 
         override public Server BuildServer()
@@ -56,7 +56,7 @@ namespace GT.Net
         protected Server server;
         protected Thread serverThread;
         protected int sessionChangesChannel = 0;
-        protected bool verbose = false;
+        protected uint verbose = 0;
 
         public Server Server { get { return server; } }
 
@@ -64,14 +64,14 @@ namespace GT.Net
         {
             int port = 9999;
             int optind;
-            bool verbose = false;
+            uint verbose = 0;
 
             // poor man's getopt
             for (optind = 0; optind < args.Length && args[optind].StartsWith("-"); optind++)
             {
                 Debug.Assert(args[optind][0] == '-');
                 if (args[optind][1] == '-') { optind++; break; }
-                else if (args[optind][1] == 'v') { verbose = true; }
+                else if (args[optind][1] == 'v') { verbose++; }
                 else
                 {
                     Console.WriteLine("Invalid option: '{0}'", args[optind]);
@@ -97,11 +97,11 @@ namespace GT.Net
                 }
             }
 
-            if (verbose) { Console.WriteLine("Starting server on port {0}", port); }
+            if (verbose > 0) { Console.WriteLine("Starting server on port {0}", port); }
             ClientRepeater cr = new ClientRepeater(port);
             cr.Verbose = verbose;
             cr.StartListening();
-            if (verbose) { Console.WriteLine("Server stopped"); }
+            if (verbose > 0) { Console.WriteLine("Server stopped"); }
         }
 
         public ClientRepeater(int port) : this(new RepeaterConfiguration(port)) {}
@@ -111,7 +111,7 @@ namespace GT.Net
         }
 
         public bool Active { get { return server != null && server.Active; } }
-        public bool Verbose
+        public uint Verbose
         {
             get { return verbose; }
             set { verbose = value; }
@@ -174,24 +174,57 @@ namespace GT.Net
 
         private void s_ErrorEvent(ErrorSummary es)
         {
-            Console.WriteLine("{0}: {1}[{2}]: {3}: {4}", DateTime.Now, es.Severity, es.ErrorCode,
-                es.Message, es.Context);
+            if (verbose == 0 && es.Severity < Severity.Error)
+            {
+                return;
+            }
+            if (es.Context != null)
+            {
+                Console.WriteLine("{0}: {1}[{2}]: {3} [{4}: {5}]", DateTime.Now, es.Severity,
+                    es.ErrorCode, es.Message, es.Context.GetType().Name, es.Context.Message);
+            }
+            else
+            {
+                Console.WriteLine("{0}: {1}[{2}]: {3}", DateTime.Now, es.Severity,
+                    es.ErrorCode, es.Message);
+            }
         }
 
         private void s_ClientsJoined(ICollection<IConnexion> list)
         {
-            Console.WriteLine("{0}: clients joined: {1}", DateTime.Now, ToString(list));
+            if (verbose > 0)
+            {
+                DateTime now = DateTime.Now;
+                foreach(ClientConnexion client in list)
+                {
+                    client.TransportAdded += _client_TransportAdded;
+                    client.TransportRemoved += _client_TransportRemoved;
+
+                    StringBuilder builder = new StringBuilder("Client ");
+                    builder.Append(client.UniqueIdentity);
+                    builder.Append(':');
+                    builder.Append(client.ClientIdentity);
+                    builder.Append(":");
+                    foreach(ITransport t in client.Transports)
+                    {
+                        builder.Append(" {");
+                        builder.Append(t.ToString());
+                        builder.Append('}');
+                    }
+                    Console.WriteLine("{0}: client joined: {1}", now, builder.ToString());
+                }
+            }
             if (sessionChangesChannel < 0) { return; }
            
-            foreach (ClientConnexion client in list)
+            foreach (ClientConnexion cnx in list)
             {
-                int clientId = client.UniqueIdentity;
+                int clientId = cnx.UniqueIdentity;
 
                 foreach (ClientConnexion c in server.Clients)
                 {
                     try
                     {
-                        c.Send(clientId, SessionAction.Joined, (byte)0,
+                        c.Send(clientId, SessionAction.Joined, (byte)sessionChangesChannel,
                             new MessageDeliveryRequirements(Reliability.Reliable, MessageAggregation.Immediate,
                                 Ordering.Unordered), null);
                     }
@@ -205,43 +238,81 @@ namespace GT.Net
 
         private void s_ClientsRemoved(ICollection<IConnexion> list)
         {
-            Console.WriteLine("{0}: clients left: {1}", DateTime.Now, ToString(list));
+            if (verbose > 0)
+            {
+                DateTime now = DateTime.Now;
+                foreach(ClientConnexion client in list)
+                {
+                    StringBuilder builder = new StringBuilder("Client ");
+                    builder.Append(client.UniqueIdentity);
+                    builder.Append(':');
+                    builder.Append(client.ClientIdentity);
+                    builder.Append(":");
+                    foreach(ITransport t in client.Transports)
+                    {
+                        builder.Append(" {");
+                        builder.Append(t.ToString());
+                        builder.Append('}');
+                    }
+                    Console.WriteLine("{0}: client left: {1}", now, builder.ToString());
+                }
+            }
             if (sessionChangesChannel < 0) { return; }
 
             foreach (ClientConnexion client in list)
             {
+                client.TransportAdded += _client_TransportAdded;
+                client.TransportRemoved += _client_TransportRemoved;
                 //kill client
                 int clientId = client.UniqueIdentity;
                 try
                 {
                     client.Dispose();
                 } catch(Exception e) {
-                    Console.WriteLine("{0} EXCEPTION: when stopping client {1} id#{2}: {3}",
-                        DateTime.Now, clientId, client, e);
+                    Console.WriteLine("{0} EXCEPTION: when stopping Client {1}: {2}",
+                        DateTime.Now, clientId, e);
                 }
 
                 //inform others client is gone
                 foreach (ClientConnexion c in server.Clients)
                 {
                     try {
-                        c.Send(clientId, SessionAction.Left, (byte)0,
+                        c.Send(clientId, SessionAction.Left, (byte)sessionChangesChannel,
                             new MessageDeliveryRequirements(Reliability.Reliable, MessageAggregation.Immediate,
                                 Ordering.Unordered), null);
                     }
                     catch (GTException e)
                     {
-                        Console.WriteLine("{0}: EXCEPTION: when sending: {1}", DateTime.Now, e);
+                        Console.WriteLine("{0} EXCEPTION: when sending: {1}", DateTime.Now, e);
                     }
                 }
             }
         }
 
+        private void _client_TransportAdded(IConnexion connexion, ITransport newTransport)
+        {
+            if (verbose > 0)
+            {
+                Console.WriteLine("{0} Client {1}: transport added: {2}", DateTime.Now,
+                    connexion.UniqueIdentity, newTransport);
+            }
+        }
+
+        private void _client_TransportRemoved(IConnexion connexion, ITransport newTransport)
+        {
+            if (verbose > 0)
+            {
+                Console.WriteLine("{0} Client {1}: transport removed: {2}", DateTime.Now,
+                    connexion.UniqueIdentity, newTransport);
+            }
+        }
+
         private void s_MessageReceived(Message m, IConnexion client, ITransport transport)
         {
-            if (verbose)
+            if (verbose > 1)
             {
-                Console.WriteLine("{0}: received message: {1} from {2} via {3}", 
-                    DateTime.Now, m, client, transport);
+                Console.WriteLine("{0}: received message: {1} from Client {2} via {3}", 
+                    DateTime.Now, m, client.UniqueIdentity, transport);
             }
             //repeat whatever we receive to everyone else
             server.Send(m, server.Clients, new MessageDeliveryRequirements(transport.Reliability, 
@@ -253,18 +324,5 @@ namespace GT.Net
             return String.Format("{0}({1})", GetType().Name, server);
         }
 
-        private string ToString<T>(ICollection<T> c)
-        {
-            StringBuilder b = new StringBuilder();
-            IEnumerator<T> it = c.GetEnumerator();
-            if (!it.MoveNext()) { return ""; }
-            while (true)
-            { 
-                b.Append(it.Current.ToString());
-                if(!it.MoveNext()) { break; }
-                b.Append(", ");
-            }
-            return b.ToString();
-        }
     }
 }

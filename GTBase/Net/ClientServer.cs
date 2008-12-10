@@ -313,11 +313,22 @@ namespace GT.Net {
             active = false;
             if (transports != null)
             {
-                foreach (ITransport t in transports)
+                // FIXME: should rearrange code so that transports is never
+                // modified except from Update(), Stop(), and ShutDown()
+		        // See ServerConnexion.Start()
+                foreach (ITransport t in new List<ITransport>(transports))
                 {
                     if (t.Active)
                     {
-                        SendMessage(t, new SystemMessage(SystemMessageType.ConnexionClosing));
+                        try
+                        {
+                            SendMessage(t, new SystemMessage(SystemMessageType.ConnexionClosing));
+                        }
+                        catch(CannotSendMessagesError)
+                        {
+                            // ignore since we're shutting down anyways:
+                            // the ConnexionClosing is sent as a courtesy
+                        }
                     }
                 }
             }
@@ -397,10 +408,17 @@ namespace GT.Net {
                     catch (TransportError e)
                     {
                         // FIXME: Log the error
-                        Console.WriteLine("{0} {1} WARNING: Transport error [{2}]: {3}", 
-                            DateTime.Now, this, t, e);
+                        // Console.WriteLine("{0} {1} WARNING: Transport error [{2}]: {3}", 
+                        //    DateTime.Now, this, t, e);
                         if (toRemove == null) { toRemove = new Dictionary<ITransport,GTException>(); }
                         toRemove[t] = e;
+                    }
+                    catch (TransportBackloggedWarning e)
+                    {
+                        // The packet is still outstanding; just warn the user 
+                        NotifyError(new ErrorSummary(Severity.Information,
+                            SummaryErrorCode.TransportBacklogged,
+                            "Transport backlogged: " + t, e));
                     }
                 }
                 if (toRemove == null) { return; }

@@ -85,19 +85,14 @@ namespace GT.Net
                 //let them join us
                 try
                 {
-                    DebugUtils.WriteLine(this + ": accepting new TCP connection");
+                    // DebugUtils.WriteLine(this + ": accepting new TCP connection");
                     TcpClient connection = bouncer.AcceptTcpClient();
                     connection.NoDelay = true;
                     pending.Add(new NegotiationInProgress(this, connection));
                 }
-                catch (Exception e)
+                catch (SocketException e)
                 {
-                    //LastError = e;
-                    Console.WriteLine(this + ": EXCEPTION accepting new TCP connection: " + e);
-                    //if (ErrorEvent != null)
-                    //    ErrorEvent(e, SocketError.Fault, null, "An error occurred when trying to accept new client.");
-                    bouncer = null;
-                    break;
+                    throw new TransportError(this, "Exception raised accepting new TCP connection", e);
                 }
             }
             foreach (NegotiationInProgress nip in new List<NegotiationInProgress>(pending))

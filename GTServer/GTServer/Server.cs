@@ -166,7 +166,7 @@ namespace GT.Net
     {
         #region Variables and Properties
 
-        private static Random random = new Random();
+        private static readonly Random random = new Random();
 
         private bool running = false;
         private int uniqueIdentity;
@@ -176,11 +176,11 @@ namespace GT.Net
         /// A factory-like object responsible for providing the server's runtime
         /// configuration.
         /// </summary>
-        private ServerConfiguration configuration;
+        private readonly ServerConfiguration configuration;
 
         private ICollection<IAcceptor> acceptors;
         private IMarshaller marshaller;
-        private Dictionary<byte, ChannelDeliveryRequirements> channelRequirements
+        private readonly Dictionary<byte, ChannelDeliveryRequirements> channelRequirements
             = new Dictionary<byte,ChannelDeliveryRequirements>();
 
         private int lastPingTime = 0;
@@ -188,8 +188,10 @@ namespace GT.Net
         /// <summary>All of the clientIDs that this server knows about.  
         /// Hide this so that users cannot cause mischief.  I accept that this list may 
         /// not be accurate because the users have direct access to the clientList.</summary>
-        private Dictionary<int, ClientConnexion> clientIDs = new Dictionary<int, ClientConnexion>();
-        private ICollection<ClientConnexion> newlyAddedClients = new List<ClientConnexion>();
+        private readonly Dictionary<int, ClientConnexion> clientIDs =
+            new Dictionary<int, ClientConnexion>();
+        private readonly ICollection<ClientConnexion> newlyAddedClients =
+            new List<ClientConnexion>();
 
         /// <summary>
         /// Return the set of active clients to which this server is talking.
@@ -288,9 +290,11 @@ namespace GT.Net
 
         /// <summary>Starts a new thread that listens for new clients or
         /// new messages.  Abort the returned thread at any time
-        /// to stop listening.  
+        /// to stop listening, or call <see cref="Stop"/>.</summary>
         virtual public Thread StartSeparateListeningThread()
         {
+            Start();    // must ensure that this instance is started
+                        // before exiting this method
             listeningThread = new Thread(new ThreadStart(StartListening));
             listeningThread.Name = "Server Thread[" + this.ToString() + "]";
             listeningThread.IsBackground = true;
@@ -327,7 +331,7 @@ namespace GT.Net
         {
             lock (this)
             {
-                DebugUtils.WriteLine(">>>> Server.Update() started");
+                // DebugUtils.WriteLine(">>>> Server.Update() started");
 
                 if (!Active)
                 {
@@ -345,7 +349,7 @@ namespace GT.Net
                 //ping, if needed
                 if (System.Environment.TickCount - lastPingTime >= configuration.PingInterval.Ticks)
                 {
-                    DebugUtils.WriteLine("Server.Update(): pinging clients");
+                    // DebugUtils.WriteLine("Server.Update(): pinging clients");
                     lastPingTime = System.Environment.TickCount;
                     foreach (ClientConnexion c in clientIDs.Values)
                     {
@@ -356,7 +360,7 @@ namespace GT.Net
                     }
                 }
 
-                DebugUtils.WriteLine("Server.Update(): Clients.Update()");
+                // DebugUtils.WriteLine("Server.Update(): Clients.Update()");
                 //update all clients, reading from the network
                 foreach (ClientConnexion c in clientIDs.Values)
                 {
@@ -390,7 +394,7 @@ namespace GT.Net
             //if anyone is listening, tell them we're done one cycle
             if (Tick != null) { Tick(); }
 
-            DebugUtils.WriteLine("<<<< Server.Update() finished");
+            // DebugUtils.WriteLine("<<<< Server.Update() finished");
         }
 
         private void UpdateAcceptors()
@@ -398,8 +402,13 @@ namespace GT.Net
             List<IAcceptor> toRemove = null;
             foreach (IAcceptor acc in acceptors)
             {
-                if (!acc.Active) { toRemove.Add(acc); continue; }
-                DebugUtils.WriteLine("Server.Update(): checking acceptor " + acc);
+                if (!acc.Active)
+                {
+                    if(toRemove == null) { toRemove = new List<IAcceptor>(); }
+                    toRemove.Add(acc);
+                    continue;
+                }
+                // DebugUtils.WriteLine("Server.Update(): checking acceptor " + acc);
                 try { acc.Update(); }
                 catch (TransportError e)
                 {
@@ -452,13 +461,13 @@ namespace GT.Net
             ClientConnexion c = GetClientForClientIdentity(clientId);
             if (c == null)
             {
-                Console.WriteLine("{0}: new client {1} via {2}", this, clientId, t);
+                DebugUtils.WriteLine("{0}: new client {1} via {2}", this, clientId, t);
                 c = CreateNewClient(clientId);
                 newlyAddedClients.Add(c);
             }
             else
             {
-                Console.WriteLine("{0}: for client {1} via {2}", this, clientId, t);
+                DebugUtils.WriteLine("{0}: for client {1} via {2}", this, clientId, t);
             }
             c.AddTransport(t);
         }
@@ -616,7 +625,7 @@ namespace GT.Net
 
         private void KillAll()
         {
-            if (clientIDs == null) { return; }
+            if (clientIDs.Count == 0) { return; }
             foreach (ClientConnexion c in Clients)
             {
                 try
@@ -629,7 +638,7 @@ namespace GT.Net
                         DateTime.Now, e);
                 }
             }
-            clientIDs = null;
+            clientIDs.Clear();
         }
 
         /// <summary>Generates a unique identity number that clients can use to identify each other.</summary>
