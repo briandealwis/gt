@@ -30,7 +30,7 @@
         {
             this.components = new System.ComponentModel.Container();
             this.connectionsGraph = new SoftwareFX.ChartFX.Lite.Chart();
-            this.timer1 = new System.Windows.Forms.Timer(this.components);
+            this._timer = new System.Windows.Forms.Timer(this.components);
             this.messagesGraph = new SoftwareFX.ChartFX.Lite.Chart();
             this.messagesReceivedPiechart = new SoftwareFX.ChartFX.Lite.Chart();
             this.messagesSentPiechart = new SoftwareFX.ChartFX.Lite.Chart();
@@ -71,9 +71,9 @@
             // 
             // timer1
             // 
-            this.timer1.Enabled = true;
-            this.timer1.Interval = 1000;
-            this.timer1.Tick += new System.EventHandler(this.timer_Tick);
+            this._timer.Enabled = true;
+            this._timer.Interval = 1000;
+            this._timer.Tick += new System.EventHandler(this.timer_Tick);
             // 
             // messagesGraph
             // 
@@ -269,7 +269,7 @@
         #endregion
 
         private SoftwareFX.ChartFX.Lite.Chart connectionsGraph;
-        private System.Windows.Forms.Timer timer1;
+        private System.Windows.Forms.Timer _timer;
         private SoftwareFX.ChartFX.Lite.Chart messagesGraph;
         private SoftwareFX.ChartFX.Lite.Chart messagesReceivedPiechart;
         private SoftwareFX.ChartFX.Lite.Chart messagesSentPiechart;

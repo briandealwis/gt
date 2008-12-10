@@ -1,4 +1,6 @@
 ﻿using System;
+using System.Threading;
+using GT.Net;
 using GT.StatsGraphs;
 using GT.UnitTests;
 
@@ -14,17 +16,19 @@ namespace StressorServer
                 return;
             }
             StressingServer server = new StressingServer(int.Parse(args[0]));
+            Thread dialogThread = null;
             try
             {
                 server.Start();
 
-                StatisticsDialog.On(server.Server);
+                dialogThread = StatisticsDialog.On(server.Server);
 
                 Console.WriteLine("Server started; press a key to stop");
                 Console.ReadKey();
             }
             finally
             {
+                if (dialogThread != null) { dialogThread.Abort(); }
                 server.Stop();
                 server.Dispose();
             }

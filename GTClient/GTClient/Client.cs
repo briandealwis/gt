@@ -32,12 +32,6 @@ namespace GT.Net
     /// <summary>Occurs whenever a client is updated.</summary>
     public delegate void UpdateEventDelegate(HPTimer hpTimer);
 
-    /// <summary>
-    /// Notification that a connexion was either added or removed to a client/server instance
-    /// </summary>
-    /// <param name="connexion"></param>
-    public delegate void ConnexionLifecycleNotification(IConnexion connexion);
-
     #endregion
 
     #region Streams
@@ -964,7 +958,7 @@ namespace GT.Net
     }
 
     /// <summary>Represents a client that can connect to multiple servers.</summary>
-    public class Client : IStartable
+    public class Client : Communicator, IStartable
     {
         private ClientConfiguration configuration;
 
@@ -977,7 +971,6 @@ namespace GT.Net
         internal Dictionary<byte, AbstractStreamedTuple> twoTupleStreams;
         internal Dictionary<byte, AbstractStreamedTuple> threeTupleStreams;
 
-        protected IList<ServerConnexion> connexions;
         protected ICollection<IConnector> connectors;
         protected IMarshaller marshaller;
         protected HPTimer timer;
@@ -989,16 +982,6 @@ namespace GT.Net
         // Keep track of the previous warning messages; it's annoying to have hundreds scroll by
         protected IDictionary<byte, byte> previouslyWarnedChannels;
         protected IDictionary<MessageType, MessageType> previouslyWarnedMessageTypes;
-
-        #region Events
-
-        /// <summary>Occurs when there are errors on the network.</summary>
-        public event ErrorEventNotication ErrorEvent;
-
-        public event ConnexionLifecycleNotification ConnexionAdded;
-        public event ConnexionLifecycleNotification ConnexionRemoved;
-
-        #endregion
 
         /// <summary>Creates a Client object.  
         /// <strong>deprecated:</strong> The client is started</summary>
@@ -1024,14 +1007,24 @@ namespace GT.Net
         /// <summary>
         /// Return the marshaller configured for this client.
         /// </summary>
-        public IMarshaller Marshaller
+        public override IMarshaller Marshaller
         {
             get { return marshaller; }
         }
 
+        /// <summary>
+        /// Return the configuration guiding this instance.  This
+        /// configuration acts as both a factory, responsible for 
+        /// building the objects used by a client, as well as providing
+        /// policy guidance.
+        /// </summary>
         public ClientConfiguration Configuration { get { return configuration; } }
 
-        virtual public IDictionary<string, string> Capabilities
+        /// <summary>
+        /// Return a dictionary describing the capabilities and requirements 
+        /// of this instance.  Used during handshaking when establishing new transports.
+        /// </summary>
+        public virtual IDictionary<string, string> Capabilities
         {
             get
             {
@@ -1048,28 +1041,24 @@ namespace GT.Net
             }
         }
 
+        /// <summary>
+        /// Return the configured connector; these are responsible for establishing
+        /// new connections (<see cref="ITransport"/>) to servers.
+        /// </summary>
         public ICollection<IConnector> Connectors
         {
             get { return connectors; }
         }
 
         /// <summary>
-        /// Return the list of active and usable connexions.  A usable connexion
-        /// has available transports to send and receive messages.
-        /// </summary>
-        public ICollection<IConnexion> Connexions
-        {
-            get { return BaseConnexion.SelectUsable(connexions); }
-        }
-
-        /// <summary>
         /// Return globally unique identifier for this client.
         /// </summary>
-        public Guid Guid {
-            get { return guid; }
-        }
+        public Guid Guid { get { return guid; } }
 
-        virtual public void Start()
+        /// <summary>
+        /// Start the instance.  Starting an instance may throw an exception on error.
+        /// </summary>
+        public override void Start()
         {
             lock (this)
             {
@@ -1078,7 +1067,6 @@ namespace GT.Net
                 previouslyWarnedMessageTypes = new Dictionary<MessageType, MessageType>();
 
                 marshaller = configuration.CreateMarshaller();
-                connexions = new List<ServerConnexion>();
                 timer.Start();
                 timer.Update();
                 connectors = configuration.CreateConnectors();
@@ -1090,7 +1078,11 @@ namespace GT.Net
             }
         }
 
-        virtual public void Stop()
+        /// <summary>
+        /// Stop the instance.  Instances can be stopped multiple times.
+        /// Stopping an instance may throw an exception on error.
+        /// </summary>
+        public override void Stop()
         {
             lock (this)
             {
@@ -1115,7 +1107,11 @@ namespace GT.Net
             }
         }
 
-        virtual public void Dispose()
+        /// <summary>
+        /// Dispose of any system resources that may be held onto by this
+        /// instance.  Instances 
+        /// </summary>
+        public override void Dispose()
         {
             lock (this)
             {
@@ -1139,7 +1135,12 @@ namespace GT.Net
             }
         }
 
-        virtual public bool Active
+        /// <summary>
+        /// Return true if the instance has been started (<see cref="Start"/>)
+        /// and neither stopped nor disposed (<see cref="Stop"/> and 
+        /// <see cref="Dispose"/>).
+        /// </summary>
+        public override bool Active
         {
             get { return started; }
         }
@@ -1624,28 +1625,17 @@ namespace GT.Net
                 }
             }
             ServerConnexion mySC = configuration.CreateServerConnexion(this, address, port);
-            mySC.ErrorEvents += NotifyError;
+            mySC.ErrorEvents += NotifyErrorEvent;
             mySC.Start();
-            connexions.Add(mySC);
-            if (ConnexionAdded != null) { ConnexionAdded(mySC); }
+            AddConnexion(mySC);
             return mySC;
         }
 
-        protected void NotifyError(ErrorSummary es)
-        {
-            DebugUtils.WriteLine(es.ToString());
-            if (ErrorEvent == null) { return; }
-            try { ErrorEvent(es); }
-            catch (Exception e)
-            {
-                ErrorEvent(new ErrorSummary(Severity.Information, SummaryErrorCode.UserException,
-                    "Exception occurred when processing application error event handlers", e));
-            }
-        }
-
-        /// <summary>Process a single tick of the server.  This method is <strong>not</strong> 
-        /// re-entrant and should not be called from GT callbacks.</summary>
-        virtual public void Update()
+        /// <summary>
+        /// Process a single tick of the client.  This method is <strong>not</strong> 
+        /// re-entrant and should not be called from GT callbacks.
+        /// </summary>
+        public override void Update()
         {
             DebugUtils.WriteLine("{0}: Update() started", this);
             lock (this)
@@ -1701,7 +1691,8 @@ namespace GT.Net
                                     threeTupleStreams[m.Id].QueueMessage(m);
                                     break;
                                 default:
-                                    // THIS IS NOT AN ERROR!
+                                    /// FIXME: THIS IS NOT AN ERROR!  But how do we support
+                                    /// new message types?
                                     if (!previouslyWarnedMessageTypes.ContainsKey(m.MessageType))
                                     {
                                         Console.WriteLine(
@@ -1714,7 +1705,7 @@ namespace GT.Net
                             }
                             catch (KeyNotFoundException)
                             {
-                                // THIS IS NOT AN ERROR!
+                                // THIS IS NOT AN ERROR!  It's just that nobody's listening here.
                                 if (!previouslyWarnedChannels.ContainsKey(m.Id))
                                 {
                                     Console.WriteLine(
@@ -1731,7 +1722,7 @@ namespace GT.Net
                         Console.WriteLine(
                             "Client: ERROR: Exception occurred in Client.Update() processing stream {0}: {1}",
                             s, e);
-                        NotifyError(new ErrorSummary(e.Severity,
+                        NotifyErrorEvent(new ErrorSummary(e.Severity,
                             SummaryErrorCode.RemoteUnavailable,
                             "Exception occurred processing a connexion", e));
                     }
@@ -1747,23 +1738,11 @@ namespace GT.Net
                 foreach (AbstractStreamedTuple s in threeTupleStreams.Values) s.Update(timer);
 
                 // Remove dead connexions
-                for (int i = 0; i < connexions.Count;)
-                {
-                    if (connexions[i].Active && connexions[i].Transports.Count > 0)
-                    {
-                        i++;
-                    }
-                    else
-                    {
-                        connexions[i].Dispose();
-                        if (ConnexionRemoved != null) { ConnexionRemoved(connexions[i]); }
-                        connexions.RemoveAt(i);
-                    }
-                }
+                RemoveDeadConnexions();
             }
             DebugUtils.WriteLine("{0}: Update() finished", this);
+            OnUpdateTick();
         }
-
 
         /// <summary>This is a placeholder for more possible system message handling.</summary>
         /// <param name="m">The message we're handling.</param>
@@ -1773,9 +1752,14 @@ namespace GT.Net
             Console.WriteLine("Client: WARNING: Unknown System Message: {0}", m);
         }
 
-        /// <summary>Starts a new thread that listens for new clients or new Bytes.
-        /// Abort returned thread at any time to stop listening.</summary>
-        virtual public Thread StartSeparateListeningThread()
+        /// <summary>
+        /// Starts a new thread that listens for new clients or new messages
+        /// by periodically calling <see cref="Update"/>.  This thread instance will 
+        /// be stopped on <see cref="Stop"/> or <see cref="Dispose"/>.
+        /// The frequency between calls to <see cref="Update"/> is controlled
+        /// by the configuration's <see cref="Communicator.BaseConfiguration.TickInterval"/>.
+        /// </summary>
+        public override Thread StartSeparateListeningThread()
         {
             Start();    // must ensure this instance is started by the
                         // end of this method
@@ -1786,13 +1770,14 @@ namespace GT.Net
             return listeningThread;
         }
 
-        /// <summary>Enter an infinite loop, which will listen for incoming
-            /// bytes.  Use this to dedicate the current thread of execution to
-            /// listening.  If there are any exceptions, you should can catch them.
+        /// <summary>
+        /// Enter an infinite loop, which will listen for incoming
+        /// bytes.  Use this to dedicate the current thread of execution to
+        /// listening.  If there are any exceptions, you should can catch them.
         /// Aborting this thread of execution will cause this thread to die
         /// gracefully, and is recommended.
         /// </summary>
-        virtual public void StartListening()
+        public virtual void StartListening()
         {
             double oldTime;
             double newTime;
@@ -1805,9 +1790,7 @@ namespace GT.Net
                     timer.Update();
                     oldTime = timer.TimeInMilliseconds;
 
-                    // lock(this) {
-                    this.Update();
-                    // }
+                    Update();
 
                     timer.Update();
                     newTime = timer.TimeInMilliseconds;

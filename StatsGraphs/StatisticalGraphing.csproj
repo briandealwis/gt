@@ -5,7 +5,7 @@
     <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
     <ProductVersion>9.0.21022</ProductVersion>
     <SchemaVersion>2.0</SchemaVersion>
-    <ProjectGuid>{84CE1F11-4F03-4C54-8B50-6FAD15DEF6F5}</ProjectGuid>
+    <ProjectGuid>{5658605D-AFBE-4BA2-AC8C-B3C6F0C63EA9}</ProjectGuid>
     <OutputType>Library</OutputType>
     <AppDesignerFolder>Properties</AppDesignerFolder>
     <RootNamespace>StatsGraphs</RootNamespace>
@@ -59,20 +59,6 @@
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="..\GTBase\GTBase.csproj">
-      <Project>{EEC385BF-261C-4F5B-A602-D3ECDFC2AC30}</Project>
-      <Name>GTBase</Name>
-    </ProjectReference>
-    <ProjectReference Include="..\GTClient\GTClient\GTClient.csproj">
-      <Project>{621EB577-E34F-4833-A978-9DCA342D9F6C}</Project>
-      <Name>GTClient</Name>
-    </ProjectReference>
-    <ProjectReference Include="..\GTServer\GTServer\GTServer.csproj">
-      <Project>{709C5E40-E732-4196-A2F0-5B72206B7179}</Project>
-      <Name>GTServer</Name>
-    </ProjectReference>
-  </ItemGroup>
-  <ItemGroup>
     <EmbeddedResource Include="IntervalDialog.resx">
       <DependentUpon>IntervalDialog.cs</DependentUpon>
       <SubType>Designer</SubType>
@@ -82,6 +68,12 @@
       <SubType>Designer</SubType>
     </EmbeddedResource>
     <EmbeddedResource Include="Properties\licenses.licx" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\GTBase\GTBase.csproj">
+      <Project>{EEC385BF-261C-4F5B-A602-D3ECDFC2AC30}</Project>
+      <Name>GTBase</Name>
+    </ProjectReference>
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 

@@ -2,6 +2,16 @@ GT NEWS
 
 === GT XXX ===
 
+Developer-visible changes:
+
+  * Clients and Servers now report any errors/warnings/information
+    to the console when there are no registered ErrorEvent handlers.
+
+  * There have been some breaks with previous API. 
+
+      * The delegate GT.Net.ConnexionLifecycleNotification has been
+        removed and replaced with System.Action<IConnexion>
+
 Some bugs have been fixed since GT 2.0:
 
   * Server.UpdateAcceptors() threw an NullRefEx as it wasn't properly
@@ -30,12 +40,6 @@ Some bugs have been fixed since GT 2.0:
 
   * UdpAccept and TcpAcceptor should now properly trap and report
     exceptions <https://papyrus.usask.ca/trac/gt/ticket/55>
-
-
-Developer-visible changes:
-
-  * Clients and Servers now report any errors/warnings/information
-    to the console when there are no registered ErrorEvent handlers.
 
 
 === GT 2.0 ===

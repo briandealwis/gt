@@ -14,9 +14,6 @@ namespace GT.Net
 
     #region Delegates
 
-    /// <summary>Handles a tick event, which is one loop of the server</summary>
-    public delegate void TickHandler();
-
     /// <summary>Notification of outgoing messages</summary>
     /// <param name="msgs">The outgoing messages.</param>
     /// <param name="list">The destinations for the messages</param>
@@ -162,7 +159,7 @@ namespace GT.Net
     }
 
     /// <summary>Represents traditional server.</summary>
-    public class Server : IDisposable
+    public class Server : Communicator
     {
         #region Variables and Properties
 
@@ -185,63 +182,50 @@ namespace GT.Net
 
         private int lastPingTime = 0;
 
-        /// <summary>All of the clientIDs that this server knows about.  
-        /// Hide this so that users cannot cause mischief.  I accept that this list may 
-        /// not be accurate because the users have direct access to the clientList.</summary>
+        /// <summary>
+        /// All of the clientIDs that this server knows about.  
+        /// Hide this so that users cannot cause mischief.
+        /// </summary>
         private readonly Dictionary<int, ClientConnexion> clientIDs =
             new Dictionary<int, ClientConnexion>();
-        private readonly ICollection<ClientConnexion> newlyAddedClients =
-            new List<ClientConnexion>();
+        private readonly ICollection<IConnexion> newlyAddedClients =
+            new List<IConnexion>();
 
         /// <summary>
         /// Return the set of active clients to which this server is talking.
         /// </summary>
-        public ICollection<IConnexion> Clients { 
-            get { return BaseConnexion.SelectUsable<ClientConnexion>(clientIDs.Values); } 
+        public ICollection<IConnexion> Clients 
+        { 
+            get { return Connexions; } 
         }
 
-        /// <summary>
-        /// Return the set of connexions to which this server is connected to.
-        /// This set may include inactive connexions or connexions with no
-        /// transports; the caller is responsible for ensuring the connectedness.
-        /// </summary>
-        public ICollection<IConnexion> Connexions {
-            get { return BaseConnexion.Downcast<IConnexion,ClientConnexion>(clientIDs.Values); }
-        }
+	    /// <summary>
+	    /// Return the associated marshaller
+	    /// </summary>
+        public override IMarshaller Marshaller { get { return marshaller; } }
 
-	/// <summary>
-	/// Return the associated marshaller
-	/// </summary>
-        public IMarshaller Marshaller { get { return marshaller; } }
-
-	/// <summary>
-	/// Return the server configuration object.
-	/// </summary>
+	    /// <summary>
+	    /// Return the server configuration object.
+	    /// </summary>
         public ServerConfiguration Configuration { get { return configuration; } }
 
-	/// <summary>
-	/// Return this server's unique identity.
-	/// </summary>
+	    /// <summary>
+	    /// Return this server's unique identity.
+	    /// </summary>
         public int UniqueIdentity { get { return uniqueIdentity; } }
 
         #endregion
 
         #region Events
 
-        /// <summary>Invoked each cycle of the server.</summary>
-        public event TickHandler Tick;
+        /// <summary>Invoked each time a message is sent.</summary>
+        public event MessagesSentNotification MessagesSent;
 
         /// <summary>Invoked each time a client disconnects.</summary>
         public event ClientsRemovedHandler ClientsRemoved;
 
         /// <summary>Invoked each time a client connects.</summary>
         public event ClientsJoinedHandler ClientsJoined;
-
-        /// <summary>Occurs when there are errors on the network.</summary>
-        public event ErrorEventNotication ErrorEvent;
-
-        /// <summary>Invoked each time a message is sent.</summary>
-        public event MessagesSentNotification MessagesSent;
 
         /// <summary>Invoked each time a message is received.</summary>
         public event MessageHandler MessageReceived;
@@ -288,10 +272,11 @@ namespace GT.Net
 
         #region Vital Server Mechanics
 
-        /// <summary>Starts a new thread that listens for new clients or
-        /// new messages.  Abort the returned thread at any time
-        /// to stop listening, or call <see cref="Stop"/>.</summary>
-        virtual public Thread StartSeparateListeningThread()
+        /// <summary>
+        /// Starts a new thread that listens to periodically call 
+        /// <see cref="Update"/>.
+        /// </summary>
+        public override Thread StartSeparateListeningThread()
         {
             Start();    // must ensure that this instance is started
                         // before exiting this method
@@ -300,18 +285,6 @@ namespace GT.Net
             listeningThread.IsBackground = true;
             listeningThread.Start();
             return listeningThread;
-        }
-
-        private void ErrorClientHandlerMethod(ErrorSummary es)
-        {
-            DebugUtils.WriteLine("{0}[{1}]: {2}: {3}", es.Severity, es.ErrorCode, es.Message, es.Context);
-            if (ErrorEvent == null) { return; }
-            try { ErrorEvent(es); }
-            catch (Exception e)
-            {
-                ErrorEvent(new ErrorSummary(Severity.Information, SummaryErrorCode.UserException,
-                    "Exception occurred when processing application error event handlers", e));
-            }
         }
 
         /// <summary>
@@ -327,7 +300,7 @@ namespace GT.Net
         /// re-entrant and should not be called from GT callbacks.
         /// <strong>deprecated behaviour:</strong> the server is started if not active.
         /// </summary>
-        virtual public void Update()
+        public override void Update()
         {
             lock (this)
             {
@@ -342,12 +315,11 @@ namespace GT.Net
                 UpdateAcceptors();
                 if (newlyAddedClients.Count > 0 && ClientsJoined != null)
                 {
-                    ClientsJoined(
-                        BaseConnexion.Downcast<IConnexion, ClientConnexion>(newlyAddedClients));
+                    ClientsJoined(newlyAddedClients);
                 }
 
                 //ping, if needed
-                if (System.Environment.TickCount - lastPingTime >= configuration.PingInterval.Ticks)
+                if (Environment.TickCount - lastPingTime >= configuration.PingInterval.Ticks)
                 {
                     // DebugUtils.WriteLine("Server.Update(): pinging clients");
                     lastPingTime = System.Environment.TickCount;
@@ -376,23 +348,10 @@ namespace GT.Net
                 }
 
                 //remove dead clients (includes disposed and clients with no transports)
-                List<ClientConnexion> listD = FindAll(clientIDs.Values, ClientConnexion.IsDead);
-                if (listD.Count > 0)
-                {
-                    DebugUtils.WriteLine("Server.Update(): removing dead clients");
-                    foreach (ClientConnexion c in listD)
-                    {
-                        clientIDs.Remove(c.UniqueIdentity);
-                        c.Dispose(); //make sure it's gone
-                    }
-                    if (ClientsRemoved != null)
-                    {
-                        ClientsRemoved(BaseConnexion.Downcast<IConnexion, ClientConnexion>(listD));
-                    }
-                }
+                RemoveDeadConnexions();
             }
             //if anyone is listening, tell them we're done one cycle
-            if (Tick != null) { Tick(); }
+            OnUpdateTick();
 
             // DebugUtils.WriteLine("<<<< Server.Update() finished");
         }
@@ -431,20 +390,33 @@ namespace GT.Net
             foreach (IAcceptor acc in toRemove) { acceptors.Remove(acc); }
         }
 
-        private List<T> FindAll<T>(ICollection<T> list, Predicate<T> pred)
+        protected override void AddConnexion(IConnexion cnx)
         {
-            List<T> results = new List<T>();
-            foreach (T t in list)
-            {
-                if (pred(t))
-                {
-                    results.Add(t);
-                }
-            }
-            return results;
+            base.AddConnexion(cnx);
+            newlyAddedClients.Add(cnx); // used for ClientsJoined event
+            clientIDs.Add(cnx.UniqueIdentity, (ClientConnexion)cnx);
         }
 
-        virtual protected void NewClient(ITransport t, Dictionary<string, string> capabilities)
+        protected override void RemovedConnexion(IConnexion cnx)
+        {
+            clientIDs.Remove(cnx.UniqueIdentity);
+            if (ClientsRemoved != null)
+            {
+                ClientsRemoved(new SingleItem<IConnexion>(cnx));
+            }
+            base.RemovedConnexion(cnx);
+        }
+
+        protected virtual ClientConnexion CreateNewConnexion(Guid clientId)
+        {
+            ClientConnexion cnx = configuration.CreateClientConnexion(this, clientId, GenerateUniqueIdentity());
+            cnx.MessageReceived += ReceivedClientMessage;
+            cnx.ErrorEvent += NotifyErrorEvent;
+            AddConnexion(cnx);
+            return cnx;
+        }
+        
+        protected virtual void NewTransport(ITransport t, Dictionary<string, string> capabilities)
         {
             Guid clientId;
             try
@@ -458,11 +430,11 @@ namespace GT.Net
                 t.Dispose();
                 return;
             }
-            ClientConnexion c = GetClientForClientIdentity(clientId);
+            ClientConnexion c = GetConnexionForClientIdentity(clientId);
             if (c == null)
             {
                 DebugUtils.WriteLine("{0}: new client {1} via {2}", this, clientId, t);
-                c = CreateNewClient(clientId);
+                c = CreateNewConnexion(clientId);
                 newlyAddedClients.Add(c);
             }
             else
@@ -473,10 +445,10 @@ namespace GT.Net
         }
 
         /// <summary>Returns the client matching that unique identity number.</summary>
-        /// <param name="uniqueIdentity">The unique identity of this client</param>
+        /// <param name="id">The unique identity of this client</param>
         /// <returns>The client with that unique identity.  If the number doesn't 
         /// match a client, then it returns null.</returns>
-        virtual protected ClientConnexion GetClientForClientIdentity(Guid id)
+        virtual protected ClientConnexion GetConnexionForClientIdentity(Guid id)
         {
             foreach (ClientConnexion c in Clients)
             {
@@ -485,23 +457,10 @@ namespace GT.Net
             return null;
         }
 
-        virtual protected ClientConnexion CreateNewClient(Guid clientId)
-        {
-            ClientConnexion client = configuration.CreateClientConnexion(this, clientId, GenerateUniqueIdentity());
-            client.MessageReceived += ReceivedClientMessage;
-            client.ErrorEvent += ErrorClientHandlerMethod;
-
-            clientIDs.Add(client.UniqueIdentity, client);
-            return client;
-        }
-
         /// <summary>Starts a new thread that listens for new clients or
         /// new messages on the current thread.</summary>
         virtual public void StartListening()
         {
-            int oldTickCount;
-            int newTickCount;
-
             Start();
 
             //check this server for new connections or new messages forevermore
@@ -510,11 +469,11 @@ namespace GT.Net
                 try
                 {
                     // tick count is in milliseconds
-                    oldTickCount = System.Environment.TickCount;
+                    int oldTickCount = Environment.TickCount;
 
                     Update();
 
-                    newTickCount = System.Environment.TickCount;
+                    int newTickCount = Environment.TickCount;
                     int sleepCount = Math.Max(0,
                         (int)configuration.TickInterval.TotalMilliseconds - (newTickCount - oldTickCount));
 
@@ -529,51 +488,40 @@ namespace GT.Net
                 catch (Exception e)
                 {
                     Console.WriteLine("{0}: EXCEPTION: in listening loop: {1}", this, e);
-                    NotifyError(new ErrorSummary(Severity.Warning,
+                    NotifyErrorEvent(new ErrorSummary(Severity.Warning,
                                 SummaryErrorCode.RemoteUnavailable,
                                 "Exception occurred processing a connexion", e));
                 }
             }
         }
 
-        virtual protected void NotifyError(ErrorSummary es)
-        {
-            if (ErrorEvent == null) { return; }
-            try { ErrorEvent(es); }
-            catch (Exception e)
-            {
-                ErrorEvent(new ErrorSummary(Severity.Information, SummaryErrorCode.UserException,
-                    "Exception occurred when processing application error event handlers", e));
-            }
-        }
-
-        virtual public void Sleep()
+        public virtual void Sleep()
         {
             Sleep((int)configuration.TickInterval.TotalMilliseconds);
         }
 
-        virtual public void Sleep(int milliseconds)
+        public virtual void Sleep(int milliseconds)
         {
-            Trace.TraceInformation("{0}: sleeping for {1}ms", this, milliseconds);
+            DebugUtils.WriteLine("{0}: sleeping for {1}ms", this, milliseconds);
 
             // FIXME: This should be more clever and use Socket.Select()
             Thread.Sleep(Math.Max(0, milliseconds));
         }
 
-        virtual public void Start()
+        public override void Start()
         {
             if (Active) { return; }
             acceptors = configuration.CreateAcceptors();
             foreach (IAcceptor acc in acceptors)
             {
-                acc.NewClientEvent += new NewClientHandler(NewClient);
+                acc.NewClientEvent += NewTransport;
                 acc.Start();
             }
             marshaller = configuration.CreateMarshaller();
             running = true;
         }
 
-        virtual public void Stop()
+        public override void Stop()
         {
             lock (this)
             {
@@ -592,11 +540,11 @@ namespace GT.Net
                         acc.Stop(); // FIXME: trap exceptions?
                     }
                 }
-                KillAll();
+                TerminateAllConnexions();
             }
         }
 
-        virtual public void Dispose()
+        public override void Dispose()
         {
             Stop();
             if (acceptors != null)
@@ -613,7 +561,7 @@ namespace GT.Net
             }
         }
 
-        virtual public bool Active
+        public override bool Active
         {
             get { return running; }
         }
@@ -621,24 +569,6 @@ namespace GT.Net
         public ICollection<IAcceptor> Acceptors
         {
             get { return acceptors; }
-        }
-
-        private void KillAll()
-        {
-            if (clientIDs.Count == 0) { return; }
-            foreach (ClientConnexion c in Clients)
-            {
-                try
-                {
-                    c.Dispose();
-                }
-                catch (Exception e)
-                {
-                    Console.WriteLine("{0} EXCEPTION: while disposing client: {1}",
-                        DateTime.Now, e);
-                }
-            }
-            clientIDs.Clear();
         }
 
         /// <summary>Generates a unique identity number that clients can use to identify each other.</summary>
@@ -654,6 +584,12 @@ namespace GT.Net
                 // keep going until we create something never previously seen
             } while (clientId == uniqueIdentity || clientIDs.ContainsKey(clientId));
             return clientId;
+        }
+
+        protected override void TerminateAllConnexions()
+        {
+            base.TerminateAllConnexions();
+            clientIDs.Clear();
         }
 
         #endregion
@@ -718,7 +654,7 @@ namespace GT.Net
                 }
                 catch (GTException e)
                 {
-                    NotifyError(new ErrorSummary(Severity.Warning, SummaryErrorCode.MessagesCannotBeSent,
+                    NotifyErrorEvent(new ErrorSummary(Severity.Warning, SummaryErrorCode.MessagesCannotBeSent,
                         "Exception when sending messages", e));
                 }
             }

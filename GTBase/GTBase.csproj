@@ -54,6 +54,7 @@
     <Compile Include="GMC\TrieCompressor.cs" />
     <Compile Include="HPTimer.cs" />
     <Compile Include="Net\ClientServer.cs" />
+    <Compile Include="Net\Stats.cs" />
     <Compile Include="Statistics.cs" />
     <Compile Include="Exceptions.cs" />
     <Compile Include="Lifecycle.cs" />

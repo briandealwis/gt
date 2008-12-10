@@ -55,9 +55,9 @@
       <Project>{855C7346-A594-466E-9250-087A5CC62ABC}</Project>
       <Name>GTUnitTests</Name>
     </ProjectReference>
-    <ProjectReference Include="..\StatsGraphs\StatsGraphs.csproj">
-      <Project>{84CE1F11-4F03-4C54-8B50-6FAD15DEF6F5}</Project>
-      <Name>StatsGraphs</Name>
+    <ProjectReference Include="..\StatsGraphs\StatisticalGraphing.csproj">
+      <Project>{5658605D-AFBE-4BA2-AC8C-B3C6F0C63EA9}</Project>
+      <Name>StatisticalGraphing</Name>
     </ProjectReference>
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
