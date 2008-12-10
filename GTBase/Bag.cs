@@ -2,6 +2,7 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Threading;
+using GT.Net;
 
 namespace GT.Utils
 {
@@ -333,4 +334,116 @@ namespace GT.Utils
         }
     }
 
+    /// <summary>
+    /// A simple class for maintaining an ordered set of items as ordered
+    /// by time of first entry.  New items that are already present are ignored.
+    /// New items that are not present are added to the end of the set.
+    /// </summary>
+    /// <typeparam name="T"></typeparam>
+    public class SequentialSet<T> : IEnumerable<T>
+    {
+        // We use a dictionary for fast is-included tests, and a list to maintain
+        // the list order
+        protected IDictionary<T, T> containedSet = new Dictionary<T, T>();
+        protected IList<T> elements = new List<T>();
+
+        ///<summary>
+        /// Create a sequential set with the provided items in their presented order.
+        ///</summary>
+        public SequentialSet(IList<T> items)
+        {
+            foreach (T item in items)
+            {
+                Add(item);
+            }
+        }
+
+        ///<summary>
+        /// Create an empty sequential set
+        ///</summary>
+        public SequentialSet() { }
+
+        public int Count
+        {
+            get { return elements.Count; }
+        }
+
+        /// <summary>
+        /// Returns the element at the provided index.
+        /// </summary>
+        /// <param name="index">the element position</param>
+        /// <returns>the element at the provided index</returns>
+        /// <exception cref="System.ArgumentOutOfRangeException">index is not a 
+        /// valid index in the set</exception>
+        public T this[int index] { get { return elements[index]; } }
+
+        ///<summary>
+        ///Add the provided item to the set.
+        ///</summary>
+        ///<param name="item">the item to be added</param>
+        ///<returns>true if the item was newly added, or false if the item
+        ///was already part of the set</returns>
+        public bool Add(T item)
+        {
+            if (containedSet.ContainsKey(item))
+            {
+                return false;
+            }
+            containedSet[item] = item;
+            elements.Add(item);
+            return true;
+        }
+
+        ///<summary>
+        /// Remove the provided item, if present.
+        ///</summary>
+        ///<param name="item">the item to be removed</param>
+        ///<returns>true if present, false otherwise</returns>
+        public bool Remove(T item)
+        {
+            if (!containedSet.Remove(item)) { return false; }
+            elements.Remove(item);
+            return true;
+        }
+
+        ///<summary>
+        ///Return true if the provided item is part of this set.
+        ///</summary>
+        ///<param name="item">the item to be checked</param>
+        ///<returns>true if the provided item is part of the set, false otherwise</returns>
+        public bool Contains(T item)
+        {
+            return containedSet.ContainsKey(item);
+        }
+
+        /// <summary>
+        ///Return an enumerator for the items that maintains the item order.
+        /// </summary>
+        /// <returns>an enumerator</returns>
+        public IEnumerator<T> GetEnumerator()
+        {
+            return elements.GetEnumerator();
+        }
+
+        /// <summary>
+        ///Return an enumerator for the items that maintains the item order.
+        /// </summary>
+        /// <returns>an enumerator</returns>
+        IEnumerator IEnumerable.GetEnumerator()
+        {
+            return elements.GetEnumerator();
+        }
+
+        /// <summary>
+        /// Add the items in the provided enumerable.
+        /// </summary>
+        /// <param name="collection">the items to be added</param>
+        public void AddAll(IEnumerable<T> collection)
+        {
+            foreach (T item in collection)
+            {
+                Add(item);
+            }
+        }
+    }
 }

@@ -12,7 +12,7 @@ namespace GT.Net
     /// A class gathering statistics on the networking behaviour of a 
     /// communicator (a GT Client or a GT Server).
     ///</summary>
-    public class CommunicationStatisticsObserver<C>
+    public class CommunicationStatisticsObserver<C> : IDisposable
         where C: Communicator
     {
         protected StatisticsSnapshot snapshot;
@@ -33,8 +33,29 @@ namespace GT.Net
             Reset();
         }
 
-
         public bool Paused { get; set; }
+
+        public void Observe(C communicator)
+        {
+            Observed = communicator;
+            foreach (IConnexion c in communicator.Connexions)
+            {
+                _connexionAdded(c);
+            }
+            communicator.ConnexionAdded += _connexionAdded;
+            communicator.ConnexionRemoved += _connexionRemoved;
+            snapshot.ConnexionCount = communicator.Connexions.Count;
+        }
+
+        public void Dispose()
+        {
+            Observed.ConnexionAdded += _connexionAdded;
+            Observed.ConnexionRemoved += _connexionRemoved;
+            foreach (IConnexion c in Observed.Connexions)
+            {
+                _connexionRemoved(c);
+            }
+        }
 
         /// <summary>
         /// Reset the values that are updated each tick.
@@ -43,7 +64,7 @@ namespace GT.Net
         {
             StatisticsSnapshot old = Interlocked.Exchange(ref snapshot, new StatisticsSnapshot());
             if (old == null) { return null; }
-            old.ConnexionCount = snapshot.ConnexionCount = Observed.Connexions.Count;
+            old.ScrobbleConnexions(Observed.Connexions);
             return old;
         }
 
@@ -56,18 +77,6 @@ namespace GT.Net
             StatisticsSnapshot clone = snapshot.Clone();
             clone.ConnexionCount = snapshot.ConnexionCount = Observed.Connexions.Count;
             return clone;
-        }
-
-        public void Observe(C communicator)
-        {
-            Observed = communicator;
-            foreach (IConnexion c in communicator.Connexions)
-            {
-                _connexionAdded(c);
-            }
-            communicator.ConnexionAdded += _connexionAdded;
-            communicator.ConnexionRemoved += _connexionRemoved;
-            snapshot.ConnexionCount = communicator.Connexions.Count;
         }
 
         #region Events
@@ -94,7 +103,7 @@ namespace GT.Net
 
                 c.MessageReceived -= connexion_MessageReceived;
                 c.MessageSent -= connexion_MessageSent;
-                c.TransportAdded -= connexion_TransportAdded;                
+                c.TransportAdded -= connexion_TransportAdded;
             }
         }
 
@@ -143,6 +152,10 @@ namespace GT.Net
 
         protected IDictionary<string, int> bytesRecvPerTransport = new Dictionary<string, int>();
         protected IDictionary<string, int> bytesSentPerTransport = new Dictionary<string, int>();
+        protected IDictionary<IConnexion, IDictionary<String, float>> delays =
+            new Dictionary<IConnexion, IDictionary<String, float>>();
+        protected IDictionary<IConnexion, IDictionary<String, uint>> backlogs = 
+            new Dictionary<IConnexion, IDictionary<String, uint>>();
 
         public StatisticsSnapshot()
         {
@@ -222,6 +235,16 @@ namespace GT.Net
         public IEnumerable<byte> ReceivedChannels
         {
             get { return messagesSentCounts.Keys; }
+        }
+
+        public IDictionary<IConnexion, IDictionary<string, uint>> Backlogs
+        {
+            get { return backlogs; }
+        }
+
+        public IDictionary<IConnexion, IDictionary<string, float>> Delays
+        {
+            get { return delays; }
         }
 
         internal void NotifyPacketReceived(int count, ITransport transport)
@@ -404,6 +427,23 @@ namespace GT.Net
                 }
             }
             return count;
+        }
+
+        internal void ScrobbleConnexions(ICollection<IConnexion> connexions)
+        {
+            ConnexionCount = connexions.Count;
+            foreach(IConnexion cnx in connexions)
+            {
+                uint backlog = 0;
+                foreach(ITransport t in cnx.Transports)
+                {
+                    if(!delays.ContainsKey(cnx)) { delays[cnx] = new Dictionary<string, float>(); }
+                    delays[cnx][t.Name] = t.Delay;
+
+                    if(!backlogs.ContainsKey(cnx)) { backlogs[cnx] = new Dictionary<string, uint>(); }
+                    backlogs[cnx][t.Name] = backlog;
+                }
+            }
         }
     }
 }
