@@ -331,7 +331,7 @@ namespace GT.Net
         {
             lock (this)
             {
-                DebugUtils.WriteLine(">>>> Server.Update() started");
+                // DebugUtils.WriteLine(">>>> Server.Update() started");
 
                 if (!Active)
                 {
@@ -349,7 +349,7 @@ namespace GT.Net
                 //ping, if needed
                 if (System.Environment.TickCount - lastPingTime >= configuration.PingInterval.Ticks)
                 {
-                    DebugUtils.WriteLine("Server.Update(): pinging clients");
+                    // DebugUtils.WriteLine("Server.Update(): pinging clients");
                     lastPingTime = System.Environment.TickCount;
                     foreach (ClientConnexion c in clientIDs.Values)
                     {
@@ -360,7 +360,7 @@ namespace GT.Net
                     }
                 }
 
-                DebugUtils.WriteLine("Server.Update(): Clients.Update()");
+                // DebugUtils.WriteLine("Server.Update(): Clients.Update()");
                 //update all clients, reading from the network
                 foreach (ClientConnexion c in clientIDs.Values)
                 {
@@ -394,7 +394,7 @@ namespace GT.Net
             //if anyone is listening, tell them we're done one cycle
             if (Tick != null) { Tick(); }
 
-            DebugUtils.WriteLine("<<<< Server.Update() finished");
+            // DebugUtils.WriteLine("<<<< Server.Update() finished");
         }
 
         private void UpdateAcceptors()
@@ -408,7 +408,7 @@ namespace GT.Net
                     toRemove.Add(acc);
                     continue;
                 }
-                DebugUtils.WriteLine("Server.Update(): checking acceptor " + acc);
+                // DebugUtils.WriteLine("Server.Update(): checking acceptor " + acc);
                 try { acc.Update(); }
                 catch (TransportError e)
                 {
@@ -461,13 +461,13 @@ namespace GT.Net
             ClientConnexion c = GetClientForClientIdentity(clientId);
             if (c == null)
             {
-                Console.WriteLine("{0}: new client {1} via {2}", this, clientId, t);
+                DebugUtils.WriteLine("{0}: new client {1} via {2}", this, clientId, t);
                 c = CreateNewClient(clientId);
                 newlyAddedClients.Add(c);
             }
             else
             {
-                Console.WriteLine("{0}: for client {1} via {2}", this, clientId, t);
+                DebugUtils.WriteLine("{0}: for client {1} via {2}", this, clientId, t);
             }
             c.AddTransport(t);
         }

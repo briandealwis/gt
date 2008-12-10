@@ -85,7 +85,7 @@ namespace GT.Net
                 //let them join us
                 try
                 {
-                    DebugUtils.WriteLine(this + ": accepting new TCP connection");
+                    // DebugUtils.WriteLine(this + ": accepting new TCP connection");
                     TcpClient connection = bouncer.AcceptTcpClient();
                     connection.NoDelay = true;
                     pending.Add(new NegotiationInProgress(this, connection));
