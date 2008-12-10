@@ -20,6 +20,7 @@ namespace StressorClient
             try
             {
                 client.Start();
+                client.Client.Configuration.PingInterval = TimeSpan.FromSeconds(1);
                 dialogThread = StatisticsDialog.On(client.Client);
 
                 Console.WriteLine("Client started; press a key to stop");

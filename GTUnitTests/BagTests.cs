@@ -192,5 +192,98 @@ namespace GT.UnitTests
         }
     }
 
+    [TestFixture]
+    public class AASequentialSetTests
+    {
+        [Test]
+        public void TestContains()
+        {
+            SequentialSet<int> set = new SequentialSet<int>();
+            set.Add(0);
+            set.Add(1);
+            set.Add(2);
+            Assert.IsTrue(set.Contains(0));
+            Assert.IsTrue(set.Contains(1));
+            Assert.IsTrue(set.Contains(2));
+            Assert.IsFalse(set.Contains(-1));
+            Assert.IsFalse(set.Contains(3));
+        }
+
+        [Test]
+        public void TestOrderOfAdds()
+        {
+            SequentialSet<int> set = new SequentialSet<int>();
+            set.Add(0);
+            set.Add(1);
+            set.Add(2);
+            int counter = 0;
+            Assert.AreEqual(3, set.Count);
+            foreach (int next in set)
+            {
+                Assert.AreEqual(counter, set[counter]);
+                Assert.AreEqual(counter++, next);
+            } 
+            Assert.AreEqual(3, counter);
+            try
+            {
+                int n = set[3];
+                Assert.Fail("Should have thrown out-of-range exception");
+            }
+            catch (ArgumentOutOfRangeException)
+            {
+                /* ignore: index was out of range */
+            }
+        }
+
+        [Test]
+        public void TestOrderOfConstructorAdds()
+        {
+            SequentialSet<int> set = new SequentialSet<int>(new[] { 0, 1, 2});
+            int counter = 0;
+            Assert.AreEqual(3, set.Count);
+            foreach (int next in set)
+            {
+                Assert.AreEqual(counter, set[counter]);
+                Assert.AreEqual(counter++, next);
+            }
+            Assert.AreEqual(3, counter);
+            try
+            {
+                int n = set[3];
+                Assert.Fail("Should have thrown out-of-range exception");
+            }
+            catch (ArgumentOutOfRangeException)
+            {
+                /* ignore: index was out of range */
+            }
+            Assert.AreEqual(3, counter);
+        }
+
+        [Test]
+        public void TestRemoves()
+        {
+            SequentialSet<int> set = new SequentialSet<int>();
+            set.Add(0);
+            set.Add(1);
+            set.Add(2);
+            Assert.AreEqual(3, set.Count);
+            Assert.IsTrue(set.Remove(1), "element should be present");
+            Assert.AreEqual(2, set.Count);
+            Assert.IsTrue(set[0] == 0);
+            Assert.IsTrue(set[1] == 2);
+        }
+
+        [Test]
+        public void TestAddAll()
+        {
+            SequentialSet<int> set = new SequentialSet<int>(new[] {0, 1});
+            Assert.AreEqual(2, set.Count);
+            set.AddAll(new[] {0, 1, 2});
+            Assert.AreEqual(3, set.Count);
+            Assert.IsTrue(set[0] == 0);
+            Assert.IsTrue(set[1] == 1);
+            Assert.IsTrue(set[2] == 2);
+        }
+    }
 
 }

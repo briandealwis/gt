@@ -18,6 +18,18 @@ namespace GT.StatsGraphs
         protected CommunicationStatisticsObserver<Communicator> _statsObserver;
         protected int tickCount = 0;
 
+        protected PingTimesForm _pingTimes;
+        protected BacklogForm _backlog;
+
+        /// <summary>
+        /// Get/set the update interval in milliseconds.
+        /// </summary>
+        public int Interval
+        {
+            get { return _timer.Interval; }
+            set { _timer.Interval = value; }
+        }
+
         public static Thread On(Communicator c)
         {
             Thread thread = new Thread(new ThreadStart(delegate {
@@ -97,23 +109,26 @@ namespace GT.StatsGraphs
             }
         }
 
-        private void resetValuesToolStripMenuItem_Click(object sender, EventArgs e)
+        private void _resetValuesToolStripMenuItem_Click(object sender, EventArgs e)
         {
             ResetLifetimeCounts();
         }
 
-        private void changeIntervalToolStripMenuItem_Click(object sender, EventArgs e)
+        private void _changeIntervalToolStripMenuItem_Click(object sender, EventArgs e)
         {
-            IntervalDialog id = new IntervalDialog((float)_timer.Interval / 1000f);
+            // Divide by 1000 as IntervalDialog deals in seconds, not milliseconds
+            IntervalDialog id = new IntervalDialog(Interval / 1000f);   
             if (id.ShowDialog(this) == DialogResult.OK)
             {
-                _timer.Interval = (int)(id.Interval * 1000);
+                Interval = (int)(id.Interval * 1000);
+                if (_pingTimes != null) { _pingTimes.Interval = Interval; }
+                if (_backlog != null) { _backlog.Interval = Interval; }
             }
         }
 
-        private void timer_Tick(object sender, EventArgs e)
+        private void _timer_Tick(object sender, EventArgs e)
         {
-            this.BeginInvoke(new MethodInvoker(UpdateGraphs));
+            BeginInvoke(new MethodInvoker(UpdateGraphs));
         }
 
         private void UpdateGraphs()
@@ -121,15 +136,17 @@ namespace GT.StatsGraphs
             lock (this)
             {
                 UpdateTitle();
-                StatisticsSnapshot _stats = _statsObserver.Reset();
+                StatisticsSnapshot stats = _statsObserver.Reset();
 
-                DateTime now = DateTime.Now;
-                int numberDataPoints = MonitoredTimePeriod * 1000 / _timer.Interval;
+                // Divide by 1000 as MonitoredTimePeriod is in seconds, not milliseconds
+                int numberDataPoints = MonitoredTimePeriod * 1000 / Interval;
                 int index = tickCount % numberDataPoints;
 
-                // timer1.Interval is in milliseconds
                 if (!Paused)
                 {
+                    /// advance the tickCount for the next
+                    tickCount++;
+
                     /// the # of current connections
                     if (index == 0)
                     {
@@ -137,7 +154,7 @@ namespace GT.StatsGraphs
                     }
                     connectionsGraph.OpenData(COD.Values, 1, numberDataPoints);
                     //clientsGraph.AxisX.LabelsFormat.CustomFormat = "#.##";
-                    connectionsGraph.Value[0, index] = _stats.ConnexionCount;
+                    connectionsGraph.Value[0, index] = stats.ConnexionCount;
                     connectionsGraph.CloseData(COD.Values);
 
                     /// the # messages sent & received
@@ -147,8 +164,8 @@ namespace GT.StatsGraphs
                     }
                     messagesGraph.OpenData(COD.Values, 2, numberDataPoints);
                     //messagesGraph.AxisX.LabelsFormat.CustomFormat = "#.##";
-                    messagesGraph.Value[0, index] = _stats.MessagesSent;
-                    messagesGraph.Value[1, index] = _stats.MessagesReceived;
+                    messagesGraph.Value[0, index] = stats.MessagesSent;
+                    messagesGraph.Value[1, index] = stats.MessagesReceived;
                     messagesGraph.CloseData(COD.Values);
 
                     /// The # bytes sent & received
@@ -158,42 +175,41 @@ namespace GT.StatsGraphs
                     }
                     bytesGraph.OpenData(COD.Values, 2, numberDataPoints);
                     //bytesGraph.AxisX.LabelsFormat.CustomFormat = "#.##";
-                    bytesGraph.Value[0, index] = _stats.BytesSent;
-                    bytesGraph.Value[1, index] = _stats.BytesReceived;
+                    bytesGraph.Value[0, index] = stats.BytesSent;
+                    bytesGraph.Value[1, index] = stats.BytesReceived;
                     bytesGraph.CloseData(COD.Values);
 
                     /// # messages and bytes sent & received per transport
-                    msgsPerTransportGraph.OpenData(COD.Values, 2 * _stats.TransportNames.Count, 
+                    msgsPerTransportGraph.OpenData(COD.Values, 2 * stats.TransportNames.Count, 
                         numberDataPoints);
-                    bytesPerTransportGraph.OpenData(COD.Values, 2 * _stats.TransportNames.Count, 
+                    bytesPerTransportGraph.OpenData(COD.Values, 2 * stats.TransportNames.Count, 
                         numberDataPoints);
 
                     int i = 0;
-                    foreach(string tn in _stats.TransportNames)
+                    foreach(string tn in stats.TransportNames)
                     {
-                        msgsPerTransportGraph.Value[2 * i, index] = _stats.ComputeMessagesSentByTransport(tn);
+                        msgsPerTransportGraph.Value[2 * i, index] = stats.ComputeMessagesSentByTransport(tn);
                         msgsPerTransportGraph.SerLeg[2 * i] = tn + " sent";
-                        msgsPerTransportGraph.Value[2 * i + 1, index] = _stats.ComputeMessagesReceivedByTransport(tn);
+                        msgsPerTransportGraph.Value[2 * i + 1, index] = stats.ComputeMessagesReceivedByTransport(tn);
                         msgsPerTransportGraph.SerLeg[2 * i + 1] = tn + " recvd";
 
-                        bytesPerTransportGraph.Value[2*i, index] = _stats.ComputeBytesSentByTransport(tn);
+                        bytesPerTransportGraph.Value[2*i, index] = stats.ComputeBytesSentByTransport(tn);
                         bytesPerTransportGraph.SerLeg[2*i] = tn + " sent";
-                        bytesPerTransportGraph.Value[2*i + 1, index] = _stats.ComputeBytesReceivedByTransport(tn);
+                        bytesPerTransportGraph.Value[2*i + 1, index] = stats.ComputeBytesReceivedByTransport(tn);
                         bytesPerTransportGraph.SerLeg[2*i + 1] = tn + " recvd";
                         i++;
                     }
                     msgsPerTransportGraph.CloseData(COD.Values);
                     bytesPerTransportGraph.CloseData(COD.Values);
 
-
                     /// Pie charts
                     messagesSentPiechart.OpenData(COD.Values, 1, (int) COD.Unknown);
                     index = 0;
-                    foreach (byte channel in _stats.SentChannels)
+                    foreach (byte channel in stats.SentChannels)
                     {
                         foreach (MessageType t in Enum.GetValues(typeof(MessageType)))
                         {
-                            int count = _stats.ComputeMessagesSent(channel, t);
+                            int count = stats.ComputeMessagesSent(channel, t);
                             if (count == 0) { continue; }
                             messagesSentPiechart.Value[0, index] = count;
                             messagesSentPiechart.Legend[index] = channel + " " + t;
@@ -204,11 +220,11 @@ namespace GT.StatsGraphs
 
                     messagesReceivedPiechart.OpenData(COD.Values, 1, (int) COD.Unknown);
                     index = 0;
-                    foreach (byte channel in _stats.ReceivedChannels)
+                    foreach (byte channel in stats.ReceivedChannels)
                     {
                         foreach (MessageType t in Enum.GetValues(typeof(MessageType)))
                         {
-                            int count = _stats.ComputeMessagesReceived(channel, t);
+                            int count = stats.ComputeMessagesReceived(channel, t);
                             if (count == 0) { continue; }
                             messagesReceivedPiechart.Value[0, index] = count;
                             messagesReceivedPiechart.Legend[index] = channel + " " + t;
@@ -216,8 +232,6 @@ namespace GT.StatsGraphs
                         }
                     }
                     messagesReceivedPiechart.CloseData(COD.Values);
-                    /// And finally advance the tickCount
-                    tickCount++;
                 }   // !Paused
                 ResetTransientValues();
             }
@@ -233,6 +247,20 @@ namespace GT.StatsGraphs
         }
 
         #endregion
+
+        private void _btnPingTimes_Click(object sender, EventArgs e)
+        {
+            _pingTimes = new PingTimesForm(_observed);
+            _pingTimes.Interval = Interval;
+            _pingTimes.Show();
+        }
+
+        private void _btnBacklog_Click(object sender, EventArgs e)
+        {
+            _backlog = new BacklogForm(_observed);
+            _backlog.Interval = Interval;
+            _backlog.Show();
+        }
 
 
     }

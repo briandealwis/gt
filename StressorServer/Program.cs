@@ -20,6 +20,7 @@ namespace StressorServer
             try
             {
                 server.Start();
+                server.Server.Configuration.PingInterval = TimeSpan.FromSeconds(1);
 
                 dialogThread = StatisticsDialog.On(server.Server);
 

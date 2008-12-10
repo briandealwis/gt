@@ -39,8 +39,12 @@
             this.bytesGraph = new SoftwareFX.ChartFX.Lite.Chart();
             this.bytesPerTransportGraph = new SoftwareFX.ChartFX.Lite.Chart();
             this.msgsPerTransportGraph = new SoftwareFX.ChartFX.Lite.Chart();
-            this.changeIntervalButton = new System.Windows.Forms.Button();
+            this._btnChangeInterval = new System.Windows.Forms.Button();
             this.resetValuesButton = new System.Windows.Forms.Button();
+            this.groupBox1 = new System.Windows.Forms.GroupBox();
+            this._btnPingTimes = new System.Windows.Forms.Button();
+            this._btnBacklog = new System.Windows.Forms.Button();
+            this.groupBox1.SuspendLayout();
             this.SuspendLayout();
             // 
             // connectionsGraph
@@ -59,21 +63,21 @@
             this.connectionsGraph.Gallery = SoftwareFX.ChartFX.Lite.Gallery.Lines;
             this.connectionsGraph.InsideColor = System.Drawing.Color.Black;
             this.connectionsGraph.LeftGap = 5;
-            this.connectionsGraph.Location = new System.Drawing.Point(0, 20);
+            this.connectionsGraph.Location = new System.Drawing.Point(360, 20);
             this.connectionsGraph.MarkerShape = SoftwareFX.ChartFX.Lite.MarkerShape.None;
             this.connectionsGraph.Name = "connectionsGraph";
             this.connectionsGraph.NSeries = 1;
             this.connectionsGraph.NValues = 60;
             this.connectionsGraph.RightGap = 10;
-            this.connectionsGraph.Size = new System.Drawing.Size(450, 90);
+            this.connectionsGraph.Size = new System.Drawing.Size(365, 90);
             this.connectionsGraph.TabIndex = 0;
             this.connectionsGraph.TopGap = 5;
             // 
-            // timer1
+            // _timer
             // 
             this._timer.Enabled = true;
             this._timer.Interval = 1000;
-            this._timer.Tick += new System.EventHandler(this.timer_Tick);
+            this._timer.Tick += new System.EventHandler(this._timer_Tick);
             // 
             // messagesGraph
             // 
@@ -90,7 +94,7 @@
             this.messagesGraph.Gallery = SoftwareFX.ChartFX.Lite.Gallery.Lines;
             this.messagesGraph.InsideColor = System.Drawing.Color.Black;
             this.messagesGraph.LeftGap = 5;
-            this.messagesGraph.Location = new System.Drawing.Point(0, 110);
+            this.messagesGraph.Location = new System.Drawing.Point(360, 140);
             this.messagesGraph.MarkerShape = SoftwareFX.ChartFX.Lite.MarkerShape.None;
             this.messagesGraph.Name = "messagesGraph";
             this.messagesGraph.NSeries = 1;
@@ -107,10 +111,10 @@
             this.messagesReceivedPiechart.BorderObject = new SoftwareFX.ChartFX.Lite.DefaultBorder(SoftwareFX.ChartFX.Lite.BorderType.None, System.Drawing.SystemColors.ControlDarkDark);
             this.messagesReceivedPiechart.Gallery = SoftwareFX.ChartFX.Lite.Gallery.Pie;
             this.messagesReceivedPiechart.LegendBox = true;
-            this.messagesReceivedPiechart.Location = new System.Drawing.Point(462, 275);
+            this.messagesReceivedPiechart.Location = new System.Drawing.Point(6, 283);
             this.messagesReceivedPiechart.Name = "messagesReceivedPiechart";
             this.messagesReceivedPiechart.NSeries = 1;
-            this.messagesReceivedPiechart.Size = new System.Drawing.Size(349, 215);
+            this.messagesReceivedPiechart.Size = new System.Drawing.Size(339, 220);
             this.messagesReceivedPiechart.TabIndex = 2;
             // 
             // messagesSentPiechart
@@ -118,16 +122,16 @@
             this.messagesSentPiechart.BorderObject = new SoftwareFX.ChartFX.Lite.DefaultBorder(SoftwareFX.ChartFX.Lite.BorderType.None, System.Drawing.SystemColors.ControlDarkDark);
             this.messagesSentPiechart.Gallery = SoftwareFX.ChartFX.Lite.Gallery.Pie;
             this.messagesSentPiechart.LegendBox = true;
-            this.messagesSentPiechart.Location = new System.Drawing.Point(461, 33);
+            this.messagesSentPiechart.Location = new System.Drawing.Point(2, 40);
             this.messagesSentPiechart.Name = "messagesSentPiechart";
             this.messagesSentPiechart.NSeries = 1;
-            this.messagesSentPiechart.Size = new System.Drawing.Size(349, 215);
+            this.messagesSentPiechart.Size = new System.Drawing.Size(341, 215);
             this.messagesSentPiechart.TabIndex = 3;
             // 
             // label1
             // 
             this.label1.AutoSize = true;
-            this.label1.Location = new System.Drawing.Point(481, 24);
+            this.label1.Location = new System.Drawing.Point(233, 53);
             this.label1.Name = "label1";
             this.label1.Size = new System.Drawing.Size(104, 13);
             this.label1.TabIndex = 4;
@@ -137,7 +141,7 @@
             // label2
             // 
             this.label2.AutoSize = true;
-            this.label2.Location = new System.Drawing.Point(496, 259);
+            this.label2.Location = new System.Drawing.Point(253, 286);
             this.label2.Name = "label2";
             this.label2.Size = new System.Drawing.Size(80, 13);
             this.label2.TabIndex = 5;
@@ -159,7 +163,7 @@
             this.bytesGraph.Gallery = SoftwareFX.ChartFX.Lite.Gallery.Lines;
             this.bytesGraph.InsideColor = System.Drawing.Color.Black;
             this.bytesGraph.LeftGap = 5;
-            this.bytesGraph.Location = new System.Drawing.Point(0, 305);
+            this.bytesGraph.Location = new System.Drawing.Point(360, 335);
             this.bytesGraph.MarkerShape = SoftwareFX.ChartFX.Lite.MarkerShape.None;
             this.bytesGraph.Name = "bytesGraph";
             this.bytesGraph.NSeries = 1;
@@ -184,7 +188,7 @@
             this.bytesPerTransportGraph.Gallery = SoftwareFX.ChartFX.Lite.Gallery.Lines;
             this.bytesPerTransportGraph.InsideColor = System.Drawing.Color.Black;
             this.bytesPerTransportGraph.LeftGap = 5;
-            this.bytesPerTransportGraph.Location = new System.Drawing.Point(0, 401);
+            this.bytesPerTransportGraph.Location = new System.Drawing.Point(360, 431);
             this.bytesPerTransportGraph.MarkerShape = SoftwareFX.ChartFX.Lite.MarkerShape.None;
             this.bytesPerTransportGraph.Name = "bytesPerTransportGraph";
             this.bytesPerTransportGraph.NSeries = 1;
@@ -211,7 +215,7 @@
             this.msgsPerTransportGraph.Gallery = SoftwareFX.ChartFX.Lite.Gallery.Lines;
             this.msgsPerTransportGraph.InsideColor = System.Drawing.Color.Black;
             this.msgsPerTransportGraph.LeftGap = 5;
-            this.msgsPerTransportGraph.Location = new System.Drawing.Point(0, 207);
+            this.msgsPerTransportGraph.Location = new System.Drawing.Point(360, 237);
             this.msgsPerTransportGraph.MarkerShape = SoftwareFX.ChartFX.Lite.MarkerShape.None;
             this.msgsPerTransportGraph.Name = "msgsPerTransportGraph";
             this.msgsPerTransportGraph.NSeries = 1;
@@ -223,46 +227,79 @@
             this.msgsPerTransportGraph.TabIndex = 11;
             this.msgsPerTransportGraph.TopGap = 5;
             // 
-            // changeIntervalButton
+            // _btnChangeInterval
             // 
-            this.changeIntervalButton.Location = new System.Drawing.Point(411, 463);
-            this.changeIntervalButton.Name = "changeIntervalButton";
-            this.changeIntervalButton.Size = new System.Drawing.Size(140, 26);
-            this.changeIntervalButton.TabIndex = 13;
-            this.changeIntervalButton.Text = "Change Update Interval";
-            this.changeIntervalButton.UseVisualStyleBackColor = true;
-            this.changeIntervalButton.Click += new System.EventHandler(this.changeIntervalToolStripMenuItem_Click);
+            this._btnChangeInterval.Location = new System.Drawing.Point(122, 556);
+            this._btnChangeInterval.Name = "_btnChangeInterval";
+            this._btnChangeInterval.Size = new System.Drawing.Size(151, 26);
+            this._btnChangeInterval.TabIndex = 13;
+            this._btnChangeInterval.Text = "Change Update Interval";
+            this._btnChangeInterval.UseVisualStyleBackColor = true;
+            this._btnChangeInterval.Click += new System.EventHandler(this._changeIntervalToolStripMenuItem_Click);
             // 
             // resetValuesButton
             // 
-            this.resetValuesButton.Location = new System.Drawing.Point(604, 462);
+            this.resetValuesButton.Location = new System.Drawing.Point(226, 13);
             this.resetValuesButton.Name = "resetValuesButton";
             this.resetValuesButton.Size = new System.Drawing.Size(115, 26);
             this.resetValuesButton.TabIndex = 14;
             this.resetValuesButton.Text = "Reset Values";
             this.resetValuesButton.UseVisualStyleBackColor = true;
-            this.resetValuesButton.Click += new System.EventHandler(this.resetValuesToolStripMenuItem_Click);
+            this.resetValuesButton.Click += new System.EventHandler(this._resetValuesToolStripMenuItem_Click);
+            // 
+            // groupBox1
+            // 
+            this.groupBox1.Controls.Add(this.resetValuesButton);
+            this.groupBox1.Controls.Add(this.label2);
+            this.groupBox1.Controls.Add(this.label1);
+            this.groupBox1.Controls.Add(this.messagesSentPiechart);
+            this.groupBox1.Controls.Add(this.messagesReceivedPiechart);
+            this.groupBox1.Location = new System.Drawing.Point(12, 12);
+            this.groupBox1.Name = "groupBox1";
+            this.groupBox1.Size = new System.Drawing.Size(347, 509);
+            this.groupBox1.TabIndex = 17;
+            this.groupBox1.TabStop = false;
+            this.groupBox1.Text = "Channels x Message Types";
+            // 
+            // _btnPingTimes
+            // 
+            this._btnPingTimes.Location = new System.Drawing.Point(331, 556);
+            this._btnPingTimes.Name = "_btnPingTimes";
+            this._btnPingTimes.Size = new System.Drawing.Size(151, 26);
+            this._btnPingTimes.TabIndex = 18;
+            this._btnPingTimes.Text = "Ping Times";
+            this._btnPingTimes.UseVisualStyleBackColor = true;
+            this._btnPingTimes.Click += new System.EventHandler(this._btnPingTimes_Click);
+            // 
+            // _btnBacklog
+            // 
+            this._btnBacklog.Location = new System.Drawing.Point(548, 556);
+            this._btnBacklog.Name = "_btnBacklog";
+            this._btnBacklog.Size = new System.Drawing.Size(151, 26);
+            this._btnBacklog.TabIndex = 19;
+            this._btnBacklog.Text = "Message Backlogs";
+            this._btnBacklog.UseVisualStyleBackColor = true;
+            this._btnBacklog.Click += new System.EventHandler(this._btnBacklog_Click);
             // 
             // StatisticsDialog
             // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 13F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
-            this.ClientSize = new System.Drawing.Size(813, 493);
-            this.Controls.Add(this.resetValuesButton);
-            this.Controls.Add(this.changeIntervalButton);
+            this.ClientSize = new System.Drawing.Size(813, 602);
+            this.Controls.Add(this._btnBacklog);
+            this.Controls.Add(this._btnPingTimes);
+            this.Controls.Add(this.groupBox1);
+            this.Controls.Add(this._btnChangeInterval);
             this.Controls.Add(this.bytesPerTransportGraph);
             this.Controls.Add(this.bytesGraph);
-            this.Controls.Add(this.label2);
-            this.Controls.Add(this.label1);
-            this.Controls.Add(this.messagesSentPiechart);
-            this.Controls.Add(this.messagesReceivedPiechart);
             this.Controls.Add(this.msgsPerTransportGraph);
             this.Controls.Add(this.messagesGraph);
             this.Controls.Add(this.connectionsGraph);
             this.Name = "StatisticsDialog";
             this.Text = "Statistics";
+            this.groupBox1.ResumeLayout(false);
+            this.groupBox1.PerformLayout();
             this.ResumeLayout(false);
-            this.PerformLayout();
 
         }
 
@@ -278,7 +315,10 @@
         private SoftwareFX.ChartFX.Lite.Chart bytesGraph;
         private SoftwareFX.ChartFX.Lite.Chart bytesPerTransportGraph;
         private SoftwareFX.ChartFX.Lite.Chart msgsPerTransportGraph;
-        private System.Windows.Forms.Button changeIntervalButton;
+        private System.Windows.Forms.Button _btnChangeInterval;
         private System.Windows.Forms.Button resetValuesButton;
+        private System.Windows.Forms.GroupBox groupBox1;
+        private System.Windows.Forms.Button _btnPingTimes;
+        private System.Windows.Forms.Button _btnBacklog;
     }
 }
