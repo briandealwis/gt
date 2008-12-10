@@ -1,6 +1,6 @@
 GT NEWS
 
-=== GT 2.0.1 ===
+=== GT XXX ===
 
 Some bugs have been fixed since GT 2.0:
 
@@ -17,7 +17,8 @@ Some bugs have been fixed since GT 2.0:
   * Allow Server instances to be stopped and restarted by not nilling
     clientIDs in KillAll()  <https://papyrus.usask.ca/trac/gt/ticket/60>
 
-  * Wrap TcpTransport.ToString() to avoid throwing exceptions on invalid handles.
+  * Wrap TcpTransport.ToString() to avoid throwing exceptions on
+    invalid handles.
 
   * Ensure Server and Client are started at the end of
     StartSeparateListeningThread() <https://papyrus.usask.ca/trac/gt/ticket/56>
@@ -31,12 +32,17 @@ Some bugs have been fixed since GT 2.0:
     exceptions <https://papyrus.usask.ca/trac/gt/ticket/55>
 
 
+Developer-visible changes:
+
+  * Clients and Servers now report any errors/warnings/information
+    to the console when there are no registered ErrorEvent handlers.
+
+
 === GT 2.0 ===
 
 GT 2.0 has undergone a significant re-architecturing from GT 1.0
 to promote more flexibility and extensibility.  There have been a
 number of breaking changes, primarily dealing with type renaming.
-
 
 Breaking Changes:
 
