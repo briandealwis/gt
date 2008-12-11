@@ -129,7 +129,7 @@ namespace GT.Net
     public abstract class AbstractBaseStream : IStream
     {
         protected byte id;
-        protected internal ServerConnexion connexion;
+        protected ServerConnexion connexion;
         protected ChannelDeliveryRequirements deliveryOptions;
 
         /// <summary> Occurs when client is updated. </summary>
@@ -157,7 +157,11 @@ namespace GT.Net
         /// <summary>
         /// Return this stream's connexion.
         /// </summary>
-        public IConnexion Connexion { get { return connexion; } }
+        public IConnexion Connexion 
+        { 
+            get { return connexion; }
+            internal set { connexion = (ServerConnexion)value; }
+        }
 
         public ChannelDeliveryRequirements ChannelDeliveryOptions { get { return deliveryOptions; } }
 
@@ -1189,12 +1193,12 @@ namespace GT.Net
             {
                 tuple = (StreamedTuple<T_X, T_Y, T_Z>)threeTupleStreams[id];
                 if (tuple.Address.Equals(address) && tuple.Port.Equals(port)
-                    && tuple.connexion.Active)
+                    && tuple.Connexion.Active)
                 {
                     return tuple;
                 }
 
-                tuple.connexion = GetConnexion(address, port);
+                tuple.Connexion = GetConnexion(address, port);
                 return tuple;
             }
 
@@ -1226,12 +1230,12 @@ namespace GT.Net
                 && threeTupleStreams[id] is StreamedTuple<T_X, T_Y, T_Z>)
             {
                 tuple = (StreamedTuple<T_X, T_Y, T_Z>) threeTupleStreams[id];
-                if (tuple.connexion == connexion)
+                if (tuple.Connexion == connexion)
                 {
                     return tuple;
                 }
 
-                tuple.connexion = connexion as ServerConnexion;
+                tuple.Connexion = connexion;
                 return tuple;
             }
 
@@ -1260,12 +1264,12 @@ namespace GT.Net
             {
                 tuple = (StreamedTuple<T_X, T_Y>) twoTupleStreams[id];
                 if (tuple.Address.Equals(address) && tuple.Port.Equals(port)
-                    && tuple.connexion.Active)
+                    && tuple.Connexion.Active)
                 {
                     return tuple;
                 }
 
-                tuple.connexion = GetConnexion(address, port);
+                tuple.Connexion = GetConnexion(address, port);
                 return tuple;
             }
 
@@ -1294,12 +1298,12 @@ namespace GT.Net
                 && twoTupleStreams[id] is StreamedTuple<T_X, T_Y>)
             {
                 tuple = (StreamedTuple<T_X, T_Y>)twoTupleStreams[id];
-                if (tuple.connexion == connexion)
+                if (tuple.Connexion == connexion)
                 {
                     return tuple;
                 }
 
-                tuple.connexion = connexion as ServerConnexion;
+                tuple.Connexion = connexion;
                 return tuple;
             }
 
@@ -1325,12 +1329,12 @@ namespace GT.Net
             {
                 tuple = (StreamedTuple<T_X>)oneTupleStreams[id];
                 if (tuple.Address.Equals(address) && tuple.Port.Equals(port)
-                    && tuple.connexion.Active)
+                    && tuple.Connexion.Active)
                 {
                     return tuple;
                 }
 
-                tuple.connexion = GetConnexion(address, port);
+                tuple.Connexion = GetConnexion(address, port);
                 return tuple;
             }
 
@@ -1358,12 +1362,12 @@ namespace GT.Net
                 && oneTupleStreams[id] is StreamedTuple<T_X>)
             {
                 tuple = (StreamedTuple<T_X>)oneTupleStreams[id];
-                if (tuple.connexion == connexion)
+                if (tuple.Connexion == connexion)
                 {
                     return tuple;
                 }
 
-                tuple.connexion = connexion as ServerConnexion;
+                tuple.Connexion = connexion;
                 return tuple;
             }
 
@@ -1385,12 +1389,12 @@ namespace GT.Net
             if (sessionStreams.ContainsKey(id))
             {
                 ss = sessionStreams[id];
-                if (ss.Address.Equals(address) && ss.Port.Equals(port) && ss.connexion.Active)
+                if (ss.Address.Equals(address) && ss.Port.Equals(port) && ss.Connexion.Active)
                 {
                     return ss;
                 }
 
-                ss.connexion = GetConnexion(address, port);
+                ss.Connexion = GetConnexion(address, port);
                 return ss;
             }
 
@@ -1412,12 +1416,12 @@ namespace GT.Net
             if (sessionStreams.ContainsKey(id))
             {
                 ss = sessionStreams[id];
-                if (ss.connexion == connexion)
+                if (ss.Connexion == connexion)
                 {
                     return ss;
                 }
 
-                ss.connexion = connexion as ServerConnexion;
+                ss.Connexion = connexion;
                 return ss;
             }
 
@@ -1446,12 +1450,12 @@ namespace GT.Net
             if (stringStreams.ContainsKey(id))
             {
                 ss = stringStreams[id];
-                if (ss.Address.Equals(address) && ss.Port.Equals(port) && ss.connexion.Active)
+                if (ss.Address.Equals(address) && ss.Port.Equals(port) && ss.Connexion.Active)
                 {
                     return ss;
                 }
 
-                ss.connexion = GetConnexion(address, port);
+                ss.Connexion = GetConnexion(address, port);
                 return ss;
             }
 
@@ -1472,12 +1476,12 @@ namespace GT.Net
             if (stringStreams.ContainsKey(id))
             {
                 ss = stringStreams[id];
-                if (ss.connexion == connexion)
+                if (ss.Connexion == connexion)
                 {
                     return ss;
                 }
 
-                ss.connexion = connexion as ServerConnexion;
+                ss.Connexion = connexion;
                 return ss;
             }
 
@@ -1506,11 +1510,11 @@ namespace GT.Net
             if (objectStreams.ContainsKey(id))
             {
                 os = objectStreams[id];
-                if (os.Address.Equals(address) && os.Port.Equals(port) && os.connexion.Active)
+                if (os.Address.Equals(address) && os.Port.Equals(port) && os.Connexion.Active)
                 {
                     return os;
                 }
-                os.connexion = GetConnexion(address, port);
+                os.Connexion = GetConnexion(address, port);
                 return os;
             }
             os = new ObjectStream(GetConnexion(address, port), id, cdr);
@@ -1530,11 +1534,11 @@ namespace GT.Net
             if (objectStreams.ContainsKey(id))
             {
                 os = objectStreams[id];
-                if (os.connexion == connexion)
+                if (os.Connexion == connexion)
                 {
                     return os;
                 }
-                os.connexion = connexion as ServerConnexion;
+                os.Connexion = connexion;
                 return os;
             }
             os = new ObjectStream(connexion as ServerConnexion, id, cdr);
@@ -1562,12 +1566,12 @@ namespace GT.Net
             if (binaryStreams.ContainsKey(id))
             {
                 bs = binaryStreams[id];
-                if (bs.Address.Equals(address) && bs.Port.Equals(port) && bs.connexion.Active)
+                if (bs.Address.Equals(address) && bs.Port.Equals(port) && bs.Connexion.Active)
                 {
-                    return binaryStreams[id];
+                    return bs;
                 }
-                binaryStreams[id].connexion = GetConnexion(address, port);
-                return binaryStreams[id];
+                bs.Connexion = GetConnexion(address, port);
+                return bs;
             }
             bs = new BinaryStream(GetConnexion(address, port), id, cdr);
             binaryStreams.Add(id, bs);
@@ -1586,11 +1590,11 @@ namespace GT.Net
             if (binaryStreams.ContainsKey(id))
             {
                 bs = binaryStreams[id];
-                if (bs.connexion == connexion)
+                if (bs.Connexion == connexion)
                 {
                     return bs;
                 }
-                bs.connexion = connexion as ServerConnexion;
+                bs.Connexion = connexion;
                 return bs;
             }
             bs = new BinaryStream(connexion as ServerConnexion, id, cdr);

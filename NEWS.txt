@@ -7,6 +7,10 @@ Developer-visible changes:
   * Clients and Servers now report any errors/warnings/information
     to the console when there are no registered ErrorEvent handlers.
 
+  * GT is now quieter with respect to messages written to the system
+    console.  Many of these messages are now directed to the DebugUtils
+    logging or are available through the various GT events.
+
   * There have been some breaks with previous API. 
 
       * The delegate GT.Net.ConnexionLifecycleNotification has been
