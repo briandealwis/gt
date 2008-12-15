@@ -293,7 +293,7 @@ namespace GT.Net
         /// <returns>a descriptive string representation</returns>
         override public string ToString()
         {
-            return this.GetType().Name + "(" + Clients.Count + " clients)";
+            return this.GetType().Name + "(" + (Clients == null ? 0 : Clients.Count) + " clients)";
         }
 
         /// <summary>Process a single tick of the server.  This method is <strong>not</strong> 
@@ -533,32 +533,27 @@ namespace GT.Net
                 listeningThread = null;
                 if (t != null && t != Thread.CurrentThread) { t.Abort(); }
 
-                if (acceptors != null)
-                {
-                    foreach (IAcceptor acc in acceptors)
-                    {
-                        acc.Stop(); // FIXME: trap exceptions?
-                    }
-                }
-                TerminateAllConnexions();
+                Stop(acceptors);
+                Dispose(acceptors);
+                acceptors = null;
+
+                clientIDs.Clear();
+                base.Stop();
             }
         }
 
         public override void Dispose()
         {
-            Stop();
-            if (acceptors != null)
-            {
-                foreach (IAcceptor acc in acceptors)
-                {
-                    try { acc.Dispose(); }
-                    catch (Exception e)
-                    {
-                        Console.WriteLine("Acceptor {0} threw exception on dispose", acc, e);
-                    }
-                }
-                acceptors = null;
-            }
+            running = false;
+
+            Thread t = listeningThread;
+            listeningThread = null;
+            if (t != null && t != Thread.CurrentThread) { t.Abort(); }
+
+            Dispose(acceptors);
+            acceptors = null;
+            base.Dispose();
+
         }
 
         public override bool Active
@@ -584,12 +579,6 @@ namespace GT.Net
                 // keep going until we create something never previously seen
             } while (clientId == uniqueIdentity || clientIDs.ContainsKey(clientId));
             return clientId;
-        }
-
-        protected override void TerminateAllConnexions()
-        {
-            base.TerminateAllConnexions();
-            clientIDs.Clear();
         }
 
         #endregion

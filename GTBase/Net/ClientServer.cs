@@ -65,19 +65,41 @@ namespace GT.Net {
         /// <summary>
         /// Start the instance.  Starting an instance may throw an exception on error.
         /// </summary>
-        public abstract void Start();
+        public virtual void Start()
+        {
+            /*do nothing*/
+        }
 
         /// <summary>
         /// Stop the instance.  Instances can be stopped multiple times.
         /// Stopping an instance may throw an exception on error.
         /// </summary>
-        public abstract void Stop();
+        public virtual void Stop()
+        {
+            // Should we call ConnexionRemoved on stop?
+            if(connexions != null) 
+            {
+                foreach(IConnexion cnx in connexions)
+                {
+                    try { cnx.ShutDown(); }
+                    catch (Exception e)
+                    {
+                        Console.WriteLine("Warning: exception thrown when shutting down {0}: {1}: {2}",
+                            cnx, e.GetType(), e.Message);
+                    }
+                }
+                connexions = null;
+            }
+        }
 
         /// <summary>
         /// Dispose of any system resources that may be held onto by this
         /// instance.  There should never be an exception thrown.
         /// </summary>
-        public abstract void Dispose();
+        public virtual void Dispose()
+        {
+            Dispose(connexions);
+        }
 
         /// <summary>
         /// Run a cycle to process any pending events for the connexions or
@@ -113,7 +135,8 @@ namespace GT.Net {
                     try
                     {
                         RemovedConnexion(c);
-                    } catch(Exception e)
+                    } 
+                    catch(Exception e)
                     {
                         NotifyErrorEvent(new ErrorSummary(Severity.Information,
                             SummaryErrorCode.UserException,
@@ -121,29 +144,41 @@ namespace GT.Net {
                     }
                     try { c.Dispose(); }
                     catch (Exception e) {
-                        DebugUtils.WriteLine("{0} Exception thrown while disposing connexion: {1}",
-                            DateTime.Now, e);
+                        DebugUtils.WriteLine("Exception thrown while disposing connexion: {1}", e);
                     }
                 }
             }
         }
 
-        protected virtual void TerminateAllConnexions()
+        protected void Stop<T>(IEnumerable<T> elements)
+            where T : IStartable
         {
-            while(connexions.Count > 0)
+            if (elements == null) { return; }
+            foreach(T stoppable in elements)
             {
-                IConnexion c = connexions[0];
-                connexions.RemoveAt(0);
-                try { c.Dispose(); }
+                try { stoppable.Stop(); }
                 catch (Exception e)
                 {
-                    DebugUtils.WriteLine("{0} Exception thrown while disposing connexion: {1}",
-                        DateTime.Now, e);
+                    Console.WriteLine("Warning: exception thrown when stopping {0}: {1}: {2}",
+                        stoppable, e.GetType(), e.Message);
                 }
             }
         }
 
-
+        protected void Dispose<T>(IEnumerable<T> elements)
+            where T : IDisposable
+        {
+            if (elements == null) { return; }
+            foreach (T disposable in elements)
+            {
+                try { disposable.Dispose(); }
+                catch (Exception e)
+                {
+                    Console.WriteLine("Warning: exception thrown when disposing of {0}: {1}: {2}",
+                        disposable, e.GetType(), e.Message);
+                }
+            }
+        }
 
         protected virtual void AddConnexion(IConnexion cnx)
         {

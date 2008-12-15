@@ -252,7 +252,7 @@ namespace GT.UnitTests
             }
             catch (Exception e)
             {
-                Assert.Fail("Unexpected exception");
+                Assert.Fail("Unexpected exception: {0}", e);
             }
             finally
             {

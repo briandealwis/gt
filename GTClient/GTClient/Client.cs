@@ -962,7 +962,7 @@ namespace GT.Net
     }
 
     /// <summary>Represents a client that can connect to multiple servers.</summary>
-    public class Client : Communicator, IStartable
+    public class Client : Communicator
     {
         private ClientConfiguration configuration;
 
@@ -1097,17 +1097,10 @@ namespace GT.Net
                 listeningThread = null;
                 if (t != null && t != Thread.CurrentThread) { t.Abort(); }
 
-                if (connectors != null)
-                {
-                    foreach (IConnector conn in connectors) { conn.Stop(); }
-                }
-                if (connexions != null)
-                {
-                    // Should we call ConnexionRemoved on stop?
-                    foreach (ServerConnexion s in connexions) { s.Stop(); }
-                }
-                connexions = null;
-                // timer.Stop();
+                Stop(connectors);
+                connectors = null;
+                base.Stop();
+                // timer.Stop();?
             }
         }
 
@@ -1123,18 +1116,10 @@ namespace GT.Net
                 listeningThread = null;
                 if (t != null && t != Thread.CurrentThread) { t.Abort(); }
 
-                if (!Active) { return; }
                 started = false;
-                if (connectors != null)
-                {
-                    foreach (IConnector conn in connectors) { conn.Dispose(); }
-                }
+                Dispose(connectors);
                 connectors = null;
-                if (connexions != null)
-                {
-                    foreach(ServerConnexion sc in connexions) { sc.Dispose(); }
-                }
-                connexions = null;
+                base.Dispose();
                 timer = null;
             }
         }
