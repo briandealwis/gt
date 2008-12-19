@@ -16,4 +16,4 @@ Setup/setup.exe
 Setup/Release
 Setup/Debug
 _ReSharper.gt-all
-gt-all.4.0.resharper*
+gt-all.*.resharper*
