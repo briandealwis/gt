@@ -166,12 +166,12 @@ namespace GT.Net
         /// <summary>
         /// The sequence number expected for the next packet received.
         /// </summary>
-        protected uint nextIncomingPacketSeq = 0;
+        protected uint nextIncomingPacketSeqNo = 0;
 
         /// <summary>
         /// The sequence number for the next outgoing packet.
         /// </summary>
-        protected uint nextOutgoingPacketSeq = 0;
+        protected uint nextOutgoingPacketSeqNo = 0;
 
         public UdpSequencedClientTransport(UdpClient udpc)
             : base(4, udpc) // we use the first four bytes to encode the sequence 
@@ -181,15 +181,18 @@ namespace GT.Net
         protected override void NotifyPacketReceived(byte[] buffer, int offset, int count)
         {
             Debug.Assert(offset == PacketHeaderSize, "datagram doesn't include packet header!");
-            if (buffer.Length < 4)
+            if (buffer.Length < PacketHeaderSize)
             {
                 throw new TransportError(this,
-                    "should not receive c whose size is less than 4 bytes", buffer);
+                    "should not receive datagrams whose size is less than PacketHeaderSize bytes", buffer);
             }
-            uint packetSeq = BitConverter.ToUInt32(buffer, 0);
-            // FIXME: we don't handle wrap-around!
-            if (packetSeq < nextIncomingPacketSeq) { return; }
-            nextIncomingPacketSeq = packetSeq + 1;
+            uint packetSeqNo = BitConverter.ToUInt32(buffer, 0);
+            // We handle wrap around by checking if the difference between the
+            // packet-seqno and the expected next packet-seqno > uint.MaxValue / 2
+            // After all, it's unlikely that 2 billion packets will mysteriously disappear!
+            if (packetSeqNo < nextIncomingPacketSeqNo 
+                && nextIncomingPacketSeqNo - packetSeqNo < uint.MaxValue / 2) { return; }
+            nextIncomingPacketSeqNo = packetSeqNo + 1;
 
             // pass it on
             base.NotifyPacketReceived(buffer, offset, count);
@@ -198,7 +201,7 @@ namespace GT.Net
 
         protected override void WritePacketHeader(byte[] buffer, uint packetLength)
         {
-            BitConverter.GetBytes(nextOutgoingPacketSeq++).CopyTo(buffer, 0);
+            BitConverter.GetBytes(nextOutgoingPacketSeqNo++).CopyTo(buffer, 0);
         }
     }
 

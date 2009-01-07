@@ -406,6 +406,13 @@ namespace GT.UnitTests
             Assert.IsFalse(packetReceived);
             clientTransport.Inject(2, new byte[0]);
             Assert.IsTrue(packetReceived);
+
+            // now test wrap-around
+            packetReceived = false;
+            clientTransport.Inject(UInt32.MaxValue, new byte[0]);
+            Assert.IsTrue(packetReceived);
+            clientTransport.Inject(0, new byte[0]);
+            Assert.IsTrue(packetReceived);
         }
 
         [Test]
@@ -434,6 +441,13 @@ namespace GT.UnitTests
             serverTransport.Inject(1, new byte[0]);
             Assert.IsFalse(packetReceived);
             serverTransport.Inject(2, new byte[0]);
+            Assert.IsTrue(packetReceived);
+
+            // now test wrap-around
+            packetReceived = false;
+            serverTransport.Inject(UInt32.MaxValue, new byte[0]);
+            Assert.IsTrue(packetReceived);
+            serverTransport.Inject(0, new byte[0]);
             Assert.IsTrue(packetReceived);
         }
 
