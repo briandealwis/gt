@@ -23,13 +23,11 @@ namespace GT.Net
     /// </summary>
     public enum Ordering
     {
-	/// <summary>There are no guarantees on packet order.</summary>
+	    /// <summary>There are no guarantees on packet order.</summary>
         Unordered = 0,
-	/// <summary>Packets are received in order, but there may be
-	// duplicated.</summary>
+	    /// <summary>Packets are received in order, but there may be duplicates.</summary>
         Sequenced = 1,
-	/// <summary>Packets are received in order, and with no
-	// duplicates.</summary>
+	    /// <summary>Packets are received in order, and with no duplicates.</summary>
         Ordered = 2,
     }
 
@@ -40,7 +38,7 @@ namespace GT.Net
         /// specified message ordering</summary>
         Aggregatable = 0,
 
-       /// <summary>This message will be sent immediately, without worrying 
+        /// <summary>This message will be sent immediately, without worrying 
         /// about any saved-to-be-aggregated messages</summary>
         Immediate = 1,
 

@@ -234,26 +234,21 @@ namespace GT.Net {
 
     public abstract class BaseConfiguration : IComparer<ITransport> 
     {
-        protected TimeSpan pingInterval = TimeSpan.FromMilliseconds(10000);
-        protected TimeSpan tickInterval = TimeSpan.FromMilliseconds(10);
+        public BaseConfiguration()
+        {
+            TickInterval = TimeSpan.FromMilliseconds(10);
+            PingInterval = TimeSpan.FromSeconds(10);
+        }
 
         /// <summary>
         /// The time between pings to clients.
         /// </summary>
-        virtual public TimeSpan PingInterval
-        {
-            get { return pingInterval; }
-            set { pingInterval = value; }
-        }
+        public virtual TimeSpan PingInterval { get; set; }
 
         /// <summary>
         /// The time between server ticks.
         /// </summary>
-        virtual public TimeSpan TickInterval
-        {
-            get { return tickInterval; }
-            set { tickInterval = value; }
-        }
+        public virtual TimeSpan TickInterval { get; set; }
 
         /// <summary>
         /// Default transport orderer: orders by reliability, then sequencing, then delay.
@@ -271,6 +266,17 @@ namespace GT.Net {
             if (x.Delay > y.Delay) { return 1; }
             return 0;
         }
+
+        /// <summary>
+        /// Provide an opportunity to change configuration parameters or even wrap 
+        /// or replace a transport instance.
+        /// </summary>
+        /// <param name="t">the transport to configure</param>
+        /// <returns>the possibly reconfigured or replaced transport</returns>
+        public virtual ITransport ConfigureTransport(ITransport t)
+        {
+            return t;
+        }
     }
 
     /// <summary>
@@ -284,6 +290,10 @@ namespace GT.Net {
         TransportBacklogged,
     }
 
+    /// <summary>
+    /// Represents a summary of an error or warning situation that has occurred
+    /// during GT execution.
+    /// </summary>
     public struct ErrorSummary
     {
         public ErrorSummary(Severity sev, SummaryErrorCode sec, string msg, Exception ctxt)
@@ -952,6 +962,36 @@ namespace GT.Net {
             }
             return downcast;
         }
-
     }
+
+    /// <summary>
+    /// A useful class for testing some of the acceptors and connectors
+    /// </summary>
+    /// <typeparam name="T"></typeparam>
+    public class TransportFactory<T>
+    {
+        public byte[] ProtocolDescriptor { get; internal set; }
+        protected Converter<T, ITransport> creator;
+        protected Predicate<ITransport> responsible;
+
+        public TransportFactory(byte[] descriptor, 
+            Converter<T, ITransport> creator,
+            Predicate<ITransport> responsible)
+        {
+            ProtocolDescriptor = descriptor;
+            this.creator = creator;
+            this.responsible = responsible;
+        }
+
+        public ITransport CreateTransport(T handle)
+        {
+            return creator(handle);
+        }
+
+        public bool Responsible(ITransport transport)
+        {
+            return responsible(transport);
+        }
+    }
+
 }

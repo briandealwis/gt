@@ -172,10 +172,10 @@ namespace GT.Net.Local
 
         protected LocalHalfPipe handle;
 
-        public LocalTransport(LocalHalfPipe hp)
+        public LocalTransport(LocalHalfPipe hp) 
+            : base(0)
         {
             delay = 0f;             // dude, we're fast
-            PacketHeaderSize = 0;
             handle = hp;
         }
 
@@ -215,8 +215,13 @@ namespace GT.Net.Local
         public override void SendPacket(Stream stream)
         {
             ContractViolation.Assert(stream.Length > 0, "Cannot send 0-byte messages!");
-            ContractViolation.Assert(stream.Length - PacketHeaderSize <= MaximumPacketSize, String.Format(
-                    "Packet exceeds transport capacity: {0} > {1}", stream.Length - PacketHeaderSize, MaximumPacketSize));
+            ContractViolation.Assert(stream.Length - PacketHeaderSize <= MaximumPacketSize, 
+                String.Format("Packet exceeds transport capacity: {0} > {1}", 
+                    stream.Length - PacketHeaderSize, MaximumPacketSize));
+            CheckValidPacketStream(stream);
+
+            // we inherit GetPacketStream() which uses a MemoryStream, and the typing
+            // is checked by CheckValidStream()
             byte[] data = ((MemoryStream)stream).ToArray();
             handle.Put(data);
             NotifyPacketSent(data, 0, data.Length);

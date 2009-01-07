@@ -1,7 +1,6 @@
 using System;
 using System.Net;
 using System.Net.Sockets;
-using System.Text;
 using System.Collections.Generic;
 using System.IO;
 using System.Diagnostics;
@@ -9,12 +8,53 @@ using GT.Utils;
 
 namespace GT.Net
 {
+
+    /// <summary>
+    /// Class responsible for connecting (and negotiating) a connection to a
+    /// remote server using UDP.
+    /// </summary>
+    /// <remarks>
+    /// The use of <see cref="TransportFactory{T}"/> may seem to be a bit complicated,
+    /// but it greatly simplifies testing.
+    /// </remarks>
     public class UdpConnector : IConnector
     {
         protected bool active = false;
+        protected TransportFactory<UdpClient> factory;
+
+        /// <summary>
+        /// The default constructor is for an unordered, unsequenced UDP
+        /// </summary>
+        public UdpConnector() : this(Ordering.Unordered) {}
+
+        public UdpConnector(Ordering ordering)
+        {
+            switch (ordering)
+            {
+                case Ordering.Unordered:
+                    factory = new TransportFactory<UdpClient>(
+                        BaseUdpTransport.UnorderedProtocolDescriptor,
+                        h => new UdpClientTransport(h),
+                        t => t is UdpClientTransport);
+                    return;
+                case Ordering.Sequenced:
+                    factory = new TransportFactory<UdpClient>(
+                        BaseUdpTransport.SequencedProtocolDescriptor,
+                        h => new UdpSequencedClientTransport(h),
+                        t => t is UdpSequencedClientTransport);
+                    return;
+                default: throw new InvalidOperationException("Unsupported ordering type: " + ordering);
+            }
+        }
+
+        public UdpConnector(TransportFactory<UdpClient> factory)
+        {
+            this.factory = factory;
+        }
+
         public byte[] ProtocolDescriptor
         {
-            get { return ASCIIEncoding.ASCII.GetBytes("GT10"); }
+            get { return factory.ProtocolDescriptor; }
         }
 
         public void Start() { active = true; }
@@ -58,7 +98,7 @@ namespace GT.Net
             // to talk to us then they'll close the connexion.
 
             // This is the GT (UDP) protocol 1.0:
-            // bytes 0 - 3: the protocol version (ASCII for "GT10")
+            // bytes 0 - 3: the protocol version (the result from ProtocolDescriptor)
             // bytes 4 - n: the number of bytes in the capability dictionary (see ByteUtils.EncodeLength)
             // bytes n+1 - end: the capability dictionary
             MemoryStream ms = new MemoryStream(4 + 60); // approx: 4 bytes for protocol, 50 for capabilities
@@ -68,13 +108,13 @@ namespace GT.Net
             ByteUtils.EncodeDictionary(capabilities, ms);
             client.Client.Send(ms.GetBuffer(), 0, (int)ms.Length, SocketFlags.None);
 
-            Console.WriteLine("Now connected to UDP: " + endPoint.ToString());
-            return new UdpClientTransport(client);
+            Console.WriteLine("Now connected to UDP: " + endPoint);
+            return factory.CreateTransport(client);
         }
 
         public bool Responsible(ITransport transport)
         {
-            return transport is UdpClientTransport;
+            return factory.Responsible(transport);
         }
 
 

@@ -65,7 +65,7 @@
     <Compile Include="SimpleSharedDictionary.cs" />
     <Compile Include="TupleStream.cs" />
     <Compile Include="UdpConnector.cs" />
-    <Compile Include="UdpTransport.cs" />
+    <Compile Include="UdpClientTransports.cs" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\GTBase\GTBase.csproj">

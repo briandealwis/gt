@@ -168,14 +168,13 @@ namespace GT.Net
         /// <summary>The packet payload.</summary>
         public byte[] data;
 
-        public int position;
-        public int bytesRemaining;
+        public uint position;
+        public uint bytesRemaining;
 
         /// <summary>
         /// Construct a Packet-in-Progress for reading in a packet.
         /// </summary>
-        /// <param name="headerSize"></param>
-        public PacketInProgress(int size, bool isHeader)
+        public PacketInProgress(uint size, bool isHeader)
         {
             data = new byte[size];
             this.isHeader = isHeader;
@@ -186,13 +185,12 @@ namespace GT.Net
         /// <summary>
         /// Construct a Packet-in-Progress for sending a packet.
         /// </summary>
-        /// <param name="headerSize"></param>
         public PacketInProgress(byte[] packet)
         {
             data = packet;
             this.isHeader = false;
             this.position = 0;
-            this.bytesRemaining = packet.Length;
+            this.bytesRemaining = (uint)packet.Length;
         }
 
 
@@ -206,14 +204,14 @@ namespace GT.Net
             return isHeader;
         }
 
-        public void Advance(int increment)
+        public void Advance(uint increment)
         {
             Debug.Assert(increment > 0);
             position += increment;
             bytesRemaining -= increment;
         }
 
-        public int Length { get { return data.Length; } }
+        public uint Length { get { return (uint)data.Length; } }
     }
 
     #endregion

@@ -1,4 +1,5 @@
 using System;
+using System.Diagnostics;
 using System.Threading;
 using System.Collections.Generic;
 using System.IO;
@@ -261,15 +262,15 @@ namespace GT.UnitTests
             connector = conn;
 
             acceptor.Start();
-            acceptor.NewClientEvent += new NewClientHandler(SetupServer);
-            acceptorThread = new Thread(new ThreadStart(RunAcceptor));
+            acceptor.NewClientEvent += SetupServer;
+            acceptorThread = new Thread(RunAcceptor);
             acceptorThread.Name = "Acceptor";
             acceptorThread.IsBackground = true;
             acceptorThread.Start();
 
             client = connector.Connect(address, port, new Dictionary<string, string>());
             Assert.IsNotNull(client);
-            client.PacketReceivedEvent += new PacketHandler(ClientReceivedPacket);
+            client.PacketReceivedEvent += ClientReceivedPacket;
 
             for (int i = 0; i < 10; i++)
             {
@@ -315,5 +316,160 @@ namespace GT.UnitTests
             Console.Write("\nTesting Local Transport: ");
             TestTransport(new LocalAcceptor("127.0.0.1:9999"), new LocalConnector(), "127.0.0.1", "9999");
         }
+
+        [Test]
+        public void TestSequencedUdpTransport()
+        {
+            Console.Write("\nTesting Sequenced UDP Transport: ");
+            TestTransport(new UdpAcceptor(IPAddress.Any, port, Ordering.Sequenced), 
+                new UdpConnector(Ordering.Sequenced), "127.0.0.1", port.ToString());
+        }
     }
+
+    [TestFixture]
+    public class TestSequencedUdpTransport
+    {
+        IAcceptor acceptor;
+        IConnector connector;
+        UdpSequencedServerTestTransport serverTransport = null;
+        UdpSequencedClientTestTransport clientTransport = null;
+
+        [SetUp]
+        public void SetUp() {
+            acceptor = new UdpAcceptor(IPAddress.Any, 8765,
+                new TransportFactory<UdpHandle>(BaseUdpTransport.SequencedProtocolDescriptor,
+                    h => new UdpSequencedServerTestTransport(h),
+                    t => t is UdpSequencedServerTestTransport));
+            connector = new UdpConnector(  
+                new TransportFactory<UdpClient>(BaseUdpTransport.SequencedProtocolDescriptor,
+                    h => new UdpSequencedClientTestTransport(h),
+                    t => t is UdpSequencedClientTestTransport));
+
+            acceptor.NewClientEvent += delegate(ITransport transport, Dictionary<string, string> capabilities)
+            {
+                serverTransport = (UdpSequencedServerTestTransport)transport;
+            };
+            acceptor.Start();
+
+            clientTransport = (UdpSequencedClientTestTransport)connector.Connect("127.0.0.1", "8765", new Dictionary<string, string>());
+            Assert.IsNotNull(clientTransport);
+            for (int i = 0; i < 10; i++) 
+            {
+                acceptor.Update();
+                Thread.Sleep(100);
+            }
+            Assert.IsNotNull(serverTransport);
+        }
+
+        [TearDown]
+        public void TearDown() 
+        {
+            acceptor.Dispose();
+            connector.Dispose();
+            serverTransport.Dispose();
+            clientTransport.Dispose();
+        }
+
+        protected void DoUpdates()
+        {
+            for(int i = 0; i < 50; i++)
+            {
+                clientTransport.Update();
+                serverTransport.Update();
+                Thread.Sleep(10);
+            }
+        }
+
+        [Test]
+        public void TestClientTransport()
+        {
+            bool packetReceived = false;
+            clientTransport.PacketReceivedEvent += delegate(byte[] buffer, int offset, int count, ITransport transport) { 
+                packetReceived = true;
+            };
+
+            clientTransport.Inject(0, new byte[0]);
+            Assert.IsTrue(packetReceived);
+
+            packetReceived = false;
+            clientTransport.Inject(0, new byte[0]);
+            Assert.IsFalse(packetReceived);
+
+            packetReceived = false;
+            clientTransport.Inject(1, new byte[0]);
+            Assert.IsTrue(packetReceived);
+
+            packetReceived = false;
+            clientTransport.Inject(0, new byte[0]);
+            Assert.IsFalse(packetReceived);
+            clientTransport.Inject(1, new byte[0]);
+            Assert.IsFalse(packetReceived);
+            clientTransport.Inject(2, new byte[0]);
+            Assert.IsTrue(packetReceived);
+        }
+
+        [Test]
+        public void TestServerTransport()
+        {
+            bool packetReceived = false;
+            serverTransport.PacketReceivedEvent += delegate(byte[] buffer, int offset, int count, ITransport transport)
+            {
+                packetReceived = true;
+            };
+
+            serverTransport.Inject(0, new byte[0]);
+            Assert.IsTrue(packetReceived);
+
+            packetReceived = false;
+            serverTransport.Inject(0, new byte[0]);
+            Assert.IsFalse(packetReceived);
+
+            packetReceived = false;
+            serverTransport.Inject(1, new byte[0]);
+            Assert.IsTrue(packetReceived);
+
+            packetReceived = false;
+            serverTransport.Inject(0, new byte[0]);
+            Assert.IsFalse(packetReceived);
+            serverTransport.Inject(1, new byte[0]);
+            Assert.IsFalse(packetReceived);
+            serverTransport.Inject(2, new byte[0]);
+            Assert.IsTrue(packetReceived);
+        }
+
+        public class UdpSequencedServerTestTransport : UdpSequencedServerTransport
+        {
+            public UdpSequencedServerTestTransport(UdpHandle h) : base(h)
+            {
+            }
+
+            public void Inject(uint seqNo, byte[] payload)
+            {
+                Debug.Assert(PacketHeaderSize == 4);
+                byte[] datagram = new byte[PacketHeaderSize + payload.Length];
+                BitConverter.GetBytes(seqNo).CopyTo(datagram, 0);
+                payload.CopyTo(datagram, PacketHeaderSize);
+                NotifyPacketReceived(datagram, (int)PacketHeaderSize, payload.Length);
+            }
+        }
+
+        public class UdpSequencedClientTestTransport : UdpSequencedClientTransport
+        {
+            public UdpSequencedClientTestTransport(UdpClient h)
+                : base(h)
+            {
+            }
+
+            public void Inject(uint seqNo, byte[] payload)
+            {
+                Debug.Assert(PacketHeaderSize == 4);
+                byte[] datagram = new byte[PacketHeaderSize + payload.Length];
+                BitConverter.GetBytes(seqNo).CopyTo(datagram, 0);
+                payload.CopyTo(datagram, PacketHeaderSize);
+                NotifyPacketReceived(datagram, (int)PacketHeaderSize, payload.Length);
+            }
+        }
+
+    }
+
 }

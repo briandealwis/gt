@@ -132,7 +132,7 @@ namespace GT.Net
             : this(port)
         {
             Debug.Assert(pingInterval > 0);
-            this.pingInterval = TimeSpan.FromMilliseconds(pingInterval);
+            this.PingInterval = TimeSpan.FromMilliseconds(pingInterval);
         }
 
         /// <summary>
@@ -441,6 +441,7 @@ namespace GT.Net
             {
                 DebugUtils.WriteLine("{0}: for client {1} via {2}", this, clientId, t);
             }
+            t = Configuration.ConfigureTransport(t);
             c.AddTransport(t);
         }
 

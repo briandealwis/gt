@@ -12,7 +12,8 @@ namespace GT.Net
 {
     /// <summary>
     /// The client varient of <see cref="BaseUdpTransport"/>.  This
-    /// varient uses a dedicated UDP socket.
+    /// varient uses a dedicated UDP socket.  This implementation uses
+    /// the raw UDP protocol with no ordering or reliability enhancements.
     /// </summary>
     public class UdpClientTransport : BaseUdpTransport
     {
@@ -25,7 +26,20 @@ namespace GT.Net
         /// Create a new instance on the provided socket.
         /// </summary>
         /// <param name="udpc">the UDP socket to use</param>
-        public UdpClientTransport(UdpClient udpc) {
+        public UdpClientTransport(UdpClient udpc) 
+            : base(0)   // GT UDP 1.0 doesn't need a packet length
+        {
+            udpClient = udpc;
+        }
+
+        /// <summary>
+        /// Constructor provided for subclasses that may have a different PacketHeaderSize
+        /// </summary>
+        /// <param name="packetHeaderSize"></param>
+        /// <param name="udpc"></param>
+        protected UdpClientTransport(uint packetHeaderSize, UdpClient udpc)
+            : base(packetHeaderSize)
+        {
             udpClient = udpc;
         }
 
@@ -70,8 +84,7 @@ namespace GT.Net
                         b = outstanding.Peek();
                         ContractViolation.Assert(b.Length > 0, "Cannot send 0-byte messages!");
                         ContractViolation.Assert(b.Length - PacketHeaderSize <= MaximumPacketSize,
-                            String.Format(
-                                "Packet exceeds transport capacity: {0} > {1}",
+                            String.Format("Packet exceeds transport capacity: {0} > {1}",
                                 b.Length - PacketHeaderSize, MaximumPacketSize));
 
                         udpClient.Client.Send(b, 0, b.Length, SocketFlags.None, out error);
@@ -80,11 +93,9 @@ namespace GT.Net
                         {
                         case SocketError.Success:
                             outstanding.Dequeue();
-                            NotifyPacketSent(b, 0, b.Length);
+                            NotifyPacketSent(b, (int)PacketHeaderSize, b.Length);
                             break;
                         case SocketError.WouldBlock:
-                            //don't die, but try again next time
-                            // FIXME: This should not be an error!
                             // FIXME: Does UDP ever cause a WouldBlock?
                             //NotifyError(null, error, "The UDP write buffer is full now, but the data will be saved and " +
                             //        "sent soon.  Send less data to reduce perceived latency.");
@@ -104,14 +115,10 @@ namespace GT.Net
 
         protected override void CheckIncomingPackets()
         {
-            byte[] packet;
-            while ((packet = FetchIncomingPacket()) != null)
-            {
-                NotifyPacketReceived(packet, 0, packet.Length);
-            }
+            while (FetchIncomingPacket()) { /* do nothing */ }
         }
 
-        virtual protected byte[] FetchIncomingPacket()
+        virtual protected bool FetchIncomingPacket()
         {
             lock (this)
             {
@@ -125,7 +132,9 @@ namespace GT.Net
 
                         DebugUtils.DumpMessage(this + ": Update()", buffer);
                         Debug.Assert(ep.Equals(udpClient.Client.RemoteEndPoint));
-                        return buffer;
+                        NotifyPacketReceived(buffer, (int)PacketHeaderSize, 
+                            (int)(buffer.Length - PacketHeaderSize));
+                        return true;
                     }
                 }
                 catch (SocketException e)
@@ -136,13 +145,61 @@ namespace GT.Net
                     }
                 }
             }
-            return null;
+            return false;
         }
 
         public override int MaximumPacketSize
         {
             get { return CappedMessageSize; }
         }
-
     }
+
+    /// <summary>
+    /// This UDP client implementation adds sequencing capabilities to the
+    /// the raw UDP protocol to ensure that packets are received in-order,
+    /// but with no guarantee on the reliability of packet delivery.
+    /// </summary>
+    public class UdpSequencedClientTransport : UdpClientTransport 
+    {
+        public override Ordering Ordering { get { return Ordering.Sequenced; } }
+
+        /// <summary>
+        /// The sequence number expected for the next packet received.
+        /// </summary>
+        protected uint nextIncomingPacketSeq = 0;
+
+        /// <summary>
+        /// The sequence number for the next outgoing packet.
+        /// </summary>
+        protected uint nextOutgoingPacketSeq = 0;
+
+        public UdpSequencedClientTransport(UdpClient udpc)
+            : base(4, udpc) // we use the first four bytes to encode the sequence 
+        {
+        }
+
+        protected override void NotifyPacketReceived(byte[] buffer, int offset, int count)
+        {
+            Debug.Assert(offset == PacketHeaderSize, "datagram doesn't include packet header!");
+            if (buffer.Length < 4)
+            {
+                throw new TransportError(this,
+                    "should not receive c whose size is less than 4 bytes", buffer);
+            }
+            uint packetSeq = BitConverter.ToUInt32(buffer, 0);
+            // FIXME: we don't handle wrap-around!
+            if (packetSeq < nextIncomingPacketSeq) { return; }
+            nextIncomingPacketSeq = packetSeq + 1;
+
+            // pass it on
+            base.NotifyPacketReceived(buffer, offset, count);
+        }
+
+
+        protected override void WritePacketHeader(byte[] buffer, uint packetLength)
+        {
+            BitConverter.GetBytes(nextOutgoingPacketSeq++).CopyTo(buffer, 0);
+        }
+    }
+
 }

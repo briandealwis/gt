@@ -2,12 +2,18 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Diagnostics;
+using System.Text;
 using GT.Utils;
 
 namespace GT.Net
 {
     public abstract class BaseUdpTransport : BaseTransport
     {
+        // Ordering.Unordered => GT10 is a historical value and must not change
+        public static readonly byte[] UnorderedProtocolDescriptor = Encoding.ASCII.GetBytes("GT10");
+        public static readonly byte[] SequencedProtocolDescriptor = Encoding.ASCII.GetBytes("GS10");
+        public static readonly byte[] OrderedProtocolDescriptor = Encoding.ASCII.GetBytes("GO10");
+
         /// <summary>
         /// Allow setting a cap on the maximum UDP message size
         /// as compared to the OS value normally used.
@@ -22,9 +28,9 @@ namespace GT.Net
         public override Reliability Reliability { get { return Reliability.Unreliable; } }
         public override Ordering Ordering { get { return Ordering.Unordered; } }
 
-        public BaseUdpTransport()
+        public BaseUdpTransport(uint packetHeaderSize) 
+            : base(packetHeaderSize)
         {
-            PacketHeaderSize = 0;   // GT UDP 1.0 doesn't need a packet length
             outstanding = new Queue<byte[]>();
         }
 
@@ -47,17 +53,18 @@ namespace GT.Net
         {
             InvalidStateException.Assert(Active, "Cannot send on disposed transport", this);
             ContractViolation.Assert(length > 0, "Cannot send 0-byte messages!");
-            ContractViolation.Assert(length <= MaximumPacketSize, String.Format(
-                    "Packet exceeds transport capacity: {0} > {1}", length, MaximumPacketSize));
+            ContractViolation.Assert(length - PacketHeaderSize <= MaximumPacketSize,
+                String.Format("Packet exceeds transport capacity: {0} > {1}",
+                    length - PacketHeaderSize, MaximumPacketSize));
 
-            DebugUtils.DumpMessage(this + "SendPacket", buffer);
-            if (offset != 0 || length != buffer.Length)
+            if (PacketHeaderSize > 0 || offset != 0 || length != buffer.Length)
             {
                 // FIXME: should encode an object rather than copying
-                byte[] newBuffer = new byte[length];
-                Array.Copy(buffer, offset, newBuffer, 0, length);
+                byte[] newBuffer = new byte[PacketHeaderSize + length];
+                Array.Copy(buffer, offset, newBuffer, PacketHeaderSize, length);
                 buffer = newBuffer;
             }
+            WritePacketHeader(buffer, (uint)length);
             lock (this)
             {
                 outstanding.Enqueue(buffer);
@@ -67,24 +74,36 @@ namespace GT.Net
 
 
         /// <summary>Send a message to server.</summary>
-        /// <param name="buffer">The message to send.</param>
+        /// <param name="ms">The message to send.</param>
         public override void SendPacket(Stream ms)
         {
             InvalidStateException.Assert(Active, "Cannot send on disposed transport", this);
             ContractViolation.Assert(ms.Length > 0, "Cannot send 0-byte messages!");
-            ContractViolation.Assert(ms.Length - PacketHeaderSize <= MaximumPacketSize, String.Format(
-                    "Packet exceeds transport capacity: {0} > {1}", ms.Length - PacketHeaderSize, MaximumPacketSize));
-            if (!(ms is MemoryStream))
-            {
-                throw new ArgumentException("Transport provided different stream!");
-            }
+            ContractViolation.Assert(ms.Length - PacketHeaderSize <= MaximumPacketSize, 
+                String.Format("Packet exceeds transport capacity: {0} > {1}", 
+                    ms.Length - PacketHeaderSize, MaximumPacketSize));
+            CheckValidPacketStream(ms);
+
+            // we inherit GetPacketStream() which uses a MemoryStream, and the typing
+            // is checked by CheckValidStream()
             MemoryStream output = (MemoryStream)ms;
+            byte[] buffer = output.ToArray();
+            WritePacketHeader(buffer, (uint)(ms.Length - PacketHeaderSize));
             lock (this)
             {
-                outstanding.Enqueue(output.ToArray());
+                outstanding.Enqueue(buffer);
             }
             FlushOutstandingPackets();
         }
 
+        /// <summary>
+        /// Provide an opportunity to subclasses to write out the packet header
+        /// </summary>
+        /// <param name="buffer"></param>
+        /// <param name="packetLength"></param>
+        protected virtual void WritePacketHeader(byte[] buffer, uint packetLength)
+        {
+            // do nothing
+        }
     }
 }

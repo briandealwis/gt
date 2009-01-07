@@ -3,6 +3,7 @@ using System.Diagnostics;
 using System.Collections.Generic;
 using System.IO;
 using System.Net.Sockets;
+using System.Text;
 using GT.Utils;
 
 namespace GT.Net
@@ -68,6 +69,9 @@ namespace GT.Net
         /// <exception cref="TransportError">thrown on a fatal transport error.</exception>
         void Update();
 
+        /// <summary>
+        /// The maximum packet size supported by this transport instance (in bytes).
+        /// </summary>
         int MaximumPacketSize { get; }
     }
 
@@ -79,6 +83,14 @@ namespace GT.Net
         public abstract string Name { get; }
         public abstract uint Backlog { get; }
         public abstract bool Active { get; }
+
+        protected readonly uint PacketHeaderSize;
+        protected uint AveragePacketSize = 64; // guestimate on avg packet size
+
+        protected BaseTransport(uint packetHeaderSize)
+        {
+            PacketHeaderSize = packetHeaderSize;
+        }
 
         virtual public void Dispose() { /* empty implementation */ }
 
@@ -114,19 +126,43 @@ namespace GT.Net
         public abstract void SendPacket(byte[] packet, int offset, int count);
         public abstract void SendPacket(Stream packetStream);
 
-        protected int PacketHeaderSize = 0;
-        protected int AveragePacketSize = 64; // guestimate on avg packet size
-
+        // Must be kept in sync with CheckValidPacketStream()
         virtual public Stream GetPacketStream()
         {
-            MemoryStream ms = new MemoryStream(PacketHeaderSize + AveragePacketSize);
-            ms.Write(new byte[PacketHeaderSize], 0, PacketHeaderSize);
+            MemoryStream ms = new MemoryStream((int)(PacketHeaderSize + AveragePacketSize));
+
+            // Encode a known byte pattern to verify that is same stream provided to SendPacket.
+            byte[] name = Encoding.UTF8.GetBytes(Name);
+            for (int i = 0; i < PacketHeaderSize; i++)
+            {
+                ms.WriteByte(name[i % name.Length]);
+            }
+
+            Debug.Assert(ms.Position == PacketHeaderSize);
             return ms;
+        }
+
+        /// <summary>
+        /// Check that this stream is a stream as obtained from <see cref="GetPacketStream"/>.
+        /// </summary>
+        /// <param name="stream">the stream to check</param>
+        protected virtual void CheckValidPacketStream(Stream stream)
+        {
+            ContractViolation.Assert(stream is MemoryStream, "stream should be a MemoryStream");
+            // Encode a known byte pattern to verify that is same stream provided to SendPacket.
+            byte[] name = Encoding.UTF8.GetBytes(Name);
+            long savedPosition = stream.Position;
+            stream.Position = 0;
+            for (int i = 0; i < PacketHeaderSize; i++)
+            {
+                ContractViolation.Assert(stream.ReadByte() == name[i % name.Length], "Stream header appears to have been overwritten");
+            }
+            stream.Position = savedPosition;
         }
 
         public abstract void Update();
 
-        protected void NotifyPacketReceived(byte[] buffer, int offset, int count)
+        protected virtual void NotifyPacketReceived(byte[] buffer, int offset, int count)
         {
             // DebugUtils.DumpMessage(this.ToString() + " notifying of received message", buffer, offset, count);
             if (PacketReceivedEvent == null)
@@ -137,7 +173,7 @@ namespace GT.Net
             PacketReceivedEvent(buffer, offset, count, this);
         }
 
-        protected void NotifyPacketSent(byte[] buffer, int offset, int count)
+        protected virtual void NotifyPacketSent(byte[] buffer, int offset, int count)
         {
             if (PacketSentEvent == null) { return; }
             PacketSentEvent(buffer, offset, count, this);

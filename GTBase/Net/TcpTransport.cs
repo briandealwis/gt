@@ -28,8 +28,8 @@ namespace GT.Net
         private PacketInProgress outgoingInProgress;
 
         public TcpTransport(TcpClient h)
+            : base(4)   // GT TCP 1.0 protocol has 4 bytes for packet length
         {
-            PacketHeaderSize = 4;   // GT TCP 1.0 protocol has 4 bytes for packet length
             h.NoDelay = true;
             h.Client.Blocking = false;
             handle = h;
@@ -88,13 +88,14 @@ namespace GT.Net
         {
             InvalidStateException.Assert(Active, "Cannot send on disposed transport", this);
             ContractViolation.Assert(length > 0, "Cannot send 0-byte messages!");
-            ContractViolation.Assert(length - PacketHeaderSize <= MaximumPacketSize, String.Format(
-                    "Packet exceeds transport capacity: {0} > {1}", length - PacketHeaderSize, MaximumPacketSize));
+            ContractViolation.Assert(length - PacketHeaderSize <= MaximumPacketSize, 
+                String.Format("Packet exceeds transport capacity: {0} > {1}", 
+                    length - PacketHeaderSize, MaximumPacketSize));
 
-            DebugUtils.DumpMessage(this + "SendPacket", buffer, offset, length);
+            //DebugUtils.DumpMessage(this + "SendPacket", buffer, offset, length);
             Debug.Assert(PacketHeaderSize > 0);
             byte[] wireFormat = new byte[length + PacketHeaderSize];
-            BitConverter.GetBytes(length).CopyTo(wireFormat, 0);
+            BitConverter.GetBytes((uint)length).CopyTo(wireFormat, 0);
             Array.Copy(buffer, offset, wireFormat, PacketHeaderSize, length);
 
             lock (this)
@@ -105,24 +106,24 @@ namespace GT.Net
         }
 
         /// <summary>Send a message to server.</summary>
-        /// <param name="buffer">The message to send.</param>
+        /// <param name="output">The message to send.</param>
         public override void SendPacket(Stream output)
         {
             InvalidStateException.Assert(Active, "Cannot send on disposed transport", this);
-            Debug.Assert(PacketHeaderSize > 0);
+            Debug.Assert(PacketHeaderSize > 0, "TcpTransport always has a non-zero sized header");
             ContractViolation.Assert(output.Length > 0, "Cannot send 0-byte messages!");
-            ContractViolation.Assert(output.Length - PacketHeaderSize <= MaximumPacketSize, String.Format(
-                    "Packet exceeds transport capacity: {0} > {1}", output.Length - PacketHeaderSize, MaximumPacketSize));
-            if (!(output is MemoryStream))  // could check header bytes that it's the one we provided
-            {
-                throw new ArgumentException("Transport provided different stream!");
-            }
+            ContractViolation.Assert(output.Length - PacketHeaderSize <= MaximumPacketSize, 
+                String.Format("Packet exceeds transport capacity: {0} > {1}", 
+                    output.Length - PacketHeaderSize, MaximumPacketSize));
+            CheckValidPacketStream(output);
 
+            // we inherit GetPacketStream() which uses a MemoryStream, and the typing
+            // is checked by CheckValidStream()
             MemoryStream ms = (MemoryStream)output;
-            DebugUtils.DumpMessage(this + ": SendPacket(stream)", ms.ToArray(), PacketHeaderSize,
-                (int)(ms.Length - PacketHeaderSize));
+            //DebugUtils.DumpMessage(this + ": SendPacket(stream)", ms.ToArray(), PacketHeaderSize,
+            //    (int)(ms.Length - PacketHeaderSize));
             ms.Position = 0;
-            byte[] lb = BitConverter.GetBytes((int)(ms.Length - PacketHeaderSize));
+            byte[] lb = BitConverter.GetBytes((uint)(ms.Length - PacketHeaderSize));
             Debug.Assert(lb.Length == 4);
             ms.Write(lb, 0, lb.Length);
 
@@ -148,15 +149,15 @@ namespace GT.Net
                         Debug.Assert(outgoingInProgress.Length > 0);
                     }
                     int bytesSent = handle.Client.Send(outgoingInProgress.data,
-                        outgoingInProgress.position,
-                        outgoingInProgress.bytesRemaining, SocketFlags.None, out error);
+                        (int)outgoingInProgress.position,
+                        (int)outgoingInProgress.bytesRemaining, SocketFlags.None, out error);
                     //DebugUtils.WriteLine("{0}: position={1} bR={2}: sent {3}", Name, 
                     //    outgoingInProgress.position, outgoingInProgress.bytesRemaining, bytesSent);
 
                     switch (error)
                     {
                     case SocketError.Success:
-                        outgoingInProgress.Advance(bytesSent);
+                        outgoingInProgress.Advance((uint)bytesSent);
                         if (outgoingInProgress.bytesRemaining <= 0)
                         {
                             outstanding.Dequeue();
@@ -217,8 +218,8 @@ namespace GT.Net
                     }
 
                     int bytesReceived = handle.Client.Receive(incomingInProgress.data,
-                        incomingInProgress.position,
-                        incomingInProgress.bytesRemaining, SocketFlags.None, out error);
+                        (int)incomingInProgress.position,
+                        (int)incomingInProgress.bytesRemaining, SocketFlags.None, out error);
                     switch (error)
                     {
                     case SocketError.Success:
@@ -239,12 +240,12 @@ namespace GT.Net
                             SocketError.Disconnecting);
                     }
 
-                    incomingInProgress.Advance(bytesReceived);
+                    incomingInProgress.Advance((uint)bytesReceived);
                     if (incomingInProgress.bytesRemaining == 0)
                     {
                         if (incomingInProgress.IsMessageHeader())
                         {
-                            int payloadLength = BitConverter.ToInt32(incomingInProgress.data, 0);
+                            uint payloadLength = BitConverter.ToUInt32(incomingInProgress.data, 0);
                             if (payloadLength <= 0)
                             {
                                 Console.WriteLine(

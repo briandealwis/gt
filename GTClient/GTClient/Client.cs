@@ -568,6 +568,7 @@ namespace GT.Net
                 // the Address/Port?  E.g., what if we have an SMTP transport?
                 try {
                     ITransport t = conn.Connect(Address, Port, owner.Capabilities);
+                    t = owner.Configuration.ConfigureTransport(t);
                     AddTransport(t);
                 }
                 catch(CannotConnectException e)

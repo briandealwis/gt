@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using System.IO;
+using System.Net.Mime;
 using System.Net.Sockets;
 using System;
 using System.Net;
@@ -13,7 +14,24 @@ namespace GT.Net
     {
         private UdpHandle handle;
 
+        /// <summary>
+        /// Create a new instance on the provided socket.
+        /// </summary>
+        /// <param name="h">the UDP handle to use</param>
         public UdpServerTransport(UdpHandle h)
+            : base(0)   // GT UDP 1.0 doesn't need a packet length
+        {
+            handle = h;
+        }
+
+    
+        /// <summary>
+        /// Constructor provided for subclasses that may have a different PacketHeaderSize
+        /// </summary>
+        /// <param name="packetHeaderSize"></param>
+        /// <param name="h"></param>
+        protected UdpServerTransport(uint packetHeaderSize, UdpHandle h)
+            : base(packetHeaderSize)
         {
             handle = h;
         }
@@ -83,14 +101,10 @@ namespace GT.Net
 
         protected override void CheckIncomingPackets()
         {
-            byte[] packet;
-            while ((packet = FetchIncomingPacket()) != null)
-            {
-                NotifyPacketReceived(packet, 0, packet.Length);
-            }
+            while (FetchIncomingPacket()) { /* do nothing */ }
         }
 
-        virtual protected byte[] FetchIncomingPacket()
+        virtual protected bool FetchIncomingPacket()
         {
             lock (this)
             {
@@ -99,9 +113,11 @@ namespace GT.Net
                     //while there are more packets to read
                     while (handle.Available > 0)
                     {
-                        //get a packet
+                        // get a packet
                         byte[] buffer = handle.Receive();
-                        return buffer;
+                        NotifyPacketReceived(buffer, (int)PacketHeaderSize, 
+                            (int)(buffer.Length - PacketHeaderSize));
+                        return true;
                     }
                 }
                 catch (SocketException e)
@@ -114,7 +130,7 @@ namespace GT.Net
                     }
                 }
             }
-            return null;
+            return false;
         }
 
         public override string ToString()
@@ -131,14 +147,116 @@ namespace GT.Net
         }
     }
 
+    /// <summary>
+    /// This UDP client implementation adds sequencing capabilities to the
+    /// the raw UDP protocol to ensure that packets are received in-order,
+    /// but with no guarantee on the reliability of packet delivery.
+    /// </summary>
+    public class UdpSequencedServerTransport : UdpServerTransport
+    {
+        public override Ordering Ordering { get { return Ordering.Sequenced; } }
+
+        /// <summary>
+        /// The sequence number expected for the next packet received.
+        /// </summary>
+        protected uint nextIncomingPacketSeq = 0;
+
+        /// <summary>
+        /// The sequence number for the next outgoing packet.
+        /// </summary>
+        protected uint nextOutgoingPacketSeq = 0;
+
+        public UdpSequencedServerTransport(UdpHandle h)
+            : base(4, h) // we use the first four bytes to encode the sequence 
+        {
+        }
+
+        protected override void NotifyPacketReceived(byte[] buffer, int offset, int count)
+        {
+            Debug.Assert(offset == PacketHeaderSize, "datagram doesn't include packet header!");
+            if (buffer.Length < 4)
+            {
+                throw new TransportError(this,
+                    "should not receive datagrams whose size is less than 4 bytes", buffer);
+            }
+            uint packetSeq = BitConverter.ToUInt32(buffer, 0);
+            // FIXME: we don't handle wrap-around!
+            if (packetSeq < nextIncomingPacketSeq) { return; }
+            nextIncomingPacketSeq = packetSeq + 1;
+
+            // pass it on
+            base.NotifyPacketReceived(buffer, offset, count);
+        }
+
+        protected override void WritePacketHeader(byte[] buffer, uint packetLength)
+        {
+            BitConverter.GetBytes(nextOutgoingPacketSeq++).CopyTo(buffer, 0);
+        }
+    }
+
+    /// <summary>
+    /// An acceptor for incoming UDP connections.
+    /// </summary>
+    /// <remarks>
+    /// The use of <see cref="TransportFactory{T}"/> may seem to be a bit complicated,
+    /// but it greatly simplifies testing.
+    /// </remarks>
     public class UdpAcceptor : BaseAcceptor
     {
+        protected TransportFactory<UdpHandle> factory;
         internal protected UdpMultiplexer udpMultiplexer;
-        protected byte[] protocolDescriptor = ASCIIEncoding.ASCII.GetBytes("GT10");
 
+        /// <summary>
+        /// Create an acceptor to accept incoming UDP connections, with no guarantees
+        /// on ordering or reliability
+        /// </summary>
+        /// <param name="address">the local address on which to wait; usually
+        ///     <see cref="IPAddress.Any"/></param>
+        /// <param name="port">the local port on which to wait</param>
         public UdpAcceptor(IPAddress address, int port)
+            : this(address, port, Ordering.Unordered) {}
+
+        /// <summary>
+        /// Create an acceptor to accept incoming UDP connections satisfying the
+        /// given ordering requirements.
+        /// </summary>
+        /// <param name="address">the local address on which to wait; usually
+        ///     <see cref="IPAddress.Any"/></param>
+        /// <param name="port">the local port on which to wait</param>
+        /// <param name="ordering">the expected ordering to support</param>
+        public UdpAcceptor(IPAddress address, int port, Ordering ordering)
             : base(address, port)
         {
+            switch (ordering)
+            {
+                case Ordering.Unordered:
+                    factory = new TransportFactory<UdpHandle>(
+                        BaseUdpTransport.UnorderedProtocolDescriptor,
+                        h => new UdpServerTransport(h),
+                        t => t is UdpServerTransport);
+                    return;
+                case Ordering.Sequenced:
+                    factory = new TransportFactory<UdpHandle>(
+                        BaseUdpTransport.SequencedProtocolDescriptor,
+                        h => new UdpSequencedServerTransport(h),
+                        t => t is UdpSequencedServerTransport);
+                    return;
+                default: throw new InvalidOperationException("Unsupported ordering type: " + ordering);
+            }
+        }
+
+        /// <summary>
+        /// A constructor more intended for testing purposes
+        /// </summary>
+        /// <param name="address">the local address on which to wait; usually
+        ///     <see cref="IPAddress.Any"/></param>
+        /// <param name="port">the local port on which to wait</param>
+        /// <param name="factory">the factory responsible for creating an appropriate
+        ///     <see cref="ITransport"/> instance</param>
+        public UdpAcceptor(IPAddress address, int port, TransportFactory<UdpHandle> factory)
+            : base(address, port)
+        {
+            this.factory = factory;
         }
 
         #region IStartable
@@ -190,14 +308,14 @@ namespace GT.Net
 
         public byte[] ProtocolDescriptor
         {
-            get { return protocolDescriptor; }
+            get { return factory.ProtocolDescriptor; }
         }
 
         public void PreviouslyUnseenUdpEndpoint(EndPoint ep, byte[] packet)
         {
             MemoryStream ms = null;
             // Console.WriteLine(this + ": Incoming unaddressed packet from " + ep);
-            if (packet.Length < 4)
+            if (packet.Length < ProtocolDescriptor.Length)
             {
                 Console.WriteLine(DateTime.Now + " " + this + ": Undecipherable packet");
                 ms = new MemoryStream();
@@ -210,7 +328,7 @@ namespace GT.Net
                 return;
             }
 
-            if (!ByteUtils.Compare(packet, 0, ProtocolDescriptor, 0, 4))
+            if (!ByteUtils.Compare(packet, 0, ProtocolDescriptor, 0, ProtocolDescriptor.Length))
             {
                 Console.WriteLine(DateTime.Now + " " + this + ": Unknown protocol version: "
                     + ByteUtils.DumpBytes(packet, 0, 4) + " [" 
@@ -225,7 +343,7 @@ namespace GT.Net
                 return;
             }
 
-            ms = new MemoryStream(packet, 4, packet.Length - 4);
+            ms = new MemoryStream(packet, ProtocolDescriptor.Length, packet.Length - ProtocolDescriptor.Length);
             Dictionary<string, string> dict = null;
             try
             {
@@ -241,7 +359,7 @@ namespace GT.Net
                         ByteUtils.AsPrintable(rest, 0, rest.Length));
                 }
                 //Debug.Assert(ms.Position != ms.Length, "crud left at end of UDP handshake packet");
-                NotifyNewClient(new UdpServerTransport(new UdpHandle(ep, udpMultiplexer)), dict);
+                NotifyNewClient(factory.CreateTransport(new UdpHandle(ep, udpMultiplexer)), dict);
             }
             catch (Exception e)
             {
