@@ -111,6 +111,23 @@ namespace GT
         {
             if (!condition) { throw new ContractViolation(Severity.Warning, text); }
         }
+
+        /// <summary>
+        /// If <c>condition</c> is false, create and throw an instance of this exception type.
+        /// This method serves as syntactic sugar to save coding space.  This method
+        /// invokes <see cref="string.Format(string,object[])"/> on the text argument.
+        /// </summary>
+        /// <param name="condition">the result of a test</param>
+        /// <param name="text">descriptive text if the test fails</param>
+        public static void Assert(bool condition, params string[] text)
+        {
+            if (condition) { return; }
+
+            if(text.Length == 1) { throw new ContractViolation(Severity.Warning, text[0]); }
+            string[] remainder = new string[text.Length - 1];
+            Array.Copy(text, 1, remainder, 0, remainder.Length);
+            throw new ContractViolation(Severity.Warning, String.Format(text[0], remainder));
+        }
     }
 
     /// <summary>
@@ -136,7 +153,7 @@ namespace GT
         /// </summary>
         /// <param name="condition">the result of a test</param>
         /// <param name="text">descriptive text if the test fails</param>
-
+        /// <param name="source">the object whose state is invalid</param>
         public static void Assert(bool condition, string text, object source)
         {
             if (!condition) { throw new InvalidStateException(text, source); }
