@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Text;
 using System.Runtime.Serialization;
 using System.IO;
+using Common.Logging;
 using GT.Utils;
 using System.IO.Compression;
 using System.Diagnostics;
@@ -74,12 +75,16 @@ namespace GT.GMC
         public long numberDeflatedMessages = 0;
         public long totalDeflatedBytesSaved = 0;
 
+        protected ILog log;
+
         /// <summary>Creates a new instance of GMC.  
         /// Typically GMC will function as a singleton for each client, 
         /// however, there are cases where the designer may wish to have a variety of GMCS.</summary>
         /// <param name="v">the submarshaller to use for marshalling objects to bytes.</param>
         public GMCMarshaller(IMarshaller subMrshlr)
         {
+            log = LogManager.GetLogger(GetType());
+
             subMarshaller = subMrshlr;
             compressor = new GeneralMessageCompressor();
             decompressors = new Dictionary<int, GeneralMessageCompressor>();
@@ -144,42 +149,61 @@ namespace GT.GMC
         /// with any updates required for its processing.</returns>
         public byte[] Encode(byte[] bytes)
         {
-            DebugUtils.WriteLine("\n>>>> ENCODING <<<<<");
+            log.Trace(">>>> ENCODING <<<<<");
             totalUncompressedBytes += bytes.Length;
 
             CompressedMessagePackage cmp = compressor.Encode(bytes);
             MemoryStream result = new MemoryStream();
-            DebugUtils.WriteLine("==> Encoding for template {0}", cmp.TemplateId);
+            log.Trace("==> Encoding for template " + cmp.TemplateId);
             // note: must remember to replace/strip-off this first byte in TryDeflating() 
             result.WriteByte((byte)GMCWithinMessageCompression.None);
             ByteUtils.EncodeLength(cmp.TemplateId, result);
             if (cmp.Template != null)
             {
-                DebugUtils.WriteLine("TID={0}: Encoding template: {1}", cmp.TemplateId, ByteUtils.DumpBytes(cmp.Template));
+                if(log.IsTraceEnabled)
+                {
+                    log.Trace(String.Format("TID={0}: Encoding template: {1}", cmp.TemplateId,
+                        ByteUtils.DumpBytes(cmp.Template)));
+                }
                 result.WriteByte((byte)GMCMessageKey.Template);
                 EncodeTemplate(cmp.Template, result);
             }
             result.WriteByte((byte)(cmp.Huffed ? GMCMessageKey.Huffed : GMCMessageKey.NotHuffed));
             if (cmp.FrequencyTable != null)
             {
-                DebugUtils.WriteLine("TID={0}: Encoding frequency table", cmp.TemplateId);
+                if (log.IsTraceEnabled)
+                {
+                    log.Trace(String.Format("TID={0}: Encoding frequency table", cmp.TemplateId));
+                }
                 result.WriteByte((byte)GMCMessageKey.HuffmanFrequencyTable);
                 EncodeFrequencyTable(cmp.FrequencyTable, result);
             }
             if (cmp.Announcements != null && cmp.Announcements.Count > 0)
             {
-                DebugUtils.Write("TID={0}: Encoding {1} announcements:", cmp.TemplateId, cmp.Announcements.Count);
-                foreach (KeyValuePair<uint, byte> kvp in cmp.Announcements)
+                if (log.IsTraceEnabled)
                 {
-                    DebugUtils.Write(" {0}->{1}", kvp.Key, kvp.Value);
+                    StringBuilder message = new StringBuilder();
+                    message.Append(String.Format("TID={0}: Encoding {1} announcements:",
+                        cmp.TemplateId, cmp.Announcements.Count));
+                    foreach(KeyValuePair<uint, byte> kvp in cmp.Announcements)
+                    {
+                        message.Append(' ');
+                        message.Append(kvp.Key);
+                        message.Append("->");
+                        message.Append(kvp.Value);
+                    }
+                    log.Trace(message);
                 }
-                DebugUtils.WriteLine("");
                 result.WriteByte((byte)GMCMessageKey.Announcements);
                 EncodeAnnouncements(cmp.Announcements, result);
             }
             if (cmp.Message != null)    // this could be useful one day...
             {
-                DebugUtils.WriteLine("Encoding message: {0}", ByteUtils.DumpBytes(cmp.Message));
+                if (log.IsTraceEnabled)
+                {
+                    log.Trace(String.Format("Encoding message: {0}",
+                        ByteUtils.DumpBytes(cmp.Message)));
+                }
                 result.WriteByte((byte)GMCMessageKey.Message);
                 ByteUtils.EncodeLength(cmp.Message.Length, result);
                 result.Write(cmp.Message, 0, cmp.Message.Length);
@@ -270,7 +294,7 @@ namespace GT.GMC
         /// <returns></returns>
         public byte[] Decode(int userId, byte[] encodedBytes)
         {
-            DebugUtils.WriteLine("\n>>>> DECODING <<<<<");
+            log.Trace("\n>>>> DECODING <<<<<");
             Stream input = new MemoryStream(encodedBytes);
             if (input.ReadByte() == (byte)GMCWithinMessageCompression.Deflated)
             {
@@ -278,7 +302,7 @@ namespace GT.GMC
             }
             CompressedMessagePackage cmp = new CompressedMessagePackage();
             cmp.TemplateId = (short)ByteUtils.DecodeLength(input);
-            DebugUtils.WriteLine("==> Decoding with template {0}", cmp.TemplateId);
+            log.Trace(String.Format("==> Decoding with template {0}", cmp.TemplateId));
             int inputValue;
             while((inputValue = input.ReadByte()) != -1) {
                 switch ((GMCMessageKey)inputValue)
@@ -287,28 +311,45 @@ namespace GT.GMC
                 case GMCMessageKey.NotHuffed: cmp.Huffed = false; break;
                 case GMCMessageKey.Template:
                     cmp.Template = DecodeTemplate(input);
-                    DebugUtils.WriteLine("TID={0}: Decoded template: {1}", cmp.TemplateId, ByteUtils.DumpBytes(cmp.Template));
+                    if (log.IsTraceEnabled)
+                    {
+                        log.Trace(String.Format("TID={0}: Decoded template: {1}", 
+                            cmp.TemplateId, ByteUtils.DumpBytes(cmp.Template)));
+                    }
                     break;
                 case GMCMessageKey.HuffmanFrequencyTable:
                     cmp.FrequencyTable = DecodeFrequencies(input);
-                    DebugUtils.WriteLine("TID={0}: Decoded huffman frequencies", cmp.TemplateId);
+                    log.Trace(String.Format("TID={0}: Decoded huffman frequencies", cmp.TemplateId));
                     break;
                 case GMCMessageKey.Announcements:
                     cmp.Announcements = DecodeAnnouncements(input);
-                    DebugUtils.Write("TID={0}: Decoded {1} dictionary announcements:", cmp.TemplateId, cmp.Announcements.Count);
-                    foreach (KeyValuePair<uint, byte> kvp in cmp.Announcements)
+                    if (log.IsTraceEnabled)
                     {
-                        DebugUtils.Write(" {0}->{1}", kvp.Key, kvp.Value);
+                        StringBuilder message = new StringBuilder();
+                        message.Append(String.Format("TID={0}: Decoded {1} dictionary announcements:",
+                                cmp.TemplateId, cmp.Announcements.Count));
+                        foreach(KeyValuePair<uint, byte> kvp in cmp.Announcements)
+                        {
+                            message.Append(' ');
+                            message.Append(kvp.Key);
+                            message.Append("->");
+                            message.Append(kvp.Value);
+                        }
+                        log.Trace(message);
                     }
-                    DebugUtils.WriteLine("");
                     break;
                 case GMCMessageKey.Message:
                     int len = ByteUtils.DecodeLength(input);
                     cmp.Message = new byte[len];
                     input.Read(cmp.Message, 0, len);
-                    DebugUtils.WriteLine("Decoded message: {0}", ByteUtils.DumpBytes(cmp.Message));
+                    if (log.IsTraceEnabled)
+                    {
+                        log.Trace(String.Format("Decoded message: {0}",
+                            ByteUtils.DumpBytes(cmp.Message)));
+                    }
                     break;
                 default:
+                    log.Trace("Invalid GMC message");
                     throw new MarshallingException("invalid GMC message");
                 }
             }

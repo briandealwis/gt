@@ -246,15 +246,5 @@ namespace GT.GMC
         }
 
         #endregion
-
-        /** Prints each value in the tree and the associated length of its encoding. */
-        public void PrintTable()
-        {
-            for (int i = 0; i < encodingTable.Length; i++)
-            {
-                Console.WriteLine("Item " + i + " : " + encodingTable[i].Length);
-            }
-        }
-
     }
 }

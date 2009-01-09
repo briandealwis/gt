@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using System.Threading;
+using Common.Logging;
 using GT.Utils;
 using System;
 using System.IO;
@@ -22,6 +23,8 @@ namespace GT.Net {
     /// </summary>
     public abstract class Communicator : IStartable
     {
+        protected ILog log;
+
         protected IList<IConnexion> connexions = new List<IConnexion>();
 
         #region Events
@@ -62,6 +65,11 @@ namespace GT.Net {
         /// </summary>
         public abstract bool Active { get; }
 
+        public Communicator()
+        {
+            log = LogManager.GetLogger(GetType());
+        }
+
         /// <summary>
         /// Start the instance.  Starting an instance may throw an exception on error.
         /// </summary>
@@ -84,8 +92,7 @@ namespace GT.Net {
                     try { cnx.ShutDown(); }
                     catch (Exception e)
                     {
-                        Console.WriteLine("Warning: exception thrown when shutting down {0}: {1}: {2}",
-                            cnx, e.GetType(), e.Message);
+                        log.Info("exception thrown when shutting down " + cnx, e);
                     }
                 }
                 connexions = null;
@@ -138,13 +145,14 @@ namespace GT.Net {
                     } 
                     catch(Exception e)
                     {
+                        log.Info("An exception occurred when removing a connexion", e);
                         NotifyErrorEvent(new ErrorSummary(Severity.Information,
                             SummaryErrorCode.UserException,
                             "An exception occurred when removing a connexion", e));
                     }
                     try { c.Dispose(); }
                     catch (Exception e) {
-                        DebugUtils.WriteLine("Exception thrown while disposing connexion: {1}", e);
+                        log.Debug("Exception thrown while disposing connexion: {1}", e);
                     }
                 }
             }
@@ -159,8 +167,7 @@ namespace GT.Net {
                 try { stoppable.Stop(); }
                 catch (Exception e)
                 {
-                    Console.WriteLine("Warning: exception thrown when stopping {0}: {1}: {2}",
-                        stoppable, e.GetType(), e.Message);
+                    log.Warn(String.Format("exception thrown when stopping {0}", stoppable), e);
                 }
             }
         }
@@ -174,8 +181,8 @@ namespace GT.Net {
                 try { disposable.Dispose(); }
                 catch (Exception e)
                 {
-                    Console.WriteLine("Warning: exception thrown when disposing of {0}: {1}: {2}",
-                        disposable, e.GetType(), e.Message);
+                    log.Warn(String.Format("Warning: exception thrown when disposing of {0}",
+                        disposable), e);
                 }
             }
         }
@@ -213,19 +220,25 @@ namespace GT.Net {
 
         protected void NotifyErrorEvent(ErrorSummary es)
         {
-            DebugUtils.WriteLine(es.ToString());
+            switch (es.Severity)
+            {
+                case Severity.Fatal: log.Fatal(es); break;
+                case Severity.Error: log.Error(es); break;
+                case Severity.Warning: log.Warn(es); break;
+                case Severity.Information: log.Info(es); break;
+            }
             if (ErrorEvent == null) {
                 if (!nullWarningIssued)
                 {
-                    Console.WriteLine("WARNING: no ErrorEvent handler registered on {0}; redirecting all ErrorEvents to console", this);
+                    log.Warn(String.Format("WARNING[{0}]: no ErrorEvent handler registered; redirecting all ErrorEvents to console", this));
                     nullWarningIssued = true;
                 }
-                Console.WriteLine(es.ToString());
                 return; 
             }
             try { ErrorEvent(es); }
             catch (Exception e)
             {
+                log.Warn("Exception occurred when processing application ErrorEvent handlers", e);
                 ErrorEvent(new ErrorSummary(Severity.Information, SummaryErrorCode.UserException,
                     "Exception occurred when processing application ErrorEvent handlers", e));
             }
@@ -479,6 +492,8 @@ namespace GT.Net {
 
 	    #endregion
 
+        protected ILog log;
+        
         protected bool active = false;
         protected List<ITransport> transports = new List<ITransport>();
         protected uint pingSequence = 0;
@@ -490,7 +505,12 @@ namespace GT.Net {
         /// </summary>
         protected int uniqueIdentity;
 
-	    /// <summary>
+        public BaseConnexion()
+        {
+            log = LogManager.GetLogger(GetType());
+        }
+
+        /// <summary>
 	    /// Return the appropriate marshaller for this connexion.
 	/// </summary>
         abstract public IMarshaller Marshaller { get; }
@@ -590,7 +610,7 @@ namespace GT.Net {
                 try { ErrorEvents(summary); }
                 catch (Exception e)
                 {
-                    Console.WriteLine("WARNING: Application ErrorEvents event handler threw an exception: {0}", e);
+                    log.Warn("ErrorEvents event handler threw an exception", e);
                 }
             }
         }
@@ -671,7 +691,10 @@ namespace GT.Net {
 
         public virtual void AddTransport(ITransport t)
         {
-            DebugUtils.Write("{0}: added new transport: {1}", this, t);
+            if (log.IsTraceEnabled)
+            {
+                log.Trace(String.Format("{0}: added new transport: {1}", this, t));
+            }
             t.PacketReceivedEvent += HandleNewPacket;
             transports.Add(t);
             transports.Sort(this);
@@ -680,7 +703,10 @@ namespace GT.Net {
 
         public virtual bool RemoveTransport(ITransport t) 
         {
-            DebugUtils.Write("{0}: removing transport: {1}", this, t);
+            if (log.IsTraceEnabled)
+            {
+                log.Trace(String.Format("{0}: removing transport: {1}", this, t));
+            }
             bool removed = transports.Remove(t);
             t.PacketReceivedEvent -= HandleNewPacket;
             if (TransportRemoved != null) { TransportRemoved(this, t); }
@@ -694,7 +720,7 @@ namespace GT.Net {
         {
             Debug.Assert(transport != null, "we shouldn't receive a null transport!");
             RemoveTransport(transport);
-            // We can't unconditionally reconnect: consider where a server goes down,
+            // FIXME: We can't reconnect unconditionally: consider where a server goes down,
             // and we have unreliable transports that provide no information.
             //if ((transport = AttemptReconnect(transport)) != null)
             //{
@@ -771,7 +797,7 @@ namespace GT.Net {
                 {
                     if (MessageReceived == null)
                     {
-                        Console.WriteLine("{0}: WARNING: no MessageReceived listener!", this);
+                        log.Warn(String.Format("{0}: WARNING: no MessageReceived listener!", this));
                     }
                     else { MessageReceived(m, this, transport); }
                 }

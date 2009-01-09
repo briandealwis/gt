@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Net;
 using System.Net.Sockets;
+using Common.Logging;
 
 namespace GT.Net
 {
@@ -26,12 +27,16 @@ namespace GT.Net
 
     public abstract class BaseAcceptor : IAcceptor
     {
+        protected ILog log;
+
         public event NewClientHandler NewClientEvent;
         protected IPAddress address;
         protected int port;
 
         public BaseAcceptor(IPAddress address, int port)
         {
+            log = LogManager.GetLogger(GetType());
+
             this.address = address;
             this.port = port;
         }

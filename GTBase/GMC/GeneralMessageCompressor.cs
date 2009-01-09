@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Text;
 using System.IO;
 using System.Diagnostics;
+using Common.Logging;
 using GT.Utils;
 using GT.Net;
 
@@ -100,8 +101,12 @@ namespace GT.GMC
         private bool useHuff;
         private TimeSpan timeThreshold;
 
+        private ILog log;
+
         public GeneralMessageCompressor()
         {
+            log = LogManager.GetLogger(GetType());
+
             maximumTemplates = 30;
             lastTemplateId = -1;    // incremented before being used; so first template will be #0
 
@@ -233,11 +238,19 @@ namespace GT.GMC
 
             time = System.Environment.TickCount - time;
             if (time > timeThreshold.TotalMilliseconds) {
-                DebugUtils.WriteLine("GMC: encoding took {0}ms > desired time of {1}ms", time, timeThreshold.TotalMilliseconds);
+                if (log.IsInfoEnabled)
+                {
+                    log.Info(String.Format("GMC: encoding took {0}ms > desired time of {1}ms", 
+                        time, timeThreshold.TotalMilliseconds));
+                }
                 targetRatio = Math.Min(0.9, targetRatio + .05); 
             }
             else if (time < timeThreshold.TotalMilliseconds) {
-                DebugUtils.WriteLine("GMC: encoding took {0}ms < desired time of {1}ms", time, timeThreshold.TotalMilliseconds);
+                if (log.IsInfoEnabled)
+                {
+                    log.Info(String.Format("GMC: encoding took {0}ms < desired time of {1}ms", 
+                        time, timeThreshold.TotalMilliseconds));
+                }
                 targetRatio = Math.Max(0.2, targetRatio - .005);
             }
 
@@ -325,8 +338,8 @@ namespace GT.GMC
                 }
                 catch (ShortcutsExhaustedException)
                 {
-                    Console.WriteLine("WARNING: message exhausted all available shortcuts for template compressor #{0}", templateId);
-                    ByteUtils.HexDump(message);
+                    log.Info(String.Format("message exhausted all available shortcuts for template compressor #{0}", templateId));
+                    // ByteUtils.HexDump(message);
                     continue;
                 }
             }

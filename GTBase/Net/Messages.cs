@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Text;
 using GT.Utils;
 namespace GT.Net
 {
@@ -42,6 +43,23 @@ namespace GT.Net
             : base(id, MessageType.Binary)
         {
             this.bytes = bytes;
+        }
+
+        public override string ToString()
+        {
+            StringBuilder result = new StringBuilder(GetType().Name);
+            result.Append(": ");
+            result.Append(bytes.LongLength);
+            result.Append(" bytes");
+            for (int i = 0; i < bytes.Length; i += 16)
+            {
+                result.Append("\n  ");
+                result.Append(i.ToString("X3"));
+                result.Append(": ");
+                result.Append(ByteUtils.DumpBytes(bytes, i, 16));
+                result.Append(ByteUtils.AsPrintable(bytes, i, 16));
+            }
+            return result.ToString();
         }
     }
 
@@ -152,6 +170,11 @@ namespace GT.Net
             : base(id, t)
         {
             this.bytes = data;
+        }
+
+        public override string ToString()
+        {
+            return "Raw Message (uninterpreted bytes)";
         }
     }
 

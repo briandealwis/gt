@@ -5,6 +5,7 @@ using System.IO;
 using System.Text;
 using System.Threading;
 using System.Diagnostics;
+using Common.Logging;
 using GT;
 using System.Net.Sockets;
 using GT.Utils;
@@ -168,6 +169,7 @@ namespace GT.Net
         private bool running = false;
         private int uniqueIdentity;
         private Thread listeningThread;
+        protected ILog log;
 
         /// <summary>
         /// A factory-like object responsible for providing the server's runtime
@@ -265,6 +267,7 @@ namespace GT.Net
         /// <param name="sc">The server configuration object.</param>
         public Server(ServerConfiguration sc)
         {
+            log = LogManager.GetLogger(GetType());
             configuration = sc;
             uniqueIdentity = GenerateUniqueIdentity();
         }
@@ -372,15 +375,12 @@ namespace GT.Net
                 catch (TransportError e)
                 {
                     try {
-                        DebugUtils.WriteLine("Trying to restart error-raising acceptors");
+                        log.Warn(String.Format("Exception from acceptor {0}", acc), e);
                         acc.Stop(); acc.Start();
-                        Console.WriteLine("{0} {1} Warning: error in acceptor {2}: {3}",
-                            DateTime.Now, this, acc, e);
                     }
                     catch (TransportError)
                     {
-                        Console.WriteLine("{0} {1} ERROR: could not restart acceptor {1}",
-                            DateTime.Now, this, acc);
+                        log.Warn(String.Format("Unable to restart acceptor {0}; removing", acc), e);
                         if (toRemove == null) { toRemove = new List<IAcceptor>(); }
                         toRemove.Add(acc);
                     }
@@ -425,21 +425,27 @@ namespace GT.Net
             }
             catch (Exception e)
             {
-                Console.WriteLine("{0}: EXCEPTION when decoding client's GUID: {1}",
-                    DateTime.Now, e);
+                log.Error(String.Format("Exception occurred when decoding client's GUID: {0}",
+                    capabilities[GTCapabilities.CLIENT_ID]), e);
                 t.Dispose();
                 return;
             }
             ClientConnexion c = GetConnexionForClientIdentity(clientId);
             if (c == null)
             {
-                DebugUtils.WriteLine("{0}: new client {1} via {2}", this, clientId, t);
+                if (log.IsInfoEnabled)
+                {
+                    log.Info(String.Format("{0}: new client {1} via {2}", this, clientId, t));
+                }
                 c = CreateNewConnexion(clientId);
                 newlyAddedClients.Add(c);
             }
             else
             {
-                DebugUtils.WriteLine("{0}: for client {1} via {2}", this, clientId, t);
+                if (log.IsInfoEnabled)
+                {
+                    log.Info(String.Format("{0}: for client {1} via {2}", this, clientId, t));
+                }
             }
             t = Configuration.ConfigureTransport(t);
             c.AddTransport(t);
@@ -482,13 +488,14 @@ namespace GT.Net
                 }
                 catch (ThreadAbortException)
                 {
-                    Console.WriteLine("{0}: listening loop stopped", this);
+                    log.Trace("listening loop stopped");
                     Stop();
                     return;
                 }
                 catch (Exception e)
                 {
-                    Console.WriteLine("{0}: EXCEPTION: in listening loop: {1}", this, e);
+                    log.Warn(String.Format("Exception in listening loop: {0}", this), e);
+                    // FIXME: should we notify of such conditions?
                     NotifyErrorEvent(new ErrorSummary(Severity.Warning,
                                 SummaryErrorCode.RemoteUnavailable,
                                 "Exception occurred processing a connexion", e));
@@ -503,7 +510,10 @@ namespace GT.Net
 
         public virtual void Sleep(int milliseconds)
         {
-            DebugUtils.WriteLine("{0}: sleeping for {1}ms", this, milliseconds);
+            if (log.IsTraceEnabled)
+            {
+                log.Trace(String.Format("{0}: sleeping for {1}ms", this, milliseconds));
+            }
 
             // FIXME: This should be more clever and use Socket.Select()
             Thread.Sleep(Math.Max(0, milliseconds));
@@ -670,7 +680,10 @@ namespace GT.Net
         /// <param name="t">How the message was sent</param>
         virtual public void ReceivedClientMessage(Message m, IConnexion client, ITransport t)
         {
-            DebugUtils.DumpMessage(this + ": MessageReceived from " + client, m);
+            if (log.IsDebugEnabled)
+            {
+                log.Debug("Received from " + client + ": " + m);
+            }
             //send to this
             if (MessageReceived != null) { MessageReceived(m, client, t); }
 

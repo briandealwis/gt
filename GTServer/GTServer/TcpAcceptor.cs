@@ -6,6 +6,7 @@ using System.Net.Sockets;
 using System.Threading;
 using System.Text;
 using System.Diagnostics;
+using Common.Logging;
 using GT.Utils;
 
 namespace GT.Net
@@ -13,6 +14,8 @@ namespace GT.Net
 
     public class TcpAcceptor : BaseAcceptor
     {
+        protected ILog log;
+
         /// <summary>The listening backlog to use for the server socket.  Historically
         /// the maximum was 5; some newer OS' support up to 128.</summary>
         public static int LISTENER_BACKLOG = 10;
@@ -24,6 +27,7 @@ namespace GT.Net
         public TcpAcceptor(IPAddress address, int port)
             : base(address, port)
         {
+            log = LogManager.GetLogger(GetType());
         }
 
         public byte[] ProtocolDescriptor
@@ -47,7 +51,7 @@ namespace GT.Net
                 try { bouncer.Server.LingerState = new LingerOption(false, 0); }
                 catch (SocketException e)
                 {
-                    Console.WriteLine(this + ": exception setting TCP listening socket's Linger = false (ignored): " + e);
+                    log.Debug("exception setting TCP listening socket's Linger = false (ignored)", e);
                 }
                 bouncer.Start(LISTENER_BACKLOG);
             }
@@ -57,7 +61,8 @@ namespace GT.Net
                 //LastError = e;
                 //if (ErrorEvent != null)
                 //    ErrorEvent(e, SocketError.Fault, null, "A socket exception occurred when we tried to start listening for incoming connections.");
-                Console.WriteLine(this + ": exception creating TCP listening socket: " + e);
+                log.Warn(String.Format("exception creating TCP listening socket on {0}/{1}",
+                    address, port), e);
                 bouncer = null;
             }
         }
@@ -67,7 +72,7 @@ namespace GT.Net
             if (bouncer != null)
             {
                 try { bouncer.Stop(); }
-                catch (Exception e) { Console.WriteLine("Exception stopping TCP listener: " + e); }
+                catch (Exception e) { log.Info("Exception stopping TCP listener", e); }
                 bouncer = null;
             }
         }
@@ -114,6 +119,7 @@ namespace GT.Net
 
     internal class NegotiationInProgress
     {
+        protected ILog log;
         protected TcpAcceptor acceptor;
         protected TcpClient connection;
         protected byte[] data = null;
@@ -124,6 +130,8 @@ namespace GT.Net
 
         internal NegotiationInProgress(TcpAcceptor acc, TcpClient c)
         {
+            log = LogManager.GetLogger(GetType());
+
             acceptor = acc;
             connection = c;
             state = NIPState.TransportProtocol;
@@ -144,8 +152,7 @@ namespace GT.Net
             }
             catch (Exception e)
             {
-                Console.WriteLine("{0} {1}: abandoned incoming connection: handshake failed: {2}",
-                    DateTime.Now, this, e);
+                log.Trace(String.Format("abandoned incoming connection: handshake failed: {0}", this), e);
                 try { connection.Close(); }
                 catch (Exception) { }
                 acceptor.Remove(this);

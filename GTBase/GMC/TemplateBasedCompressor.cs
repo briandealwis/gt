@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Text;
 using System.Diagnostics;
+using Common.Logging;
 using GT.Utils;
 using System.IO;
 
@@ -19,6 +20,8 @@ namespace GT.GMC
     /// </summary>
     public class TemplateBasedCompressor
     {
+        private ILog log;
+
         private short templateId;
         private byte[] template;
         private TrieCompressor tc;
@@ -59,6 +62,8 @@ namespace GT.GMC
 
         public TemplateBasedCompressor(short tid, byte[] tmplt, bool huff)
         {
+            log = LogManager.GetLogger(GetType());
+
             templateId = tid;
             template = tmplt;
             tc = new TrieCompressor(templateId, template);
@@ -229,7 +234,8 @@ namespace GT.GMC
             {
                 Debug.Assert(cmp.FrequencyTable.Length == 256);
                 hc.SetFrequencies(cmp.FrequencyTable);
-                DebugUtils.WriteLine("[tid={0}] received huffman frequencies {1}", templateId, cmp.FrequencyTable);
+                log.Trace(String.Format("[tid={0}] received huffman frequencies {1}", 
+                    templateId, cmp.FrequencyTable));
             }
             if (cmp.Announcements != null)
             {

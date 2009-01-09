@@ -56,8 +56,7 @@ namespace GT.Net
                 }
                 catch (Exception e)
                 {
-                    Console.WriteLine("{0} Warning: exception when closing UDP handle: {1}",
-                        DateTime.Now, e);
+                    log.Info("exception when closing UDP handle", e);
                 }
                 handle = null;
             }
@@ -281,7 +280,7 @@ namespace GT.Net
             if (udpMultiplexer != null)
             {
                 try { udpMultiplexer.Stop(); }
-                catch (Exception e) { Console.WriteLine("Exception stopping UDP listener: " + e); }
+                catch (Exception e) { log.Warn("Exception stopping UDP listener", e); }
             }
         }
 
@@ -289,7 +288,7 @@ namespace GT.Net
         {
             Stop();
             try { udpMultiplexer.Dispose(); }
-            catch (Exception e) { Console.WriteLine("Exception disposing UDP listener: " + e); }
+            catch (Exception e) { log.Warn("Exception disposing UDP listener", e); }
             udpMultiplexer = null;
         }
         #endregion
@@ -320,7 +319,7 @@ namespace GT.Net
             // Console.WriteLine(this + ": Incoming unaddressed packet from " + ep);
             if (packet.Length < ProtocolDescriptor.Length)
             {
-                Console.WriteLine(DateTime.Now + " " + this + ": Undecipherable packet");
+                log.Info("Undecipherable packet (ignored)");
                 ms = new MemoryStream();
                 // NB: following follows the format used by the LightweightDotNetSerializingMarshaller 
                 ms.WriteByte((byte)MessageType.System);
@@ -333,7 +332,7 @@ namespace GT.Net
 
             if (!ByteUtils.Compare(packet, 0, ProtocolDescriptor, 0, ProtocolDescriptor.Length))
             {
-                Console.WriteLine(DateTime.Now + " " + this + ": Unknown protocol version: "
+                log.Info("Unknown protocol version: "
                     + ByteUtils.DumpBytes(packet, 0, 4) + " [" 
                     + ByteUtils.AsPrintable(packet, 0, 4) + "]");
                 ms = new MemoryStream();
@@ -354,11 +353,11 @@ namespace GT.Net
                 dict = ByteUtils.DecodeDictionary(ms);
                 if (ms.Position != ms.Length)
                 {
-                    Console.WriteLine("{0} bytes still left at end of UDP handshake packet: ({1} vs {2})",
-                        ms.Length - ms.Position, ms.Position, ms.Length);
+                    log.Info(String.Format("{0} bytes still left at end of UDP handshake packet: ({1} vs {2})",
+                        ms.Length - ms.Position, ms.Position, ms.Length));
                     byte[] rest = new byte[ms.Length - ms.Position];
                     ms.Read(rest, 0, (int)rest.Length);
-                    Console.WriteLine(" " + ByteUtils.DumpBytes(rest, 0, rest.Length) + "   " +
+                    log.Info("   " + ByteUtils.DumpBytes(rest, 0, rest.Length) + "   " +
                         ByteUtils.AsPrintable(rest, 0, rest.Length));
                 }
                 //Debug.Assert(ms.Position != ms.Length, "crud left at end of UDP handshake packet");
@@ -366,8 +365,7 @@ namespace GT.Net
             }
             catch (Exception e)
             {
-                Console.WriteLine("{0} {1}: Error decoding handshake from remote {2}: {3}",
-                    DateTime.Now, this, ep, e);
+                log.Warn(String.Format("Error decoding handshake from remote {0}", ep), e);
 
                 ms = new MemoryStream();
                 // NB: following follows the format used by the LightweightDotNetSerializingMarshaller 

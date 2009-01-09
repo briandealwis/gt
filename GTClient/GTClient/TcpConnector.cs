@@ -5,13 +5,22 @@ using System.Text;
 using System.Collections.Generic;
 using System.IO;
 using System.Diagnostics;
+using Common.Logging;
 using GT.Utils;
 
 namespace GT.Net
 {
     public class TcpConnector : IConnector
     {
+        protected ILog log;
+
         protected bool active = false;
+
+        public TcpConnector()
+        {
+            log = LogManager.GetLogger(GetType());
+        }
+
         public byte[] ProtocolDescriptor
         {
             get { return ASCIIEncoding.ASCII.GetBytes("GT10"); }
@@ -68,7 +77,7 @@ namespace GT.Net
             ByteUtils.EncodeDictionary(capabilities, ms);
             client.Client.Send(ms.GetBuffer(), 0, (int)ms.Length, SocketFlags.None);
 
-            Console.WriteLine("Now connected to TCP: " + endPoint.ToString());
+            log.Info("Now connected via TCP: " + endPoint);
             return new TcpTransport(client);
         }
 

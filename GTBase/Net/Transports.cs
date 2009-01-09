@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Net.Sockets;
 using System.Text;
+using Common.Logging;
 using GT.Utils;
 
 namespace GT.Net
@@ -77,6 +78,8 @@ namespace GT.Net
 
     public abstract class BaseTransport : ITransport
     {
+        protected ILog log;
+
         private Dictionary<string, string> capabilities = new Dictionary<string, string>();
         public event PacketHandler PacketReceivedEvent;
         public event PacketHandler PacketSentEvent;
@@ -89,6 +92,8 @@ namespace GT.Net
 
         protected BaseTransport(uint packetHeaderSize)
         {
+            log = LogManager.GetLogger(GetType());
+
             PacketHeaderSize = packetHeaderSize;
         }
 

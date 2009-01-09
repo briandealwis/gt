@@ -317,21 +317,26 @@ namespace GT.Utils
             }
             Console.WriteLine();
             Console.WriteLine(" First array ({0} bytes):", first.Length);
-            HexDump(first);
+            Console.WriteLine(HexDump(first));
             Console.WriteLine(" Second array ({0} bytes)", second.Length);
-            HexDump(second);
+            Console.WriteLine(HexDump(second));
         }
 
-        public static void HexDump(byte[] bytes)
+        public static string HexDump(byte[] bytes)
         {
+            StringBuilder sb = new StringBuilder();
             for (int i = 0; i < bytes.Length; i += 16)
             {
-                Console.WriteLine("{0}/{1}: {2}  {3}",
-                    i.ToString("D4"),   // decimal
-                    i.ToString("X3"),   // hexadecimal
-                    ByteUtils.DumpBytes(bytes, i, 16),
-                    ByteUtils.AsPrintable(bytes, i, 16));
+                sb.Append(i.ToString("D4"));   // decimal
+                sb.Append('/');
+                sb.Append(i.ToString("X3"));   // hexadecimal
+                sb.Append(": ");
+                sb.Append(DumpBytes(bytes, i, 16));
+                sb.Append("  ");
+                sb.Append(AsPrintable(bytes, i, 16));
+                sb.Append('\n');
             }
+            return sb.ToString();
         }
 
         #endregion

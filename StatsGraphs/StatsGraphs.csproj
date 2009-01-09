@@ -73,6 +73,7 @@
   <ItemGroup>
     <EmbeddedResource Include="BacklogForm.resx">
       <DependentUpon>BacklogForm.cs</DependentUpon>
+      <SubType>Designer</SubType>
     </EmbeddedResource>
     <EmbeddedResource Include="IntervalDialog.resx">
       <DependentUpon>IntervalDialog.cs</DependentUpon>
@@ -80,6 +81,7 @@
     </EmbeddedResource>
     <EmbeddedResource Include="PingTimesForm.resx">
       <DependentUpon>PingTimesForm.cs</DependentUpon>
+      <SubType>Designer</SubType>
     </EmbeddedResource>
     <EmbeddedResource Include="StatisticsDialog.resx">
       <DependentUpon>StatisticsDialog.cs</DependentUpon>

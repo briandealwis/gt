@@ -93,6 +93,8 @@ namespace GT.UnitTests
     [TestFixture]
     public class ZMTransportTests
     {
+        protected bool verbose = false;
+
         int port = 9876;
         Thread serverThread, acceptorThread;
         IAcceptor acceptor;
@@ -105,6 +107,15 @@ namespace GT.UnitTests
         int clientPacketCount;
         int serverMissedOffset;
         int clientMissedOffset;
+
+
+        protected void Debug(string text, params object[] args)
+        {
+            if(verbose)
+            {
+                Console.WriteLine(text, args);
+            }
+        }
 
         [SetUp]
         public void SetUp()
@@ -155,18 +166,18 @@ namespace GT.UnitTests
             }
             else
             {
-                DebugUtils.WriteLine("server: received expected packet#{0}",
+                Debug("server: received expected packet#{0}",
                     (byte)(serverPacketCount + serverMissedOffset));
             }
             CheckPacket(received, "server");
             if (serverPacketCount % 2 == 0)
             {
-                DebugUtils.WriteLine("==> server: replying with byte array");
+                Debug("==> server: replying with byte array");
                 server.SendPacket(buffer, offset, count);
             }
             else
             {
-                DebugUtils.WriteLine("==> server: replying with stream");
+                Debug("==> server: replying with stream");
                 Stream ms = server.GetPacketStream();
                 ms.Write(buffer, offset, count);
                 server.SendPacket(ms);
@@ -210,7 +221,7 @@ namespace GT.UnitTests
             }
             if (!failed)
             {
-                DebugUtils.WriteLine(prefix + ": received packet checked ok");
+                Debug(prefix + ": received packet checked ok");
             }
             return !failed;
         }
@@ -227,7 +238,7 @@ namespace GT.UnitTests
             }
             else
             {
-                DebugUtils.WriteLine("client: received expected packet#{0}",
+                Debug("client: received expected packet#{0}",
                     (byte)(clientPacketCount + clientMissedOffset));
             }
             Array.Copy(buffer, offset, received, 0, count);
@@ -238,7 +249,7 @@ namespace GT.UnitTests
 
         protected void SetupServer(ITransport t, Dictionary<string, string> capabilities)
         {
-            DebugUtils.WriteLine("Server: connected to client by " + t);
+            Debug("Server: connected to client by " + t);
             server = t;
             serverThread = new Thread(new ThreadStart(RunServer));
             serverThread.Name = "Server";
@@ -248,7 +259,7 @@ namespace GT.UnitTests
 
         protected void RunAcceptor()
         {
-            DebugUtils.WriteLine("Checking acceptor...");
+            Debug("Checking acceptor...");
             while (acceptor.Active)
             {
                 acceptor.Update();
@@ -275,7 +286,7 @@ namespace GT.UnitTests
             for (int i = 0; i < 10; i++)
             {
                 sourceData[0] = (byte)i;
-                DebugUtils.WriteLine("client: sending packet#" + i + ": "
+                Debug("client: sending packet#" + i + ": "
                     + ByteUtils.DumpBytes(sourceData, 0, sourceData.Length));
                 client.SendPacket(sourceData, 0, sourceData.Length);
                 if (failure.Length != 0)
