@@ -1,0 +1,232 @@
+<?xml version="1.0"?>
+<doc>
+    <assembly>
+        <name>Common.Logging.EntLib</name>
+    </assembly>
+    <members>
+        <member name="T:Common.Logging.EntLib.EntLibLogger">
+            <summary>
+            Concrete implementation of <see cref="T:Common.Logging.ILog"/> interface specific to Enterprise Logging.
+            </summary>
+            <remarks>
+            Default priority is used.  The category name used is the name passed into 
+            LogManger.GetLogger
+            </remarks>
+            <author>Mark Pollack</author>
+            <version>$Id:$</version>
+        </member>
+        <member name="M:Common.Logging.EntLib.EntLibLogger.#ctor(System.String)">
+            <summary>
+            Initializes a new instance of the <see cref="T:Common.Logging.EntLib.EntLibLogger"/> class.
+            </summary>
+            <param name="category">The category.</param>
+        </member>
+        <member name="M:Common.Logging.EntLib.EntLibLogger.Trace(System.Object)">
+            <summary>
+            Logs the specified message at the TraceEventType.Verbose level.
+            </summary>
+            <param name="message">The message.</param>
+        </member>
+        <member name="M:Common.Logging.EntLib.EntLibLogger.Trace(System.Object,System.Exception)">
+            <summary>
+            Logs the specified message and exception at the TraceEventType.Verbose level.
+            </summary>
+            <param name="message">The message.</param>
+            <param name="exception">The exception.</param>
+        </member>
+        <member name="M:Common.Logging.EntLib.EntLibLogger.Debug(System.Object)">
+            <summary>
+            Logs the specified message at the TraceEventType.Verbose level.
+            </summary>
+            <param name="message">The message.</param>
+        </member>
+        <member name="M:Common.Logging.EntLib.EntLibLogger.Debug(System.Object,System.Exception)">
+            <summary>
+            Logs the specified message and excpetion at the TraceEventType.Verbose level.
+            </summary>
+            <param name="message">The message.</param>
+            <param name="exception">The exception.</param>
+        </member>
+        <member name="M:Common.Logging.EntLib.EntLibLogger.Error(System.Object)">
+            <summary>
+            Logs the specified message at the TraceEventType.Error level.
+            </summary>
+            <param name="message">The message.</param>
+        </member>
+        <member name="M:Common.Logging.EntLib.EntLibLogger.Error(System.Object,System.Exception)">
+            <summary>
+            Logs the specified message and excpetion at the TraceEventType.Error level.
+            </summary>
+            <param name="message">The message.</param>
+            <param name="exception">The exception.</param>
+        </member>
+        <member name="M:Common.Logging.EntLib.EntLibLogger.Fatal(System.Object)">
+            <summary>
+            Logs the specified message at the TraceEventType.Critical level.
+            </summary>
+            <param name="message">The message.</param>
+        </member>
+        <member name="M:Common.Logging.EntLib.EntLibLogger.Fatal(System.Object,System.Exception)">
+            <summary>
+            Logs the specified message and excpetion at the TraceEventType.Critical level.
+            </summary>
+            <param name="message">The message.</param>
+            <param name="exception">The exception.</param>
+        </member>
+        <member name="M:Common.Logging.EntLib.EntLibLogger.Info(System.Object)">
+            <summary>
+            Logs the specified message at the TraceEventType.Information level.
+            </summary>
+            <param name="message">The message.</param>
+        </member>
+        <member name="M:Common.Logging.EntLib.EntLibLogger.Info(System.Object,System.Exception)">
+            <summary>
+            Logs the specified message and excpetion at the TraceEventType.Information level.
+            </summary>
+            <param name="message">The message.</param>
+            <param name="exception">The exception.</param>
+        </member>
+        <member name="M:Common.Logging.EntLib.EntLibLogger.Warn(System.Object)">
+            <summary>
+            Logs the specified message at the TraceEventType.Warning level.
+            </summary>
+            <param name="message">The message.</param>
+        </member>
+        <member name="M:Common.Logging.EntLib.EntLibLogger.Warn(System.Object,System.Exception)">
+            <summary>
+            Logs the specified message and excpetion at the TraceEventType.Warning level.
+            </summary>
+            <param name="message">The message.</param>
+            <param name="exception">The exception.</param>
+        </member>
+        <member name="M:Common.Logging.EntLib.EntLibLogger.WriteLog(System.Diagnostics.TraceEventType,System.Object)">
+            <summary>
+            Writes the log.
+            </summary>
+            <param name="traceEventType">Type of the trace event.</param>
+            <param name="message">The message.</param>
+        </member>
+        <member name="M:Common.Logging.EntLib.EntLibLogger.WriteLog(System.Diagnostics.TraceEventType,System.Object,System.Exception)">
+            <summary>
+            Writes the log.
+            </summary>
+            <param name="traceEventType">Type of the trace event.</param>
+            <param name="message">The message.</param>
+            <param name="ex">The ex.</param>
+        </member>
+        <member name="M:Common.Logging.EntLib.EntLibLogger.CreateLogEntry(System.Diagnostics.TraceEventType)">
+            <summary>
+            Creates the log entry.
+            </summary>
+            <param name="traceEventType">Type of the trace event.</param>
+            <returns></returns>
+        </member>
+        <member name="M:Common.Logging.EntLib.EntLibLogger.ConfigureLogEntry(Microsoft.Practices.EnterpriseLibrary.Logging.LogEntry,System.Object)">
+            <summary>
+            Configures the log entry.
+            </summary>
+            <param name="log">The log.</param>
+            <param name="message">The message.</param>
+        </member>
+        <member name="M:Common.Logging.EntLib.EntLibLogger.ConfigureLogEntry(Microsoft.Practices.EnterpriseLibrary.Logging.LogEntry,System.Object,System.Exception)">
+            <summary>
+            Configures the log entry.
+            </summary>
+            <param name="log">The log.</param>
+            <param name="message">The message.</param>
+            <param name="ex">The ex.</param>
+        </member>
+        <member name="M:Common.Logging.EntLib.EntLibLogger.AddExceptionInfo(System.String,System.Exception)">
+            <summary>
+            Adds the exception info.
+            </summary>
+            <param name="message">The message.</param>
+            <param name="exception">The exception.</param>
+            <returns></returns>
+        </member>
+        <member name="P:Common.Logging.EntLib.EntLibLogger.IsTraceEnabled">
+            <summary>
+            Gets a value indicating whether this instance is trace enabled.  
+            </summary>
+            <value>
+            	<c>true</c> always.
+            </value>
+        </member>
+        <member name="P:Common.Logging.EntLib.EntLibLogger.IsDebugEnabled">
+            <summary>
+            Gets a value indicating whether this instance is debug enabled. 
+            </summary>
+            <value>
+            	<c>true</c> always
+            </value>
+        </member>
+        <member name="P:Common.Logging.EntLib.EntLibLogger.IsErrorEnabled">
+            <summary>
+            Gets a value indicating whether this instance is error enabled.
+            </summary>
+            <value>
+            	<c>true</c> always.
+            </value>
+        </member>
+        <member name="P:Common.Logging.EntLib.EntLibLogger.IsFatalEnabled">
+            <summary>
+            Gets a value indicating whether this instance is fatal enabled.
+            </summary>
+            <value>
+            	<c>true</c> always
+            </value>
+        </member>
+        <member name="P:Common.Logging.EntLib.EntLibLogger.IsInfoEnabled">
+            <summary>
+            Gets a value indicating whether this instance is info enabled.
+            </summary>
+            <value>
+            	<c>true</c> always
+            </value>
+        </member>
+        <member name="P:Common.Logging.EntLib.EntLibLogger.IsWarnEnabled">
+            <summary>
+            Gets a value indicating whether this instance is warn enabled.
+            </summary>
+            <value>
+            	<c>true</c> always
+            </value>
+        </member>
+        <member name="T:Common.Logging.EntLib.EntLibLoggerFactoryAdapter">
+             <summary>
+             This is 
+             </summary>
+             <remarks>
+            
+             </remarks>
+             <author>Mark Pollack</author>
+             <version>$Id:$</version>
+        </member>
+        <member name="M:Common.Logging.EntLib.EntLibLoggerFactoryAdapter.#ctor">
+            <summary>
+            Initializes a new instance of the <see cref="T:Common.Logging.EntLib.EntLibLoggerFactoryAdapter"/> class.
+            </summary>
+        </member>
+        <member name="M:Common.Logging.EntLib.EntLibLoggerFactoryAdapter.#ctor(System.Collections.Specialized.NameValueCollection)">
+            <summary>
+            Initializes a new instance of the <see cref="T:Common.Logging.EntLib.EntLibLoggerFactoryAdapter"/> class.
+            </summary>
+            <remarks>passed in values are not used, configuration is external to EntLib logging API</remarks>
+            <param name="properties">The properties.</param>
+        </member>
+        <member name="M:Common.Logging.EntLib.EntLibLoggerFactoryAdapter.GetLogger(System.String)">
+            <summary>
+            Gets the logger.
+            </summary>
+            <param name="name">The name to use as the category.</param>
+            <returns></returns>
+        </member>
+        <member name="M:Common.Logging.EntLib.EntLibLoggerFactoryAdapter.GetLogger(System.Type)">
+            <summary>
+            Gets the logger.
+            </summary>
+            <param name="type">The type property FullName is used as the category.</param>
+            <returns></returns>
+        </member>
+    </members>
+</doc>
