@@ -4,12 +4,27 @@ GT NEWS
 
 Developer-visible changes:
 
-  * Clients and Servers now report any errors/warnings/information
-    to the console when there are no registered ErrorEvent handlers.
+  * GT now uses the open-source Common.Logging package (v1.2.0) for
+    logging messages.  Control-flow information is reported at the
+    "Trace" level, and informational, warning, and errors are
+    reported via the "Info", "Warn", and "Error" levels. 
+    Common.Logging provides a simple abstraction to allow selecting
+    a logging implementation at runtime (either programmatically
+    or via the .NET App.Config mechanism).  For details on use, see
+    the documentation at:
 
-  * GT is now quieter with respect to messages written to the system
-    console.  Many of these messages are now directed to the DebugUtils
-    logging or are available through the various GT events.
+	http://netcommon.sourceforge.net/
+
+    By default, Common.Logging uses a NoOpLoggerFactoryAdapter which
+    supresses all output.  See section 1.3.2 of the Common.Logging
+    reference manual for simple instructions to cause logging to the
+    console using the Common.Logging.Simple.ConsoleOutLogger.
+
+    As a result of this change, GT is now much quieter with respect
+    to messages written to the system console.
+
+  * Clients and Servers now log a warning when there are no registered
+    ErrorEvent handlers.
 
   * There have been some breaks with previous API. 
 

@@ -1,18 +1,11 @@
 using System;
-using System.Collections;
 using System.Collections.Generic;
-using System.Text;
-using System.IO;
 using System.Diagnostics;
 using Common.Logging;
-using GT.Utils;
 using GT.Net;
 
 namespace GT.GMC
 {
-
-
-
     /// <summary>A compression exception</summary>
     public enum EnumExceptionType
     {

@@ -1,12 +1,9 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Data;
 using System.Threading;
 using System.Windows.Forms;
 using GT.Net;
 using SoftwareFX.ChartFX.Lite;
 using StatsGraphs;
-using Message=System.Windows.Forms.Message;
 
 namespace GT.StatsGraphs
 {
