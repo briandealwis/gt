@@ -280,7 +280,7 @@ namespace GT.Net
             if (udpMultiplexer != null)
             {
                 try { udpMultiplexer.Stop(); }
-                catch (Exception e) { log.Warn("Exception stopping UDP listener", e); }
+                catch (Exception e) { log.Warn("exception stopping UDP listener", e); }
             }
         }
 
@@ -288,7 +288,7 @@ namespace GT.Net
         {
             Stop();
             try { udpMultiplexer.Dispose(); }
-            catch (Exception e) { log.Warn("Exception disposing UDP listener", e); }
+            catch (Exception e) { log.Warn("exception disposing UDP listener", e); }
             udpMultiplexer = null;
         }
         #endregion

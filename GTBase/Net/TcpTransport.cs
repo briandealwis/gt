@@ -76,7 +76,7 @@ namespace GT.Net
             }
             catch (Exception e)
             {
-                log.Warn("exception when closing TCP handle", e);
+                log.Info("exception when closing TCP handle", e);
             }
             handle = null;
         }
@@ -247,7 +247,7 @@ namespace GT.Net
                             uint payloadLength = BitConverter.ToUInt32(incomingInProgress.data, 0);
                             if (payloadLength <= 0)
                             {
-                                log.Info("received packet with 0-byte payload!");
+                                log.Warn("received packet with 0-byte payload!");
                                 incomingInProgress = null;
                             }
                             else

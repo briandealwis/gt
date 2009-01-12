@@ -61,7 +61,7 @@ namespace GT.Net
                 //LastError = e;
                 //if (ErrorEvent != null)
                 //    ErrorEvent(e, SocketError.Fault, null, "A socket exception occurred when we tried to start listening for incoming connections.");
-                log.Warn(String.Format("exception creating TCP listening socket on {0}/{1}",
+                log.Error(String.Format("exception creating TCP listening socket on {0}/{1}",
                     address, port), e);
                 bouncer = null;
             }
@@ -152,7 +152,7 @@ namespace GT.Net
             }
             catch (Exception e)
             {
-                log.Trace(String.Format("abandoned incoming connection: handshake failed: {0}", this), e);
+                log.Info(String.Format("abandoned incoming connection: handshake failed: {0}", this), e);
                 try { connection.Close(); }
                 catch (Exception) { }
                 acceptor.Remove(this);

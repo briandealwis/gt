@@ -65,10 +65,10 @@ namespace GT.Net
                 const int SIO_UDP_CONNRESET = -1744830452;
                 byte[] inValue = new byte[4];   // zeroes = false
                 udpClient.Client.IOControl(SIO_UDP_CONNRESET, inValue, null);
-                log.Info("INFO: installed SIO_UDP_CONNRESET hack for UdpMultiplexer");
+                log.Info("installed SIO_UDP_CONNRESET hack for UdpMultiplexer");
             }
             catch (Exception e) {
-                log.Info("INFO: unable to install SIO_UDP_CONNRESET hack for UdpMultiplexer: {0}", e);
+                log.Info("unable to install SIO_UDP_CONNRESET hack for UdpMultiplexer: {0}", e);
             }
         }
 
@@ -128,7 +128,7 @@ namespace GT.Net
                     h = defaultHandler;
                     if (h == null)
                     {
-                        log.Warn(String.Format("{0}: WARNING: no default handler for {1}: ignoring incoming packet", this, remote));
+                        log.Warn(String.Format("{0}: no default handler for {1}: ignoring incoming packet", this, remote));
                         continue;
                     }
                     if (log.IsTraceEnabled)

@@ -234,8 +234,11 @@ namespace GT.GMC
             {
                 Debug.Assert(cmp.FrequencyTable.Length == 256);
                 hc.SetFrequencies(cmp.FrequencyTable);
-                log.Trace(String.Format("[tid={0}] received huffman frequencies {1}", 
-                    templateId, cmp.FrequencyTable));
+                if(log.IsTraceEnabled)
+                {
+                    log.Trace(String.Format("[tid={0}] received huffman frequencies {1}", 
+                        templateId, cmp.FrequencyTable));
+                }
             }
             if (cmp.Announcements != null)
             {

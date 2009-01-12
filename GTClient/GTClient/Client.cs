@@ -626,11 +626,11 @@ namespace GT.Net
                         AddTransport(t);
                         return t;
                     } catch(CannotConnectException e) {
-                        log.Info(String.Format("Could not reconnect to {0}/{1}", Address, Port), e);
+                        log.Warn(String.Format("Could not reconnect to {0}/{1}", Address, Port), e);
                     }
                 }
             }
-            log.Info(String.Format("Unable to reconnect to {0}/{1}: no connectors found", 
+            log.Warn(String.Format("Unable to reconnect to {0}/{1}: no connectors found", 
                 Address, Port));
             return null;
         }
@@ -1626,7 +1626,7 @@ namespace GT.Net
         /// </summary>
         public override void Update()
         {
-            log.Debug("Client.Update(): Starting");
+            log.Trace("Client.Update(): Starting");
             lock (this)
             {
                 if (!started)
@@ -1724,7 +1724,7 @@ namespace GT.Net
                 // Remove dead connexions
                 RemoveDeadConnexions();
             }
-            log.Debug("Client.Update(): Finished");
+            log.Trace("Client.Update(): Finished");
             OnUpdateTick();
         }
 

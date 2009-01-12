@@ -305,10 +305,10 @@ namespace GT.Net
         /// </summary>
         public override void Update()
         {
+            log.Trace("Server.Update(): started");
+
             lock (this)
             {
-                // DebugUtils.WriteLine(">>>> Server.Update() started");
-
                 if (!Active)
                 {
                     Start();
@@ -353,10 +353,10 @@ namespace GT.Net
                 //remove dead clients (includes disposed and clients with no transports)
                 RemoveDeadConnexions();
             }
+            log.Trace("Server.Update(): finished");
+
             //if anyone is listening, tell them we're done one cycle
             OnUpdateTick();
-
-            // DebugUtils.WriteLine("<<<< Server.Update() finished");
         }
 
         private void UpdateAcceptors()
@@ -425,7 +425,7 @@ namespace GT.Net
             }
             catch (Exception e)
             {
-                log.Error(String.Format("Exception occurred when decoding client's GUID: {0}",
+                log.Warn(String.Format("Exception occurred when decoding client's GUID: {0}",
                     capabilities[GTCapabilities.CLIENT_ID]), e);
                 t.Dispose();
                 return;
@@ -530,6 +530,7 @@ namespace GT.Net
             }
             marshaller = configuration.CreateMarshaller();
             running = true;
+            log.Trace(this + ": started");
         }
 
         public override void Stop()
@@ -539,6 +540,7 @@ namespace GT.Net
                 // we were told to die.  die gracefully.
                 if (!Active) { return; }
                 running = false;
+                log.Trace(this + ": stopped");
 
                 Thread t = listeningThread;
                 listeningThread = null;
@@ -556,6 +558,7 @@ namespace GT.Net
         public override void Dispose()
         {
             running = false;
+            log.Trace(this + ": disposed");
 
             Thread t = listeningThread;
             listeningThread = null;
@@ -680,9 +683,9 @@ namespace GT.Net
         /// <param name="t">How the message was sent</param>
         virtual public void ReceivedClientMessage(Message m, IConnexion client, ITransport t)
         {
-            if (log.IsDebugEnabled)
+            if (log.IsTraceEnabled)
             {
-                log.Debug("Received from " + client + ": " + m);
+                log.Trace("Received from " + client + ": " + m);
             }
             //send to this
             if (MessageReceived != null) { MessageReceived(m, client, t); }

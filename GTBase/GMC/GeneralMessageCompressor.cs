@@ -238,17 +238,17 @@ namespace GT.GMC
 
             time = System.Environment.TickCount - time;
             if (time > timeThreshold.TotalMilliseconds) {
-                if (log.IsInfoEnabled)
+                if (log.IsTraceEnabled)
                 {
-                    log.Info(String.Format("GMC: encoding took {0}ms > desired time of {1}ms", 
+                    log.Trace(String.Format("GMC: encoding took {0}ms > desired time of {1}ms", 
                         time, timeThreshold.TotalMilliseconds));
                 }
                 targetRatio = Math.Min(0.9, targetRatio + .05); 
             }
             else if (time < timeThreshold.TotalMilliseconds) {
-                if (log.IsInfoEnabled)
+                if (log.IsTraceEnabled)
                 {
-                    log.Info(String.Format("GMC: encoding took {0}ms < desired time of {1}ms", 
+                    log.Trace(String.Format("GMC: encoding took {0}ms < desired time of {1}ms", 
                         time, timeThreshold.TotalMilliseconds));
                 }
                 targetRatio = Math.Max(0.2, targetRatio - .005);
@@ -338,7 +338,7 @@ namespace GT.GMC
                 }
                 catch (ShortcutsExhaustedException)
                 {
-                    log.Info(String.Format("message exhausted all available shortcuts for template compressor #{0}", templateId));
+                    log.Trace(String.Format("message exhausted all available shortcuts for template compressor #{0}", templateId));
                     // ByteUtils.HexDump(message);
                     continue;
                 }

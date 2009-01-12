@@ -152,7 +152,7 @@ namespace GT.Net {
                     }
                     try { c.Dispose(); }
                     catch (Exception e) {
-                        log.Debug("Exception thrown while disposing connexion: {1}", e);
+                        log.Info("Exception thrown while disposing connexion: {1}", e);
                     }
                 }
             }
@@ -181,7 +181,7 @@ namespace GT.Net {
                 try { disposable.Dispose(); }
                 catch (Exception e)
                 {
-                    log.Warn(String.Format("Warning: exception thrown when disposing of {0}",
+                    log.Warn(String.Format("exception thrown when disposing of {0}",
                         disposable), e);
                 }
             }
@@ -230,7 +230,7 @@ namespace GT.Net {
             if (ErrorEvent == null) {
                 if (!nullWarningIssued)
                 {
-                    log.Warn(String.Format("WARNING[{0}]: no ErrorEvent handler registered; redirecting all ErrorEvents to console", this));
+                    log.Warn(String.Format("{0}: no ErrorEvent handler registered; redirecting all ErrorEvents to console", this));
                     nullWarningIssued = true;
                 }
                 return; 
@@ -797,7 +797,7 @@ namespace GT.Net {
                 {
                     if (MessageReceived == null)
                     {
-                        log.Warn(String.Format("{0}: WARNING: no MessageReceived listener!", this));
+                        log.Warn(String.Format("{0}: no MessageReceived listener!", this));
                     }
                     else { MessageReceived(m, this, transport); }
                 }
