@@ -622,17 +622,16 @@ namespace GT.Net
                     try {
                         ITransport t = conn.Connect(Address, Port, owner.Capabilities);
                         Debug.Assert(t != null, "IConnector.Connect() shouldn't return null: " + conn);
-                        Console.WriteLine("{0} [{1}] Reconnected: {2}", DateTime.Now, this, t);
+                        log.Info(String.Format("Reconnected to: {0}", t));
                         AddTransport(t);
                         return t;
                     } catch(CannotConnectException e) {
-                        Console.WriteLine("{0} [{1}] Could not reconnect to {2}/{3}: {4}", DateTime.Now, this,
-                            Address, Port, e);
+                        log.Warn(String.Format("Could not reconnect to {0}/{1}", Address, Port), e);
                     }
                 }
             }
-            Console.WriteLine("{0} [{1}] Unable to reconnect to {2}/{3}: no connectors found", 
-                DateTime.Now, this, Address, Port);
+            log.Warn(String.Format("Unable to reconnect to {0}/{1}: no connectors found", 
+                Address, Port));
             return null;
         }
 
@@ -700,7 +699,7 @@ namespace GT.Net
                     {
                     case MessageAggregation.Aggregatable:
                         // already handled
-                        Console.WriteLine("INTERNAL ERROR: MessageAggregation.Aggregatable should have been handled already");
+                        log.Error("MessageAggregation.Aggregatable should have alread been handled");
                         return;
 
                     case MessageAggregation.FlushChannel:
@@ -1627,7 +1626,7 @@ namespace GT.Net
         /// </summary>
         public override void Update()
         {
-            DebugUtils.WriteLine("{0}: Update() started", this);
+            log.Trace("Client.Update(): Starting");
             lock (this)
             {
                 if (!started)
@@ -1685,9 +1684,7 @@ namespace GT.Net
                                     /// new message types?
                                     if (!previouslyWarnedMessageTypes.ContainsKey(m.MessageType))
                                     {
-                                        Console.WriteLine(
-                                            "Client: WARNING: received message of unknown type: {1}",
-                                            m);
+                                        log.Warn(String.Format("received message of unknown type: {0}", m));
                                         previouslyWarnedMessageTypes[m.MessageType] = m.MessageType;
                                     }
                                     break;
@@ -1698,9 +1695,7 @@ namespace GT.Net
                                 // THIS IS NOT AN ERROR!  It's just that nobody's listening here.
                                 if (!previouslyWarnedChannels.ContainsKey(m.Id))
                                 {
-                                    Console.WriteLine(
-                                        "Client: WARNING: received message for unmonitored channel: {0}",
-                                        m);
+                                    log.Warn(String.Format("received message for unmonitored channel: {0}", m));
                                     previouslyWarnedChannels[m.Id] = m.Id;
                                 }
                             }
@@ -1709,12 +1704,11 @@ namespace GT.Net
                     catch (ConnexionClosedException) { s.Dispose(); }
                     catch (GTException e)
                     {
-                        Console.WriteLine(
-                            "Client: ERROR: Exception occurred in Client.Update() processing stream {0}: {1}",
-                            s, e);
+                        string message = String.Format("GT Exception occurred in Client.Update() while processing stream {0}", s);
+                        log.Info(message, e);
                         NotifyErrorEvent(new ErrorSummary(e.Severity,
                             SummaryErrorCode.RemoteUnavailable,
-                            "Exception occurred processing a connexion", e));
+                            message, e));
                     }
                 }
 
@@ -1730,7 +1724,7 @@ namespace GT.Net
                 // Remove dead connexions
                 RemoveDeadConnexions();
             }
-            DebugUtils.WriteLine("{0}: Update() finished", this);
+            log.Trace("Client.Update(): Finished");
             OnUpdateTick();
         }
 
@@ -1739,7 +1733,7 @@ namespace GT.Net
         private void HandleSystemMessage(Message m)
         {
             //this should definitely not happen!  No good code leads to this point.  This should be only a placeholder.
-            Console.WriteLine("Client: WARNING: Unknown System Message: {0}", m);
+            log.Warn(String.Format("Unknown System Message: {0}", m));
         }
 
         /// <summary>
@@ -1747,7 +1741,7 @@ namespace GT.Net
         /// by periodically calling <see cref="Update"/>.  This thread instance will 
         /// be stopped on <see cref="Stop"/> or <see cref="Dispose"/>.
         /// The frequency between calls to <see cref="Update"/> is controlled
-        /// by the configuration's <see cref="Communicator.BaseConfiguration.TickInterval"/>.
+        /// by the configuration's <see cref="BaseConfiguration.TickInterval"/>.
         /// </summary>
         public override Thread StartSeparateListeningThread()
         {

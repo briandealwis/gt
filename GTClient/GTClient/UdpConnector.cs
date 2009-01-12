@@ -4,6 +4,7 @@ using System.Net.Sockets;
 using System.Collections.Generic;
 using System.IO;
 using System.Diagnostics;
+using Common.Logging;
 using GT.Utils;
 
 namespace GT.Net
@@ -19,6 +20,8 @@ namespace GT.Net
     /// </remarks>
     public class UdpConnector : IConnector
     {
+        protected ILog log;
+
         protected bool active = false;
         protected TransportFactory<UdpClient> factory;
 
@@ -29,6 +32,8 @@ namespace GT.Net
 
         public UdpConnector(Ordering ordering)
         {
+            log = LogManager.GetLogger(GetType());
+
             switch (ordering)
             {
                 case Ordering.Unordered:
@@ -108,7 +113,7 @@ namespace GT.Net
             ByteUtils.EncodeDictionary(capabilities, ms);
             client.Client.Send(ms.GetBuffer(), 0, (int)ms.Length, SocketFlags.None);
 
-            Console.WriteLine("Now connected to UDP: " + endPoint);
+            log.Info("Now connected to UDP: " + endPoint);
             return factory.CreateTransport(client);
         }
 

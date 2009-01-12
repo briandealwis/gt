@@ -61,7 +61,7 @@ namespace GT.Net
                 catch (SocketException e)
                 {
                     // FIXME: logError(INFORM, "exception thrown when terminating socket", e);
-                    Console.WriteLine(this + ": EXCEPTION thrown when terminating up socket: " + e);
+                    log.Info(this + ": exception thrown when terminating up socket", e);
                 }
                 udpClient = null;
             }
@@ -130,7 +130,6 @@ namespace GT.Net
                         IPEndPoint ep = null;
                         byte[] buffer = udpClient.Receive(ref ep);
 
-                        DebugUtils.DumpMessage(this + ": Update()", buffer);
                         Debug.Assert(ep.Equals(udpClient.Client.RemoteEndPoint));
                         NotifyPacketReceived(buffer, (int)PacketHeaderSize, 
                             (int)(buffer.Length - PacketHeaderSize));

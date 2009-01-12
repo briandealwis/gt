@@ -3,6 +3,7 @@ using System.Runtime.InteropServices;
 using System.ComponentModel;
 using System.Threading;
 using System.Diagnostics;
+using Common.Logging;
 
 namespace GT
 {
@@ -48,7 +49,7 @@ namespace GT
         {
             if (!Stopwatch.IsHighResolution)
             {
-                Console.WriteLine("warning: System.Diagnostics.Stopwatch is not high-resolution");
+                LogManager.GetLogger(GetType()).Warn("System.Diagnostics.Stopwatch is not high-resolution");
             }
             frequency = Stopwatch.Frequency;
         }

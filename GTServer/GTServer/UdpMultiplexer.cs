@@ -4,6 +4,7 @@ using System.Net;
 using System.IO;
 using System.Collections.Generic;
 using System.Diagnostics;
+using Common.Logging;
 using GT.Net;
 using GT.Utils;
 
@@ -13,6 +14,7 @@ namespace GT.Net
 
     public class UdpMultiplexer : IStartable
     {
+        protected ILog log;
         protected readonly IPAddress address;
         protected readonly int port;
         protected UdpClient udpClient;
@@ -26,6 +28,8 @@ namespace GT.Net
 
         public UdpMultiplexer(IPAddress address, int port)
         {
+            log = LogManager.GetLogger(GetType());
+
             this.address = address;
             this.port = port;
         }
@@ -61,10 +65,10 @@ namespace GT.Net
                 const int SIO_UDP_CONNRESET = -1744830452;
                 byte[] inValue = new byte[4];   // zeroes = false
                 udpClient.Client.IOControl(SIO_UDP_CONNRESET, inValue, null);
-                DebugUtils.WriteLine("INFO: installed SIO_UDP_CONNRESET hack for UdpMultiplexer");
+                log.Info("installed SIO_UDP_CONNRESET hack for UdpMultiplexer");
             }
             catch (Exception e) {
-                DebugUtils.WriteLine("INFO: unable to install SIO_UDP_CONNRESET hack for UdpMultiplexer: {0}", e.Message);
+                log.Info("unable to install SIO_UDP_CONNRESET hack for UdpMultiplexer: {0}", e);
             }
         }
 
@@ -116,23 +120,29 @@ namespace GT.Net
             {
                 EndPoint remote = new IPEndPoint(IPAddress.Any, 0);
                 // any SocketExceptions will be caught by callers
-                int rc = udpClient.Client.ReceiveFrom(buffer, ref remote); 
-                DebugUtils.WriteLine("{0}: received {1} bytes from {2}", this, rc, remote);
-                DebugUtils.DumpMessage("UDP-Mux received", buffer, 0, rc);
+                int rc = udpClient.Client.ReceiveFrom(buffer, ref remote);
+                // log.Debug(String.Format("{0}: received {1} bytes from {2}", this, rc, remote));
                 NetPacketReceivedHandler h;
                 if (!handlers.TryGetValue(remote, out h) || h == null)
                 {
                     h = defaultHandler;
                     if (h == null)
                     {
-                        Console.WriteLine("{0}: WARNING: no default handler for {1}: ignoring incoming packet", this, remote);
+                        log.Warn(String.Format("{0}: no default handler for {1}: ignoring incoming packet", this, remote));
                         continue;
                     }
-                    DebugUtils.WriteLine("{0}: no handler found for {1}; using default handler", this, remote);
+                    if (log.IsTraceEnabled)
+                    {
+                        log.Trace(String.Format("{0}: no handler found for {1}; using default handler",
+                                this, remote));
+                    }
                 }
                 else
                 {
-                    DebugUtils.WriteLine("{0}: found handler: {1}", this, h);
+                    if (log.IsTraceEnabled)
+                    {
+                        log.Trace(String.Format("{0}: found handler: {1}", this, h));
+                    }
                 }
                 h.Invoke(remote, new MemoryStream(buffer, 0, rc).ToArray());
             }

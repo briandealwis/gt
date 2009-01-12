@@ -1,0 +1,299 @@
+<html><head>
+      <meta http-equiv="Content-Type" content="text/html; charset=ISO-8859-1">
+   <title>Chapter&nbsp;1.&nbsp;Common Logging</title><link rel="stylesheet" href="../styles/html.css" type="text/css"><meta name="generator" content="DocBook XSL Stylesheets V1.70.1"><link rel="start" href="index.html" title="Common Infrastructure Libraries for .NET"><link rel="up" href="index.html" title="Common Infrastructure Libraries for .NET"><link rel="prev" href="index.html" title="Common Infrastructure Libraries for .NET"></head><body bgcolor="white" text="black" link="#0000FF" vlink="#840084" alink="#0000FF"><div xmlns="http://www.w3.org/TR/xhtml1/transitional" style="background-color:white;border:none;height:73px;border:1px solid black;"><a style="border:none;" href="http://netcommon.sf.net/" title="Common Infrastructure Libraries for .NET"><img style="border:none;" src="images/common.logging-logo.png"></a><a style="border:none;" href="http://netcommon.sf.net/" title="Common Infrastructure Libraries for .NET"><img style="border:none;position:absolute;padding-top:5px;right:32px;" src="images/bubble-big.jpg"></a></div><div class="chapter" lang="en"><div class="titlepage"><div><div><h2 class="title"><a name="logging"></a>Chapter&nbsp;1.&nbsp;Common Logging</h2></div></div></div><div class="section" lang="en"><div class="titlepage"><div><div><h2 class="title" style="clear: both"><a name="logging-abstract"></a>1.1.&nbsp;Introduction</h2></div></div></div><p>There are a variety of logging implementations for .NET currently in
+    use, log4net, Enterprise Library Logging, NLog, to name the most popular.
+    The downside of having differerent implementation is that they do not
+    share a common interface and therefore impose a particular logging
+    implementation on the users of your library. To solve this dependency
+    problem the Common.Logging library introduces a simple abstraction to
+    allow you to select a specific logging implementation at runtime.</p><p>The library is based on work done by the developers of IBatis.NET
+    and it's usage is inspired by log4net. Many thanks to the developers of
+    those projects! The library is available for .NET 1.0, 1.1, and 2.0 with
+    both debug and strongly signed release assemblies.</p><p>The base logging library, Common.Logging, provides the base logging
+    interfaces that appear in your code and also include simple console and
+    trace based logger implementations. The libraries are located under
+    bin/net/&lt;framework-version&gt;/debug or release. There is one NLog
+    implementation and two enterprise log4net implementations, one for log4net
+    1.2.9 and another for log4net 1.2.10. The need for two log4net versions is
+    due to the fact that each is signed with a different strong key making
+    assembly redirection impossible. Future releases will support Enterprise
+    Library Logging.</p><p>Note that it is not the intention of this library to be a
+    replacement for the many fine logging libraries that are out there. The
+    API is incredibly minimal and will very likely stay that way. Only use
+    this library if you truly need to support multiple logging APIs.</p></div><div class="section" lang="en"><div class="titlepage"><div><div><h2 class="title" style="clear: both"><a name="logging-usage"></a>1.2.&nbsp;Using Common.Logging API</h2></div></div></div><p>Usage of the Logging API is fairly simple. First you need to obtain
+    a logger from the LogManager and call the appropriate logging
+    method:</p><pre class="programlisting">
+      using Common.Logging;
+      ...
+      ILog log = LogManager.GetLogger(this.GetType());
+      log.Debug("hello world");
+    </pre><p>It is also possible to obtain a logger by name</p><pre class="programlisting">ILog log = LogManager.GetLogger("mylogger");</pre><p>A logger instance provides the following methods for logging:</p><pre class="programlisting">
+    public interface ILog
+    {
+      void Trace( object message );
+      void Trace( object message, Exception exception );
+      void Debug( object message );
+      void Debug( object message, Exception exception );
+      void Error( object message );
+      void Error( object message, Exception exception );
+      void Fatal( object message );
+      void Fatal( object message, Exception exception );
+      void Info( object message );
+      void Info( object message, Exception exception );
+      void Warn( object message );
+      void Warn( object message, Exception exception );
+
+      bool IsTraceEnabled { get; }
+      bool IsDebugEnabled { get; }
+      bool IsErrorEnabled { get; }
+      bool IsFatalEnabled { get; }
+      bool IsInfoEnabled  { get; }
+      bool IsWarnEnabled  { get; }
+    }
+    </pre><p>Since the ILog interface mimics that of the interface used in
+    log4net, migration from log4net is just a matter of changing the 'using'
+    statement.</p><p>You can get a reference to an instance of an ILog using the
+    LoggingManager class. Its API is shown below:</p><pre class="programlisting">
+    public sealed class LogManager
+    {
+      public static ILog GetLogger( Type type ) ...
+      public static ILog GetLogger( string name ) ...
+
+      public static ILoggerFactoryAdapter Adapter ...
+
+    }
+    </pre><p>The Adapter property is used by the framework itself.</p></div><div class="section" lang="en"><div class="titlepage"><div><div><h2 class="title" style="clear: both"><a name="logging-config"></a>1.3.&nbsp;Configuring Logging</h2></div></div></div><p>There are 2 ways of configuring logging in your application - either
+    declaratively or pro grammatically.</p><div class="section" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="logging-declarative-config"></a>1.3.1.&nbsp;Declarative Configuration</h3></div></div></div><p>Logging configuration can be done declaratively in your
+      app.config</p><pre class="programlisting">
+        &lt;configuration&gt;
+          &lt;configSections&gt;
+            &lt;sectionGroup name="common"&gt;
+              &lt;section name="logging" type="Common.Logging.ConfigurationSectionHandler, Common.Logging" /&gt;
+            &lt;/sectionGroup&gt;
+          &lt;/configSections&gt;
+
+          &lt;common&gt;
+            &lt;logging&gt;
+              &lt;factoryAdapter type="Common.Logging.Simple.ConsoleOutLoggerFactoryAdapter, Common.Logging"&gt;
+                &lt;arg key="level" value="DEBUG" /&gt;
+                &lt;arg key="showLogName" value="true" /&gt;
+                &lt;arg key="showDataTime" value="true" /&gt;
+                &lt;arg key="dateTimeFormat" value="yyyy/MM/dd HH:mm:ss:fff" /&gt;
+              &lt;/factoryAdapter&gt;
+            &lt;/logging&gt;
+          &lt;/common&gt;
+        &lt;/configuration&gt;
+      </pre><div class="note" style="margin-left: 0.5in; margin-right: 0.5in;"><table border="0" summary="Note"><tr><td rowspan="2" align="center" valign="top" width="25"><img alt="[Note]" src="../images/admons/note.png"></td><th align="left">Note</th></tr><tr><td align="left" valign="top"><p>The concrete set of &lt;arg&gt; elements you may specify depends
+        on the FactoryAdapter being used.</p></td></tr></table></div><p>Note that if you have installed Common.Logging in the GAC, you
+      will need to specify the fully qualified name of the assembly, i.e. add
+      the Version, Culture, and PublicKeyToken, etc. See the log4net section
+      for an example.</p></div><div class="section" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="logging-configuring-in-code"></a>1.3.2.&nbsp;Configuring Logging in your code</h3></div></div></div><p>You may manually configure logging by setting a
+      LoggerFactoryAdapter in your code.</p><pre class="programlisting">
+        // create properties
+        NameValueCollection properties = new NameValueCollection();
+        properties["showDateTime"] = "true";
+
+        // set Adapter
+        Common.Logging.LogManager.Adapter = new Common.Logging.Simple.ConsoleOutLoggerFactoryAdapter(properties);
+      </pre><div class="note" style="margin-left: 0.5in; margin-right: 0.5in;"><table border="0" summary="Note"><tr><td rowspan="2" align="center" valign="top" width="25"><img alt="[Note]" src="../images/admons/note.png"></td><th align="left">Note</th></tr><tr><td align="left" valign="top"><p>The concrete set of properties you may specify depends on the
+        FactoryAdapter being used.</p></td></tr></table></div></div></div><div class="section" lang="en"><div class="titlepage"><div><div><h2 class="title" style="clear: both"><a name="logging-adapters"></a>1.4.&nbsp;Logging Adapters</h2></div></div></div><p>There are simple out-of-the-box implementations coming with
+    Common.Logging itself. For connecting to log4net, separate adapters do
+    exist.</p><div class="note" style="margin-left: 0.5in; margin-right: 0.5in;"><table border="0" summary="Note"><tr><td rowspan="2" align="center" valign="top" width="25"><img alt="[Note]" src="../images/admons/note.png"></td><th align="left">Note</th></tr><tr><td align="left" valign="top"><p>Be sure to correctly specify the type of the FactoryAdapter in the
+      common logging configuration section and to copy the logging
+      implementation .dlls to your runtime directory. At the moment, if the
+      specified FactoryAdapter type is not found or its dependent libraries,
+      the NoOpLoggerFactoryAdaptor is used by default and you will not see any
+      logging output.</p></td></tr></table></div><div class="section" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="logging-noop"></a>1.4.1.&nbsp;NoOpLoggerFactoryAdapter</h3></div></div></div><p>This is the default FactoryAdapter if logging is not configured.
+      It simply does nothing.</p></div><div class="section" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="logging-console"></a>1.4.2.&nbsp;ConsoleOutLoggerFactoryAdapter</h3></div></div></div><p>ConsoleOutLoggerFactoryAdapter uses Console.Out for logging
+      output.</p><div class="table"><a name="logging-console-config-props"></a><p class="title"><b>Table&nbsp;1.1.&nbsp;Configuration Properties</b></p><div class="table-contents"><table summary="Configuration Properties" border="1"><colgroup><col><col><col></colgroup><thead><tr><th>Key</th><th>Possible Value(s)</th><th>Description</th></tr></thead><tbody><tr><td>level</td><td>All Debug Info Warn Error Fatal Off</td><td>Defines the global maximum level of logging.</td></tr><tr><td>showDateTime</td><td>true|false</td><td>output timestamp?</td></tr><tr><td>showLogName</td><td>true|false</td><td>output logger name?</td></tr><tr><td>dateTimeFormat</td><td>any formatstring accepted by DateTime.ToString()</td><td>defines the format to be used for output the timestamp.
+              If no format is specified DateTime.ToString() will be
+              used.</td></tr></tbody></table></div></div><br class="table-break"></div><div class="section" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="logging-trace"></a>1.4.3.&nbsp;TraceLoggerFactoryAdapter</h3></div></div></div><p>TraceLoggerFactoryAdapter uses
+      <code class="classname">System.Diagnostics.Trace</code> for logging output. For
+      viewing it's output you can use any tool that is capable of capturing
+      calls to Win32 <code class="function">OutputDebugString()</code> - e.g. the tool
+      "DebugView" from <a href="www.sysinternals.com" target="_top">www.sysinternals.com</a>.</p><div class="table"><a name="logging-trace-config-props"></a><p class="title"><b>Table&nbsp;1.2.&nbsp;Configuration Properties</b></p><div class="table-contents">
+         &gt; 
+
+        <table summary="Configuration Properties" border="1"><colgroup><col><col><col></colgroup><thead><tr><th>Key</th><th>Possible Value(s)</th><th>Description</th></tr></thead><tbody><tr><td>level</td><td>All Debug Info Warn Error Fatal Off</td><td>Defines the global maximum level of logging.</td></tr><tr><td>showDateTime</td><td>true|false</td><td>output timestamp?</td></tr><tr><td>showLogName</td><td>true|false</td><td>output logger name?</td></tr><tr><td>dateTimeFormat</td><td>any formatstring accepted by DateTime.ToString()</td><td>defines the format to be used for output the timestamp.
+              If no format is specified DateTime.ToString() will be
+              used.</td></tr></tbody></table></div></div><br class="table-break"></div><div class="section" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="logging-adapters-log4net"></a>1.4.4.&nbsp;Log4NetLoggerFactoryAdapter</h3></div></div></div><p>There are two implementations, both configured similarly.</p><div class="itemizedlist"><ul type="disc"><li><p><span class="package">Common.Logging.Log4Net</span></p><p>is linked against log4net 1.2.10.0</p></li><li><p><span class="package">Common.Logging.Log4Net129</span></p><p>is linked against log4net 1.2.9.0</p></li></ul></div><p>The only difference is in the type specified to the factory
+      adapter. Both Adapters accept the following configuration
+      properties:</p><div class="table"><a name="logging-log4net-config-props"></a><p class="title"><b>Table&nbsp;1.3.&nbsp;Configuration Properties</b></p><div class="table-contents">
+         &gt; 
+
+        <table summary="Configuration Properties" border="1"><colgroup><col><col><col></colgroup><thead><tr><th>Key</th><th>Possible Value(s)</th><th>Description</th></tr></thead><tbody><tr><td>configType</td><td>
+                <p>FILE</p>
+
+                <p>FILE-WATCH</p>
+
+                <p>INLINE</p>
+
+                <p>EXTERNAL</p>
+              </td><td>
+                <p>INLINE will simply call
+                XmlConfigurator.Configure()</p>
+
+                <p>EXTERNAL expects log4net being configured somewhere else
+                in your code and does nothing.</p>
+
+                <p>FILE, FILE-WATCH: see property "configFile"
+                below.</p>
+              </td></tr><tr><td>configFile</td><td>&lt;path to your log4net.config file&gt;</td><td>if configType is FILE or FILE-WATCH, the value of
+              "configFile" is passed to XmlConfigurator.Configure (FileInfo) /
+              ConfigureAndWatch(FileInfo) method.</td></tr></tbody></table></div></div><br class="table-break"><p>The example below will configure log4net 1.2.10.0 using the file
+      <code class="filename">log4net.config</code> from your application's root
+      directory by calling
+      <code class="function">XmlConfigurator.ConfigureAndWatch()</code>:</p><pre class="programlisting">
+        &lt;common&gt;
+          &lt;logging&gt;
+            &lt;factoryAdapter type="Common.Logging.Log4Net.Log4NetLoggerFactoryAdapter, Common.Logging.Log4net"&gt;
+              &lt;arg key="configType" value="FILE-WATCH" /&gt;
+              &lt;arg key="configFile" value="~/log4net.config" /&gt;
+            &lt;/factoryAdapter&gt;
+          &lt;/logging&gt;
+        &lt;/common&gt;
+      </pre><p>For log4net 1.2.9, change the assembly name
+      <span class="package">Common.Logging.Log4Net129.</span></p><p>Another example that shows the log4net configuration 'inline' with
+      the standard application configuration file is shown below.</p><pre class="programlisting">
+          &lt;configSections&gt;
+
+            &lt;sectionGroup name="common"&gt;
+              &lt;section name="logging" type="Common.Logging.ConfigurationSectionHandler, Common.Logging" /&gt;
+            &lt;/sectionGroup&gt;
+
+            &lt;section name="log4net" type="log4net.Config.Log4NetConfigurationSectionHandler, log4net"/&gt;
+
+          &lt;/configSections&gt;
+
+          &lt;common&gt;
+            &lt;logging&gt;
+              &lt;factoryAdapter type="Common.Logging.Log4Net.Log4NetLoggerFactoryAdapter, Common.Logging.Log4Net"&gt;
+                &lt;arg key="configType" value="INLINE" /&gt;
+              &lt;/factoryAdapter&gt;
+            &lt;/logging&gt;
+          &lt;/common&gt;
+
+
+          &lt;log4net&gt;
+
+            &lt;appender name="ConsoleAppender" type="log4net.Appender.ConsoleAppender"&gt;
+              &lt;layout type="log4net.Layout.PatternLayout"&gt;
+                &lt;conversionPattern value="%date [%thread] %-5level %logger %ndc - %message%newline" /&gt;
+              &lt;/layout&gt;
+            &lt;/appender&gt;
+
+            &lt;root&gt;
+              &lt;level value="DEBUG" /&gt;
+              &lt;appender-ref ref="ConsoleAppender" /&gt;
+            &lt;/root&gt;
+
+            &lt;logger name="MyApp.DataAccessLayer"&gt;
+              &lt;level value="DEBUG" /&gt;
+            &lt;/logger&gt;
+
+          &lt;/log4net&gt;
+        </pre><p>Note that if you are using Common.Logging or any of the adapters
+      from the GAC, you will need to specify the full type name, including
+      verison, publickey token etc., as shown below</p><pre class="programlisting">&lt;configSections&gt;
+  &lt;sectionGroup name="common"&gt;
+    &lt;section name="logging" type="Common.Logging.ConfigurationSectionHandler, Common.Logging, 
+                                  Version=1.0.2.0, Culture=neutral, PublicKeyToken=AF08829B84F0328E"/&gt;
+  &lt;/sectionGroup&gt;
+  &lt;section name="log4net" type="log4net.Config.Log4NetConfigurationSectionHandler, log4net,
+                                Version=1.2.10.0, Culture=neutral, PublicKeyToken=1B44E1D426115821"/&gt;
+&lt;/configSections&gt;
+&lt;common&gt;
+ &lt;logging&gt;
+   &lt;factoryAdapter type="Common.Logging.Log4Net.Log4NetLoggerFactoryAdapter, Common.Logging.Log4Net, 
+                         Version=1.0.2.2, Culture=neutral, PublicKeyToken=AF08829B84F0328E"&gt;
+     &lt;arg key="configType" value="FILE-WATCH"/&gt;
+     &lt;arg key="configFile" value="~/log4net.config"/&gt;
+   &lt;/factoryAdapter&gt;
+ &lt;/logging&gt;
+&lt;/common&gt;</pre></div><div class="section" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="logging-adapters-nlog"></a>1.4.5.&nbsp;NLogLoggerFactoryAdapter</h3></div></div></div><p>There is one implementation.</p><div class="itemizedlist"><ul type="disc"><li><p><span class="package">Common.Logging.NLog</span></p><p>is linked against NLog 1.0.0.505</p></li></ul></div><div class="table"><a name="logging-nlog-config-props"></a><p class="title"><b>Table&nbsp;1.4.&nbsp;Configuration Properties</b></p><div class="table-contents">
+         &gt; 
+
+        <table summary="Configuration Properties" border="1"><colgroup><col><col><col></colgroup><thead><tr><th>Key</th><th>Possible Value(s)</th><th>Description</th></tr></thead><tbody><tr><td>configType</td><td>
+                <p>INLINE</p>
+
+                <p>FILE</p>
+              </td><td>
+                <p>INLINE</p>
+
+                <p>FILE: see property "configFile" below.</p>
+              </td></tr><tr><td>configFile</td><td>&lt;path to your NLog.config file&gt;</td><td>if configType is FILE, the value of "configFile" is
+              passed to XmlLoggingConfiguration(string) constructor.</td></tr></tbody></table></div></div><br class="table-break"><p>The example below will configure NLog using the file
+      <code class="filename">NLog.config</code> from your application's root directory
+      by calling <code class="function">XmlLoggingConfiguration(string)</code>:</p><pre class="programlisting">
+        &lt;common&gt;
+          &lt;logging&gt;
+            &lt;factoryAdapter type="Common.Logging.NLog.NLogLoggerFactoryAdapter, Common.Logging.NLog"&gt;
+              &lt;arg key="configType" value="FILE" /&gt;
+              &lt;arg key="configFile" value="~/NLog.config" /&gt;
+            &lt;/factoryAdapter&gt;
+          &lt;/logging&gt;
+        &lt;/common&gt;
+      </pre><p>Another example that shows the NLog configuration 'inline' with
+      the standard application configuration file is shown below.</p><pre class="programlisting">
+          &lt;configSections&gt;
+
+            &lt;sectionGroup name="common"&gt;
+              &lt;section name="logging" type="Common.Logging.ConfigurationSectionHandler, Common.Logging" /&gt;
+            &lt;/sectionGroup&gt;
+
+
+            &lt;section name="nlog" type="NLog.Config.ConfigSectionHandler, NLog"/&gt;
+
+          &lt;/configSections&gt;
+
+          &lt;common&gt;
+            &lt;logging&gt;
+              &lt;factoryAdapter type="Common.Logging.NLog.NLogLoggerFactoryAdapter, Common.Logging.NLog"&gt;
+                &lt;arg key="configType" value="INLINE" /&gt;
+              &lt;/factoryAdapter&gt;
+            &lt;/logging&gt;
+          &lt;/common&gt;
+
+
+          &lt;nlog xmlns="http://www.nlog-project.org/schemas/NLog.xsd" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"&gt;
+
+            &lt;targets&gt;
+              &lt;target name="console" xsi:type="Console" layout="${date:format=HH\:MM\:ss} ${logger} ${message}" /&gt;
+            &lt;/targets&gt;
+
+            &lt;rules&gt;
+              &lt;logger name="*" minlevel="Debug" writeTo="console" /&gt;
+            &lt;/rules&gt;
+          &lt;/nlog&gt;
+        </pre></div><div class="section" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="d0e369"></a>1.4.6.&nbsp;EntLibLoggingAdapter</h3></div></div></div><p>There is one implementation located in the assembly
+      Common.Logging.EntLib and is linked against the Microsoft Enterprise
+      Library v 3.1, aka EntLib 3.1. The .dlls for EntLib can not be
+      redistributed so you will need to download EntLib separately.</p><p>There are no configuration options for the adapter. Configuration
+      of EntLib logging is done entirely though App.config. The example below
+      shows the basic configuration of the EntLibLoggingAdapter</p><pre class="programlisting">        &lt;common&gt;
+          &lt;logging&gt;
+            &lt;factoryAdapter type="Common.Logging.EntLib.EntLibLoggerFactoryAdapter, Common.Logging.EntLib"/&gt;
+          &lt;/logging&gt;
+        &lt;/common&gt;</pre><p>Future releases may include configuration of the priority and also
+      the format in which information about an exception is logged. The
+      current priority used is -1, the default. Note that the following
+      mapping of Common.Logging LogLevel and is used.</p><div class="table"><a name="entlib-level-mapping"></a><p class="title"><b>Table&nbsp;1.5.&nbsp;EntLib to Common.Logging log evel mapping</b></p><div class="table-contents"><table summary="EntLib to Common.Logging log evel mapping" border="1"><colgroup><col><col></colgroup><thead><tr><th>Common.Logging.LogLevel</th><th>System.Diagnostics. TraceEventType</th></tr></thead><tbody><tr><td>Trace</td><td>Verbose</td></tr><tr><td>Debug</td><td>Verbose</td></tr><tr><td>Error</td><td>Error</td></tr><tr><td>Fatal</td><td>Critical</td></tr><tr><td>Info</td><td>Information</td></tr><tr><td>Warn</td><td>Warning</td></tr></tbody></table></div></div><p><br class="table-break"></p></div></div><div class="section" lang="en"><div class="titlepage"><div><div><h2 class="title" style="clear: both"><a name="logging-advanced"></a>1.5.&nbsp;Advanced Logging Tasks</h2></div></div></div><div class="section" lang="en"><div class="titlepage"><div><div><h3 class="title"><a name="logging-advanced-customfactoryadapter"></a>1.5.1.&nbsp;Implementing a custom FactoryAdapter</h3></div></div></div><p>f you want to plug in a new, yet unsupported logging library, you
+      need to implement the
+      <code class="interfacename">Common.Logging.ILoggerFactoryAdapter</code>
+      interface.</p><p><span class="guilabel">Important:</span> Any implementation
+      <span class="emphasis"><em>must</em></span> provide a public constructor accepting a
+      <code class="classname">NameValueCollection</code> parameter as shown in the
+      example below:</p><pre class="programlisting">
+          public class MyLoggingFactoryAdapter :  ILoggerFactoryAdapter
+          {
+            public MyLoggingFactoryAdapter(NameValueCollection properties)
+            {
+              // configure according to properties
+            }
+
+            public ILog GetLogger(Type type) { ... }
+          
+            public ILog GetLogger(string name) { ... }
+
+          }
+        </pre></div></div></div><div xmlns="http://www.w3.org/TR/xhtml1/transitional" class="navfooter"><hr><table width="100%" summary="Navigation footer"><tr><td width="40%" align="left"><a accesskey="p" href="index.html">Prev</a>&nbsp;</td><td width="20%" align="center"><a accesskey="h" href="index.html">Home</a></td><td width="40%" align="right">&nbsp;</td></tr><tr><td width="40%" align="left" valign="top">Common Infrastructure Libraries for .NET&nbsp;</td><td width="20%" align="center"><span style="color:white;font-size:90%;"><a href="http://netcommon.sf.net/" title="Common Infrastructure Librarires for .NET">Common Infrastructure Libraries for .NET</a></span></td><td width="40%" align="right" valign="top">&nbsp;</td></tr></table></div></body></html>
