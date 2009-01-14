@@ -139,7 +139,7 @@ namespace GT.Net
         }
 
         /// <summary>
-        /// Create the marsheller for the server instance.
+        /// Create the marshaller for the server instance.
         /// </summary>
         /// <returns>the marshaller</returns>
         public override IMarshaller CreateMarshaller()

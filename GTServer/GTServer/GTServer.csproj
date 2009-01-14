@@ -50,6 +50,7 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="MillipedeServer.cs" />
     <Compile Include="TcpAcceptor.cs" />
     <Compile Include="Transports.cs" />
     <Compile Include="UdpMultiplexer.cs" />

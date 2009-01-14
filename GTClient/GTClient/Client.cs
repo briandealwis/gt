@@ -1110,7 +1110,13 @@ namespace GT.Net
                 listeningThread = null;
                 if (t != null && t != Thread.CurrentThread) { t.Abort(); }
 
-                if (!Active) { return; }
+                // I commented out the following line, because it might present fauly behaviour:
+                // Usually Stop() is called before Dispose(). Stop already sets started=false,
+                // therefore Dispose will never call Dispose() on the connectors and connexions.
+                // I assume this behaviour is not intended, but someone else should have a look
+                // and decide how to resolve this conflict.
+                // -- Adrian
+                //if (!Active) { return; }
                 started = false;
                 if (connectors != null)
                 {
