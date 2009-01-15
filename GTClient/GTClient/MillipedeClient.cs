@@ -53,12 +53,11 @@ namespace GT.Millipede
     /// </summary>
     class MillipedeConnector : IConnector
     {
-        private readonly Mode m_Mode = Mode.Idle;
-        private readonly Stopwatch m_StartTime = new Stopwatch();
-        private readonly MemoryStream m_DataSink = null;
-        private readonly IList<NetworkEvent> m_DataSource = new List<NetworkEvent>();
-        private readonly IConnector m_UnderlyingConnector = null;
-        private ITransport m_Transport = null;
+        private readonly Mode mode = Mode.Idle;
+        private readonly Stopwatch startTime = new Stopwatch();
+        private readonly MemoryStream dataSink = null;
+        private readonly IList<NetworkEvent> dataSource = new List<NetworkEvent>();
+        private readonly IConnector underlyingConnector = null;
 
         /// <summary>
         /// Instanciates a millipede connection and wrapps it around an existing underlying
@@ -68,115 +67,120 @@ namespace GT.Millipede
         /// <param name="mode">The current operation mode</param>
         public MillipedeConnector(IConnector underlyingConnector, Mode mode)
         {
-            m_Mode = mode;
-            m_UnderlyingConnector = underlyingConnector;
-            m_StartTime.Start();
-            switch (m_Mode)
+            this.mode = mode;
+            this.underlyingConnector = underlyingConnector;
+            startTime.Start();
+            switch (this.mode)
             {
                 case Mode.Record:
-                    m_DataSink = new MemoryStream();
+                    dataSink = new MemoryStream();
                     break;
                 case Mode.Playback:
-                    Stream dataSource = File.OpenRead(m_UnderlyingConnector.GetType().ToString());
+                    Stream dataSource = File.OpenRead(this.underlyingConnector.GetType().ToString());
                     dataSource.Position = 0;
                     while (dataSource.Position != dataSource.Length)
-                        m_DataSource.Add(NetworkEvent.DeSerialize(dataSource));
+                    {
+                        this.dataSource.Add(NetworkEvent.DeSerialize(dataSource));
+                    }
                     dataSource.Close();
                     break;
             }
         }
 
         /// <summary>
-        /// Wrapps IConnector.Connect. In addition, writes data to a sink if MillipedeConnector is
+        /// Wraps IConnector.Connect. In addition, writes data to a sink if MillipedeConnector is
         /// initialized with Mode.Record. The returning ITransport is wrapped in a
         /// MillipedeTransport.
         /// <see cref="IConnector.Connect"/>
         public ITransport Connect(string address, string port, IDictionary<string, string> capabilities)
         {
-            switch (m_Mode)
+            switch (mode)
             {
                 case Mode.Record:
-                    (new NetworkEvent((int)m_StartTime.ElapsedMilliseconds, "Connect")).Serialize(m_DataSink);
+                    (new NetworkEvent((int)startTime.ElapsedMilliseconds, 
+                        NetworkEvent.Event_Connected)).Serialize(dataSink);
                     break;
             }
-            m_Transport = new MillipedeTransport(m_UnderlyingConnector.Connect(address, port, capabilities), m_StartTime, m_DataSink, m_DataSource, m_Mode);
-            return m_Transport;
+            return new MillipedeTransport(underlyingConnector.Connect(address, port, capabilities), startTime, dataSink, dataSource, mode);
         }
 
         /// <summary>
-        /// Wrapps IConnector.Responsible.
+        /// Wraps IConnector.Responsible.
         /// </summary>
         /// <see cref="IConnector.Responsible"/>
         public bool Responsible(ITransport transport)
         {
-            return m_UnderlyingConnector.Responsible(transport);
+            return underlyingConnector.Responsible(transport);
         }
 
         /// <summary>
-        /// Wrapps IConnector.Start. In addition, writes data to a sink if MillipedeTransport
+        /// Wraps IConnector.Start. In addition, writes data to a sink if MillipedeTransport
         /// initialized with Mode.Record.
         /// </summary>
         /// <see cref="IStartable.Start"/>
         public void Start()
         {
-            switch (m_Mode)
+            switch (mode)
             {
                 case Mode.Record:
-                    (new NetworkEvent((int)m_StartTime.ElapsedMilliseconds, "Start")).Serialize(m_DataSink);
+                    (new NetworkEvent((int)startTime.ElapsedMilliseconds, 
+                        NetworkEvent.Event_Started)).Serialize(dataSink);
                     break;
             }
-            m_UnderlyingConnector.Start();
+            underlyingConnector.Start();
         }
 
         /// <summary>
-        /// Wrapps IConnector.Stop. In addition, writes data to a sink if MillipedeTransport
+        /// Wraps IConnector.Stop. In addition, writes data to a sink if MillipedeTransport
         /// initialized with Mode.Record.
         /// </summary>
         /// <see cref="IStartable.Stop"/>
         public void Stop()
         {
-            switch (m_Mode)
+            switch (mode)
             {
                 case Mode.Record:
-                    (new NetworkEvent((int)m_StartTime.ElapsedMilliseconds, "Stop")).Serialize(m_DataSink);
+                    (new NetworkEvent((int)startTime.ElapsedMilliseconds, 
+                        NetworkEvent.Event_Stopped)).Serialize(dataSink);
                     break;
             }
-            m_UnderlyingConnector.Stop();
+            underlyingConnector.Stop();
         }
 
         /// <summary>
-        /// Wrapps IConnector.Active.
+        /// Wraps IConnector.Active.
         /// </summary>
         /// <see cref="IStartable.Active"/>
         public bool Active
         {
-            get { return m_UnderlyingConnector.Active; }
+            get { return underlyingConnector.Active; }
         }
 
         /// <summary>
-        /// Wrapps IConnector.Dispose. In addition, writes data to a sink if MillipedeTransport
+        /// Wraps IConnector.Dispose. In addition, writes data to a sink if MillipedeTransport
         /// initialized with Mode.Record and stores the data of the disposed IConnection
         /// persistantly.
         /// </summary>
         /// <see cref="IDisposable.Dispose"/>
         public void Dispose()
         {
-            switch (m_Mode)
+            switch (mode)
             {
                 case Mode.Record:
-                    (new NetworkEvent((int)m_StartTime.ElapsedMilliseconds, "Dispose")).Serialize(m_DataSink);
+                    (new NetworkEvent((int)startTime.ElapsedMilliseconds, 
+                        NetworkEvent.Event_Disposed)).Serialize(dataSink);
 
-                    FileStream sinkFile = File.Create(m_UnderlyingConnector.GetType().ToString());
-                    lock (m_DataSink)
+                    FileStream sinkFile = File.Create(underlyingConnector.GetType().ToString());
+                    lock (dataSink)
                     {
-                        m_DataSink.Position = 0;
-                        m_DataSink.WriteTo(sinkFile);
+                        dataSink.Position = 0;
+                        dataSink.WriteTo(sinkFile);
                         sinkFile.Close();
-                        m_DataSink.Close();
+                        dataSink.Close();
                     }
                     break;
             }
-            m_UnderlyingConnector.Dispose();
+            underlyingConnector.Dispose();
         }
     }
 }

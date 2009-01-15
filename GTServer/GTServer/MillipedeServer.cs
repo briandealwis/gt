@@ -13,7 +13,7 @@ namespace GT.Millipede
     /// </summary>
     public class MillipedeConfiguration : DefaultServerConfiguration
     {
-        private readonly Mode m_Mode = Mode.Idle;
+        private readonly Mode mode = Mode.Idle;
 
         /// <summary>
         /// Instanciates the millipede debugger configuration in idle mode
@@ -30,7 +30,7 @@ namespace GT.Millipede
         /// <see cref="DefaultServerConfiguration"/>
         public MillipedeConfiguration(int port, Mode mode) : base(port)
         {
-            m_Mode = mode;
+            this.mode = mode;
         }
         
         /// <summary>
@@ -40,7 +40,7 @@ namespace GT.Millipede
         /// <see cref="DefaultServerConfiguration"/>
         public MillipedeConfiguration(int port, int pingInterval, Mode mode) : base(port, pingInterval)
         {
-            m_Mode = mode;
+            this.mode = mode;
         }
 
         /// <summary>
@@ -52,8 +52,8 @@ namespace GT.Millipede
         {
             ICollection<IAcceptor> acceptors = new List<IAcceptor>
             {
-                new MillipedeAcceptor(new TcpAcceptor(IPAddress.Any, port), m_Mode),
-                new MillipedeAcceptor(new UdpAcceptor(IPAddress.Any, port), m_Mode),
+                new MillipedeAcceptor(new TcpAcceptor(IPAddress.Any, port), mode),
+                new MillipedeAcceptor(new UdpAcceptor(IPAddress.Any, port), mode),
             };
             return acceptors;
         }
@@ -65,11 +65,11 @@ namespace GT.Millipede
     /// </summary>
     class MillipedeAcceptor : IAcceptor
     {
-        private readonly Mode m_Mode = Mode.Idle;
-        private readonly Stopwatch m_StartTime = new Stopwatch();
-        private readonly MemoryStream m_DataSink = null;
-        private readonly IList<NetworkEvent> m_DataSource = new List<NetworkEvent>();
-        private readonly IAcceptor m_UnderlyingAcceptor = null;
+        private readonly Mode mode = Mode.Idle;
+        private readonly Stopwatch startTime = new Stopwatch();
+        private readonly MemoryStream dataSink = null;
+        private readonly IList<NetworkEvent> dataSource = new List<NetworkEvent>();
+        private readonly IAcceptor underlyingAcceptor = null;
         public event NewClientHandler NewClientEvent;
 
         /// <summary>
@@ -80,20 +80,20 @@ namespace GT.Millipede
         /// <param name="mode">The current operation mode</param>
         public MillipedeAcceptor(IAcceptor underlyingAcceptor, Mode mode)
         {
-            m_Mode = mode;
-            m_UnderlyingAcceptor = underlyingAcceptor;
-            m_StartTime.Start();
-            switch (m_Mode)
+            this.mode = mode;
+            this.underlyingAcceptor = underlyingAcceptor;
+            startTime.Start();
+            switch (this.mode)
             {
                 case Mode.Record:
-                    m_DataSink = new MemoryStream();
-                    m_UnderlyingAcceptor.NewClientEvent += new NewClientHandler(m_UnderlyingAcceptor_NewClientEvent);
+                    dataSink = new MemoryStream();
+                    this.underlyingAcceptor.NewClientEvent += UnderlyingAcceptor_NewClientEvent;
                     break;
                 case Mode.Playback:
-                    Stream dataSource = File.OpenRead(m_UnderlyingAcceptor.GetType().ToString());
+                    Stream dataSource = File.OpenRead(this.underlyingAcceptor.GetType().ToString());
                     dataSource.Position = 0;
                     while (dataSource.Position != dataSource.Length)
-                        m_DataSource.Add(NetworkEvent.DeSerialize(dataSource));
+                        this.dataSource.Add(NetworkEvent.DeSerialize(dataSource));
                     dataSource.Close();
                     break;
             }
@@ -106,92 +106,96 @@ namespace GT.Millipede
         /// components.
         /// </summary>
         /// <see cref="IAcceptor.NewClientEvent"/>
-        private void m_UnderlyingAcceptor_NewClientEvent(ITransport transport, Dictionary<string, string> capabilities)
+        private void UnderlyingAcceptor_NewClientEvent(ITransport transport, Dictionary<string, string> capabilities)
         {
             if (NewClientEvent == null)
             {
                 return;
             }
-            switch (m_Mode)
+            switch (mode)
             {
                 case Mode.Record:
-                    (new NetworkEvent((int)m_StartTime.ElapsedMilliseconds, "NewClientEvent_" + transport.Name)).Serialize(m_DataSink);
+                    (new NetworkEvent((int)startTime.ElapsedMilliseconds, 
+                        NetworkEvent.Event_NewClient + transport.Name)).Serialize(dataSink);
                     break;
             }
-            NewClientEvent(new MillipedeTransport(transport, m_StartTime, m_DataSink, m_DataSource, m_Mode), capabilities);
+            NewClientEvent(new MillipedeTransport(transport, startTime, dataSink, dataSource, mode), capabilities);
         }
 
         /// <summary>
-        /// Wrapps IAcceptor.Update.
+        /// Wraps IAcceptor.Update.
         /// </summary>
         /// <see cref="IAcceptor.Update"/>
         public void Update()
         {
-            m_UnderlyingAcceptor.Update();
+            underlyingAcceptor.Update();
         }
 
         /// <summary>
-        /// Wrapps IAcceptor.Start.
+        /// Wraps IAcceptor.Start.
         /// </summary>
         /// <see cref="IStartable.Start"/>
         public void Start()
         {
-            m_StartTime.Start();
-            switch (m_Mode)
+            startTime.Start();
+            switch (mode)
             {
                 case Mode.Record:
-                    (new NetworkEvent((int)m_StartTime.ElapsedMilliseconds, "Start")).Serialize(m_DataSink);
+                    (new NetworkEvent((int)startTime.ElapsedMilliseconds, 
+                        NetworkEvent.Event_Started)).Serialize(dataSink);
                     break;
             }
-            m_UnderlyingAcceptor.Start();
+            underlyingAcceptor.Start();
         }
 
         /// <summary>
-        /// Wrapps IAcceptor.Stop.
+        /// Wraps IAcceptor.Stop.
         /// </summary>
         /// <see cref="IStartable.Stop"/>
         public void Stop()
         {
-            switch (m_Mode)
+            switch (mode)
             {
                 case Mode.Record:
-                    (new NetworkEvent((int)m_StartTime.ElapsedMilliseconds, "Stop")).Serialize(m_DataSink);
+                    (new NetworkEvent((int)startTime.ElapsedMilliseconds, 
+                        NetworkEvent.Event_Stopped)).Serialize(dataSink);
                     break;
             }
-            m_UnderlyingAcceptor.Stop();
+            underlyingAcceptor.Stop();
         }
 
         /// <summary>
-        /// Wrapps IAcceptor.Active.
+        /// Wraps IAcceptor.Active.
         /// </summary>
         /// <see cref="IStartable.Active"/>
         public bool Active
         {
-            get { return m_UnderlyingAcceptor.Active; }
+            get { return underlyingAcceptor.Active; }
         }
 
         /// <summary>
-        /// Wrapps IAcceptor.Dispose.
+        /// Wraps IAcceptor.Dispose.
         /// </summary>
         /// <see cref="IDisposable.Dispose"/>
         public void Dispose()
         {
-            switch (m_Mode)
+            switch (mode)
             {
                 case Mode.Record:
-                    (new NetworkEvent((int)m_StartTime.ElapsedMilliseconds, "Dispose")).Serialize(m_DataSink);
+                    (new NetworkEvent((int)startTime.ElapsedMilliseconds, 
+                        NetworkEvent.Event_Disposed)).Serialize(dataSink);
 
-                    FileStream sinkFile = File.Create(m_UnderlyingAcceptor.GetType().ToString());
-                    lock (m_DataSink)
+                    FileStream sinkFile = File.Create(underlyingAcceptor.GetType().ToString());
+                    lock (dataSink)
                     {
-                        m_DataSink.Position = 0;
-                        m_DataSink.WriteTo(sinkFile);
+                        dataSink.Position = 0;
+                        dataSink.WriteTo(sinkFile);
                         sinkFile.Close();
-                        m_DataSink.Close();
+                        dataSink.Close();
                     }
                     break;
             }
-            m_UnderlyingAcceptor.Dispose();
+            underlyingAcceptor.Dispose();
         }
     }
 }

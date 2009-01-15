@@ -35,12 +35,12 @@ namespace GT.Millipede
     /// <see cref="GT.Net.ITransport"/>
     public class MillipedeTransport : ITransport
     {
-        private readonly Mode m_Mode = Mode.Idle;
-        private readonly Stopwatch m_StartTime = null;
-        private readonly Stream m_DataSink = null;
-        private readonly ITransport m_UnderlyingTransports = null;
-        private readonly IList<NetworkEvent> m_DataSource = null;
-        private bool m_Running = false;
+        private readonly Mode mode = Mode.Idle;
+        private readonly Stopwatch startTime = null;
+        private readonly Stream dataSink = null;
+        private readonly ITransport underlyingTransport = null;
+        private readonly IList<NetworkEvent> dataSource = null;
+        private bool running = false;
 
         public event PacketHandler PacketReceivedEvent;
         public event PacketHandler PacketSentEvent;
@@ -55,20 +55,20 @@ namespace GT.Millipede
         /// <param name="mode">Millipede's current mode</param>
         public MillipedeTransport(ITransport underlyingTransport, Stopwatch startTime, Stream dataSink, IList<NetworkEvent> dataSource, Mode mode)
         {
-            m_UnderlyingTransports = underlyingTransport;
-            m_StartTime = startTime;
-            m_DataSink = dataSink;
-            m_DataSource = dataSource;
-            m_Mode = mode;
-            switch (m_Mode)
+            this.underlyingTransport = underlyingTransport;
+            this.startTime = startTime;
+            this.dataSink = dataSink;
+            this.dataSource = dataSource;
+            this.mode = mode;
+            switch (this.mode)
             {
                 case Mode.Record:
-                    m_UnderlyingTransports.PacketReceivedEvent += new PacketHandler(UnderlyingTransports_PacketReceivedEvent);
-                    m_UnderlyingTransports.PacketSentEvent += new PacketHandler(UnderlyingTransports_PacketSentEvent);
+                    this.underlyingTransport.PacketReceivedEvent += UnderlyingTransports_PacketReceivedEvent;
+                    this.underlyingTransport.PacketSentEvent += UnderlyingTransports_PacketSentEvent;
                     break;
                 case Mode.Playback:
-                    m_Running = true;
-                    ThreadPool.QueueUserWorkItem(new WaitCallback(InjectRecordedPackages));
+                    running = true;
+                    ThreadPool.QueueUserWorkItem(InjectRecordedPackages);
                     break;
             }
         }
@@ -102,10 +102,11 @@ namespace GT.Millipede
             {
                 return;
             }
-            switch (m_Mode)
+            switch (mode)
             {
                 case Mode.Record:
-                    (new NetworkEvent((int)m_StartTime.ElapsedMilliseconds, "PacketReceivedEvent", buffer)).Serialize(m_DataSink);
+                    (new NetworkEvent((int)startTime.ElapsedMilliseconds, 
+                        NetworkEvent.Event_PacketReceived, buffer)).Serialize(dataSink);
                     break;
             }
             PacketReceivedEvent(buffer, offset, count, this);
@@ -118,150 +119,158 @@ namespace GT.Millipede
         /// <param name="unused"></param>
         private void InjectRecordedPackages(Object unused)
         {
-            if (PacketReceivedEvent != null && m_DataSource.Count != 0 && m_DataSource[0].Time < m_StartTime.ElapsedMilliseconds)
+            if (PacketReceivedEvent != null && dataSource.Count != 0 
+                && dataSource[0].Time < startTime.ElapsedMilliseconds)
             {
-                if (m_DataSource[0].Method == "PacketReceivedEvent")
-                    PacketReceivedEvent(m_DataSource[0].Message, 0, m_DataSource[0].Message.Length, this);
-                m_DataSource.RemoveAt(0);
+                if (dataSource[0].Method == NetworkEvent.Event_PacketReceived)
+                {
+                    PacketReceivedEvent(dataSource[0].Message, 0, dataSource[0].Message.Length, this);
+                }
+                dataSource.RemoveAt(0);
             }
-            if (m_Running) ThreadPool.QueueUserWorkItem(new WaitCallback(InjectRecordedPackages));
+            if (running)
+            {
+                ThreadPool.QueueUserWorkItem(InjectRecordedPackages);
+            }
         }
 
         /// <summary>
-        /// Wrapps ITransport.Name.
+        /// Wraps ITransport.Name.
         /// </summary>
         /// <see cref="ITransport.Name"/>
         public string Name
         {
-            get { return "Millipede" + m_UnderlyingTransports.Name; }
+            get { return "Millipede{" + underlyingTransport.Name + "}"; }
         }
 
         /// <summary>
-        /// Wrapps ITransport.Backlog.
+        /// Wraps ITransport.Backlog.
         /// </summary>
         /// <see cref="ITransport.Backlog"/>
         public uint Backlog
         {
-            get { return m_UnderlyingTransports.Backlog; }
+            get { return underlyingTransport.Backlog; }
         }
 
         /// <summary>
-        /// Wrapps ITransport.Active.
+        /// Wraps ITransport.Active.
         /// </summary>
         /// <see cref="ITransport.Active"/>
         public bool Active
         {
-            get { return m_UnderlyingTransports.Active; }
+            get { return underlyingTransport.Active; }
         }
 
         /// <summary>
-        /// Wrapps ITransport.Reliability.
+        /// Wraps ITransport.Reliability.
         /// </summary>
         /// <see cref="ITransportDeliveryCharacteristics.Reliability"/>
         public Reliability Reliability
         {
-            get { return m_UnderlyingTransports.Reliability; }
+            get { return underlyingTransport.Reliability; }
         }
 
         /// <summary>
-        /// Wrapps ITransport.Ordering.
+        /// Wraps ITransport.Ordering.
         /// </summary>
         /// <see cref="ITransportDeliveryCharacteristics.Ordering"/>
         public Ordering Ordering
         {
-            get { return m_UnderlyingTransports.Ordering; }
+            get { return underlyingTransport.Ordering; }
         }
 
         /// <summary>
-        /// Wrapps ITransport.MaximumPacketSize.
+        /// Wraps ITransport.MaximumPacketSize.
         /// </summary>
         /// <see cref="ITransport.MaximumPacketSize"/>
         public int MaximumPacketSize
         {
-            get { return m_UnderlyingTransports.MaximumPacketSize; }
+            get { return underlyingTransport.MaximumPacketSize; }
         }
 
         /// <summary>
-        /// Wrapps ITransport.SendPacket(byte[],int,int). In addition, writes data to a sink if
+        /// Wraps ITransport.SendPacket(byte[],int,int). In addition, writes data to a sink if
         /// MillipedeTransport initialized with Mode.Record.
         /// </summary>
         /// <see cref="ITransport.SendPacket(byte[],int,int)"/>
         public void SendPacket(byte[] packet, int offset, int count)
         {
-            switch (m_Mode)
+            switch (mode)
             {
                 case Mode.Record:
-                    (new NetworkEvent((int)m_StartTime.ElapsedMilliseconds, "SendPacket", packet)).Serialize(m_DataSink);
+                    (new NetworkEvent((int)startTime.ElapsedMilliseconds, 
+                        NetworkEvent.Event_SentPacket, packet)).Serialize(dataSink);
                     break;
             }
-            m_UnderlyingTransports.SendPacket(packet, 0, packet.Length);
+            underlyingTransport.SendPacket(packet, 0, packet.Length);
         }
 
         /// <summary>
-        /// Wrapps ITransport.SendPacket(Stream). In addition, it writes data to a sink if
+        /// Wraps ITransport.SendPacket(Stream). In addition, it writes data to a sink if
         /// MillipedeTransport initialized with Mode.Record.
         /// </summary>
         /// <see cref="ITransport.SendPacket(Stream)"/>
         public void SendPacket(Stream packetStream)
         {
-            switch (m_Mode)
+            switch (mode)
             {
                 case Mode.Record:
                     byte[] tmpmsg = new byte[packetStream.Length];
                     packetStream.Position = 0;
                     packetStream.Read(tmpmsg, 0, (int)packetStream.Length);
 
-                    (new NetworkEvent((int)m_StartTime.ElapsedMilliseconds, "SendPacket", tmpmsg)).Serialize(m_DataSink);
+                    (new NetworkEvent((int)startTime.ElapsedMilliseconds, 
+                        NetworkEvent.Event_SentPacket, tmpmsg)).Serialize(dataSink);
                     break;
             }
-            m_UnderlyingTransports.SendPacket(packetStream);
+            underlyingTransport.SendPacket(packetStream);
         }
 
         /// <summary>
-        /// Wrapps ITransport.Update.
+        /// Wraps ITransport.Update.
         /// </summary>
         /// <see cref="ITransport.Update"/>
         public void Update()
         {
-            m_UnderlyingTransports.Update();
+            underlyingTransport.Update();
         }
 
         /// <summary>
-        /// Wrapps ITransport.Capabilities.
+        /// Wraps ITransport.Capabilities.
         /// </summary>
         /// <see cref="ITransport.Capabilities"/>
         public IDictionary<string, string> Capabilities
         {
-            get { return m_UnderlyingTransports.Capabilities; }
+            get { return underlyingTransport.Capabilities; }
         }
         
         /// <summary>
-        /// Wrapps ITransport.GetPacketStream.
+        /// Wraps ITransport.GetPacketStream.
         /// </summary>
         /// <see cref="ITransport.GetPacketStream"/>
         public Stream GetPacketStream()
         {
-            return m_UnderlyingTransports.GetPacketStream();
+            return underlyingTransport.GetPacketStream();
         }
 
         /// <summary>
-        /// Wrapps ITransport.Delay.
+        /// Wraps ITransport.Delay.
         /// </summary>
         /// <see cref="ITransportDeliveryCharacteristics.Delay"/>
         public float Delay
         {
-            get { return m_UnderlyingTransports.Delay; }
-            set { m_UnderlyingTransports.Delay = value; }
+            get { return underlyingTransport.Delay; }
+            set { underlyingTransport.Delay = value; }
         }
 
         /// <summary>
-        /// Wrapps ITransport.Dispose.
+        /// Wraps ITransport.Dispose.
         /// </summary>
         /// <see cref="IDisposable.Dispose"/>
         public void Dispose()
         {
-            m_Running = false;
-            m_UnderlyingTransports.Dispose();
+            running = false;
+            underlyingTransport.Dispose();
         }
     }
 
@@ -271,9 +280,18 @@ namespace GT.Millipede
     [Serializable]
     public class NetworkEvent
     {
-        internal int Time;
-        internal string Method;
-        internal byte[] Message;
+        // Special strings to record some event
+        public static readonly string Event_Started = "Start";
+        public static readonly string Event_PacketReceived = "PacketReceivedEvent";
+        public static readonly string Event_SentPacket = "SendPacket";
+        public static readonly string Event_NewClient = "NewClientEvent_";
+        public static readonly string Event_Connected = "Connect";
+        public static readonly string Event_Stopped = "Stop";
+        public static readonly string Event_Disposed = "Dispose";
+
+        public int Time { get; private set; }
+        public string Method { get; private set; }
+        public byte[] Message { get; private set; }
         [NonSerialized] private static readonly IFormatter formatter = new BinaryFormatter();
 
         /// <summary>
@@ -290,6 +308,7 @@ namespace GT.Millipede
         /// <param name="method">Method name from where the constructor is called</param>
         /// <param name="message">Message to be stored</param>
         public NetworkEvent(int time, string method, byte[] message) { Time = time; Method = method; Message = message; }
+
 
         /// <summary>
         /// Serializes itself to a stream.
