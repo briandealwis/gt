@@ -3,73 +3,23 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Net;
+using System.Runtime.Serialization.Formatters.Binary;
+using System.Text;
 using GT.Net;
+using GT.Utils;
 
 /// Server side of the Millipede debugger
 namespace GT.Millipede
 {
     /// <summary>
-    /// Configuration of the millipede debugger
+    /// Acceptor for the millipede packet recorder/replayer. It wrapps around an 
+    /// existing underlying <see cref="IAcceptor"/>.
     /// </summary>
-    public class MillipedeConfiguration : DefaultServerConfiguration
+    public class MillipedeAcceptor : IAcceptor
     {
-        private readonly Mode mode = Mode.Idle;
-
-        /// <summary>
-        /// Instanciates the millipede debugger configuration in idle mode
-        /// </summary>
-        /// <see cref="DefaultServerConfiguration"/>
-        public MillipedeConfiguration()
-        {
-        }
-
-        /// <summary>
-        /// Overrides DefaultServerConfiguration(int port)
-        /// </summary>
-        /// <param name="mode">The current operation mode</param>
-        /// <see cref="DefaultServerConfiguration"/>
-        public MillipedeConfiguration(int port, Mode mode) : base(port)
-        {
-            this.mode = mode;
-        }
-        
-        /// <summary>
-        /// Overrides DefaultServerConfiguration(int port, int pingInterval)
-        /// </summary>
-        /// <param name="mode">The current operation mode</param>
-        /// <see cref="DefaultServerConfiguration"/>
-        public MillipedeConfiguration(int port, int pingInterval, Mode mode) : base(port, pingInterval)
-        {
-            this.mode = mode;
-        }
-
-        /// <summary>
-        /// Creates an ICollection of IAcceptor. Every IAcceptor is wrapped in a
-        /// MillipedeAcceptor.
-        /// </summary>
-        /// <returns>Collection of acceptors</returns>
-        public override ICollection<IAcceptor> CreateAcceptors()
-        {
-            ICollection<IAcceptor> acceptors = new List<IAcceptor>
-            {
-                new MillipedeAcceptor(new TcpAcceptor(IPAddress.Any, port), mode),
-                new MillipedeAcceptor(new UdpAcceptor(IPAddress.Any, port), mode),
-            };
-            return acceptors;
-        }
-    }
-
-    /// <summary>
-    /// Acceptor for the millipede debugger. It wrapps around an existing underlying IAcceptor
-    /// and adds file in-/output facilities.
-    /// </summary>
-    class MillipedeAcceptor : IAcceptor
-    {
-        private readonly Mode mode = Mode.Idle;
-        private readonly Stopwatch startTime = new Stopwatch();
-        private readonly MemoryStream dataSink = null;
-        private readonly IList<NetworkEvent> dataSource = new List<NetworkEvent>();
         private readonly IAcceptor underlyingAcceptor = null;
+        private object milliDescriptor = null;
+        private MillipedeRecorder recorder;
         public event NewClientHandler NewClientEvent;
 
         /// <summary>
@@ -77,26 +27,15 @@ namespace GT.Millipede
         /// IAcceptor.
         /// </summary>
         /// <param name="underlyingAcceptor">The existing underlying IAcceptor</param>
-        /// <param name="mode">The current operation mode</param>
-        public MillipedeAcceptor(IAcceptor underlyingAcceptor, Mode mode)
+        /// <param name="recorder">The Millipede Replayer/Recorder</param>
+        public MillipedeAcceptor(IAcceptor underlyingAcceptor, MillipedeRecorder recorder)
         {
-            this.mode = mode;
             this.underlyingAcceptor = underlyingAcceptor;
-            startTime.Start();
-            switch (this.mode)
-            {
-                case Mode.Record:
-                    dataSink = new MemoryStream();
-                    this.underlyingAcceptor.NewClientEvent += UnderlyingAcceptor_NewClientEvent;
-                    break;
-                case Mode.Playback:
-                    Stream dataSource = File.OpenRead(this.underlyingAcceptor.GetType().ToString());
-                    dataSource.Position = 0;
-                    while (dataSource.Position != dataSource.Length)
-                        this.dataSource.Add(NetworkEvent.DeSerialize(dataSource));
-                    dataSource.Close();
-                    break;
-            }
+
+            this.recorder = recorder;
+            milliDescriptor = underlyingAcceptor.GetType() + underlyingAcceptor.ToString();
+            this.underlyingAcceptor.NewClientEvent += UnderlyingAcceptor_NewClientEvent;
+            recorder.Notify(milliDescriptor, InjectRecordedEvent);
         }
 
         /// <summary>
@@ -108,20 +47,45 @@ namespace GT.Millipede
         /// <see cref="IAcceptor.NewClientEvent"/>
         private void UnderlyingAcceptor_NewClientEvent(ITransport transport, Dictionary<string, string> capabilities)
         {
-            if (NewClientEvent == null)
+            if (recorder.Mode == MillipedeMode.PassThrough)
             {
+                if(NewClientEvent != null) { NewClientEvent(transport, capabilities); }
                 return;
             }
-            switch (mode)
-            {
-                case Mode.Record:
-                    (new NetworkEvent((int)startTime.ElapsedMilliseconds, 
-                        NetworkEvent.Event_NewClient + transport.Name)).Serialize(dataSink);
-                    break;
-            }
-            NewClientEvent(new MillipedeTransport(transport, startTime, dataSink, dataSource, mode), capabilities);
+
+            object milliTransportDescriptor = MillipedeTransport.GenerateDescriptor(transport);
+            MemoryStream stream = new MemoryStream();
+            BinaryFormatter formatter = new BinaryFormatter();
+            formatter.Serialize(stream, milliTransportDescriptor);
+            formatter.Serialize(stream, transport.Name);
+            formatter.Serialize(stream, capabilities);
+            formatter.Serialize(stream, transport.Reliability);
+            formatter.Serialize(stream, transport.Ordering);
+            formatter.Serialize(stream, transport.MaximumPacketSize);
+
+            recorder.Record(new NetworkEvent(milliDescriptor, NetworkEventType.NewClient, stream.ToArray()));
+            if (NewClientEvent == null) { return; }
+            NewClientEvent(new MillipedeTransport(transport, recorder, milliTransportDescriptor), capabilities);
         }
 
+        private void InjectRecordedEvent(NetworkEvent e)
+        {
+            if (NewClientEvent == null) { return; } // or if recorder.Mode == MillipedeMode.PassThrough?
+
+            MemoryStream stream = new MemoryStream(e.Message);
+            BinaryFormatter formatter = new BinaryFormatter();
+            object milliTransportDescriptor = formatter.Deserialize(stream);
+            string transportName = (string)formatter.Deserialize(stream);
+            Dictionary<string, string> capabilities = (Dictionary<string, string>)formatter.Deserialize(stream);
+            Reliability reliability = (Reliability)formatter.Deserialize(stream);
+            Ordering ordering = (Ordering)formatter.Deserialize(stream);
+            int maxPacketSize = (int)formatter.Deserialize(stream);
+
+            ITransport mockTransport = new MillipedeTransport(recorder, milliTransportDescriptor,
+                transportName, capabilities, reliability, ordering, maxPacketSize);
+            NewClientEvent(mockTransport, capabilities);
+        }
+        
         /// <summary>
         /// Wraps IAcceptor.Update.
         /// </summary>
@@ -137,14 +101,7 @@ namespace GT.Millipede
         /// <see cref="IStartable.Start"/>
         public void Start()
         {
-            startTime.Start();
-            switch (mode)
-            {
-                case Mode.Record:
-                    (new NetworkEvent((int)startTime.ElapsedMilliseconds, 
-                        NetworkEvent.Event_Started)).Serialize(dataSink);
-                    break;
-            }
+            recorder.Record(new NetworkEvent(milliDescriptor, NetworkEventType.Started));
             underlyingAcceptor.Start();
         }
 
@@ -154,13 +111,7 @@ namespace GT.Millipede
         /// <see cref="IStartable.Stop"/>
         public void Stop()
         {
-            switch (mode)
-            {
-                case Mode.Record:
-                    (new NetworkEvent((int)startTime.ElapsedMilliseconds, 
-                        NetworkEvent.Event_Stopped)).Serialize(dataSink);
-                    break;
-            }
+            recorder.Record(new NetworkEvent(milliDescriptor, NetworkEventType.Stopped));
             underlyingAcceptor.Stop();
         }
 
@@ -179,22 +130,7 @@ namespace GT.Millipede
         /// <see cref="IDisposable.Dispose"/>
         public void Dispose()
         {
-            switch (mode)
-            {
-                case Mode.Record:
-                    (new NetworkEvent((int)startTime.ElapsedMilliseconds, 
-                        NetworkEvent.Event_Disposed)).Serialize(dataSink);
-
-                    FileStream sinkFile = File.Create(underlyingAcceptor.GetType().ToString());
-                    lock (dataSink)
-                    {
-                        dataSink.Position = 0;
-                        dataSink.WriteTo(sinkFile);
-                        sinkFile.Close();
-                        dataSink.Close();
-                    }
-                    break;
-            }
+            recorder.Record(new NetworkEvent(milliDescriptor, NetworkEventType.Disposed));
             underlyingAcceptor.Dispose();
         }
     }

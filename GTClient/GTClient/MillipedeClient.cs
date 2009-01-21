@@ -2,88 +2,47 @@
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
+using System.Runtime.Serialization.Formatters.Binary;
 using GT.Net;
+using GT.Utils;
 
 /// Client side of the Millipede debugger
 namespace GT.Millipede
 {
     /// <summary>
-    /// Configuration of the millipede debugger
-    /// </summary>
-    public class MillipedeConfiguration : DefaultClientConfiguration
-    {
-        private readonly Mode m_Mode = Mode.Idle;
-
-        /// <summary>
-        /// Instanciates the millipede debugger configuration in idle mode.
-        /// </summary>
-        /// <see cref="Mode"/>
-        public MillipedeConfiguration() : this(Mode.Idle)
-        {
-        }
-
-        /// <summary>
-        /// Instanciates the millipede debugger configuration.
-        /// </summary>
-        /// <param name="mode">The current operation mode</param>
-        public MillipedeConfiguration(Mode mode)
-        {
-            m_Mode = mode;
-        }
-
-        /// <summary>
-        /// Creates an ICollection of IConnector. Every IConnector is wrapped in a
-        /// MillipedeConnector.
-        /// </summary>
-        /// <returns>Collection of connectors</returns>
-        public override ICollection<IConnector> CreateConnectors()
-        {
-            ICollection<IConnector> connectors = new List<IConnector>
-            {
-                new MillipedeConnector(new TcpConnector(), m_Mode),
-                new MillipedeConnector(new UdpConnector(), m_Mode),
-            };
-            return connectors;
-        }
-    }
-
-    /// <summary>
     /// Connector for the millipede debugger. It wrapps around an existing underlying IConnector
     /// and adds file in-/output facilities.
     /// </summary>
-    class MillipedeConnector : IConnector
+    public class MillipedeConnector : IConnector
     {
-        private readonly Mode mode = Mode.Idle;
-        private readonly Stopwatch startTime = new Stopwatch();
-        private readonly MemoryStream dataSink = null;
-        private readonly IList<NetworkEvent> dataSource = new List<NetworkEvent>();
         private readonly IConnector underlyingConnector = null;
+        private object milliDescriptor;
+        private MillipedeRecorder recorder;
+        private SharedQueue<NetworkEvent> replayConnections;
 
         /// <summary>
-        /// Instanciates a millipede connection and wrapps it around an existing underlying
+        /// Create a recording recorder that wraps around an existing underlying
         /// IConnector.
         /// </summary>
         /// <param name="underlyingConnector">The existing underlying IConnector</param>
-        /// <param name="mode">The current operation mode</param>
-        public MillipedeConnector(IConnector underlyingConnector, Mode mode)
+        /// <param name="recorder">The Millipede Replayer/Recorder</param>
+        public MillipedeConnector(IConnector underlyingConnector, MillipedeRecorder recorder)
         {
-            this.mode = mode;
-            this.underlyingConnector = underlyingConnector;
-            startTime.Start();
-            switch (this.mode)
+            milliDescriptor = underlyingConnector.GetType() + underlyingConnector.ToString();
+            this.recorder = recorder;
+            if (recorder.Mode == MillipedeMode.Playback)
             {
-                case Mode.Record:
-                    dataSink = new MemoryStream();
-                    break;
-                case Mode.Playback:
-                    Stream dataSource = File.OpenRead(this.underlyingConnector.GetType().ToString());
-                    dataSource.Position = 0;
-                    while (dataSource.Position != dataSource.Length)
-                    {
-                        this.dataSource.Add(NetworkEvent.DeSerialize(dataSource));
-                    }
-                    dataSource.Close();
-                    break;
+                recorder.Notify(milliDescriptor, InjectNetworkEvent);
+                replayConnections = new SharedQueue<NetworkEvent>();
+            }
+            this.underlyingConnector = underlyingConnector;
+        }
+
+        private void InjectNetworkEvent(NetworkEvent e)
+        {
+            if (e.Type == NetworkEventType.Connected)
+            {
+                replayConnections.Enqueue(e);
             }
         }
 
@@ -94,14 +53,43 @@ namespace GT.Millipede
         /// <see cref="IConnector.Connect"/>
         public ITransport Connect(string address, string port, IDictionary<string, string> capabilities)
         {
-            switch (mode)
-            {
-                case Mode.Record:
-                    (new NetworkEvent((int)startTime.ElapsedMilliseconds, 
-                        NetworkEvent.Event_Connected)).Serialize(dataSink);
-                    break;
+            if (recorder.Mode == MillipedeMode.Playback) {
+                NetworkEvent connectEvent = replayConnections.Dequeue();
+                Debug.Assert(connectEvent.Type == NetworkEventType.Connected);
+
+                MemoryStream stream = new MemoryStream(connectEvent.Message);
+                BinaryFormatter formatter = new BinaryFormatter();
+                object milliTransportDescriptor = formatter.Deserialize(stream);
+                string transportName = (string)formatter.Deserialize(stream);
+                Dictionary<string, string> ignored = (Dictionary<string, string>)formatter.Deserialize(stream);
+                Reliability reliability = (Reliability)formatter.Deserialize(stream);
+                Ordering ordering = (Ordering)formatter.Deserialize(stream);
+                int maxPacketSize = (int)formatter.Deserialize(stream);
+
+                // FIXME: should we be checking the capabilities?  Probably...!
+                ITransport mockTransport = new MillipedeTransport(recorder, milliTransportDescriptor,
+                    transportName, capabilities, reliability, ordering, maxPacketSize);
+                return mockTransport;
             }
-            return new MillipedeTransport(underlyingConnector.Connect(address, port, capabilities), startTime, dataSink, dataSource, mode);
+            else
+            {
+                ITransport transport = underlyingConnector.Connect(address, port, capabilities);
+                if (recorder.Mode == MillipedeMode.PassThrough) { return transport; }
+
+                object milliTransportDesriptor = MillipedeTransport.GenerateDescriptor(transport);
+                MemoryStream stream = new MemoryStream();
+                BinaryFormatter formatter = new BinaryFormatter();
+                formatter.Serialize(stream, milliTransportDesriptor);
+                formatter.Serialize(stream, transport.Name);
+                formatter.Serialize(stream, capabilities);
+                formatter.Serialize(stream, transport.Reliability);
+                formatter.Serialize(stream, transport.Ordering);
+                formatter.Serialize(stream, transport.MaximumPacketSize);
+
+                ITransport mockTransport = new MillipedeTransport(transport, recorder, milliTransportDesriptor);
+                recorder.Record(new NetworkEvent(milliDescriptor, NetworkEventType.Connected, stream.ToArray()));
+                return mockTransport;
+            }
         }
 
         /// <summary>
@@ -110,6 +98,10 @@ namespace GT.Millipede
         /// <see cref="IConnector.Responsible"/>
         public bool Responsible(ITransport transport)
         {
+            if (transport is MillipedeTransport)
+            {
+                return underlyingConnector.Responsible(((MillipedeTransport)transport).WrappedTransport);
+            }
             return underlyingConnector.Responsible(transport);
         }
 
@@ -120,13 +112,7 @@ namespace GT.Millipede
         /// <see cref="IStartable.Start"/>
         public void Start()
         {
-            switch (mode)
-            {
-                case Mode.Record:
-                    (new NetworkEvent((int)startTime.ElapsedMilliseconds, 
-                        NetworkEvent.Event_Started)).Serialize(dataSink);
-                    break;
-            }
+            recorder.Record(new NetworkEvent(milliDescriptor, NetworkEventType.Started));
             underlyingConnector.Start();
         }
 
@@ -137,13 +123,7 @@ namespace GT.Millipede
         /// <see cref="IStartable.Stop"/>
         public void Stop()
         {
-            switch (mode)
-            {
-                case Mode.Record:
-                    (new NetworkEvent((int)startTime.ElapsedMilliseconds, 
-                        NetworkEvent.Event_Stopped)).Serialize(dataSink);
-                    break;
-            }
+            recorder.Record(new NetworkEvent(milliDescriptor, NetworkEventType.Stopped));
             underlyingConnector.Stop();
         }
 
@@ -164,22 +144,7 @@ namespace GT.Millipede
         /// <see cref="IDisposable.Dispose"/>
         public void Dispose()
         {
-            switch (mode)
-            {
-                case Mode.Record:
-                    (new NetworkEvent((int)startTime.ElapsedMilliseconds, 
-                        NetworkEvent.Event_Disposed)).Serialize(dataSink);
-
-                    FileStream sinkFile = File.Create(underlyingConnector.GetType().ToString());
-                    lock (dataSink)
-                    {
-                        dataSink.Position = 0;
-                        dataSink.WriteTo(sinkFile);
-                        sinkFile.Close();
-                        dataSink.Close();
-                    }
-                    break;
-            }
+            recorder.Record(new NetworkEvent(milliDescriptor, NetworkEventType.Disposed));
             underlyingConnector.Dispose();
         }
     }
