@@ -54,6 +54,8 @@ namespace GT.Net
 
         public UdpConnector(TransportFactory<UdpClient> factory)
         {
+            log = LogManager.GetLogger(GetType());
+
             this.factory = factory;
         }
 
