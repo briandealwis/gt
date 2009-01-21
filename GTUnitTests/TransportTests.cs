@@ -247,7 +247,7 @@ namespace GT.UnitTests
             clientPacketCount++;
         }
 
-        protected void SetupServer(ITransport t, Dictionary<string, string> capabilities)
+        protected void SetupServer(ITransport t, IDictionary<string, string> capabilities)
         {
             Debug("Server: connected to client by " + t);
             server = t;
@@ -356,7 +356,7 @@ namespace GT.UnitTests
                     h => new UdpSequencedClientTestTransport(h),
                     t => t is UdpSequencedClientTestTransport));
 
-            acceptor.NewClientEvent += delegate(ITransport transport, Dictionary<string, string> capabilities)
+            acceptor.NewClientEvent += delegate(ITransport transport, IDictionary<string, string> capabilities)
             {
                 serverTransport = (UdpSequencedServerTestTransport)transport;
             };

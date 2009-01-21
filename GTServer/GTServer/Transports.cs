@@ -6,7 +6,7 @@ using Common.Logging;
 
 namespace GT.Net
 {
-    public delegate void NewClientHandler(ITransport transport, Dictionary<string,string> capabilities);
+    public delegate void NewClientHandler(ITransport transport, IDictionary<string,string> capabilities);
 
     /// <summary>
     /// An object responsible for negotiating and accepting incoming connections.
@@ -48,7 +48,7 @@ namespace GT.Net
         public abstract void Stop();
         public abstract void Dispose();
 
-        public void NotifyNewClient(ITransport t, Dictionary<string,string> capabilities)
+        public void NotifyNewClient(ITransport t, IDictionary<string,string> capabilities)
         {
             NewClientEvent(t, capabilities);
         }

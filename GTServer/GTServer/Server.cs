@@ -416,7 +416,7 @@ namespace GT.Net
             return cnx;
         }
         
-        protected virtual void NewTransport(ITransport t, Dictionary<string, string> capabilities)
+        protected virtual void NewTransport(ITransport t, IDictionary<string, string> capabilities)
         {
             Guid clientId;
             try
