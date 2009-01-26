@@ -2,6 +2,32 @@ GT NEWS
 
 === GT XXX ===
 
+New Functionality:
+
+  * Millipede-style packet recording and replay: Thanks to a code
+    contribution from Adrian Reetz, GT now has a packet recording/replay
+    framework inspired by the Millipede sequential debugging module.
+
+      * GT-Millipede is enabled by wrapping a connector or acceptor
+	with a MillipedeConnector and MillipedeAcceptor with a
+	configured instance of a MillipedeRecorder (which is either in
+	recording or replaying mode)
+
+      * There is a singleton MillipedeRecorder instance, which can have
+	its mode set configured dynamically through an environment
+	variable GTMILLIPEDE.  The 'Unconfigured' (the default) and
+	'PassThrough' modes cause the use of Millipede to be skipped
+	entirely, avoiding all effects on performance.
+
+      * The DefaultClientConfiguration and DefaultServerConfiguration
+	now wrap the connectors and acceptors using singleton
+	MillipedeRecorder.  Thus any apps that use these configurations
+	will ship with GT-Millipede debugging capabilities.
+
+    See <https://papyrus.usask.ca/trac/gt/ticket/45> for details
+    and pointers for other work.
+
+
 Developer-visible changes:
 
   * GT now uses the open-source Common.Logging package (v1.2.0) for

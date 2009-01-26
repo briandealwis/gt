@@ -60,6 +60,7 @@
     <Compile Include="GTClientServerTests.cs" />
     <Compile Include="Lifecycle.cs" />
     <Compile Include="LocalTransport.cs" />
+    <Compile Include="MillipedeTests.cs" />
     <Compile Include="NUnitConsoleRunner.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="StressTests.cs" />

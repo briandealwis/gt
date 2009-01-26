@@ -8,6 +8,7 @@ using System.Text;
 using System.Runtime.Serialization;
 using System.Runtime.Serialization.Formatters.Binary;
 using System.Diagnostics;
+using GT.Millipede;
 using GT.Net;
 using GT.Utils;
 
@@ -957,7 +958,9 @@ namespace GT.Net
             ICollection<IConnector> connectors = new List<IConnector>();
             connectors.Add(new TcpConnector());
             connectors.Add(new UdpConnector());
-            return connectors;
+            // optionally use Millipede on the connectors, dependent on
+            // GTMILLIPEDE environment variable
+            return MillipedeConnector.Wrap(connectors, MillipedeRecorder.Singleton);
         }
     }
 

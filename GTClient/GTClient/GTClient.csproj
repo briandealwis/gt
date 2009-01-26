@@ -57,6 +57,7 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="Client.cs" />
+    <Compile Include="MillipedeClient.cs" />
     <Compile Include="TcpConnector.cs" />
     <Compile Include="Delay.cs" />
     <Compile Include="Framed.cs" />

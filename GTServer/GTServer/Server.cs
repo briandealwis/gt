@@ -8,6 +8,7 @@ using System.Diagnostics;
 using Common.Logging;
 using GT;
 using System.Net.Sockets;
+using GT.Millipede;
 using GT.Utils;
 
 namespace GT.Net
@@ -137,7 +138,7 @@ namespace GT.Net
         }
 
         /// <summary>
-        /// Create the marsheller for the server instance.
+        /// Create the marshaller for the server instance.
         /// </summary>
         /// <returns>the marshaller</returns>
         public override IMarshaller CreateMarshaller()
@@ -154,7 +155,9 @@ namespace GT.Net
             ICollection<IAcceptor> acceptors = new List<IAcceptor>();
             acceptors.Add(new TcpAcceptor(IPAddress.Any, port));
             acceptors.Add(new UdpAcceptor(IPAddress.Any, port));
-            return acceptors;
+            // optionally use Millipede on the connectors, dependent on
+            // GTMILLIPEDE environment variable
+            return MillipedeAcceptor.Wrap(acceptors, MillipedeRecorder.Singleton);
         }
 
     }
