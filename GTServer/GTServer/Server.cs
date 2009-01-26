@@ -7,6 +7,7 @@ using System.Threading;
 using System.Diagnostics;
 using GT;
 using System.Net.Sockets;
+using GT.Millipede;
 using GT.Utils;
 
 namespace GT.Net
@@ -156,7 +157,9 @@ namespace GT.Net
             ICollection<IAcceptor> acceptors = new List<IAcceptor>();
             acceptors.Add(new TcpAcceptor(IPAddress.Any, port));
             acceptors.Add(new UdpAcceptor(IPAddress.Any, port));
-            return acceptors;
+            // optionally use Millipede on the connectors, dependent on
+            // GTMILLIPEDE environment variable
+            return MillipedeAcceptor.Wrap(acceptors, MillipedeRecorder.Singleton);
         }
 
     }

@@ -12,8 +12,8 @@ using GT.Utils;
 namespace GT.Millipede
 {
     /// <summary>
-    /// Acceptor for the millipede packet recorder/replayer. It wrapps around an 
-    /// existing underlying <see cref="IAcceptor"/>.
+    /// An wrapper around an acceptor for the millipede packet recorder/replayer.
+    /// The acceptor wrapper is created using <see cref="Wrap"/>.
     /// </summary>
     public class MillipedeAcceptor : IAcceptor
     {
@@ -23,12 +23,58 @@ namespace GT.Millipede
         public event NewClientHandler NewClientEvent;
 
         /// <summary>
+        /// Wrap the provided acceptor for use with Millipede.
+        /// If the Millipede recorder is unconfigured, we cause
+        /// a dialog to configure the recorder.
+        /// If the Millipede recorder is configured to be passthrough,
+        /// we return the acceptor unwrapped.
+        /// </summary>
+        /// <param name="acceptor">the acceptor to be wrapped</param>
+        /// <param name="recorder">the Millipede recorder</param>
+        /// <returns>an appropriately configured acceptor</returns>
+        public static IAcceptor Wrap(IAcceptor acceptor, MillipedeRecorder recorder) 
+        {
+            if (recorder.Mode == MillipedeMode.Unconfigured
+                || recorder.Mode == MillipedeMode.PassThrough)
+            {
+                return acceptor;
+            }
+            return new MillipedeAcceptor(acceptor, recorder);
+        }
+
+        /// <summary>
+        /// Wrap the provided acceptors for use with Millipede.
+        /// If the Millipede recorder is unconfigured, we cause
+        /// a dialog to configure the recorder.
+        /// If the Millipede recorder is configured to be passthrough,
+        /// we leave the acceptors unwrapped.
+        /// </summary>
+        /// <param name="acceptors">the acceptors to be wrapped</param>
+        /// <param name="recorder">the Millipede recorder</param>
+        /// <returns>a collection of appropriately configured acceptors</returns>
+        public static ICollection<IAcceptor> Wrap(ICollection<IAcceptor> acceptors,
+            MillipedeRecorder recorder)
+        {
+            if (recorder.Mode == MillipedeMode.Unconfigured
+                || recorder.Mode == MillipedeMode.PassThrough)
+            {
+                return acceptors;
+            }
+            List<IAcceptor> wrappers = new List<IAcceptor>();
+            foreach(IAcceptor acc in acceptors)
+            {
+                wrappers.Add(new MillipedeAcceptor(acc, recorder));
+            }
+            return wrappers;
+        }
+
+        /// <summary>
         /// Instanciates a millipede acceptor and wrapps it around an existing underlying
         /// IAcceptor.
         /// </summary>
         /// <param name="underlyingAcceptor">The existing underlying IAcceptor</param>
         /// <param name="recorder">The Millipede Replayer/Recorder</param>
-        public MillipedeAcceptor(IAcceptor underlyingAcceptor, MillipedeRecorder recorder)
+        protected MillipedeAcceptor(IAcceptor underlyingAcceptor, MillipedeRecorder recorder)
         {
             this.underlyingAcceptor = underlyingAcceptor;
 

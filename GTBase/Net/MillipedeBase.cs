@@ -51,7 +51,11 @@ namespace GT.Millipede
         {
             get
             {
-                if (singleton == null) { singleton = new MillipedeRecorder(); }
+                if (singleton == null) { 
+                    singleton = new MillipedeRecorder();
+                    string envvar = Environment.GetEnvironmentVariable("GTMILLIPEDE");
+                    singleton.Configure(envvar);
+                }
                 return singleton;
             }
         }
@@ -62,13 +66,18 @@ namespace GT.Millipede
         private readonly IDictionary<object, Action<NetworkEvent>> injectors =
             new Dictionary<object, Action<NetworkEvent>>();
 
-        private Stream dataSink = null;
+        private MemoryStream dataSink = null;
         private Timer syncingTimer;
 
         private NetworkEvent nextEvent = null;
         public int NumberEvents = 0;
 
-        protected MillipedeRecorder()
+        /// <summary>
+        /// Create an instance of a Millipede recorder/replayer.  It is generally
+        /// expected that mmode developers will use the singleton instance
+        /// <see cref="Singleton"/>.
+        /// </summary>
+        public MillipedeRecorder()
         {
         }
 
@@ -82,6 +91,8 @@ namespace GT.Millipede
             get { return mode; }
         }
 
+        public string LastFileName { get; protected set; }
+
         public void StartReplaying(string replayFile) {
             InvalidStateException.Assert(mode == MillipedeMode.Unconfigured,
                 "Recorder is already started", mode);
@@ -89,6 +100,7 @@ namespace GT.Millipede
             mode = MillipedeMode.Playback;
             dataSink = null;
             sinkFile = File.OpenRead(replayFile);
+            LastFileName = replayFile;
             ScheduleNextEvent();
         }
 
@@ -99,6 +111,7 @@ namespace GT.Millipede
             mode = MillipedeMode.Record;
             dataSink = new MemoryStream();
             sinkFile = File.Create(recordingFile);
+            LastFileName = recordingFile;
             syncingTimer = new Timer(SyncRecording, null, TimeSpan.FromSeconds(10), 
                 TimeSpan.FromSeconds(10));
         }
@@ -190,10 +203,8 @@ namespace GT.Millipede
             lock (this)
             {
                 if (dataSink == null || sinkFile == null) { return; }
-                Debug.Assert(dataSink is MemoryStream);
-                dataSink.Position = 0;
-                ((MemoryStream)dataSink).WriteTo(sinkFile);
-                dataSink.Close();
+                dataSink.WriteTo(sinkFile);
+                dataSink.SetLength(0);
                 sinkFile.Flush();
             }
         }
@@ -234,6 +245,44 @@ namespace GT.Millipede
         public override string ToString()
         {
             return GetType().Name + "(mode: " + Mode + ")";
+        }
+
+        private void Configure(string envvar)
+        {
+            envvar = envvar == null ? "" : envvar.Trim();
+
+            if(envvar.StartsWith("record"))
+            {
+                string[] splits = envvar.Split(new[] { ':' }, 2);
+                if (envvar.StartsWith("record:") && splits.Length == 2)
+                {
+                    StartRecording(splits[1]);
+                }
+                else
+                {
+                    Console.WriteLine("FIXME: unknown Millipede configuration directive: " + envvar);
+                }
+            }
+            else if(envvar.StartsWith("play"))
+            {
+                string[] splits = envvar.Split(new[] { ':' }, 2);
+                if (envvar.StartsWith("play:") && splits.Length == 2)
+                {
+                    StartReplaying(envvar.Split(new[] { ':' }, 2)[1]);
+                }
+                else
+                {
+                    Console.WriteLine("FIXME: unknown Millipede configuration directive: " + envvar);
+                }
+            }
+            else if(envvar.Length == 0 || envvar.StartsWith("passthrough"))
+            {
+                StartPassThrough();
+            }
+            else
+            {
+                Console.WriteLine("FIXME: unknown Millipede configuration directive: " + envvar);
+            }
         }
     }
 
@@ -484,7 +533,10 @@ namespace GT.Millipede
             get { 
                 // FIXME: this should record the delay
                 return underlyingTransport != null ? underlyingTransport.Delay : 10; }
-            set { underlyingTransport.Delay = value; }
+            set
+            {
+                if(underlyingTransport != null) { underlyingTransport.Delay = value; }
+            }
         }
 
         /// <summary>
@@ -494,9 +546,14 @@ namespace GT.Millipede
         public void Dispose()
         {
             running = false;
-            underlyingTransport.Dispose();
+            if (underlyingTransport != null) { underlyingTransport.Dispose(); }
         }
 
+        /// <summary>
+        /// Generate a unique descriptor for the provided transport type
+        /// </summary>
+        /// <param name="transport"></param>
+        /// <returns></returns>
         public static object GenerateDescriptor(ITransport transport)
         {
             return transport.GetType() + transport.GetHashCode().ToString();
@@ -594,7 +651,7 @@ namespace GT.Millipede
         public override string ToString()
         {
             return GetType().Name + ": " + " " + ObjectDescriptor + ": " + Type 
-                + " " + ByteUtils.DumpBytes(Message);
+                + " " + ByteUtils.DumpBytes(Message ?? new byte[0]);
         }
     }
 }

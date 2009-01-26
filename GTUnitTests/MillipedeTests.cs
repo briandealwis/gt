@@ -50,7 +50,8 @@ namespace GT.UnitTests
             recorder.StartRecording(tempFileName);
             Assert.AreEqual(MillipedeMode.Record, recorder.Mode);
             Assert.AreEqual(0, recorder.NumberEvents);
-            MillipedeConnector connector = new MillipedeConnector(mockConnector, recorder);
+            MillipedeConnector connector = 
+                (MillipedeConnector)MillipedeConnector.Wrap(mockConnector, recorder);
             ITransport transport = connector.Connect("localhost", "9999", new Dictionary<string, string>());
             Assert.IsInstanceOfType(typeof(MillipedeTransport), transport);
             Assert.AreEqual(1, recorder.NumberEvents);
@@ -68,7 +69,8 @@ namespace GT.UnitTests
 
             recorder = MillipedeRecorder.Singleton;
             recorder.StartReplaying(tempFileName);
-            connector = new MillipedeConnector(mockConnector = new MockConnector(), recorder);
+            connector = (MillipedeConnector)MillipedeConnector.Wrap(mockConnector = new MockConnector(), 
+                recorder);
             transport = connector.Connect("localhost", "9999", new Dictionary<string, string>());
             transport.PacketReceivedEvent += ((packet, offset, count, t) => {
                 Assert.AreEqual(new byte[5], packet);

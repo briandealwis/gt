@@ -21,12 +21,58 @@ namespace GT.Millipede
         private SharedQueue<NetworkEvent> replayConnections;
 
         /// <summary>
+        /// Wrap the provided connector for use with Millipede.
+        /// If the Millipede recorder is unconfigured, we cause
+        /// a dialog to configure the recorder.
+        /// If the Millipede recorder is configured to be passthrough,
+        /// we return the connector unwrapped.
+        /// </summary>
+        /// <param name="connector">the connector to be wrapped</param>
+        /// <param name="recorder">the Millipede recorder</param>
+        /// <returns>an appropriately configured connector</returns>
+        public static IConnector Wrap(IConnector connector, MillipedeRecorder recorder)
+        {
+            if (recorder.Mode == MillipedeMode.Unconfigured 
+                || recorder.Mode == MillipedeMode.PassThrough)
+            {
+                return connector;
+            }
+            return new MillipedeConnector(connector, recorder);
+        }
+
+        /// <summary>
+        /// Wrap the provided connectors for use with Millipede.
+        /// If the Millipede recorder is unconfigured, we cause
+        /// a dialog to configure the recorder.
+        /// If the Millipede recorder is configured to be passthrough,
+        /// we leave the connectors unwrapped.
+        /// </summary>
+        /// <param name="connectors">the acceptors to be wrapped</param>
+        /// <param name="recorder">the Millipede recorder</param>
+        /// <returns>a collection of appropriately configured acceptors</returns>
+        public static ICollection<IConnector> Wrap(ICollection<IConnector> connectors,
+            MillipedeRecorder recorder)
+        {
+            if (recorder.Mode == MillipedeMode.Unconfigured
+                || recorder.Mode == MillipedeMode.PassThrough)
+            {
+                return connectors;
+            }
+            List<IConnector> wrappers = new List<IConnector>();
+            foreach (IConnector conn in connectors)
+            {
+                wrappers.Add(new MillipedeConnector(conn, recorder));
+            }
+            return wrappers;
+        }
+
+        /// <summary>
         /// Create a recording recorder that wraps around an existing underlying
         /// IConnector.
         /// </summary>
         /// <param name="underlyingConnector">The existing underlying IConnector</param>
         /// <param name="recorder">The Millipede Replayer/Recorder</param>
-        public MillipedeConnector(IConnector underlyingConnector, MillipedeRecorder recorder)
+        protected MillipedeConnector(IConnector underlyingConnector, MillipedeRecorder recorder)
         {
             milliDescriptor = underlyingConnector.GetType() + underlyingConnector.ToString();
             this.recorder = recorder;
