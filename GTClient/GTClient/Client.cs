@@ -1728,7 +1728,7 @@ namespace GT.Net
                 RemoveDeadConnexions();
             }
             log.Trace("Client.Update(): Finished");
-            OnUpdateTick();
+            NotifyTick();
         }
 
         /// <summary>This is a placeholder for more possible system message handling.</summary>

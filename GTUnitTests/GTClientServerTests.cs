@@ -357,7 +357,7 @@ namespace GT.UnitTests
             bool connexionAdded = false, connexionRemoved = false;
             bool messageReceived = false, messageSent = false;
             bool pingRequested = false, pingReceived = false;
-            client.ConnexionAdded += delegate(IConnexion c)
+            client.ConnexionAdded += delegate(Communicator ignored, IConnexion c)
             {
                 connexionAdded = true;
                 c.MessageReceived += delegate(Message m, IConnexion conn, ITransport transport) { messageReceived = true; };
@@ -365,7 +365,7 @@ namespace GT.UnitTests
                 c.PingRequested += delegate(ITransport transport, uint sequence) { pingRequested = true; };
                 c.PingReceived += delegate(ITransport transport, uint sequence, int milliseconds) { pingReceived = true; };
             };
-            client.ConnexionRemoved += delegate(IConnexion c) { connexionRemoved = true; };
+            client.ConnexionRemoved += delegate(Communicator ignored, IConnexion c) { connexionRemoved = true; };
 
 
             client.Start();

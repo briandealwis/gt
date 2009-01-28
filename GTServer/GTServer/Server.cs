@@ -22,30 +22,6 @@ namespace GT.Net
     /// <param name="mdr">How the message is to be sent</param>
     public delegate void MessagesSentNotification(IList<Message> msgs, ICollection<IConnexion> list, MessageDeliveryRequirements mdr);
 
-    /// <summary>Handles a SessionMessage event, when a SessionMessage arrives.</summary>
-    /// <param name="m">The incoming message.</param>
-    /// <param name="client">Who sent the message.</param>
-    /// <param name="transport">How the message was sent</param>
-    public delegate void SessionMessageHandler(Message m, IConnexion client, ITransport transport);
-
-    /// <summary>Handles a StringMessage event, when a StringMessage arrives.</summary>
-    /// <param name="m">The incoming message.</param>
-    /// <param name="client">Who sent the message.</param>
-    /// <param name="transport">How the message was sent</param>
-    public delegate void StringMessageHandler(Message m, IConnexion client, ITransport transport);
-
-    /// <summary>Handles a ObjectMessage event, when a ObjectMessage arrives.</summary>
-    /// <param name="m">The incoming message.</param>
-    /// <param name="client">Who sent the message.</param>
-    /// <param name="transport">How the message was sent</param>
-    public delegate void ObjectMessageHandler(Message m, IConnexion client, ITransport transport);
-
-    /// <summary>Handles a BinaryMessage event, when a BinaryMessage arrives.</summary>
-    /// <param name="m">The incoming message.</param>
-    /// <param name="client">Who sent the message.</param>
-    /// <param name="transport">How the message was sent</param>
-    public delegate void BinaryMessageHandler(Message m, IConnexion client, ITransport transport);
-
     /// <summary>Handles when clients leave the server.</summary>
     /// <param name="list">The clients who've left.</param>
     public delegate void ClientsRemovedHandler(ICollection<IConnexion> list);
@@ -236,16 +212,16 @@ namespace GT.Net
         public event MessageHandler MessageReceived;
 
         /// <summary>Invoked each time a session message is received.</summary>
-        public event SessionMessageHandler SessionMessageReceived;
+        public event MessageHandler SessionMessageReceived;
 
         /// <summary>Invoked each time a string message is received.</summary>
-        public event StringMessageHandler StringMessageReceived;
+        public event MessageHandler StringMessageReceived;
 
         /// <summary>Invoked each time a object message is received.</summary>
-        public event ObjectMessageHandler ObjectMessageReceived;
+        public event MessageHandler ObjectMessageReceived;
 
         /// <summary>Invoked each time a binary mesage is received.</summary>
-        public event BinaryMessageHandler BinaryMessageReceived;
+        public event MessageHandler BinaryMessageReceived;
 
         #endregion
 
@@ -359,7 +335,7 @@ namespace GT.Net
             log.Trace("Server.Update(): finished");
 
             //if anyone is listening, tell them we're done one cycle
-            OnUpdateTick();
+            NotifyTick();
         }
 
         private void UpdateAcceptors()

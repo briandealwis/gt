@@ -49,16 +49,26 @@ Developer-visible changes:
     As a result of this change, GT is now much quieter with respect
     to messages written to the system console.
 
+  * GT.Net.Client and GT.Net.Server have been reworked and had common
+    code extracted to a common subclass, GT.Net.Communicator.
+
   * Clients and Servers now log a warning when there are no registered
     ErrorEvent handlers.
 
   * There have been some breaks with previous API. 
 
       * The delegate GT.Net.ConnexionLifecycleNotification has been
-        removed and replaced with System.Action<IConnexion>
+        expanded to include the associated Communicator (Client or Server)
 
       * The delegate GT.Net.NewClientHandler has had its second argument
         changed to pass an IDictionary, instead of a Dictionary
+
+      * The delegate GT.Net.TickHandler has been removed and replaced
+	with System.Action<Communicator>, whose argument is the
+	Communicator instance.
+
+      * Removed GT.Net.{Session,String,Object,Binary}MessageHandler
+        delegates and replaced with equivalent GT.Net.MessageHandler
 
 Some bugs have been fixed since GT 2.0:
 

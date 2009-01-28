@@ -6,16 +6,9 @@ using System;
 using System.IO;
 using System.Diagnostics;
 
-namespace GT.Net {
-
-    /// <summary>Handles a tick event, which is one loop of the server</summary>
-    public delegate void TickHandler();
-
-    /// <summary>
-    /// Notification that a connexion was either added or removed to a client/server instance
-    /// </summary>
-    /// <param name="connexion"></param>
-    public delegate void ConnexionLifecycleNotification(IConnexion connexion);
+namespace GT.Net 
+{
+    public delegate void ConnexionLifecycleNotification(Communicator c, IConnexion conn);
 
     /// <summary>
     /// A base-level class encompassing the commonalities between GT Client
@@ -36,7 +29,7 @@ namespace GT.Net {
         public event ConnexionLifecycleNotification ConnexionRemoved;
 
         /// <summary>Invoked each cycle of the server.</summary>
-        public event TickHandler Tick;
+        public event Action<Communicator> Tick;
 
         #endregion
 
@@ -139,20 +132,10 @@ namespace GT.Net {
                 {
                     IConnexion c = connexions[i];
                     connexions.RemoveAt(i);
-                    try
-                    {
-                        RemovedConnexion(c);
-                    } 
-                    catch(Exception e)
-                    {
-                        log.Info("An exception occurred when removing a connexion", e);
-                        NotifyErrorEvent(new ErrorSummary(Severity.Information,
-                            SummaryErrorCode.UserException,
-                            "An exception occurred when removing a connexion", e));
-                    }
+                    RemovedConnexion(c);
                     try { c.Dispose(); }
                     catch (Exception e) {
-                        log.Info("Exception thrown while disposing connexion: {1}", e);
+                        log.Info("Exception thrown while disposing connexion", e);
                     }
                 }
             }
@@ -192,7 +175,17 @@ namespace GT.Net {
             connexions.Add(cnx);
             if(ConnexionAdded != null)
             {
-                ConnexionAdded(cnx);
+                try
+                {
+                    ConnexionAdded(this, cnx);
+                }
+                catch(Exception e)
+                {
+                    log.Info("An exception occurred when notifying ConnexionAdded", e);
+                    NotifyErrorEvent(new ErrorSummary(Severity.Information,
+                        SummaryErrorCode.UserException,
+                        "An exception occurred when notifying ConnexionAdded", e));
+                }
             }
         }
 
@@ -204,16 +197,29 @@ namespace GT.Net {
         /// <param name="cnx">the connexion being removed</param>
         protected virtual void RemovedConnexion(IConnexion cnx)
         {
-            if (ConnexionRemoved != null) { ConnexionRemoved(cnx); }
+            if(ConnexionRemoved != null)
+            {
+                try
+                {
+                    ConnexionRemoved(this, cnx);
+                }
+                catch(Exception e)
+                {
+                    log.Info("An exception occurred when notifying ConnexionRemoved", e);
+                    NotifyErrorEvent(new ErrorSummary(Severity.Information,
+                        SummaryErrorCode.UserException,
+                        "An exception occurred when notifying ConnexionRemoved", e));
+                }
+            }
         }
 
         /// <summary>
         /// Notify any listeners to the <see cref="Tick"/> event that this
         /// instance has seen a tick of <see cref="Update"/>.
         /// </summary>
-        protected void OnUpdateTick()
+        protected void NotifyTick()
         {
-            if (Tick != null) { Tick(); }
+            if (Tick != null) { Tick(this); }
         }
 
         bool nullWarningIssued = false;

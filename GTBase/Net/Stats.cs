@@ -38,7 +38,7 @@ namespace GT.Net
             Observed = communicator;
             foreach (IConnexion c in communicator.Connexions)
             {
-                _connexionAdded(c);
+                _connexionAdded(communicator, c);
             }
             communicator.ConnexionAdded += _connexionAdded;
             communicator.ConnexionRemoved += _connexionRemoved;
@@ -51,7 +51,7 @@ namespace GT.Net
             Observed.ConnexionRemoved += _connexionRemoved;
             foreach (IConnexion c in Observed.Connexions)
             {
-                _connexionRemoved(c);
+                _connexionRemoved(Observed, c);
             }
         }
 
@@ -79,7 +79,7 @@ namespace GT.Net
 
         #region Events
 
-        private void _connexionAdded(IConnexion c)
+        private void _connexionAdded(Communicator ignored, IConnexion c)
         {
             lock (this)
             {
@@ -93,7 +93,7 @@ namespace GT.Net
             }
         }
 
-        private void _connexionRemoved(IConnexion c)
+        private void _connexionRemoved(Communicator ignored, IConnexion c)
         {
             lock (this)
             {
