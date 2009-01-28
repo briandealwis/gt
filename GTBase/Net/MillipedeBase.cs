@@ -5,6 +5,7 @@ using System.IO;
 using System.Runtime.Serialization;
 using System.Runtime.Serialization.Formatters.Binary;
 using System.Threading;
+using Common.Logging;
 using GT.Net;
 using GT.Utils;
 
@@ -43,6 +44,7 @@ namespace GT.Millipede
     public class MillipedeRecorder : IDisposable
     {
         private static MillipedeRecorder singleton;
+        protected ILog log;
 
         /// <summary>
         /// Return the singleton recorder instance.
@@ -79,6 +81,7 @@ namespace GT.Millipede
         /// </summary>
         public MillipedeRecorder()
         {
+             log = LogManager.GetLogger(GetType());
         }
 
         public bool Active
@@ -171,29 +174,37 @@ namespace GT.Millipede
                 lock (this)
                 {
                     NumberEvents++; // important for replaying too
-                    Console.WriteLine("Recording event #{0}: {1}", NumberEvents, networkEvent);
-                    // FIXME: if strict, validate that the event was expected
+                    if (log.IsTraceEnabled)
+                    {
+                        log.Trace(String.Format("Recording event #{0}: {1}",
+                            NumberEvents, networkEvent));
+                    }
                     if(dataSink != null) { networkEvent.Serialize(dataSink); }
                 }
             }
             else if(mode == MillipedeMode.Playback)
             {
-                NetworkEvent e = nextEvent;
-                if(e == null)
+                if (log.IsInfoEnabled)
                 {
-                    Console.WriteLine("Playback: no matching event! (nextEvent == null)");
-                }
-                else if(!e.ObjectDescriptor.Equals(networkEvent.ObjectDescriptor))
-                {
-                    Console.WriteLine(
-                        "Playback: different object expected (expected:{0}, provided:{1})",
-                        nextEvent.ObjectDescriptor, e.ObjectDescriptor);
-                }
-                else if(!e.Type.Equals(networkEvent.Type))
-                {
-                    Console.WriteLine(
-                        "Playback: different operation expected (expected:{0}, provided:{1})",
-                        nextEvent.Type, e.Type);
+                    NetworkEvent e = nextEvent;
+                    if(e == null)
+                    {
+                        // log.Info("Millipede Playback: no matching event! (nextEvent == null)");
+                        // although this may be of interest, it's likely because the recorder
+                        // was explicitly stopped 
+                    }
+                    else if(!e.Type.Equals(networkEvent.Type))
+                    {
+                        log.Info("Millipede Playback: different type of operation than expected!");
+                        log.Info("   expected: " + nextEvent.Type);
+                        log.Info("   provided: " + e.Type);
+                    }
+                    else if(!e.ObjectDescriptor.Equals(networkEvent.ObjectDescriptor))
+                    {
+                        log.Info("Millipede Playback: different message sent than expected!");
+                        log.Info("   expected: " + nextEvent.ObjectDescriptor);
+                        log.Info("   provided: " + e.ObjectDescriptor);
+                    }
                 }
             }
         }
