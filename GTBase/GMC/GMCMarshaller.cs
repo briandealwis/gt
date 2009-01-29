@@ -80,7 +80,7 @@ namespace GT.GMC
         /// <summary>Creates a new instance of GMC.  
         /// Typically GMC will function as a singleton for each client, 
         /// however, there are cases where the designer may wish to have a variety of GMCS.</summary>
-        /// <param name="v">the submarshaller to use for marshalling objects to bytes.</param>
+        /// <param name="subMrshlr">the submarshaller to use for marshalling objects to bytes.</param>
         public GMCMarshaller(IMarshaller subMrshlr)
         {
             log = LogManager.GetLogger(GetType());
@@ -155,8 +155,13 @@ namespace GT.GMC
             CompressedMessagePackage cmp = compressor.Encode(bytes);
             MemoryStream result = new MemoryStream();
             log.Trace("==> Encoding for template " + cmp.TemplateId);
+
+            // We first construct a marshalled version with no within-message 
+            // compression (e.g., no deflation).  We then pass this version into 
+            // TryDeflating() to try whatever standard within-message compression techniques.
             // note: must remember to replace/strip-off this first byte in TryDeflating() 
             result.WriteByte((byte)GMCWithinMessageCompression.None);
+
             ByteUtils.EncodeLength(cmp.TemplateId, result);
             if (cmp.Template != null)
             {
@@ -214,34 +219,61 @@ namespace GT.GMC
             return bytes;
         }
 
-        private byte[] TryDeflating(byte[] bytes)
+        /// <summary>
+        /// Try compressing the provided uncompressed packet.  Return the best
+        /// result; this may actually be the uncompressed packet itself.
+        /// </summary>
+        /// <param name="uncompressedPacket">the uncmpressed packet</param>
+        /// <returns>the possibly-compressed packet</returns>
+        private byte[] TryDeflating(byte[] uncompressedPacket)
         {
-            // FIXME: deflating isn't working yet
-            return bytes;   
-            //MemoryStream output = new MemoryStream();
-            //output.WriteByte((byte)GMCWithinMessageCompression.Deflated);
-            //DeflateStream deflated = new DeflateStream(output, CompressionMode.Compress);
-            //try
-            //{
-            //    // must strip off the first byte, which indicates no deflation
-            //    Debug.Assert(bytes[0] == (byte)GMCWithinMessageCompression.None);
-            //    deflated.Write(bytes, 1, bytes.Length - 1); deflated.Flush();
-            //    if (output.Length < bytes.Length)
-            //    {
-            //        /* DebugUtils.WriteLine("GMC","Deflating message: originally {0} bytes, deflated {1} bytes ({2}%)",
-            //            bytes.Length, deflated.Length, (float)deflated.Length / (float)bytes.Length); */
-            //        DebugUtils.WriteLine("Deflating message: originally " + bytes.Length +
-            //            " bytes, deflated " + output.Length + " bytes (" +
-            //            ((float)output.Length / (float)bytes.Length) + ")");
-            //        
-            //numberDeflatedMessages++;
-            //totalDeflatedBytesSaved += bytes.Length - output.Length;
-            //        return output.ToArray();
-            //    }
-            //    return bytes;
-            //}
-            //finally { deflated.Close(); }
+            MemoryStream output = new MemoryStream();
+            output.WriteByte((byte)GMCWithinMessageCompression.Deflated);
+
+            MarshallingException.Assert(uncompressedPacket[0] == (byte)GMCWithinMessageCompression.None,
+                "bytes are supposed to be uncompressed");
+            // I guess ideally we could support several compression techniques here
+
+            DeflateStream deflated = new DeflateStream(output, CompressionMode.Compress, true);
+            // must strip off the first byte, which indicates no compression
+            deflated.Write(uncompressedPacket, 1, uncompressedPacket.Length - 1);
+            deflated.Flush();
+            deflated.Close();
+            // If it makes no difference, return the original uncompressed bytes
+            if (uncompressedPacket.Length <= output.Length) { return uncompressedPacket; }
+            if(log.IsTraceEnabled)
+            {
+                log.Trace(
+                    String.Format(
+                        "Deflating message: originally {0} bytes, deflated {1} bytes ({2}%)",
+                        uncompressedPacket.Length, output.Length,
+                        ((float)output.Length / (float)uncompressedPacket.Length)));
+            }
+            numberDeflatedMessages++;
+            totalDeflatedBytesSaved += uncompressedPacket.Length - output.Length;
+            return output.ToArray();
         }
+
+
+        /// <summary>
+        /// Examine potentially-compressed packet and apply its decompression
+        /// technique.  Assumes entire contents of bytes forms the packet.
+        /// </summary>
+        /// <param name="bytes">the possibly-compressed packet</param>
+        /// <returns>a stream with the definitely-decompressed contents</returns>
+        private Stream TryInflating(byte[] bytes)
+        {
+            MemoryStream input = new MemoryStream(bytes);
+            switch ((GMCWithinMessageCompression)input.ReadByte())
+            {
+                case GMCWithinMessageCompression.None:
+                    return input;
+                case GMCWithinMessageCompression.Deflated:
+                    return new DeflateStream(input, CompressionMode.Decompress, false);
+            }
+            throw new MarshallingException("unknown within-message compression indicator");
+        }
+
 
         private void EncodeTemplate(byte[] tmpl, Stream output)
         {
@@ -295,11 +327,7 @@ namespace GT.GMC
         public byte[] Decode(int userId, byte[] encodedBytes)
         {
             log.Trace("\n>>>> DECODING <<<<<");
-            Stream input = new MemoryStream(encodedBytes);
-            if (input.ReadByte() == (byte)GMCWithinMessageCompression.Deflated)
-            {
-                input = new DeflateStream(input, CompressionMode.Decompress);
-            }
+            Stream input = TryInflating(encodedBytes);
             CompressedMessagePackage cmp = new CompressedMessagePackage();
             cmp.TemplateId = (short)ByteUtils.DecodeLength(input);
             log.Trace(String.Format("==> Decoding with template {0}", cmp.TemplateId));

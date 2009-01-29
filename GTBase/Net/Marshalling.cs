@@ -49,6 +49,14 @@ namespace GT.Net
         public MarshallingException() : base(Severity.Error) { }
         public MarshallingException(string message) : base(Severity.Error, message) {}
         public MarshallingException(string message, Exception inner) : base(Severity.Error, message, inner) { }
+
+        public static void Assert(bool condition, string explanation)
+        {
+            if (!condition)
+            {
+                throw new MarshallingException("assertion failed: " + explanation);
+            }
+        }
     }
 
     /// <summary>The lightweight marshaller is a provides the message payloads as raw 
