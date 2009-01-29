@@ -182,7 +182,7 @@ namespace GT.Net
                 catch(Exception e)
                 {
                     log.Info("An exception occurred when notifying ConnexionAdded", e);
-                    NotifyErrorEvent(new ErrorSummary(Severity.Information,
+                    NotifyError(new ErrorSummary(Severity.Information,
                         SummaryErrorCode.UserException,
                         "An exception occurred when notifying ConnexionAdded", e));
                 }
@@ -206,7 +206,7 @@ namespace GT.Net
                 catch(Exception e)
                 {
                     log.Info("An exception occurred when notifying ConnexionRemoved", e);
-                    NotifyErrorEvent(new ErrorSummary(Severity.Information,
+                    NotifyError(new ErrorSummary(Severity.Information,
                         SummaryErrorCode.UserException,
                         "An exception occurred when notifying ConnexionRemoved", e));
                 }
@@ -224,7 +224,7 @@ namespace GT.Net
 
         bool nullWarningIssued = false;
 
-        protected void NotifyErrorEvent(ErrorSummary es)
+        protected void NotifyError(ErrorSummary es)
         {
             switch (es.Severity)
             {
@@ -884,7 +884,7 @@ namespace GT.Net
             Marshaller.Marshal(MyUniqueIdentity, msg, packet, transport);
             try { SendPacket(transport, packet); }
             catch (TransportError e) { throw new CannotSendMessagesError(this, e, msg); }
-            if (MessageSent != null) { MessageSent(msg, this, transport); }
+            NotifyMessageSent(msg, transport);
         }
 
         protected void SendMessages(ITransport transport, IList<Message> messages)
@@ -907,10 +907,7 @@ namespace GT.Net
                     {
                         throw new CannotSendMessagesError(this, e, messages);
                     }
-                    if (MessageSent != null)
-                    {
-                        foreach (Message msg in messages) { MessageSent(msg, this, transport); }
-                    }
+                    NotifyMessagesSent(messages, transport);
 
                     ms = transport.GetPacketStream();
                     packetStart = (int)ms.Position;
@@ -928,10 +925,7 @@ namespace GT.Net
                 {
                     throw new CannotSendMessagesError(this, e, messages);
                 }
-                if (MessageSent != null)
-                {
-                    foreach (Message msg in messages) { MessageSent(msg, this, transport); }
-                }
+                NotifyMessagesSent(messages, transport);
             }
         }
 
@@ -951,6 +945,56 @@ namespace GT.Net
                 throw e;
             }
         }
+
+        protected void NotifyMessagesSent(ICollection<Message> messages, ITransport t)
+        {
+            if(MessageSent == null) return;
+            try
+            {
+                foreach (Message msg in messages) { MessageSent(msg, this, t); }
+            }
+            catch (Exception e)
+            {
+                log.Info("An exception occurred when notifying MessageSent", e);
+                NotifyError(new ErrorSummary(Severity.Information,
+                    SummaryErrorCode.UserException,
+                    "An exception occurred when notifying MessageSent", e));
+            }
+        }
+
+        protected void NotifyMessageSent(Message message, ITransport t) {
+            if (MessageSent == null) return;
+            try
+            {
+                MessageSent(message, this, t);
+            }
+            catch(Exception e)
+            {
+                log.Info("An exception occurred when notifying MessageSent", e);
+                NotifyError(new ErrorSummary(Severity.Information,
+                    SummaryErrorCode.UserException,
+                    "An exception occurred when notifying MessageSent", e));
+            }
+        }
+
+        protected void NotifyMessagesSent(ICollection<PendingMessage> pending, ITransport t)
+        {
+            if (MessageSent == null) return;
+            try
+            {
+                foreach (PendingMessage pm in pending) { MessageSent(pm.Message, this, t); }
+            }
+            catch (Exception e)
+            {
+                log.Info("An exception occurred when notifying MessageSent", e);
+                NotifyError(new ErrorSummary(Severity.Information,
+                    SummaryErrorCode.UserException,
+                    "An exception occurred when notifying MessageSent", e));
+            }
+
+        }
+
+
 
         #endregion
 

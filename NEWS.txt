@@ -94,10 +94,13 @@ Some bugs have been fixed since GT 2.0:
   * Client.Get*Stream(): check that streams are still active
     <https://papyrus.usask.ca/trac/gt/ticket/71>
 
-  * Exposed an IStream's connexion through a Connexion property
+  * Expose an IStream's connexion through a Connexion property
 
   * UdpAccept and TcpAcceptor should now properly trap and report
     exceptions <https://papyrus.usask.ca/trac/gt/ticket/55>
+
+  * Ensure IConnexion.MessageSent event is sent for aggregated
+    messages.  <https://papyrus.usask.ca/trac/gt/ticket/61>
 
 
 === GT 2.0 ===

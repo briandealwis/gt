@@ -326,7 +326,6 @@ namespace GT.UnitTests
             server.Start();
         }
 
-
         #region "Tests"
         [Test]
         public void EchoStringViaLocal()
@@ -366,7 +365,6 @@ namespace GT.UnitTests
                 c.PingReceived += delegate(ITransport transport, uint sequence, int milliseconds) { pingReceived = true; };
             };
             client.ConnexionRemoved += delegate(Communicator ignored, IConnexion c) { connexionRemoved = true; };
-
 
             client.Start();
             Assert.IsFalse(errorOccurred);
@@ -490,6 +488,51 @@ namespace GT.UnitTests
             Assert.AreEqual(0, server.Connexions.Count);
         }
 
+        [Test]
+        public void TestAggregatedMessagesProperlyCounted()
+        {
+            StartExpectedResponseServer(EXPECTED_GREETING, EXPECTED_RESPONSE);
+
+            client = new TestClientConfiguration().BuildClient(); //this is a client
+            client.ErrorEvent += client_ErrorEvent; //triggers if there is an error
+
+            bool connexionAdded = false;
+            int messagesReceived = 0, messagesSent = 0;
+            client.ConnexionAdded += delegate(Communicator ignored, IConnexion c)
+            {
+                connexionAdded = true;
+                c.MessageReceived += delegate { messagesReceived++; };
+                c.MessageSent += delegate { messagesSent++; };
+            };
+
+            client.Start();
+            ProcessEvents();
+
+            {
+                Debug("Client: sending greeting: " + EXPECTED_GREETING);
+                IStringStream strStream = client.GetStringStream("127.0.0.1", "9999", 0,
+                    new TestChannelDeliveryRequirements(typeof(BaseUdpTransport))); //connect here
+                strStream.StringNewMessageEvent += ClientStringMessageReceivedEvent;
+                Assert.IsTrue(connexionAdded, "should have connected");
+
+                for (int i = 0; i < 5; i++)
+                {
+                    strStream.Send(EXPECTED_GREETING,
+                        new MessageDeliveryRequirements(Reliability.Reliable,
+                            MessageAggregation.Aggregatable, Ordering.Unordered));
+                    ProcessEvents();
+                    Assert.AreEqual(0, messagesReceived);
+                    Assert.AreEqual(0, messagesSent);
+                    Assert.AreEqual(0, strStream.Messages.Count);
+                }
+
+                strStream.Send(EXPECTED_GREETING);
+                Assert.AreEqual(6, messagesSent);
+                ProcessEvents();
+                Assert.AreEqual(6, messagesReceived);
+                Assert.AreEqual(6, strStream.Messages.Count);
+            }
+        }
 
         #endregion
 
@@ -507,6 +550,19 @@ namespace GT.UnitTests
                 client.Sleep(ClientSleepTime);
             }
             Assert.IsTrue(responseReceived, "Client: no response received from server");
+        }
+
+        protected void ProcessEvents()
+        {
+            Assert.IsFalse(errorOccurred, "Client: error occurred while sending greeting");
+            int repeats = 10;
+            while (repeats-- > 0)
+            {
+                client.Update();  // let the client check the network
+                Assert.IsFalse(errorOccurred);
+                Assert.IsFalse(server.ErrorOccurred);
+                client.Sleep(ClientSleepTime);
+            }
         }
 
         protected void PerformEchos(ChannelDeliveryRequirements cdr)
@@ -604,7 +660,6 @@ namespace GT.UnitTests
                 tupleStream.StreamedTupleReceived -= ClientTupleMessageReceivedEvent;
             }
         }
-
 
         void ClientStringMessageReceivedEvent(IStringStream stream)
         {

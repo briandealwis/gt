@@ -390,7 +390,7 @@ namespace GT.Net
         {
             ClientConnexion cnx = configuration.CreateClientConnexion(this, clientId, GenerateUniqueIdentity());
             cnx.MessageReceived += ReceivedClientMessage;
-            cnx.ErrorEvent += NotifyErrorEvent;
+            cnx.ErrorEvent += NotifyError;
             AddConnexion(cnx);
             return cnx;
         }
@@ -475,7 +475,7 @@ namespace GT.Net
                 {
                     log.Warn(String.Format("Exception in listening loop: {0}", this), e);
                     // FIXME: should we notify of such conditions?
-                    NotifyErrorEvent(new ErrorSummary(Severity.Warning,
+                    NotifyError(new ErrorSummary(Severity.Warning,
                                 SummaryErrorCode.RemoteUnavailable,
                                 "Exception occurred processing a connexion", e));
                 }
@@ -636,7 +636,7 @@ namespace GT.Net
                 }
                 catch (GTException e)
                 {
-                    NotifyErrorEvent(new ErrorSummary(Severity.Warning, SummaryErrorCode.MessagesCannotBeSent,
+                    NotifyError(new ErrorSummary(Severity.Warning, SummaryErrorCode.MessagesCannotBeSent,
                         "Exception when sending messages", e));
                 }
             }

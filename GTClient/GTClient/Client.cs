@@ -824,7 +824,10 @@ namespace GT.Net
                 {
                     // resulting packet is too big: go back to previous length, send what we had
                     stream.SetLength(previousLength);
-                    try { SendPacket(transport, stream); }
+                    try { 
+                        SendPacket(transport, stream);
+                        NotifyMessagesSent(pending, transport);
+                    }
                     catch (TransportError e)
                     {
                         // requeue these messages to try them again on a different transport
@@ -850,7 +853,13 @@ namespace GT.Net
             foreach (ITransport t in inProgress.Keys)
             {
                 Stream stream = inProgress[t];
-                try { t.SendPacket(stream); }
+                try { 
+                    t.SendPacket(stream);
+                    if (dequeuedMessages.ContainsKey(t) && dequeuedMessages[t].Count > 0)
+                    {
+                        NotifyMessagesSent(dequeuedMessages[t], t);
+                    }
+                }
                 catch (TransportError e)
                 {
                     csme.AddAll(e, dequeuedMessages[t]);
@@ -867,11 +876,11 @@ namespace GT.Net
             // No point re-queuing the messages since there's no available transport
             csme.ThrowIfApplicable();
         }
-    
+
         /// <summary>Deal with a system message in whatever way we need to.</summary>
         /// <param name="message">The incoming message.</param>
         /// <param name="transport">The transport from which the message
-            ///  came.</param>
+        ///  came.</param>
         override protected void HandleSystemMessage(SystemMessage message, ITransport transport)
         {
             switch ((SystemMessageType)message.Id)
@@ -1617,7 +1626,7 @@ namespace GT.Net
                 }
             }
             ServerConnexion mySC = configuration.CreateServerConnexion(this, address, port);
-            mySC.ErrorEvents += NotifyErrorEvent;
+            mySC.ErrorEvents += NotifyError;
             mySC.Start();
             AddConnexion(mySC);
             return mySC;
@@ -1709,7 +1718,7 @@ namespace GT.Net
                     {
                         string message = String.Format("GT Exception occurred in Client.Update() while processing stream {0}", s);
                         log.Info(message, e);
-                        NotifyErrorEvent(new ErrorSummary(e.Severity,
+                        NotifyError(new ErrorSummary(e.Severity,
                             SummaryErrorCode.RemoteUnavailable,
                             message, e));
                     }
