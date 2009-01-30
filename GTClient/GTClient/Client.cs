@@ -129,15 +129,15 @@ namespace GT.Net
 
     public abstract class AbstractBaseStream : IStream
     {
-        protected byte id;
+        protected byte channel;
         protected ServerConnexion connexion;
         protected ChannelDeliveryRequirements deliveryOptions;
 
         /// <summary> Occurs when client is updated. </summary>
         public event UpdateEventDelegate UpdateEvent;
 
-        /// <summary> This SessionStream's ID. </summary>
-        public byte ID { get { return id; } }
+        /// <summary> This stream's channel. </summary>
+        public byte Channel { get { return channel; } }
 
         /// <summary>Average latency between the client and this particluar server.</summary>
         public float Delay { get { return connexion.Delay; } }
@@ -164,12 +164,15 @@ namespace GT.Net
             internal set { connexion = (ServerConnexion)value; }
         }
 
-        public ChannelDeliveryRequirements ChannelDeliveryOptions { get { return deliveryOptions; } }
+        public ChannelDeliveryRequirements ChannelDeliveryOptions { 
+            get { return deliveryOptions; }
+            internal set { deliveryOptions = value; }
+        }
 
-        internal AbstractBaseStream(ServerConnexion cnx, byte id, ChannelDeliveryRequirements cdr)
+        internal AbstractBaseStream(ServerConnexion cnx, byte channel, ChannelDeliveryRequirements cdr)
         {
             connexion = cnx;
-            this.id = id;
+            this.channel = channel;
             deliveryOptions = cdr;
         }
 
@@ -208,10 +211,10 @@ namespace GT.Net
 
         /// <summary>Create a stream object.</summary>
         /// <param name="stream">The connexion used to actually send the messages.</param>
-        /// <param name="id">The message channel.</param>
+        /// <param name="channel">The message channel.</param>
         /// <param name="cdr">The channel delivery options.</param>
-        internal AbstractStream(ServerConnexion stream, byte id, ChannelDeliveryRequirements cdr) 
-            : base(stream, id, cdr)
+        internal AbstractStream(ServerConnexion stream, byte channel, ChannelDeliveryRequirements cdr) 
+            : base(stream, channel, cdr)
         {
             messages = new List<Message>();
         }
@@ -245,7 +248,7 @@ namespace GT.Net
         /// <summary>Flush all aggregated messages on this connexion</summary>
         public override void Flush()
         {
-            connexion.FlushChannelMessages(this.id, deliveryOptions);
+            connexion.FlushChannelMessages(this.channel, deliveryOptions);
         }
     }
 
@@ -257,10 +260,10 @@ namespace GT.Net
 
         /// <summary>Create a SessionStream object.</summary>
         /// <param name="stream">The SuperStream to use to actually send the messages.</param>
-        /// <param name="id">The message channel id.</param>
+        /// <param name="channel">The message channel.</param>
         /// <param name="cdr">The channel delivery options.</param>
-        internal SessionStream(ServerConnexion stream, byte id, ChannelDeliveryRequirements cdr) 
-            : base(stream, id, cdr)
+        internal SessionStream(ServerConnexion stream, byte channel, ChannelDeliveryRequirements cdr) 
+            : base(stream, channel, cdr)
         {
         }
 
@@ -269,7 +272,7 @@ namespace GT.Net
         /// <param name="mdr">Message delivery options</param>
         override public void Send(SessionAction action, MessageDeliveryRequirements mdr)
         {
-            connexion.Send(new SessionMessage(id, UniqueIdentity, action), mdr, deliveryOptions);
+            connexion.Send(new SessionMessage(channel, UniqueIdentity, action), mdr, deliveryOptions);
         }
 
         /// <summary>Take a SessionMessage off the queue of received messages.</summary>
@@ -320,10 +323,10 @@ namespace GT.Net
 
         /// <summary>Create a StringStream object.</summary>
         /// <param name="stream">The SuperStream to use to actually send the messages.</param>
-        /// <param name="id">The message channel id.</param>
+        /// <param name="channel">The message channel.</param>
         /// <param name="cdr">The channel delivery options.</param>
-        internal StringStream(ServerConnexion stream, byte id, ChannelDeliveryRequirements cdr) 
-            : base(stream, id, cdr)
+        internal StringStream(ServerConnexion stream, byte channel, ChannelDeliveryRequirements cdr) 
+            : base(stream, channel, cdr)
         {
         }
 
@@ -333,7 +336,7 @@ namespace GT.Net
         /// <param name="mdr">Message delivery options</param>
         override public void Send(string s, MessageDeliveryRequirements mdr)
         {
-            connexion.Send(new StringMessage(id, s), mdr, deliveryOptions);
+            connexion.Send(new StringMessage(channel, s), mdr, deliveryOptions);
         }
 
         /// <summary>Take a String off the queue of received messages.</summary>
@@ -381,10 +384,10 @@ namespace GT.Net
 
         /// <summary>Create an ObjectStream object.</summary>
         /// <param name="stream">The SuperStream to use to actually send the objects.</param>
-        /// <param name="id">The message channel claimed.</param>
+        /// <param name="channel">The message channel claimed.</param>
         /// <param name="cdr">The channel delivery options.</param>
-        internal ObjectStream(ServerConnexion stream, byte id, ChannelDeliveryRequirements cdr) 
-            : base(stream, id, cdr)
+        internal ObjectStream(ServerConnexion stream, byte channel, ChannelDeliveryRequirements cdr) 
+            : base(stream, channel, cdr)
         {
         }
 
@@ -393,7 +396,7 @@ namespace GT.Net
         /// <param name="mdr">Message delivery options</param>
         override public void Send(object o, MessageDeliveryRequirements mdr)
         {
-            connexion.Send(new ObjectMessage(id, o), mdr, deliveryOptions);
+            connexion.Send(new ObjectMessage(channel, o), mdr, deliveryOptions);
         }
 
         /// <summary>Dequeues an object from the message list.</summary>
@@ -442,10 +445,10 @@ namespace GT.Net
 
         /// <summary>Creates a BinaryStream object.</summary>
         /// <param name="stream">The SuperStream object on which to actually send the objects.</param>
-        /// <param name="id">The message channel to claim.</param>
+        /// <param name="channel">The message channel to claim.</param>
         /// <param name="cdr">The channel delivery options.</param>
-        internal BinaryStream(ServerConnexion stream, byte id, ChannelDeliveryRequirements cdr) 
-            : base(stream, id, cdr)
+        internal BinaryStream(ServerConnexion stream, byte channel, ChannelDeliveryRequirements cdr) 
+            : base(stream, channel, cdr)
         {
         }
 
@@ -454,7 +457,7 @@ namespace GT.Net
         /// <param name="mdr">Message delivery options</param>
         override public void Send(byte[] b, MessageDeliveryRequirements mdr)
         {
-            connexion.Send(new BinaryMessage(id, b), mdr, deliveryOptions);
+            connexion.Send(new BinaryMessage(channel, b), mdr, deliveryOptions);
         }
 
         /// <summary>Takes a message from the message list.</summary>
@@ -655,9 +658,9 @@ namespace GT.Net
         private void Aggregate(Message msg, MessageDeliveryRequirements mdr, ChannelDeliveryRequirements cdr)
         {
             Queue<PendingMessage> mp;
-            if (!messageQueues.TryGetValue(msg.Id, out mp))
+            if (!messageQueues.TryGetValue(msg.Channel, out mp))
             {
-                mp = messageQueues[msg.Id] = new Queue<PendingMessage>();
+                mp = messageQueues[msg.Channel] = new Queue<PendingMessage>();
             }
             else if (cdr != null && cdr.Freshness == Freshness.IncludeLatestOnly)
             {
@@ -706,7 +709,7 @@ namespace GT.Net
                     case MessageAggregation.FlushChannel:
                         // make sure ALL other messages on this CHANNEL are sent, and then send <c>msg</c>.
                         FlushMessages(new ProcessorChain<PendingMessage>(
-                            new SameChannelProcessor(msg.Id, messageQueues),
+                            new SameChannelProcessor(msg.Channel, messageQueues),
                             new SingleElementProcessor<PendingMessage>(new PendingMessage(msg, mdr, cdr))));
                         return;
 
@@ -749,20 +752,20 @@ namespace GT.Net
             foreach (Message m in msgs) { Send(m, mdr, cdr); }
         }
 
-        internal void FlushChannelMessages(byte id, ChannelDeliveryRequirements cdr)
+        internal void FlushChannelMessages(byte channel, ChannelDeliveryRequirements cdr)
         {
             // must be locked as is called by AbstractStream implementations
             lock(this)
             {
                 try
                 {
-                    FlushMessages(new SameChannelProcessor(id, messageQueues));
+                    FlushMessages(new SameChannelProcessor(channel, messageQueues));
                 }
                 catch (CannotSendMessagesError e)
                 {
                     NotifyError(new ErrorSummary(Severity.Warning,
                         SummaryErrorCode.MessagesCannotBeSent,
-                        String.Format("Unable to flush channel {0}", id), e));
+                        String.Format("Unable to flush channel {0}", channel), e));
                 }
             }
         }
@@ -883,7 +886,7 @@ namespace GT.Net
         ///  came.</param>
         override protected void HandleSystemMessage(SystemMessage message, ITransport transport)
         {
-            switch ((SystemMessageType)message.Id)
+            switch (message.Descriptor)
             {
             case SystemMessageType.UniqueIDRequest:
                 uniqueIdentity = BitConverter.ToInt32(message.data, 0);
@@ -995,7 +998,8 @@ namespace GT.Net
         protected Thread listeningThread;
 
 
-        // Keep track of the previous warning messages; it's annoying to have hundreds scroll by
+        // Keep track of the channels that have had warnings of a missing event listener:
+        // it's annoying to have hundreds of warnings scroll by!
         protected IDictionary<byte, byte> previouslyWarnedChannels;
         protected IDictionary<MessageType, MessageType> previouslyWarnedMessageTypes;
 
@@ -1168,27 +1172,30 @@ namespace GT.Net
 
         #region Streams
 
-        /// <summary>Get a streaming tuple that is automatically sent to the server every so often</summary>
+        /// <summary>Get a streaming tuple: changes to a streaming tuples are automatically sent to the 
+        /// server every <see cref="milliseconds"/> milliseconds.
+        /// Note: This call rebinds any existing 3-element tuple stream on this channel to the 
+        /// provided connexion!</summary>
         /// <typeparam name="T_X">The Type of the first value of the tuple</typeparam>
         /// <typeparam name="T_Y">The Type of the second value of the tuple</typeparam>
         /// <typeparam name="T_Z">The Type of the third value of the tuple</typeparam>
         /// <param name="address">The address to connect to</param>
         /// <param name="port">The port to connect to</param>
-        /// <param name="id">The channel id to use for this three-tuple (unique to three-tuples)</param>
+        /// <param name="channel">The channel to use for this three-tuple (unique to three-tuples)</param>
         /// <param name="milliseconds">The interval in milliseconds</param>
         /// <param name="cdr">The delivery requirements for this channel</param>
         /// <returns>The streaming tuple</returns>
         public IStreamedTuple<T_X, T_Y, T_Z> GetStreamedTuple<T_X, T_Y, T_Z>(string address, string port, 
-            byte id, int milliseconds, ChannelDeliveryRequirements cdr)
+            byte channel, int milliseconds, ChannelDeliveryRequirements cdr)
             where T_X : IConvertible
             where T_Y : IConvertible
             where T_Z : IConvertible
         {
             StreamedTuple<T_X, T_Y, T_Z> tuple;
-            if (threeTupleStreams.ContainsKey(id) 
-                && threeTupleStreams[id] is StreamedTuple<T_X, T_Y, T_Z>)
+            if (threeTupleStreams.ContainsKey(channel) 
+                && threeTupleStreams[channel] is StreamedTuple<T_X, T_Y, T_Z>)
             {
-                tuple = (StreamedTuple<T_X, T_Y, T_Z>)threeTupleStreams[id];
+                tuple = (StreamedTuple<T_X, T_Y, T_Z>)threeTupleStreams[channel];
                 if (tuple.Address.Equals(address) && tuple.Port.Equals(port)
                     && tuple.Connexion.Active)
                 {
@@ -1200,8 +1207,8 @@ namespace GT.Net
             }
 
             tuple = new StreamedTuple<T_X, T_Y, T_Z>(GetConnexion(address, port), 
-                id, milliseconds, cdr);
-            threeTupleStreams.Add(id, tuple);
+                channel, milliseconds, cdr);
+            threeTupleStreams.Add(channel, tuple);
             return tuple;
         }
 
@@ -1212,21 +1219,21 @@ namespace GT.Net
         /// <typeparam name="T_Y">The Type of the second value of the tuple</typeparam>
         /// <typeparam name="T_Z">The Type of the third value of the tuple</typeparam>
         /// <param name="connexion">The stream to use to send the tuple</param>
-        /// <param name="id">The channel id to use for this three-tuple (unique to three-tuples)</param>
+        /// <param name="channel">The channel to use for this three-tuple (unique to three-tuples)</param>
         /// <param name="milliseconds">The interval in milliseconds</param>
         /// <param name="cdr">The delivery requirements for this channel</param>
         /// <returns>The streaming tuple</returns>
         public IStreamedTuple<T_X, T_Y, T_Z> GetStreamedTuple<T_X, T_Y, T_Z>(IConnexion connexion, 
-            byte id, int milliseconds, ChannelDeliveryRequirements cdr)
+            byte channel, int milliseconds, ChannelDeliveryRequirements cdr)
             where T_X : IConvertible
             where T_Y : IConvertible
             where T_Z : IConvertible
         {
             StreamedTuple<T_X, T_Y, T_Z> tuple;
-            if (threeTupleStreams.ContainsKey(id) 
-                && threeTupleStreams[id] is StreamedTuple<T_X, T_Y, T_Z>)
+            if (threeTupleStreams.ContainsKey(channel) 
+                && threeTupleStreams[channel] is StreamedTuple<T_X, T_Y, T_Z>)
             {
-                tuple = (StreamedTuple<T_X, T_Y, T_Z>) threeTupleStreams[id];
+                tuple = (StreamedTuple<T_X, T_Y, T_Z>) threeTupleStreams[channel];
                 if (tuple.Connexion == connexion)
                 {
                     return tuple;
@@ -1236,8 +1243,8 @@ namespace GT.Net
                 return tuple;
             }
 
-            tuple = new StreamedTuple<T_X, T_Y, T_Z>(connexion as ServerConnexion, id, milliseconds, cdr);
-            threeTupleStreams.Add(id, tuple);
+            tuple = new StreamedTuple<T_X, T_Y, T_Z>(connexion as ServerConnexion, channel, milliseconds, cdr);
+            threeTupleStreams.Add(channel, tuple);
             return tuple;
         }
 
@@ -1246,20 +1253,20 @@ namespace GT.Net
         /// <typeparam name="T_Y">The Type of the second value of the tuple</typeparam>
         /// <param name="address">The address to connect to</param>
         /// <param name="port">The port to connect to</param>
-        /// <param name="id">The channel id to use for this two-tuple (unique to two-tuples)</param>
+        /// <param name="channel">The channel to use for this two-tuple (unique to two-tuples)</param>
         /// <param name="milliseconds">The interval in milliseconds</param>
         /// <param name="cdr">The delivery requirements for this channel</param>
         /// <returns>The streaming tuple</returns>
-        public IStreamedTuple<T_X, T_Y> GetStreamedTuple<T_X, T_Y>(string address, string port, byte id, int milliseconds,
+        public IStreamedTuple<T_X, T_Y> GetStreamedTuple<T_X, T_Y>(string address, string port, byte channel, int milliseconds,
             ChannelDeliveryRequirements cdr)
             where T_X : IConvertible
             where T_Y : IConvertible
         {
             StreamedTuple<T_X, T_Y> tuple;
-            if (twoTupleStreams.ContainsKey(id) 
-                && twoTupleStreams[id] is StreamedTuple<T_X, T_Y>)
+            if (twoTupleStreams.ContainsKey(channel) 
+                && twoTupleStreams[channel] is StreamedTuple<T_X, T_Y>)
             {
-                tuple = (StreamedTuple<T_X, T_Y>) twoTupleStreams[id];
+                tuple = (StreamedTuple<T_X, T_Y>) twoTupleStreams[channel];
                 if (tuple.Address.Equals(address) && tuple.Port.Equals(port)
                     && tuple.Connexion.Active)
                 {
@@ -1270,8 +1277,8 @@ namespace GT.Net
                 return tuple;
             }
 
-            tuple = new StreamedTuple<T_X, T_Y>(GetConnexion(address, port), id, milliseconds, cdr);
-            twoTupleStreams.Add(id, tuple);
+            tuple = new StreamedTuple<T_X, T_Y>(GetConnexion(address, port), channel, milliseconds, cdr);
+            twoTupleStreams.Add(channel, tuple);
             return tuple;
         }
 
@@ -1281,20 +1288,20 @@ namespace GT.Net
         /// <typeparam name="T_X">The Type of the first value of the tuple</typeparam>
         /// <typeparam name="T_Y">The Type of the second value of the tuple</typeparam>
         /// <param name="connexion">The stream to use to send the tuple</param>
-        /// <param name="id">The channel id to use for this three-tuple (unique to three-tuples)</param>
+        /// <param name="channel">The channel to use for this three-tuple (unique to three-tuples)</param>
         /// <param name="milliseconds">The interval in milliseconds</param>
         /// <param name="cdr">The delivery requirements for this channel</param>
         /// <returns>The streaming tuple</returns>
-        public IStreamedTuple<T_X, T_Y> GetStreamedTuple<T_X, T_Y>(IConnexion connexion, byte id, int milliseconds,
+        public IStreamedTuple<T_X, T_Y> GetStreamedTuple<T_X, T_Y>(IConnexion connexion, byte channel, int milliseconds,
             ChannelDeliveryRequirements cdr)
             where T_X : IConvertible
             where T_Y : IConvertible
         {
             StreamedTuple<T_X, T_Y> tuple;
-            if (twoTupleStreams.ContainsKey(id)
-                && twoTupleStreams[id] is StreamedTuple<T_X, T_Y>)
+            if (twoTupleStreams.ContainsKey(channel)
+                && twoTupleStreams[channel] is StreamedTuple<T_X, T_Y>)
             {
-                tuple = (StreamedTuple<T_X, T_Y>)twoTupleStreams[id];
+                tuple = (StreamedTuple<T_X, T_Y>)twoTupleStreams[channel];
                 if (tuple.Connexion == connexion)
                 {
                     return tuple;
@@ -1304,8 +1311,8 @@ namespace GT.Net
                 return tuple;
             }
 
-            tuple = new StreamedTuple<T_X, T_Y>(connexion as ServerConnexion, id, milliseconds, cdr);
-            twoTupleStreams.Add(id, tuple);
+            tuple = new StreamedTuple<T_X, T_Y>(connexion as ServerConnexion, channel, milliseconds, cdr);
+            twoTupleStreams.Add(channel, tuple);
             return tuple;
         }
 
@@ -1313,18 +1320,18 @@ namespace GT.Net
         /// <typeparam name="T_X">The Type of the value of the tuple</typeparam>
         /// <param name="address">The address to connect to</param>
         /// <param name="port">The port to connect to</param>
-        /// <param name="id">The channel id to use for this one-tuple (unique to one-tuples)</param>
+        /// <param name="channel">The channel to use for this one-tuple (unique to one-tuples)</param>
         /// <param name="milliseconds">The interval in milliseconds</param>
         /// <param name="cdr">The delivery requirements for this channel</param>
         /// <returns>The streaming tuple</returns>
-        public IStreamedTuple<T_X> GetStreamedTuple<T_X>(string address, string port, byte id, int milliseconds,
+        public IStreamedTuple<T_X> GetStreamedTuple<T_X>(string address, string port, byte channel, int milliseconds,
             ChannelDeliveryRequirements cdr)
             where T_X : IConvertible
         {
             StreamedTuple<T_X> tuple;
-            if (oneTupleStreams.ContainsKey(id) && oneTupleStreams[id] is StreamedTuple<T_X>)
+            if (oneTupleStreams.ContainsKey(channel) && oneTupleStreams[channel] is StreamedTuple<T_X>)
             {
-                tuple = (StreamedTuple<T_X>)oneTupleStreams[id];
+                tuple = (StreamedTuple<T_X>)oneTupleStreams[channel];
                 if (tuple.Address.Equals(address) && tuple.Port.Equals(port)
                     && tuple.Connexion.Active)
                 {
@@ -1335,8 +1342,8 @@ namespace GT.Net
                 return tuple;
             }
 
-            tuple = new StreamedTuple<T_X>(GetConnexion(address, port), id, milliseconds, cdr);
-            oneTupleStreams.Add(id, tuple);
+            tuple = new StreamedTuple<T_X>(GetConnexion(address, port), channel, milliseconds, cdr);
+            oneTupleStreams.Add(channel, tuple);
             return tuple;
         }
 
@@ -1344,21 +1351,20 @@ namespace GT.Net
         /// so often. It is the caller's responsibility to ensure <see cref="connexion"/> 
         /// is still active.</summary>
         /// <typeparam name="T_X">The Type of the first value of the tuple</typeparam>
-        /// <typeparam name="T_Y">The Type of the second value of the tuple</typeparam>
         /// <param name="connexion">The stream to use to send the tuple</param>
-        /// <param name="id">The channel id to use for this three-tuple (unique to three-tuples)</param>
+        /// <param name="channel">The channel to use for this three-tuple (unique to three-tuples)</param>
         /// <param name="milliseconds">The interval in milliseconds</param>
         /// <param name="cdr">The delivery requirements for this channel</param>
         /// <returns>The streaming tuple</returns>
-        public IStreamedTuple<T_X> GetStreamedTuple<T_X>(IConnexion connexion, byte id, int milliseconds,
+        public IStreamedTuple<T_X> GetStreamedTuple<T_X>(IConnexion connexion, byte channel, int milliseconds,
             ChannelDeliveryRequirements cdr)
             where T_X : IConvertible
         {
             StreamedTuple<T_X> tuple;
-            if (oneTupleStreams.ContainsKey(id)
-                && oneTupleStreams[id] is StreamedTuple<T_X>)
+            if (oneTupleStreams.ContainsKey(channel)
+                && oneTupleStreams[channel] is StreamedTuple<T_X>)
             {
-                tuple = (StreamedTuple<T_X>)oneTupleStreams[id];
+                tuple = (StreamedTuple<T_X>)oneTupleStreams[channel];
                 if (tuple.Connexion == connexion)
                 {
                     return tuple;
@@ -1368,51 +1374,54 @@ namespace GT.Net
                 return tuple;
             }
 
-            tuple = new StreamedTuple<T_X>(connexion as ServerConnexion, id, milliseconds, cdr);
-            oneTupleStreams.Add(id, tuple);
+            tuple = new StreamedTuple<T_X>(connexion as ServerConnexion, channel, milliseconds, cdr);
+            oneTupleStreams.Add(channel, tuple);
             return tuple;
         }
 
 
         /// <summary>Gets a connexion for managing the session to this server.</summary>
-        /// <param name="address">The address to connect to.  Changes old connexion if id already claimed.</param>
-        /// <param name="port">The port to connect to.  Changes old connexion if id already claimed.</param>
-        /// <param name="id">The channel id to claim or retrieve.</param>
+        /// Note: This call rebinds any existing string stream on this channel to the 
+        /// provided connexion!</summary>
+        /// <param name="address">The address to connect to.</param>
+        /// <param name="port">The port to connect to.</param>
+        /// <param name="channel">The channel to claim or retrieve.</param>
         /// <param name="cdr">The delivery requirements for this channel</param>
         /// <returns>The created or retrived SessionStream</returns>
-        public ISessionStream GetSessionStream(string address, string port, byte id, ChannelDeliveryRequirements cdr)
+        public ISessionStream GetSessionStream(string address, string port, byte channel, ChannelDeliveryRequirements cdr)
         {
-            SessionStream ss;
-            if (sessionStreams.ContainsKey(id))
+            SessionStream s;
+            if (sessionStreams.TryGetValue(channel, out s))
             {
-                ss = sessionStreams[id];
-                if (ss.Address.Equals(address) && ss.Port.Equals(port) && ss.Connexion.Active)
+                if (!s.Address.Equals(address) || !s.Port.Equals(port) || !s.Connexion.Active)
                 {
-                    return ss;
+                    s.Connexion = GetConnexion(address, port);
+                } else
+                {
+                    s.ChannelDeliveryOptions = cdr;
                 }
-
-                ss.Connexion = GetConnexion(address, port);
-                return ss;
+                return s;
             }
 
-            ss = new SessionStream(GetConnexion(address, port), id, cdr);
-            sessionStreams.Add(id, ss);
-            return ss;
+            s = new SessionStream(GetConnexion(address, port), channel, cdr);
+            sessionStreams.Add(channel, s);
+            return s;
         }
 
         /// <summary>Gets a connexion for managing the session to this server.  It is
-        /// the caller's responsibility to ensure <see cref="connexion"/> is still active.</summary>
-        /// <param name="connexion">The connexion to use for the connexion.  
-        /// Changes the server of id if the id is already claimed.</param>
-        /// <param name="id">The channel id to claim or retrieve.</param>
+        /// the caller's responsibility to ensure <see cref="connexion"/> is still active.
+        /// Note: This call rebinds any existing session stream on this channel to the 
+        /// provided connexion!</summary>
+        /// <param name="connexion">The connexion to use for the connexion.</param>
+        /// <param name="channel">The channel to claim or retrieve.</param>
         /// <param name="cdr">The delivery requirements for this channel</param>
         /// <returns>The created or retrived SessionStream</returns>
-        public ISessionStream GetSessionStream(IConnexion connexion, byte id, ChannelDeliveryRequirements cdr)
+        public ISessionStream GetSessionStream(IConnexion connexion, byte channel, ChannelDeliveryRequirements cdr)
         {
             SessionStream ss;
-            if (sessionStreams.ContainsKey(id))
+            if (sessionStreams.ContainsKey(channel))
             {
-                ss = sessionStreams[id];
+                ss = sessionStreams[channel];
                 if (ss.Connexion == connexion)
                 {
                     return ss;
@@ -1422,31 +1431,33 @@ namespace GT.Net
                 return ss;
             }
 
-            ss = new SessionStream(connexion as ServerConnexion, id, cdr);
-            sessionStreams.Add(id, ss);
+            ss = new SessionStream(connexion as ServerConnexion, channel, cdr);
+            sessionStreams.Add(channel, ss);
             return ss;
         }
 
         /// <summary>Gets an already created SessionStream</summary>
-        /// <param name="id">The channel id of the SessionStream unique to SessionStreams.</param>
+        /// <param name="channel">The channel of the SessionStream unique to SessionStreams.</param>
         /// <returns>The found SessionStream</returns>
-        public ISessionStream GetSessionStream(byte id)
+        public ISessionStream GetSessionStream(byte channel)
         {
-            return sessionStreams[id];
+            return sessionStreams[channel];
         }
 
-        /// <summary>Gets a connexion for transmitting strings.</summary>
-        /// <param name="address">The address to connect to.  Changes old connexion if id already claimed.</param>
-        /// <param name="port">The port to connect to.  Changes old connexion if id already claimed.</param>
-        /// <param name="id">The channel id to claim.</param>
+        /// <summary>Obtain a stream on a channel for transmitting strings.
+        /// Note: This call rebinds any existing string stream on this channel to the 
+        /// provided connexion!</summary>
+        /// <param name="address">The address to connect to.</param>
+        /// <param name="port">The port to connect to.</param>
+        /// <param name="channel">The channel to claim.</param>
         /// <param name="cdr">The delivery requirements for this channel</param>
         /// <returns>The created or retrived StringStream</returns>
-        public IStringStream GetStringStream(string address, string port, byte id, ChannelDeliveryRequirements cdr)
+        public IStringStream GetStringStream(string address, string port, byte channel, ChannelDeliveryRequirements cdr)
         {
             StringStream ss;
-            if (stringStreams.ContainsKey(id))
+            if (stringStreams.ContainsKey(channel))
             {
-                ss = stringStreams[id];
+                ss = stringStreams[channel];
                 if (ss.Address.Equals(address) && ss.Port.Equals(port) && ss.Connexion.Active)
                 {
                     return ss;
@@ -1456,23 +1467,25 @@ namespace GT.Net
                 return ss;
             }
 
-            ss = new StringStream(GetConnexion(address, port), id, cdr);
-            stringStreams.Add(id, ss);
+            ss = new StringStream(GetConnexion(address, port), channel, cdr);
+            stringStreams.Add(channel, ss);
             return ss;
         }
 
         /// <summary>Gets a connexion for transmitting strings.  It is
-        /// the caller's responsibility to ensure <see cref="connexion"/> is still active.</summary>
-        /// <param name="connexion">The connexion to use for the connexion.  Changes the server of id if the id is already claimed.</param>
-        /// <param name="id">The channel id to claim.</param>
+        /// the caller's responsibility to ensure <see cref="connexion"/> is still active.
+        /// Note: This call rebinds any existing string stream on this channel to the 
+        /// provided connexion!</summary>
+        /// <param name="connexion">The connexion to use for the connexion.</param>
+        /// <param name="channel">The channel to claim.</param>
         /// <param name="cdr">The delivery requirements for this channel</param>
         /// <returns>The created or retrived StringStream</returns>
-        public IStringStream GetStringStream(IConnexion connexion, byte id, ChannelDeliveryRequirements cdr)
+        public IStringStream GetStringStream(IConnexion connexion, byte channel, ChannelDeliveryRequirements cdr)
         {
             StringStream ss;
-            if (stringStreams.ContainsKey(id))
+            if (stringStreams.ContainsKey(channel))
             {
-                ss = stringStreams[id];
+                ss = stringStreams[channel];
                 if (ss.Connexion == connexion)
                 {
                     return ss;
@@ -1482,55 +1495,58 @@ namespace GT.Net
                 return ss;
             }
 
-            ss = new StringStream(connexion as ServerConnexion, id, cdr);
-            stringStreams.Add(id, ss);
+            ss = new StringStream(connexion as ServerConnexion, channel, cdr);
+            stringStreams.Add(channel, ss);
             return ss;
         }
 
         /// <summary>Gets an already created StringStream</summary>
-        /// <param name="id">The channel id of the StringStream unique to StringStreams.</param>
+        /// <param name="channel">The channel of the StringStream unique to StringStreams.</param>
         /// <returns>The found StringStream</returns>
-        public IStringStream GetStringStream(byte id)
+        public IStringStream GetStringStream(byte channel)
         {
-            return stringStreams[id];
+            return stringStreams[channel];
         }
 
-        /// <summary>Gets a connexion for transmitting objects.</summary>
-        /// <param name="address">The address to connect to.  Changes old connexion if id already claimed.</param>
-        /// <param name="port">The port to connect to.  Changes old connexion if id already claimed.</param>
-        /// <param name="id">The channel id to claim for this ObjectStream, unique for all ObjectStreams.</param>
+        /// <summary>Gets a connexion for transmitting objects.
+        /// Note: This call rebinds any existing string stream on this channel to the 
+        /// provided connexion!</summary>
+        /// <param name="address">The address to connect to.</param>
+        /// <param name="port">The port to connect to.</param>
+        /// <param name="channel">The channel to claim for this ObjectStream, unique for all ObjectStreams.</param>
         /// <param name="cdr">The delivery requirements for this channel</param>
         /// <returns>The created or retrived ObjectStream</returns>
-        public IObjectStream GetObjectStream(string address, string port, byte id, ChannelDeliveryRequirements cdr)
+        public IObjectStream GetObjectStream(string address, string port, byte channel, ChannelDeliveryRequirements cdr)
         {
             ObjectStream os;
-            if (objectStreams.ContainsKey(id))
+            if (objectStreams.ContainsKey(channel))
             {
-                os = objectStreams[id];
+                os = objectStreams[channel];
                 if (os.Address.Equals(address) && os.Port.Equals(port) && os.Connexion.Active)
                 {
                     return os;
                 }
                 os.Connexion = GetConnexion(address, port);
+                os.ChannelDeliveryOptions = cdr;
                 return os;
             }
-            os = new ObjectStream(GetConnexion(address, port), id, cdr);
-            objectStreams.Add(id, os);
+            os = new ObjectStream(GetConnexion(address, port), channel, cdr);
+            objectStreams.Add(channel, os);
             return os;
         }
 
         /// <summary>Gets a connexion for transmitting objects.  It is
         /// the caller's responsibility to ensure <see cref="connexion"/> is still active.</summary>
-        /// <param name="connexion">The connexion to use for the connexion.  Changes the server of id if the id is already claimed.</param>
-        /// <param name="id">The channel id to claim for this ObjectStream, unique for all ObjectStreams.</param>
+        /// <param name="connexion">The connexion to use for the stream.</param>
+        /// <param name="channel">The channel to claim for this stream.</param>
         /// <param name="cdr">The delivery requirements for this channel</param>
         /// <returns>The created or retrived ObjectStream</returns>
-        public IObjectStream GetObjectStream(IConnexion connexion, byte id, ChannelDeliveryRequirements cdr)
+        public IObjectStream GetObjectStream(IConnexion connexion, byte channel, ChannelDeliveryRequirements cdr)
         {
             ObjectStream os;
-            if (objectStreams.ContainsKey(id))
+            if (objectStreams.ContainsKey(channel))
             {
-                os = objectStreams[id];
+                os = objectStreams[channel];
                 if (os.Connexion == connexion)
                 {
                     return os;
@@ -1538,31 +1554,31 @@ namespace GT.Net
                 os.Connexion = connexion;
                 return os;
             }
-            os = new ObjectStream(connexion as ServerConnexion, id, cdr);
-            objectStreams.Add(id, os);
+            os = new ObjectStream(connexion as ServerConnexion, channel, cdr);
+            objectStreams.Add(channel, os);
             return os;
         }
 
         /// <summary>Get an already created ObjectStream</summary>
-        /// <param name="id">The channel id of the ObjectStream unique, to ObjectStreams.</param>
+        /// <param name="channel">The channel of the ObjectStream unique, to ObjectStreams.</param>
         /// <returns>The found ObjectStream.</returns>
-        public IObjectStream GetObjectStream(byte id)
+        public IObjectStream GetObjectStream(byte channel)
         {
-            return objectStreams[id];
+            return objectStreams[channel];
         }
 
         /// <summary>Gets a connexion for transmitting byte arrays.</summary>
-        /// <param name="address">The address to connect to.  Changes old connexion if id already claimed.</param>
-        /// <param name="port">The port to connect to.  Changes old connexion if id already claimed.</param>
-        /// <param name="id">The channel id to claim for this BinaryStream, unique for all BinaryStreams.</param>
+        /// <param name="address">The address to connect to.</param>
+        /// <param name="port">The port to connect to.</param>
+        /// <param name="channel">The channel to claim for this BinaryStream, unique for all BinaryStreams.</param>
         /// <param name="cdr">The delivery requirements for this channel</param>
         /// <returns>The created or retrived BinaryStream.</returns>
-        public IBinaryStream GetBinaryStream(string address, string port, byte id, ChannelDeliveryRequirements cdr)
+        public IBinaryStream GetBinaryStream(string address, string port, byte channel, ChannelDeliveryRequirements cdr)
         {
             BinaryStream bs;
-            if (binaryStreams.ContainsKey(id))
+            if (binaryStreams.ContainsKey(channel))
             {
-                bs = binaryStreams[id];
+                bs = binaryStreams[channel];
                 if (bs.Address.Equals(address) && bs.Port.Equals(port) && bs.Connexion.Active)
                 {
                     return bs;
@@ -1570,23 +1586,23 @@ namespace GT.Net
                 bs.Connexion = GetConnexion(address, port);
                 return bs;
             }
-            bs = new BinaryStream(GetConnexion(address, port), id, cdr);
-            binaryStreams.Add(id, bs);
+            bs = new BinaryStream(GetConnexion(address, port), channel, cdr);
+            binaryStreams.Add(channel, bs);
             return bs;
         }
 
         /// <summary>Gets a connexion for transmitting byte arrays.  It is
         /// the caller's responsibility to ensure <see cref="connexion"/> is still active.</summary>
-        /// <param name="connexion">The connexion to use for the connexion.  Changes the server of id if the id is already claimed.</param>
-        /// <param name="id">The channel id to claim for this BinaryStream, unique for all BinaryStreams.</param>
+        /// <param name="connexion">The connexion to use for the connexion.</param>
+        /// <param name="channel">The channel to claim for this BinaryStream, unique for all BinaryStreams.</param>
         /// <param name="cdr">The delivery requirements for this channel</param>
         /// <returns>The created or retrived BinaryStream.</returns>
-        public IBinaryStream GetBinaryStream(IConnexion connexion, byte id, ChannelDeliveryRequirements cdr)
+        public IBinaryStream GetBinaryStream(IConnexion connexion, byte channel, ChannelDeliveryRequirements cdr)
         {
             BinaryStream bs;
-            if (binaryStreams.ContainsKey(id))
+            if (binaryStreams.ContainsKey(channel))
             {
-                bs = binaryStreams[id];
+                bs = binaryStreams[channel];
                 if (bs.Connexion == connexion)
                 {
                     return bs;
@@ -1594,17 +1610,17 @@ namespace GT.Net
                 bs.Connexion = connexion;
                 return bs;
             }
-            bs = new BinaryStream(connexion as ServerConnexion, id, cdr);
-            binaryStreams.Add(id, bs);
+            bs = new BinaryStream(connexion as ServerConnexion, channel, cdr);
+            binaryStreams.Add(channel, bs);
             return bs;
         }
 
         /// <summary>Get an already created BinaryStream</summary>
-        /// <param name="id">The channel id of the BinaryStream, unique to BinaryStreams.</param>
+        /// <param name="channel">The channel of the BinaryStream, unique to BinaryStreams.</param>
         /// <returns>A BinaryStream</returns>
-        public IBinaryStream GetBinaryStream(byte id)
+        public IBinaryStream GetBinaryStream(byte channel)
         {
-                return binaryStreams[id];
+                return binaryStreams[channel];
         }
 
 
@@ -1671,25 +1687,25 @@ namespace GT.Net
                                     HandleSystemMessage(m);
                                     break;
                                 case MessageType.Binary:
-                                    binaryStreams[m.Id].QueueMessage(m);
+                                    binaryStreams[m.Channel].QueueMessage(m);
                                     break;
                                 case MessageType.Object:
-                                    objectStreams[m.Id].QueueMessage(m);
+                                    objectStreams[m.Channel].QueueMessage(m);
                                     break;
                                 case MessageType.Session:
-                                    sessionStreams[m.Id].QueueMessage(m);
+                                    sessionStreams[m.Channel].QueueMessage(m);
                                     break;
                                 case MessageType.String:
-                                    stringStreams[m.Id].QueueMessage(m);
+                                    stringStreams[m.Channel].QueueMessage(m);
                                     break;
                                 case MessageType.Tuple1D:
-                                    oneTupleStreams[m.Id].QueueMessage(m);
+                                    oneTupleStreams[m.Channel].QueueMessage(m);
                                     break;
                                 case MessageType.Tuple2D:
-                                    twoTupleStreams[m.Id].QueueMessage(m);
+                                    twoTupleStreams[m.Channel].QueueMessage(m);
                                     break;
                                 case MessageType.Tuple3D:
-                                    threeTupleStreams[m.Id].QueueMessage(m);
+                                    threeTupleStreams[m.Channel].QueueMessage(m);
                                     break;
                                 default:
                                     /// FIXME: THIS IS NOT AN ERROR!  But how do we support
@@ -1705,10 +1721,10 @@ namespace GT.Net
                             catch (KeyNotFoundException)
                             {
                                 // THIS IS NOT AN ERROR!  It's just that nobody's listening here.
-                                if (!previouslyWarnedChannels.ContainsKey(m.Id))
+                                if (!previouslyWarnedChannels.ContainsKey(m.Channel))
                                 {
                                     log.Warn(String.Format("received message for unmonitored channel: {0}", m));
-                                    previouslyWarnedChannels[m.Id] = m.Id;
+                                    previouslyWarnedChannels[m.Channel] = m.Channel;
                                 }
                             }
                         }
@@ -1805,13 +1821,13 @@ namespace GT.Net
         {
             switch (m.MessageType)
             {
-            case MessageType.Binary: return binaryStreams[m.Id].ChannelDeliveryOptions;
-            case MessageType.Object: return objectStreams[m.Id].ChannelDeliveryOptions;
-            case MessageType.Session: return sessionStreams[m.Id].ChannelDeliveryOptions;
-            case MessageType.String: return stringStreams[m.Id].ChannelDeliveryOptions;
-            case MessageType.Tuple1D: return oneTupleStreams[m.Id].ChannelDeliveryOptions;
-            case MessageType.Tuple2D: return twoTupleStreams[m.Id].ChannelDeliveryOptions;
-            case MessageType.Tuple3D: return threeTupleStreams[m.Id].ChannelDeliveryOptions;
+            case MessageType.Binary: return binaryStreams[m.Channel].ChannelDeliveryOptions;
+            case MessageType.Object: return objectStreams[m.Channel].ChannelDeliveryOptions;
+            case MessageType.Session: return sessionStreams[m.Channel].ChannelDeliveryOptions;
+            case MessageType.String: return stringStreams[m.Channel].ChannelDeliveryOptions;
+            case MessageType.Tuple1D: return oneTupleStreams[m.Channel].ChannelDeliveryOptions;
+            case MessageType.Tuple2D: return twoTupleStreams[m.Channel].ChannelDeliveryOptions;
+            case MessageType.Tuple3D: return threeTupleStreams[m.Channel].ChannelDeliveryOptions;
 
             case MessageType.System:
             default:
@@ -1836,20 +1852,20 @@ namespace GT.Net
     internal class SameChannelProcessor : IProcessingQueue<PendingMessage>
     {
         // invariant: queue == null || queue.Count > 0
-        protected byte id;
+        protected byte channel;
         protected IDictionary<byte, Queue<PendingMessage>> pendingMessages;
         protected Queue<PendingMessage> queue;
 
-        internal SameChannelProcessor(byte channelId, IDictionary<byte, Queue<PendingMessage>> pm)
+        internal SameChannelProcessor(byte channel, IDictionary<byte, Queue<PendingMessage>> pm)
         {
-            id = channelId;
+            this.channel = channel;
             pendingMessages = pm;
 
-            if (!pendingMessages.TryGetValue(id, out queue)) { queue = null; }
+            if (!pendingMessages.TryGetValue(this.channel, out queue)) { queue = null; }
             else if (queue.Count == 0)
             {
                 queue = null;
-                pendingMessages.Remove(id);
+                pendingMessages.Remove(this.channel);
             }
         }
 
@@ -1868,7 +1884,7 @@ namespace GT.Net
             if (queue.Count == 0)
             {
                 queue = null;
-                pendingMessages.Remove(id);
+                pendingMessages.Remove(channel);
             }
         }
 

@@ -431,14 +431,14 @@ namespace GT.Net
         }
 
         /// <summary>Returns the client matching that unique identity number.</summary>
-        /// <param name="id">The unique identity of this client</param>
+        /// <param name="clientGuid">The unique identity of this client</param>
         /// <returns>The client with that unique identity.  If the number doesn't 
         /// match a client, then it returns null.</returns>
-        virtual protected ClientConnexion GetConnexionForClientIdentity(Guid id)
+        virtual protected ClientConnexion GetConnexionForClientIdentity(Guid clientGuid)
         {
             foreach (ClientConnexion c in Clients)
             {
-                if (c.ClientIdentity.Equals(id)) { return c; }
+                if (c.ClientIdentity.Equals(clientGuid)) { return c; }
             }
             return null;
         }
@@ -578,35 +578,35 @@ namespace GT.Net
 
         #region Sending
 
-        /// <summary>Sends a byte array on channel <c>id</c> to many clients in an efficient manner.</summary>
+        /// <summary>Sends a byte array on <see cref="channel"/> to many clients in an efficient manner.</summary>
         /// <param name="buffer">The byte array to send</param>
-        /// <param name="id">The channel id to be sent on</param>
+        /// <param name="channel">The channel to be sent on</param>
         /// <param name="list">The list of clients to send it to</param>
         /// <param name="mdr">How to send it (can be null)</param>
-        virtual public void Send(byte[] buffer, byte id, ICollection<IConnexion> list, MessageDeliveryRequirements mdr)
+        virtual public void Send(byte[] buffer, byte channel, ICollection<IConnexion> list, MessageDeliveryRequirements mdr)
         {
-            Send(new SingleItem<Message>(new BinaryMessage(id, buffer)),
+            Send(new SingleItem<Message>(new BinaryMessage(channel, buffer)),
 		list, mdr);
         }
 
-        /// <summary>Sends a string on channel <c>id</c> to many clients in an efficient manner.</summary>
+        /// <summary>Sends a string on <see cref="channel"/> to many clients in an efficient manner.</summary>
         /// <param name="s">The byte array to send</param>
-        /// <param name="id">The channel id to be sent on</param>
+        /// <param name="channel">The channel to be sent on</param>
         /// <param name="list">The list of clients to send it to</param>
         /// <param name="mdr">How to send it (can be null)</param>
-        virtual public void Send(string s, byte id, ICollection<IConnexion> list, MessageDeliveryRequirements mdr)
+        virtual public void Send(string s, byte channel, ICollection<IConnexion> list, MessageDeliveryRequirements mdr)
         {
-            Send(new SingleItem<Message>(new StringMessage(id, s)), list, mdr);
+            Send(new SingleItem<Message>(new StringMessage(channel, s)), list, mdr);
         }
 
-        /// <summary>Sends an object on channel <c>id</c> to many clients in an efficient manner.</summary>
+        /// <summary>Sends an object on <see cref="channel"/> to many clients in an efficient manner.</summary>
         /// <param name="o">The bject to send</param>
-        /// <param name="id">The channel id to be sent on</param>
+        /// <param name="channel">The channel to be sent on</param>
         /// <param name="list">The list of clients to send it to</param>
         /// <param name="mdr">How to send it (can be null)</param>
-        virtual public void Send(object o, byte id, ICollection<IConnexion> list, MessageDeliveryRequirements mdr)
+        virtual public void Send(object o, byte channel, ICollection<IConnexion> list, MessageDeliveryRequirements mdr)
         {
-            Send(new SingleItem<Message>(new ObjectMessage(id, o)), list, mdr);
+            Send(new SingleItem<Message>(new ObjectMessage(channel, o)), list, mdr);
         }
 
         /// <summary>Send a message to many clients in an efficient manner.</summary>
@@ -632,7 +632,7 @@ namespace GT.Net
                 //Console.WriteLine("{0}: sending to {1}", this, c);
                 try
                 {
-                    c.Send(messages, mdr, GetChannelDeliveryRequirements(messages[0].Id));
+                    c.Send(messages, mdr, GetChannelDeliveryRequirements(messages[0].Channel));
                 }
                 catch (GTException e)
                 {
@@ -642,16 +642,34 @@ namespace GT.Net
             }
         }
 
-        virtual public ChannelDeliveryRequirements GetChannelDeliveryRequirements(byte id)
+        /// <summary>
+        /// Return the delivery requirements for a channel; if the channel has not hd
+        /// a set of delivery requirements configured, then return the default set.
+        /// </summary>
+        /// <param name="channel">the channel</param>
+        /// <returns>the delivery requirements configured for the channel</returns>
+        virtual public ChannelDeliveryRequirements GetChannelDeliveryRequirements(byte channel)
         {
             ChannelDeliveryRequirements cdr;
-            if (channelRequirements.TryGetValue(id, out cdr)) { return cdr; }
+            if (channelRequirements.TryGetValue(channel, out cdr)) { return cdr; }
             return configuration.DefaultChannelRequirements();
         }
 
-        virtual public void SetChannelDeliveryRequirements(byte id, ChannelDeliveryRequirements cdr)
+        /// <summary>
+        /// Set the delivery requirements for a particular channel.
+        /// </summary>
+        /// <param name="channel">the channel</param>
+        /// <param name="cdr">the delivery requirements to be configured; null to remove</param>
+        virtual public void SetChannelDeliveryRequirements(byte channel, ChannelDeliveryRequirements cdr)
         {
-            channelRequirements[id] = cdr;
+            if (cdr == null)
+            {
+                channelRequirements.Remove(channel);
+            }
+            else
+            {
+                channelRequirements[channel] = cdr;
+            }
         }
 
         #endregion
@@ -725,12 +743,12 @@ namespace GT.Net
 
         /// <summary>Creates a new ClientConnexion to communicate with.</summary>
         /// <param name="s">The associated server instance.</param>
-        /// <param name="id">The unique identity of this new ClientConnexion.</param>
-        public ClientConnexion(Server s, Guid clientId, int id)
+        /// <param name="uniqueId">The unique identity of this new ClientConnexion.</param>
+        public ClientConnexion(Server s, Guid clientId, int uniqueId)
         {
             server = s;
             this.clientId = clientId;
-            uniqueIdentity = id;
+            uniqueIdentity = uniqueId;
             active = true;
         }
 
@@ -763,16 +781,16 @@ namespace GT.Net
                 new SpecificTransportRequirement(t), null);
         }
 
-        /// <summary>Send SessionAction.</summary>
-        /// <param name="clientId">ClientConnexion who is doing the action.</param>
-        /// <param name="e">Session action to send.</param>
-        /// <param name="id">Channel to send on.</param>
-        /// <param name="mdr">How to send it (can be null)</param>
+        /// <summary>Send notice of some session action.</summary>
+        /// <param name="clientId">The subject of the action.</param>
+        /// <param name="e">The session action.</param>
+        /// <param name="channel">Channel on which to send the notice.</param>
+        /// <param name="mdr">How to send the session message (can be null)</param>
         /// <param name="cdr">Requirements for the message's channel.</param>
-        public void Send(int clientId, SessionAction e, byte id, MessageDeliveryRequirements mdr,
+        public void Send(int clientId, SessionAction e, byte channel, MessageDeliveryRequirements mdr,
             ChannelDeliveryRequirements cdr)
         {
-            Send(new SessionMessage(id, clientId, e), mdr, cdr);
+            Send(new SessionMessage(channel, clientId, e), mdr, cdr);
         }
 
         public override void Send(IList<Message> messages, MessageDeliveryRequirements mdr,
@@ -799,7 +817,7 @@ namespace GT.Net
 	/// <param name="transport">What channel it came in on.</param>
         override protected void HandleSystemMessage(SystemMessage message, ITransport transport)
         {
-            switch ((SystemMessageType)message.Id)
+            switch (message.Descriptor)
             {
             case SystemMessageType.UniqueIDRequest:
                 //they want to know their own id?  They should have received it already...

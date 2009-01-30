@@ -10,10 +10,10 @@ namespace GT.Net
 {
 
     /// <summary>
-    /// The server configuration used for the ClientRepeater.
+    /// The server configuration used for the <see cref="ClientRepeater"/>.
     /// </summary>
     /// <remarks>
-    /// This configuration specifies the
+    /// This particular configuration specifies the
     /// <see cref="LightweightDotNetSerializingMarshaller"/> as the
     /// marshaller to be used.  This is a lightweight marshaller 
     /// that unmarshals only system messages and session messages, and leaves
@@ -118,7 +118,7 @@ namespace GT.Net
         }
 
         /// <summary>
-        /// The channel id for automatically broadcasting session changes to client members.  
+        /// The channel for automatically broadcasting session changes to client members.  
         /// If &lt; 0, then not sent.
         /// </summary>
         public int SessionChangesChannel

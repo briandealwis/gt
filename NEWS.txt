@@ -30,6 +30,26 @@ New Functionality:
 
 Developer-visible changes:
 
+  * There have been some breaks with previous API. 
+
+      * The delegate GT.Net.ConnexionLifecycleNotification has been
+        expanded to include the associated Communicator (Client or Server)
+
+      * The delegate GT.Net.NewClientHandler has had its second argument
+        changed to pass an IDictionary, instead of a Dictionary
+
+      * The delegate GT.Net.TickHandler has been removed and replaced
+	with System.Action<Communicator>, whose argument is the
+	Communicator instance.
+
+      * Removed GT.Net.{Session,String,Object,Binary}MessageHandler
+        delegates and replaced with equivalent GT.Net.MessageHandler
+
+      * Message.Id has been renamed Channel.  The use of 'id' was somewhat
+        ambiguous and causing confusion.  All uses of 'id' to mean
+        a channel id or a stream id have been redone to use channel.
+	Described in <https://papyrus.usask.ca/trac/gt/ticket/74>.
+
   * GT now uses the open-source Common.Logging package (v1.2.0) for
     logging messages.  Control-flow information is reported at the
     "Trace" level, and informational, warning, and errors are
@@ -54,21 +74,6 @@ Developer-visible changes:
 
   * Clients and Servers now log a warning when there are no registered
     ErrorEvent handlers.
-
-  * There have been some breaks with previous API. 
-
-      * The delegate GT.Net.ConnexionLifecycleNotification has been
-        expanded to include the associated Communicator (Client or Server)
-
-      * The delegate GT.Net.NewClientHandler has had its second argument
-        changed to pass an IDictionary, instead of a Dictionary
-
-      * The delegate GT.Net.TickHandler has been removed and replaced
-	with System.Action<Communicator>, whose argument is the
-	Communicator instance.
-
-      * Removed GT.Net.{Session,String,Object,Binary}MessageHandler
-        delegates and replaced with equivalent GT.Net.MessageHandler
 
 Some bugs have been fixed since GT 2.0:
 

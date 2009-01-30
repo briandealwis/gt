@@ -171,7 +171,7 @@ namespace GT.UnitTests
             }
             Debug("Server: received greeting '" + s + "' on " + t);
             Debug("Server: sending response: '" + response + "'");
-            server.Send(response != null ? response : s, m.Id, new SingleItem<IConnexion>(client),
+            server.Send(response != null ? response : s, m.Channel, new SingleItem<IConnexion>(client),
                 new MessageDeliveryRequirements(t.Reliability,
                     MessageAggregation.Immediate, Ordering.Unordered));
         }
@@ -184,7 +184,7 @@ namespace GT.UnitTests
             // Array.Reverse(buffer);
             Debug("Server: sending binary message in response");
             Debug(ByteUtils.HexDump(buffer));
-            server.Send(buffer, m.Id, new SingleItem<IConnexion>(client),
+            server.Send(buffer, m.Channel, new SingleItem<IConnexion>(client),
                 new MessageDeliveryRequirements(t.Reliability, MessageAggregation.Immediate, Ordering.Unordered));
         }
 
@@ -193,7 +193,7 @@ namespace GT.UnitTests
             object o = ((ObjectMessage)m).Object;
             Debug("Server: received object '" + o + "' on " + t);
             Debug("Server: sending object back");
-            server.Send(o, m.Id, new SingleItem<IConnexion>(client),
+            server.Send(o, m.Channel, new SingleItem<IConnexion>(client),
                 new MessageDeliveryRequirements(t.Reliability, MessageAggregation.Immediate, Ordering.Unordered));
         }
 

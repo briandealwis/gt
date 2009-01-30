@@ -447,32 +447,32 @@ namespace GT.Net
         /// <param name="cdr">Requirements for the message's channel.</param>
         void Send(IList<Message> msgs, MessageDeliveryRequirements mdr, ChannelDeliveryRequirements cdr);
 
-        /// <summary>Send a byte array on the channel <c>id</c>.
+        /// <summary>Send a byte array on <see cref="channel"/>.
         /// At least one of <c>mdr</c> and <c>cdr</c> are expected to be specified 
         /// (i.e., be non-null).</summary>
         /// <param name="buffer">The byte array to send</param>
-        /// <param name="id">The channel id to be sent on</param>
+        /// <param name="channel">The channel to be sent on</param>
         /// <param name="mdr">Requirements for this particular message; may be null.</param>
         /// <param name="cdr">Requirements for the message's channel.</param>
-        void Send(byte[] buffer, byte id, MessageDeliveryRequirements mdr, ChannelDeliveryRequirements cdr);
+        void Send(byte[] buffer, byte channel, MessageDeliveryRequirements mdr, ChannelDeliveryRequirements cdr);
 
-        /// <summary>Send a string on channel <c>id</c>.
+        /// <summary>Send a string on <see cref="channel"/>.
         /// At least one of <c>mdr</c> and <c>cdr</c> are expected to be specified 
         /// (i.e., be non-null).</summary>
         /// <param name="s">The string to send</param>
-        /// <param name="id">The channel id to be sent on</param>
+        /// <param name="channel">The channel to be sent on</param>
         /// <param name="mdr">Requirements for this particular message; may be null.</param>
         /// <param name="cdr">Requirements for the message's channel.</param>
-        void Send(string s, byte id, MessageDeliveryRequirements mdr, ChannelDeliveryRequirements cdr);
+        void Send(string s, byte channel, MessageDeliveryRequirements mdr, ChannelDeliveryRequirements cdr);
 
-        /// <summary>Sends an bject on channel <c>id</c>.
+        /// <summary>Sends an bject on <see cref="channel"/>.
         /// At least one of <c>mdr</c> and <c>cdr</c> are expected to be specified 
         /// (i.e., be non-null).</summary>
         /// <param name="o">The object to send</param>
-        /// <param name="id">The channel id to be sent on</param>
+        /// <param name="channel">The channel to be sent on</param>
         /// <param name="mdr">Requirements for this particular message; may be null.</param>
         /// <param name="cdr">Requirements for the message's channel.</param>
-        void Send(object o, byte id, MessageDeliveryRequirements mdr, ChannelDeliveryRequirements cdr);
+        void Send(object o, byte channel, MessageDeliveryRequirements mdr, ChannelDeliveryRequirements cdr);
     }
 
     public abstract class BaseConnexion : IConnexion, IComparer<ITransport>
@@ -750,7 +750,7 @@ namespace GT.Net
 
         virtual protected void HandleSystemMessage(SystemMessage message, ITransport transport)
         {
-            switch ((SystemMessageType)message.Id)
+            switch (message.Descriptor)
             {
             case SystemMessageType.PingRequest:
                 Send(new SystemMessage(SystemMessageType.PingResponse, message.data),
@@ -780,7 +780,7 @@ namespace GT.Net
 
             default:
                 Debug.WriteLine("connexion.HandleSystemMessage(): Unknown message type: " +
-                    (SystemMessageType)message.Id);
+                    message.Descriptor);
                 break;
             }
         }
@@ -823,34 +823,34 @@ namespace GT.Net
 
         #region Sending
 
-        /// <summary>Send a byte array on the channel <c>id</c>.</summary>
+        /// <summary>Send a byte array on <see cref="channel"/>.</summary>
         /// <param name="buffer">The byte array to send</param>
-        /// <param name="id">The channel id to be sent on</param>
+        /// <param name="channel">The channel to be sent on</param>
         /// <param name="mdr">Requirements for this particular message; may be null.</param>
         /// <param name="cdr">Requirements for the message's channel.</param>
-        public void Send(byte[] buffer, byte id, MessageDeliveryRequirements mdr, ChannelDeliveryRequirements cdr)
+        public void Send(byte[] buffer, byte channel, MessageDeliveryRequirements mdr, ChannelDeliveryRequirements cdr)
         {
-            Send(new BinaryMessage(id, buffer), mdr, cdr);
+            Send(new BinaryMessage(channel, buffer), mdr, cdr);
         }
 
-        /// <summary>Send a string on channel <c>id</c>.</summary>
+        /// <summary>Send a string on <see cref="channel"/>.</summary>
         /// <param name="s">The string to send</param>
-        /// <param name="id">The channel id to be sent on</param>
+        /// <param name="channel">The channel to be sent on</param>
         /// <param name="mdr">Requirements for this particular message; may be null.</param>
         /// <param name="cdr">Requirements for the message's channel.</param>
-        public void Send(string s, byte id, MessageDeliveryRequirements mdr, ChannelDeliveryRequirements cdr)
+        public void Send(string s, byte channel, MessageDeliveryRequirements mdr, ChannelDeliveryRequirements cdr)
         {
-            Send(new StringMessage(id, s), mdr, cdr);
+            Send(new StringMessage(channel, s), mdr, cdr);
         }
 
-        /// <summary>Sends an bject on channel <c>id</c>.</summary>
+        /// <summary>Sends an bject on <see cref="channel"/>.</summary>
         /// <param name="o">The object to send</param>
-        /// <param name="id">The channel id to be sent on</param>
+        /// <param name="channel">The channel to be sent on</param>
         /// <param name="mdr">Requirements for this particular message; may be null.</param>
         /// <param name="cdr">Requirements for the message's channel.</param>
-        public void Send(object o, byte id, MessageDeliveryRequirements mdr, ChannelDeliveryRequirements cdr)
+        public void Send(object o, byte channel, MessageDeliveryRequirements mdr, ChannelDeliveryRequirements cdr)
         {
-            Send(new ObjectMessage(id, o), mdr, cdr);
+            Send(new ObjectMessage(channel, o), mdr, cdr);
         }
 
         /// <summary>Send a message.</summary>
