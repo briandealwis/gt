@@ -996,8 +996,6 @@ namespace GT.Net
         protected HPTimer timer;
         protected long lastPingTime = 0;
         protected bool started = false;
-        protected Thread listeningThread;
-
 
         // Keep track of the channels that have had warnings of a missing event listener:
         // it's annoying to have hundreds of warnings scroll by!
@@ -1110,9 +1108,7 @@ namespace GT.Net
                 if (!Active) { return; }
                 started = false;
 
-                Thread t = listeningThread;
-                listeningThread = null;
-                if (t != null && t != Thread.CurrentThread) { t.Abort(); }
+                StopListeningThread();
 
                 Stop(connectors);
                 connectors = null;
@@ -1129,11 +1125,8 @@ namespace GT.Net
         {
             lock (this)
             {
-                Thread t = listeningThread;
-                listeningThread = null;
-                if (t != null && t != Thread.CurrentThread) { t.Abort(); }
-
                 started = false;
+                StopListeningThread();
                 Dispose(connectors);
                 connectors = null;
                 base.Dispose();
@@ -1151,12 +1144,17 @@ namespace GT.Net
             get { return started; }
         }
 
+        protected override TimeSpan TickInterval
+        {
+            get { return configuration.TickInterval; }
+        }
+
         /// <summary>
         /// Sleep for the tick-time from the configuration
         /// </summary>
         public override void Sleep()
         {
-            Sleep(configuration.TickInterval);
+            Sleep(TickInterval);
         }
 
         /// <summary>
@@ -1768,58 +1766,6 @@ namespace GT.Net
             log.Warn(String.Format("Unknown System Message: {0}", m));
         }
 
-        /// <summary>
-        /// Starts a new thread that listens for new clients or new messages
-        /// by periodically calling <see cref="Update"/>.  This thread instance will 
-        /// be stopped on <see cref="Stop"/> or <see cref="Dispose"/>.
-        /// The frequency between calls to <see cref="Update"/> is controlled
-        /// by the configuration's <see cref="BaseConfiguration.TickInterval"/>.
-        /// </summary>
-        public override Thread StartSeparateListeningThread()
-        {
-            Start();    // must ensure this instance is started by the
-                        // end of this method
-            listeningThread = new Thread(new ThreadStart(StartListening));
-            listeningThread.Name = "Listening Thread";
-            listeningThread.IsBackground = true;
-            listeningThread.Start();
-            return listeningThread;
-        }
-
-        /// <summary>
-        /// Enter an infinite loop, which will listen for incoming
-        /// bytes.  Use this to dedicate the current thread of execution to
-        /// listening.  If there are any exceptions, you should can catch them.
-        /// Aborting this thread of execution will cause this thread to die
-        /// gracefully, and is recommended.
-        /// </summary>
-        public virtual void StartListening()
-        {
-            double oldTime;
-            double newTime;
-            Start();
-            try
-            {
-                //check for new Bytes
-                while (started)
-                {
-                    timer.Update();
-                    oldTime = timer.TimeInMilliseconds;
-
-                    Update();
-
-                    timer.Update();
-                    newTime = timer.TimeInMilliseconds;
-                    int sleepCount = (int)(configuration.TickInterval.TotalMilliseconds - (newTime - oldTime));
-                    Sleep(TimeSpan.FromMilliseconds(sleepCount));
-                }
-            }
-            catch (ThreadAbortException) //we were told to die.  die gracefully.
-            {
-                //kill the connexion
-                Stop();
-            } 
-        }
 
         internal ChannelDeliveryRequirements GetChannelDeliveryRequirements(Message m)
         {

@@ -19,6 +19,7 @@ namespace GT.Net
         protected ILog log;
 
         protected IList<IConnexion> connexions = new List<IConnexion>();
+        protected Thread listeningThread;
 
         #region Events
 
@@ -50,6 +51,12 @@ namespace GT.Net
         /// Return the marshaller configured for this client.
         /// </summary>
         public abstract IMarshaller Marshaller { get; }
+
+        /// <summary>
+        /// Returns the interval to wait between calls <see cref="Update"/>
+        /// in <see cref="StartListening"/>.
+        /// </summary>
+        protected abstract TimeSpan TickInterval { get; }
 
         /// <summary>
         /// Return true if the instance has been started (<see cref="Start"/>)
@@ -128,7 +135,62 @@ namespace GT.Net
         /// The frequency between calls to <see cref="Update"/> is controlled
         /// by the configuration's <see cref="BaseConfiguration.TickInterval"/>.
         /// </summary>
-        public abstract Thread StartSeparateListeningThread();
+        public virtual Thread StartSeparateListeningThread()
+        {
+            // must ensure that this instance is started before exiting 
+            // this method; otherwise can have a race condition
+            Start();
+            listeningThread = new Thread(StartListening);
+            listeningThread.Name = "Listening Thread[" + ToString() + "]";
+            listeningThread.IsBackground = true;
+            listeningThread.Start();
+            return listeningThread;
+        }
+
+        protected virtual void StopListeningThread()
+        {
+            Thread t = listeningThread;
+            listeningThread = null;
+            if(t != null && t != Thread.CurrentThread) { t.Abort(); }
+        }
+
+        /// <summary>Starts an infinite loop to periodically call
+        /// <see cref="Update"/> based on the current <see cref="TickInterval"/>.</summary>
+        public virtual void StartListening()
+        {
+            Start();
+            while (Active)
+            {
+                try
+                {
+                    // tick count is in milliseconds
+                    int oldTickCount = Environment.TickCount;
+
+                    Update();
+
+                    int newTickCount = Environment.TickCount;
+                    int sleepCount = Math.Max(0,
+                        (int)TickInterval.TotalMilliseconds - (newTickCount - oldTickCount));
+
+                    Sleep(TimeSpan.FromMilliseconds(sleepCount));
+                }
+                catch (ThreadAbortException)
+                {
+                    log.Trace(String.Format("{0}: listening thread stopped", this));
+                    Stop();
+                    return;
+                }
+                catch (Exception e)
+                {
+                    log.Warn(String.Format("Exception in listening loop: {0}", this), e);
+                    // FIXME: should we notify of such conditions?
+                    NotifyError(new ErrorSummary(Severity.Warning,
+                                SummaryErrorCode.RemoteUnavailable,
+                                "Exception occurred processing a connexion", e));
+                }
+            }
+        }
+
 
         /// <summary>
         /// Process the connexions lists to remove dead connexions.

@@ -147,7 +147,6 @@ namespace GT.Net
 
         private bool running = false;
         private int serverIdentity;
-        private Thread listeningThread;
         protected ILog log;
 
         /// <summary>
@@ -193,6 +192,11 @@ namespace GT.Net
 	    /// Return this server's unique identity.
 	    /// </summary>
         public int ServerIdentity { get { return serverIdentity; } }
+
+        protected override TimeSpan TickInterval
+        {
+            get { return configuration.TickInterval; }
+        }
 
         #endregion
 
@@ -252,21 +256,6 @@ namespace GT.Net
 
 
         #region Vital Server Mechanics
-
-        /// <summary>
-        /// Starts a new thread that listens to periodically call 
-        /// <see cref="Update"/>.
-        /// </summary>
-        public override Thread StartSeparateListeningThread()
-        {
-            Start();    // must ensure that this instance is started
-                        // before exiting this method
-            listeningThread = new Thread(StartListening);
-            listeningThread.Name = "Server Thread[" + ToString() + "]";
-            listeningThread.IsBackground = true;
-            listeningThread.Start();
-            return listeningThread;
-        }
 
         /// <summary>
         /// Create a descriptive string representation 
@@ -441,45 +430,6 @@ namespace GT.Net
             return null;
         }
 
-        /// <summary>Starts a new thread that listens for new clients or
-        /// new messages on the current thread.</summary>
-        virtual public void StartListening()
-        {
-            Start();
-
-            //check this server for new connections or new messages forevermore
-            while (running)
-            {
-                try
-                {
-                    // tick count is in milliseconds
-                    int oldTickCount = Environment.TickCount;
-
-                    Update();
-
-                    int newTickCount = Environment.TickCount;
-                    int sleepCount = Math.Max(0,
-                        (int)configuration.TickInterval.TotalMilliseconds - (newTickCount - oldTickCount));
-
-                    Sleep(TimeSpan.FromMilliseconds(sleepCount));
-                }
-                catch (ThreadAbortException)
-                {
-                    log.Trace("listening loop stopped");
-                    Stop();
-                    return;
-                }
-                catch (Exception e)
-                {
-                    log.Warn(String.Format("Exception in listening loop: {0}", this), e);
-                    // FIXME: should we notify of such conditions?
-                    NotifyError(new ErrorSummary(Severity.Warning,
-                                SummaryErrorCode.RemoteUnavailable,
-                                "Exception occurred processing a connexion", e));
-                }
-            }
-        }
-
         public override void Sleep()
         {
             Sleep(configuration.TickInterval);
@@ -523,9 +473,7 @@ namespace GT.Net
                 running = false;
                 log.Trace(this + ": stopped");
 
-                Thread t = listeningThread;
-                listeningThread = null;
-                if (t != null && t != Thread.CurrentThread) { t.Abort(); }
+                StopListeningThread();
 
                 Stop(acceptors);
                 Dispose(acceptors);
@@ -541,9 +489,7 @@ namespace GT.Net
             running = false;
             log.Trace(this + ": disposed");
 
-            Thread t = listeningThread;
-            listeningThread = null;
-            if (t != null && t != Thread.CurrentThread) { t.Abort(); }
+            StopListeningThread();
 
             Dispose(acceptors);
             acceptors = null;
