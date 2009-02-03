@@ -106,11 +106,11 @@ namespace GT.Net
         /// </summary>
         /// <param name="port">the port to be used for IP-based transports</param>
         /// <param name="pingInterval">the client-ping frequency (milliseconds to wait between pings)</param>
-        public DefaultServerConfiguration(int port, int pingInterval)
+        public DefaultServerConfiguration(int port, TimeSpan pingInterval)
             : this(port)
         {
-            Debug.Assert(pingInterval > 0);
-            this.PingInterval = TimeSpan.FromMilliseconds(pingInterval);
+            Debug.Assert(pingInterval.TotalMilliseconds > 0);
+            PingInterval = pingInterval;
         }
 
         /// <summary>
@@ -234,9 +234,9 @@ namespace GT.Net
 
         /// <summary>Creates a new Server object.</summary>
         /// <param name="port">The port to listen on.</param>
-        /// <param name="interval">The interval in milliseconds at which to check 
+        /// <param name="interval">The update interval at which to check 
         /// for new connections or new messages.</param>
-        public Server(int port, int interval)
+        public Server(int port, TimeSpan interval)
             : this(new DefaultServerConfiguration(port, interval))
         {
         }
@@ -261,8 +261,8 @@ namespace GT.Net
         {
             Start();    // must ensure that this instance is started
                         // before exiting this method
-            listeningThread = new Thread(new ThreadStart(StartListening));
-            listeningThread.Name = "Server Thread[" + this.ToString() + "]";
+            listeningThread = new Thread(StartListening);
+            listeningThread.Name = "Server Thread[" + ToString() + "]";
             listeningThread.IsBackground = true;
             listeningThread.Start();
             return listeningThread;
@@ -461,7 +461,7 @@ namespace GT.Net
                     int sleepCount = Math.Max(0,
                         (int)configuration.TickInterval.TotalMilliseconds - (newTickCount - oldTickCount));
 
-                    Sleep(sleepCount);
+                    Sleep(TimeSpan.FromMilliseconds(sleepCount));
                 }
                 catch (ThreadAbortException)
                 {
@@ -480,20 +480,24 @@ namespace GT.Net
             }
         }
 
-        public virtual void Sleep()
+        public override void Sleep()
         {
-            Sleep((int)configuration.TickInterval.TotalMilliseconds);
+            Sleep(configuration.TickInterval);
         }
 
-        public virtual void Sleep(int milliseconds)
+        public override void Sleep(TimeSpan sleepTime)
         {
-            if (log.IsTraceEnabled)
+            if (sleepTime.CompareTo(TimeSpan.Zero) > 0)
             {
-                log.Trace(String.Format("{0}: sleeping for {1}ms", this, milliseconds));
+                if(log.IsTraceEnabled)
+                {
+                    log.Trace(String.Format("{0}: sleeping for {1}ms", this,
+                        sleepTime.TotalMilliseconds));
+                }
+                // FIXME: this should do something smarter
+                // Socket.Select(listenList, null, null, 1000);
+                Thread.Sleep(sleepTime);
             }
-
-            // FIXME: This should be more clever and use Socket.Select()
-            Thread.Sleep(Math.Max(0, milliseconds));
         }
 
         public override void Start()

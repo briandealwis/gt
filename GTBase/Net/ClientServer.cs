@@ -109,6 +109,19 @@ namespace GT.Net
         public abstract void Update();
 
         /// <summary>
+        /// Sleep for the specified amount of time, potentially responding to
+        /// incoming events.
+        /// </summary>
+        public abstract void Sleep();
+
+        /// <summary>
+        /// Sleep for the specified amount of time, potentially responding to
+        /// incoming events.
+        /// </summary>
+        /// <param name="sleepTime"></param>
+        public abstract void Sleep(TimeSpan sleepTime);
+
+        /// <summary>
         /// Starts a new thread that listens to periodically call 
         /// <see cref="Update"/>.  This thread instance will be stopped
         /// on <see cref="Stop"/> or <see cref="Dispose"/>.
@@ -260,12 +273,12 @@ namespace GT.Net
         }
 
         /// <summary>
-        /// The time between pings to clients.
+        /// The time between pings to clients.  This must be greater than 0.
         /// </summary>
         public virtual TimeSpan PingInterval { get; set; }
 
         /// <summary>
-        /// The time between server ticks.
+        /// The time between server ticks.  This must be greater than 0.
         /// </summary>
         public virtual TimeSpan TickInterval { get; set; }
 
@@ -366,9 +379,9 @@ namespace GT.Net
     /// </summary>
     /// <param name="transport">The transport from which the ping was received</param>
     /// <param name="sequence">The sequence number of the ping</param>
-    /// <param name="milliseconds">The delay in sending the ping to it being received
-    ///     (half of the total ping time); may be negative due to counter overflow.</param>
-    public delegate void PingedNotification(ITransport transport, uint sequence, int milliseconds);
+    /// <param name="roundtrip">The round-trip time between issuing the ping to 
+    /// the response being received</param>
+    public delegate void PingedNotification(ITransport transport, uint sequence, TimeSpan roundtrip);
 
     #endregion
 
@@ -382,7 +395,7 @@ namespace GT.Net
     public interface IConnexion : IDisposable
     {
         /// <summary>
-        /// The smoothed delay seen for this connexion (in milliseconds).
+        /// The (possibly / likely) smoothed delay seen for this connexion (in milliseconds).
         /// </summary>
         float Delay { get; }
 
@@ -774,13 +787,19 @@ namespace GT.Net
                 break;
 
             case SystemMessageType.PingResponse:
-                //record the difference; half of it is the latency between this client and the server
+                // record the difference; half of it is the latency between this client and the server
                 // Tickcount is the # milliseconds (fixme: this could wrap...)
-                int newDelay = (Environment.TickCount - BitConverter.ToInt32(message.data, 0)) / 2;
-                uint sequence = BitConverter.ToUInt32(message.data, 4);
+                int endCount = Environment.TickCount;
+                    int startCount = BitConverter.ToInt32(message.data, 0);
+                int roundtrip = endCount >= startCount ? endCount - startCount 
+                    : (int.MaxValue - startCount) + endCount;
                 // NB: transport.Delay set may (and probably will) scale this value
-                transport.Delay = newDelay;
-                if (PingReceived != null) { PingReceived(transport, sequence, newDelay); }
+                transport.Delay = roundtrip / 2f;
+                if (PingReceived != null)
+                {
+                    uint sequence = BitConverter.ToUInt32(message.data, 4);
+                    PingReceived(transport, sequence, TimeSpan.FromMilliseconds(roundtrip));
+                }
                 break;
 
             case SystemMessageType.ConnexionClosing:

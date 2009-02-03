@@ -59,27 +59,37 @@ namespace GT.Net
     internal abstract class AbstractStreamedTuple : AbstractBaseStream
     {
         protected bool changed;
-        protected int updateDelay;     // milliseconds
-        protected long lastTimeSent;    // milliseconds
+        protected long updateDelayMS;     // milliseconds
+        protected long lastTimeSentMS;    // milliseconds
 
-        protected AbstractStreamedTuple(ConnexionToServer s, byte channel, int updateDelay,
+        protected AbstractStreamedTuple(ConnexionToServer s, byte channel, TimeSpan updateDelay,
                 ChannelDeliveryRequirements cdr) : base(s, channel, cdr)
         {
-            this.changed = false;
-            this.updateDelay = updateDelay;
+            changed = false;
+            this.updateDelayMS = (long)updateDelay.TotalMilliseconds;
         }
 
         abstract internal void QueueMessage(Message m);
 
         override internal void Update(HPTimer hpTimer)
         {
-            if (lastTimeSent + updateDelay < hpTimer.TimeInMilliseconds 
-                && connexion.Identity != 0 && changed)
+            if (changed && connexion.Identity != 0 
+                && hpTimer.TimeInMilliseconds - lastTimeSentMS > updateDelayMS)
             {
-                this.lastTimeSent = hpTimer.TimeInMilliseconds;
+                lastTimeSentMS = hpTimer.TimeInMilliseconds;
                 Flush();
             }
         }
+
+        public override void Flush()
+        {
+            if (!changed) { return; }
+            changed = false;
+            connexion.Send(AsTupleMessage(), null, deliveryOptions);
+        }
+
+        protected abstract TupleMessage AsTupleMessage();
+
     }
 
     /// <summary>A three-tuple that is automatically streamed to the other clients.</summary>
@@ -110,11 +120,11 @@ namespace GT.Net
         /// <summary>Creates a streaming tuple</summary>
         /// <param name="connexion">The stream to send the tuples on</param>
         /// <param name="channel">the stream's channel</param>
-        /// <param name="milliseconds">Send the tuple only once during this interval</param>
+        /// <param name="updateTime">Update time for changed tuple</param>
         /// <param name="cdr">The delivery requirements for this channel</param>
         internal StreamedTuple(ConnexionToServer connexion, byte channel,
-            int milliseconds, ChannelDeliveryRequirements cdr)
-            : base(connexion, channel, milliseconds, cdr)
+            TimeSpan updateTime, ChannelDeliveryRequirements cdr)
+            : base(connexion, channel, updateTime, cdr)
         {
         }
 
@@ -129,12 +139,9 @@ namespace GT.Net
             if (StreamedTupleReceived != null) { StreamedTupleReceived(tuple, tm.ClientId); }
         }
 
-        public override void Flush()
+        protected override TupleMessage AsTupleMessage()
         {
-            if (!changed) { return; }
-            changed = false;
-            connexion.Send(new TupleMessage(channel, Identity, X, Y, Z), 
-                null, deliveryOptions);
+            return new TupleMessage(channel, Identity, X, Y, Z);
         }
     }
 
@@ -159,11 +166,11 @@ namespace GT.Net
         /// <summary>Creates a streaming tuple</summary>
         /// <param name="connexion">The stream to send the tuples on</param>
         /// <param name="channel">the stream's channel</param>
-        /// <param name="milliseconds">Send the tuple only once during this interval</param>
+        /// <param name="updateTime">Update time for changed tuple</param>
         /// <param name="cdr">The delivery requirements for this channel</param>
         internal StreamedTuple(ConnexionToServer connexion, byte channel,
-            int milliseconds, ChannelDeliveryRequirements cdr)
-            : base(connexion, channel, milliseconds, cdr)
+            TimeSpan updateTime, ChannelDeliveryRequirements cdr)
+            : base(connexion, channel, updateTime, cdr)
         {
         }
 
@@ -177,12 +184,9 @@ namespace GT.Net
             if (StreamedTupleReceived != null) { StreamedTupleReceived(tuple, tm.ClientId); }
         }
 
-        public override void Flush()
+        protected override TupleMessage AsTupleMessage()
         {
-            if (!changed) { return; }
-            changed = false;
-            connexion.Send(new TupleMessage(channel, Identity, X, Y),
-                null, deliveryOptions);
+            return new TupleMessage(channel, Identity, X, Y);
         }
     }
 
@@ -202,11 +206,11 @@ namespace GT.Net
         /// <summary>Creates a streaming tuple</summary>
         /// <param name="connexion">The stream to send the tuples on</param>
         /// <param name="channel">the stream's channel</param>
-        /// <param name="milliseconds">Send the tuple only once during this interval</param>
+        /// <param name="updateTime">Update time for changed tuple</param>
         /// <param name="cdr">The delivery requirements for this channel</param>
         internal StreamedTuple(ConnexionToServer connexion, byte channel,
-            int milliseconds, ChannelDeliveryRequirements cdr)
-            : base(connexion, channel, milliseconds, cdr)
+            TimeSpan updateTime, ChannelDeliveryRequirements cdr)
+            : base(connexion, channel, updateTime, cdr)
         {
         }
 
@@ -219,11 +223,9 @@ namespace GT.Net
             if (StreamedTupleReceived != null) { StreamedTupleReceived(tuple, tm.ClientId); }
         }
 
-        public override void Flush()
+        protected override TupleMessage AsTupleMessage()
         {
-            if (!changed) { return; }
-            changed = false;
-            connexion.Send(new TupleMessage(channel, Identity, X), null, deliveryOptions);
+            return new TupleMessage(channel, Identity, X);
         }
     }
 }

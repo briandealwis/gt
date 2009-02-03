@@ -71,7 +71,7 @@ namespace Telepointers
 
             binary = c.GetBinaryStream(f.Result, "9999", 0, ChannelDeliveryRequirements.Data);
             session = c.GetSessionStream(f.Result, "9999", 0, ChannelDeliveryRequirements.SessionLike);
-            coords = c.GetStreamedTuple<int, int>(f.Result, "9999", 1, 50, 
+            coords = c.GetStreamedTuple<int, int>(f.Result, "9999", 1, TimeSpan.FromMilliseconds(50), 
                 ChannelDeliveryRequirements.TelepointerLike);
             coords.StreamedTupleReceived += coords_StreamedTupleReceived;
             c.ErrorEvent += c_ErrorEvent;

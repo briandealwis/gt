@@ -45,19 +45,30 @@ Developer-visible changes:
       * Removed GT.Net.{Session,String,Object,Binary}MessageHandler
         delegates and replaced with equivalent GT.Net.MessageHandler
 
-      * Message.Id has been renamed Channel.  The use of 'id' was somewhat
-        ambiguous and causing confusion.  All uses of 'id' to mean
-        a channel id or a stream id have been redone to use channel.
-	Described in <https://papyrus.usask.ca/trac/gt/ticket/74>.
+      * The delegate GT.Net.PingReceived's time component now
+	returns the round-trip ping time, and not half of the time.
 
-      * UniqueIdentity has been renamed to simply Identity.  Although
-        the identity value is unique between clients attached to
-	the same server, the values are not globally unique.  Clients
-	*do* have a 'Guid' property, however, which is communicated
-	to the server.
-	  * IConnexion.UniqueIdentity -> Identity
-	  * IStream.UniqueIdentity -> Identity
-	  * GTCapabilities.CLIENT_ID -> CLIENT_GUID
+      * Times have been moved to be specified using System.TimeSpan
+	instances.  Notable changes include to the Sleep() methods on
+	GT.Net.Client and GT.Net.Server, GT.Net.DefaultServerConfiguration,
+	the tuple stream methods on GT.Net.Client, GT.Net.PingedNotification,
+	GT.Net.DelayedBinaryStream, and GT.Net.AggregatedSharedDictionary.
+
+      * There have been some major renames:
+
+	  * Message.Id has been renamed Channel.  The use of 'id' was
+	    somewhat ambiguous and causing confusion.  All uses of 'id' to
+	    mean a channel id or a stream id have been redone to use channel. 
+	    Described in <https://papyrus.usask.ca/trac/gt/ticket/74>.
+
+	  * UniqueIdentity has been renamed to simply Identity.  Although
+	    the identity value is unique between clients attached to
+	    the same server, the values are not globally unique.  Clients
+	    *do* have a 'Guid' property, however, which is communicated
+	    to the server.
+	      * IConnexion.UniqueIdentity -> Identity
+	      * IStream.UniqueIdentity -> Identity
+	      * GTCapabilities.CLIENT_ID -> CLIENT_GUID
 
   * As part of the renames, some non-API but possibly visible classes
     have also been renamed for clarity:

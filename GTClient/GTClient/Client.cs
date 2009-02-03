@@ -952,7 +952,7 @@ namespace GT.Net
     }
 
     /// <summary>
-    /// A sample clien t configuration.  <strong>This class definition may change 
+    /// A sample client configuration.  <strong>This class definition may change 
     /// in dramatic  ways in future releases.</strong>  This configuration should 
     /// serve only as an example, and applications should make their own client 
     /// configurations by copying this instance.  
@@ -1154,27 +1154,30 @@ namespace GT.Net
         /// <summary>
         /// Sleep for the tick-time from the configuration
         /// </summary>
-        virtual public void Sleep()
+        public override void Sleep()
         {
-            Sleep((int)configuration.TickInterval.TotalMilliseconds);
+            Sleep(configuration.TickInterval);
         }
 
         /// <summary>
         /// Sleep for the specified amount of time, overruling the tick-time from the
         /// configuration
         /// </summary>
-        /// <param name="milliseconds"></param>
-        virtual public void Sleep(int milliseconds)
+        /// <param name="sleepTime"></param>
+        public override void Sleep(TimeSpan sleepTime)
         {
             // FIXME: this should do something smarter
             // Socket.Select(listenList, null, null, 1000);
-            Thread.Sleep(Math.Max(0, milliseconds));
+            if (sleepTime.CompareTo(TimeSpan.Zero) > 0)
+            {
+                Thread.Sleep(sleepTime);
+            }
         }
 
         #region Streams
 
         /// <summary>Get a streaming tuple: changes to a streaming tuples are automatically sent to the 
-        /// server every <see cref="milliseconds"/> milliseconds.
+        /// server every <see cref="updateInterval"/> milliseconds.
         /// Note: This call rebinds any existing 3-element tuple stream on this channel to the 
         /// provided connexion!</summary>
         /// <typeparam name="T_X">The Type of the first value of the tuple</typeparam>
@@ -1183,11 +1186,11 @@ namespace GT.Net
         /// <param name="address">The address to connect to</param>
         /// <param name="port">The port to connect to</param>
         /// <param name="channel">The channel to use for this three-tuple (unique to three-tuples)</param>
-        /// <param name="milliseconds">The interval in milliseconds</param>
+        /// <param name="updateInterval">The interval between updates</param>
         /// <param name="cdr">The delivery requirements for this channel</param>
         /// <returns>The streaming tuple</returns>
         public IStreamedTuple<T_X, T_Y, T_Z> GetStreamedTuple<T_X, T_Y, T_Z>(string address, string port, 
-            byte channel, int milliseconds, ChannelDeliveryRequirements cdr)
+            byte channel, TimeSpan updateInterval, ChannelDeliveryRequirements cdr)
             where T_X : IConvertible
             where T_Y : IConvertible
             where T_Z : IConvertible
@@ -1208,7 +1211,7 @@ namespace GT.Net
             }
 
             tuple = new StreamedTuple<T_X, T_Y, T_Z>(GetConnexion(address, port), 
-                channel, milliseconds, cdr);
+                channel, updateInterval, cdr);
             threeTupleStreams.Add(channel, tuple);
             return tuple;
         }
@@ -1221,11 +1224,11 @@ namespace GT.Net
         /// <typeparam name="T_Z">The Type of the third value of the tuple</typeparam>
         /// <param name="connexion">The stream to use to send the tuple</param>
         /// <param name="channel">The channel to use for this three-tuple (unique to three-tuples)</param>
-        /// <param name="milliseconds">The interval in milliseconds</param>
+        /// <param name="updateInterval">The interval between updates</param>
         /// <param name="cdr">The delivery requirements for this channel</param>
         /// <returns>The streaming tuple</returns>
         public IStreamedTuple<T_X, T_Y, T_Z> GetStreamedTuple<T_X, T_Y, T_Z>(IConnexion connexion, 
-            byte channel, int milliseconds, ChannelDeliveryRequirements cdr)
+            byte channel, TimeSpan updateInterval, ChannelDeliveryRequirements cdr)
             where T_X : IConvertible
             where T_Y : IConvertible
             where T_Z : IConvertible
@@ -1244,7 +1247,7 @@ namespace GT.Net
                 return tuple;
             }
 
-            tuple = new StreamedTuple<T_X, T_Y, T_Z>(connexion as ConnexionToServer, channel, milliseconds, cdr);
+            tuple = new StreamedTuple<T_X, T_Y, T_Z>(connexion as ConnexionToServer, channel, updateInterval, cdr);
             threeTupleStreams.Add(channel, tuple);
             return tuple;
         }
@@ -1255,11 +1258,11 @@ namespace GT.Net
         /// <param name="address">The address to connect to</param>
         /// <param name="port">The port to connect to</param>
         /// <param name="channel">The channel to use for this two-tuple (unique to two-tuples)</param>
-        /// <param name="milliseconds">The interval in milliseconds</param>
+        /// <param name="updateInterval">The interval between updates</param>
         /// <param name="cdr">The delivery requirements for this channel</param>
         /// <returns>The streaming tuple</returns>
-        public IStreamedTuple<T_X, T_Y> GetStreamedTuple<T_X, T_Y>(string address, string port, byte channel, int milliseconds,
-            ChannelDeliveryRequirements cdr)
+        public IStreamedTuple<T_X, T_Y> GetStreamedTuple<T_X, T_Y>(string address, string port, 
+            byte channel, TimeSpan updateInterval, ChannelDeliveryRequirements cdr)
             where T_X : IConvertible
             where T_Y : IConvertible
         {
@@ -1278,7 +1281,7 @@ namespace GT.Net
                 return tuple;
             }
 
-            tuple = new StreamedTuple<T_X, T_Y>(GetConnexion(address, port), channel, milliseconds, cdr);
+            tuple = new StreamedTuple<T_X, T_Y>(GetConnexion(address, port), channel, updateInterval, cdr);
             twoTupleStreams.Add(channel, tuple);
             return tuple;
         }
@@ -1290,11 +1293,11 @@ namespace GT.Net
         /// <typeparam name="T_Y">The Type of the second value of the tuple</typeparam>
         /// <param name="connexion">The stream to use to send the tuple</param>
         /// <param name="channel">The channel to use for this two-tuple (unique to two-tuples)</param>
-        /// <param name="milliseconds">The interval in milliseconds</param>
+        /// <param name="updateDelay">The interval between updates</param>
         /// <param name="cdr">The delivery requirements for this channel</param>
         /// <returns>The streaming tuple</returns>
-        public IStreamedTuple<T_X, T_Y> GetStreamedTuple<T_X, T_Y>(IConnexion connexion, byte channel, int milliseconds,
-            ChannelDeliveryRequirements cdr)
+        public IStreamedTuple<T_X, T_Y> GetStreamedTuple<T_X, T_Y>(IConnexion connexion, byte channel,
+            TimeSpan updateDelay, ChannelDeliveryRequirements cdr)
             where T_X : IConvertible
             where T_Y : IConvertible
         {
@@ -1312,7 +1315,7 @@ namespace GT.Net
                 return tuple;
             }
 
-            tuple = new StreamedTuple<T_X, T_Y>(connexion as ConnexionToServer, channel, milliseconds, cdr);
+            tuple = new StreamedTuple<T_X, T_Y>(connexion as ConnexionToServer, channel, updateDelay, cdr);
             twoTupleStreams.Add(channel, tuple);
             return tuple;
         }
@@ -1322,11 +1325,11 @@ namespace GT.Net
         /// <param name="address">The address to connect to</param>
         /// <param name="port">The port to connect to</param>
         /// <param name="channel">The channel to use for this one-tuple (unique to one-tuples)</param>
-        /// <param name="milliseconds">The interval in milliseconds</param>
+        /// <param name="updateDelay">The interval between updates</param>
         /// <param name="cdr">The delivery requirements for this channel</param>
         /// <returns>The streaming tuple</returns>
-        public IStreamedTuple<T_X> GetStreamedTuple<T_X>(string address, string port, byte channel, int milliseconds,
-            ChannelDeliveryRequirements cdr)
+        public IStreamedTuple<T_X> GetStreamedTuple<T_X>(string address, string port, byte channel, 
+            TimeSpan updateDelay, ChannelDeliveryRequirements cdr)
             where T_X : IConvertible
         {
             StreamedTuple<T_X> tuple;
@@ -1343,7 +1346,7 @@ namespace GT.Net
                 return tuple;
             }
 
-            tuple = new StreamedTuple<T_X>(GetConnexion(address, port), channel, milliseconds, cdr);
+            tuple = new StreamedTuple<T_X>(GetConnexion(address, port), channel, updateDelay, cdr);
             oneTupleStreams.Add(channel, tuple);
             return tuple;
         }
@@ -1354,11 +1357,11 @@ namespace GT.Net
         /// <typeparam name="T_X">The Type of the first value of the tuple</typeparam>
         /// <param name="connexion">The stream to use to send the tuple</param>
         /// <param name="channel">The channel to use for this one-tuple (unique to one-tuples)</param>
-        /// <param name="milliseconds">The interval in milliseconds</param>
+        /// <param name="updateDelay">The interval between updates</param>
         /// <param name="cdr">The delivery requirements for this channel</param>
         /// <returns>The streaming tuple</returns>
-        public IStreamedTuple<T_X> GetStreamedTuple<T_X>(IConnexion connexion, byte channel, int milliseconds,
-            ChannelDeliveryRequirements cdr)
+        public IStreamedTuple<T_X> GetStreamedTuple<T_X>(IConnexion connexion, byte channel, 
+            TimeSpan updateDelay, ChannelDeliveryRequirements cdr)
             where T_X : IConvertible
         {
             StreamedTuple<T_X> tuple;
@@ -1375,7 +1378,7 @@ namespace GT.Net
                 return tuple;
             }
 
-            tuple = new StreamedTuple<T_X>(connexion as ConnexionToServer, channel, milliseconds, cdr);
+            tuple = new StreamedTuple<T_X>(connexion as ConnexionToServer, channel, updateDelay, cdr);
             oneTupleStreams.Add(channel, tuple);
             return tuple;
         }
@@ -1808,7 +1811,7 @@ namespace GT.Net
                     timer.Update();
                     newTime = timer.TimeInMilliseconds;
                     int sleepCount = (int)(configuration.TickInterval.TotalMilliseconds - (newTime - oldTime));
-                    Sleep(sleepCount);
+                    Sleep(TimeSpan.FromMilliseconds(sleepCount));
                 }
             }
             catch (ThreadAbortException) //we were told to die.  die gracefully.

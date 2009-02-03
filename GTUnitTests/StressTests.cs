@@ -346,8 +346,8 @@ namespace GT.UnitTests
         
         [Test]
         public void StressTest() {
-            const int totalSeconds = 30;
-            Console.WriteLine("Starting Stress Test ({0} seconds)", totalSeconds);
+            TimeSpan duration = TimeSpan.FromSeconds(30);
+            Console.WriteLine("Starting Stress Test ({0} seconds)", duration.TotalSeconds);
             server = new EchoingServer(serverPort);
             server.Start();
 
@@ -359,7 +359,7 @@ namespace GT.UnitTests
                 clients.Add(c);
             }
 
-            Thread.Sleep(30000);
+            Thread.Sleep(duration);
             Assert.IsFalse(server.ErrorOccurred);
             foreach (StressingClient c in clients)
             {
