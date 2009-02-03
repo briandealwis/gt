@@ -49,7 +49,7 @@ namespace StatsGraphs
                 {
                     _backlog.Value[i, index] = stats.Backlogs[cnx].ContainsKey(tn) 
                         ? stats.Backlogs[cnx][tn] : 0;
-                    _backlog.SerLeg[i] = cnx.UniqueIdentity + ":" + tn;
+                    _backlog.SerLeg[i] = cnx.Identity + ":" + tn;
                     i++;
                 }
             }

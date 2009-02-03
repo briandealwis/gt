@@ -51,7 +51,7 @@ namespace StatsGraphs
                 {
                     _pingTimes.Value[i, index] = stats.Delays[cnx].ContainsKey(tn) 
                         ? stats.Delays[cnx][tn] : 0;
-                    _pingTimes.SerLeg[i] = cnx.UniqueIdentity + ":" + tn;
+                    _pingTimes.SerLeg[i] = cnx.Identity + ":" + tn;
                     i++;
                 }
             }

@@ -161,7 +161,7 @@ namespace Telepointers
             Point mouse = Form1.MousePosition;
 
             //if we know who we are, then send the server our mouse coordinates.
-            if (binary.UniqueIdentity != 0)
+            if (binary.Identity != 0)
             {
                 coords.X = (mouse.X - loc.X - 10);
                 coords.Y = (mouse.Y - loc.Y - 30);

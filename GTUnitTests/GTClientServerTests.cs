@@ -384,7 +384,7 @@ namespace GT.UnitTests
                 strStream.StringNewMessageEvent -= ClientStringMessageReceivedEvent;
             }
 
-            foreach (IConnexion c in client.Connexions) { ((ServerConnexion)c).Ping(); }
+            foreach (IConnexion c in client.Connexions) { ((ConnexionToServer)c).Ping(); }
             for (int i = 0; i < 10 && !pingReceived; i++)
             {
                 client.Update();
@@ -426,7 +426,7 @@ namespace GT.UnitTests
             strStream.Send(EXPECTED_GREETING); //send a string
             CheckForResponse();
 
-            Assert.IsFalse(strStream.UniqueIdentity == 0, "Unique identity should be received");
+            Assert.IsFalse(strStream.Identity == 0, "Unique identity should be received");
         }
 
         [Test]
@@ -820,7 +820,7 @@ namespace GT.UnitTests
         }
     }
 
-    public class DebuggingServerConnexion : ServerConnexion
+    public class DebuggingServerConnexion : ConnexionToServer
     {
         public DebuggingServerConnexion(Client owner, string address, string port)
             : base(owner, address, port) {}
@@ -845,7 +845,7 @@ namespace GT.UnitTests
             return new Client(this);
         }
 
-        public override ServerConnexion CreateServerConnexion(Client owner, string address, string port)
+        public override ConnexionToServer CreateServerConnexion(Client owner, string address, string port)
         {
             return new DebuggingServerConnexion(owner, address, port);
         }

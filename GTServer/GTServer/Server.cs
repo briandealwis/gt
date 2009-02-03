@@ -59,13 +59,13 @@ namespace GT.Net
         /// Create an connexion representing the client.
         /// </summary>
         /// <param name="owner">the associated server instance</param>
-        /// <param name="clientId">the client's GUID</param>
-        /// <param name="uniqueId">the server-unique client id</param>
+        /// <param name="clientGuid">the client's GUID</param>
+        /// <param name="clientIdentity">the server-unique identity for the client</param>
         /// <returns>the client connexion</returns>
-        virtual public ClientConnexion CreateClientConnexion(Server owner, 
-            Guid clientId, int uniqueId)
+        virtual public ConnexionToClient CreateClientConnexion(Server owner, 
+            Guid clientGuid, int clientIdentity)
         {
-            return new ClientConnexion(owner, clientId, uniqueId);
+            return new ConnexionToClient(owner, clientGuid, clientIdentity);
         }
 
         /// <summary>
@@ -146,7 +146,7 @@ namespace GT.Net
         private static readonly Random random = new Random();
 
         private bool running = false;
-        private int uniqueIdentity;
+        private int serverIdentity;
         private Thread listeningThread;
         protected ILog log;
 
@@ -164,11 +164,10 @@ namespace GT.Net
         private int lastPingTime = 0;
 
         /// <summary>
-        /// All of the clientIDs that this server knows about.  
-        /// Hide this so that users cannot cause mischief.
+        /// All of the client identities that this server knows about.  
         /// </summary>
-        private readonly Dictionary<int, ClientConnexion> clientIDs =
-            new Dictionary<int, ClientConnexion>();
+        private readonly Dictionary<int, ConnexionToClient> clientIDs =
+            new Dictionary<int, ConnexionToClient>();
         private readonly ICollection<IConnexion> newlyAddedClients =
             new List<IConnexion>();
 
@@ -193,7 +192,7 @@ namespace GT.Net
 	    /// <summary>
 	    /// Return this server's unique identity.
 	    /// </summary>
-        public int UniqueIdentity { get { return uniqueIdentity; } }
+        public int ServerIdentity { get { return serverIdentity; } }
 
         #endregion
 
@@ -248,7 +247,7 @@ namespace GT.Net
         {
             log = LogManager.GetLogger(GetType());
             configuration = sc;
-            uniqueIdentity = GenerateUniqueIdentity();
+            serverIdentity = GenerateIdentity();
         }
 
 
@@ -305,7 +304,7 @@ namespace GT.Net
                 {
                     // DebugUtils.WriteLine("Server.Update(): pinging clients");
                     lastPingTime = System.Environment.TickCount;
-                    foreach (ClientConnexion c in clientIDs.Values)
+                    foreach (ConnexionToClient c in clientIDs.Values)
                     {
                         if (c.Active)
                         {
@@ -316,7 +315,7 @@ namespace GT.Net
 
                 // DebugUtils.WriteLine("Server.Update(): Clients.Update()");
                 //update all clients, reading from the network
-                foreach (ClientConnexion c in clientIDs.Values)
+                foreach (ConnexionToClient c in clientIDs.Values)
                 {
                     try
                     {
@@ -373,12 +372,12 @@ namespace GT.Net
         {
             base.AddConnexion(cnx);
             newlyAddedClients.Add(cnx); // used for ClientsJoined event
-            clientIDs.Add(cnx.UniqueIdentity, (ClientConnexion)cnx);
+            clientIDs.Add(cnx.Identity, (ConnexionToClient)cnx);
         }
 
         protected override void RemovedConnexion(IConnexion cnx)
         {
-            clientIDs.Remove(cnx.UniqueIdentity);
+            clientIDs.Remove(cnx.Identity);
             if (ClientsRemoved != null)
             {
                 ClientsRemoved(new SingleItem<IConnexion>(cnx));
@@ -386,9 +385,9 @@ namespace GT.Net
             base.RemovedConnexion(cnx);
         }
 
-        protected virtual ClientConnexion CreateNewConnexion(Guid clientId)
+        protected virtual ConnexionToClient CreateNewConnexion(Guid clientGuid)
         {
-            ClientConnexion cnx = configuration.CreateClientConnexion(this, clientId, GenerateUniqueIdentity());
+            ConnexionToClient cnx = configuration.CreateClientConnexion(this, clientGuid, GenerateIdentity());
             cnx.MessageReceived += ReceivedClientMessage;
             cnx.ErrorEvent += NotifyError;
             AddConnexion(cnx);
@@ -397,48 +396,47 @@ namespace GT.Net
         
         protected virtual void NewTransport(ITransport t, IDictionary<string, string> capabilities)
         {
-            Guid clientId;
+            Guid clientGuid;
             try
             {
-                clientId = new Guid(capabilities[GTCapabilities.CLIENT_ID]);
+                clientGuid = new Guid(capabilities[GTCapabilities.CLIENT_GUID]);
             }
             catch (Exception e)
             {
                 log.Warn(String.Format("Exception occurred when decoding client's GUID: {0}",
-                    capabilities[GTCapabilities.CLIENT_ID]), e);
+                    capabilities[GTCapabilities.CLIENT_GUID]), e);
                 t.Dispose();
                 return;
             }
-            ClientConnexion c = GetConnexionForClientIdentity(clientId);
+            ConnexionToClient c = GetConnexionForClientGuid(clientGuid);
             if (c == null)
             {
                 if (log.IsInfoEnabled)
                 {
-                    log.Info(String.Format("{0}: new client {1} via {2}", this, clientId, t));
+                    log.Info(String.Format("{0}: new client {1} via {2}", this, clientGuid, t));
                 }
-                c = CreateNewConnexion(clientId);
+                c = CreateNewConnexion(clientGuid);
                 newlyAddedClients.Add(c);
             }
             else
             {
                 if (log.IsInfoEnabled)
                 {
-                    log.Info(String.Format("{0}: for client {1} via {2}", this, clientId, t));
+                    log.Info(String.Format("{0}: for client {1} via {2}", this, clientGuid, t));
                 }
             }
             t = Configuration.ConfigureTransport(t);
             c.AddTransport(t);
         }
 
-        /// <summary>Returns the client matching that unique identity number.</summary>
-        /// <param name="clientGuid">The unique identity of this client</param>
-        /// <returns>The client with that unique identity.  If the number doesn't 
-        /// match a client, then it returns null.</returns>
-        virtual protected ClientConnexion GetConnexionForClientIdentity(Guid clientGuid)
+        /// <summary>Returns the client matching the provided GUID.</summary>
+        /// <param name="clientGuid">The remote client GUID.</param>
+        /// <returns>The client with that GUID.  If no match, then return null.</returns>
+        virtual protected ConnexionToClient GetConnexionForClientGuid(Guid clientGuid)
         {
-            foreach (ClientConnexion c in Clients)
+            foreach (ConnexionToClient c in Clients)
             {
-                if (c.ClientIdentity.Equals(clientGuid)) { return c; }
+                if (c.ClientGuid.Equals(clientGuid)) { return c; }
             }
             return null;
         }
@@ -559,9 +557,11 @@ namespace GT.Net
             get { return acceptors; }
         }
 
-        /// <summary>Generates a unique identity number that clients can use to identify each other.</summary>
-        /// <returns>The unique identity number</returns>
-        virtual protected int GenerateUniqueIdentity()
+        /// <summary>Generates a identity number that clients (and this server) 
+        /// can use to identify each other.  These numbers are unique across this
+        /// server, but not necessarily between different servers.</summary>
+        /// <returns>The server-unique identity number</returns>
+        virtual protected int GenerateIdentity()
         {
             int clientId = 0;
             DateTime timeStamp = DateTime.Now;
@@ -570,7 +570,7 @@ namespace GT.Net
                 clientId = (timeStamp.Hour * 100 + timeStamp.Minute) * 100 + timeStamp.Second;
                 clientId = clientId * 1000 + random.Next(0, 1000);
                 // keep going until we create something never previously seen
-            } while (clientId == uniqueIdentity || clientIDs.ContainsKey(clientId));
+            } while (clientId == serverIdentity || clientIDs.ContainsKey(clientId));
             return clientId;
         }
 
@@ -704,8 +704,8 @@ namespace GT.Net
         }
     }
 
-    /// <summary>Represents a client using the server.</summary>
-    public class ClientConnexion : BaseConnexion
+    /// <summary>Represents a logical connexion to a client, suitable for use of the server.</summary>
+    public class ConnexionToClient : BaseConnexion
     {
         #region Variables and Properties
 
@@ -713,28 +713,29 @@ namespace GT.Net
         public event ErrorEventNotication ErrorEvent;
 
         /// <summary>
-        /// The client's unique identifier; this should be globally unique
+        /// The client's globally unique identifier (vs <see cref="IConnexion.Identity"/>,
+        /// which is only unique to the clients connected to <see cref="owner"/>).
         /// </summary>
-        protected Guid clientId;
+        protected Guid clientGuid;
 
-        private Server server;
+        protected Server owner;
 
-        public Guid ClientIdentity
+        override public Guid ClientGuid
         {
-            get { return clientId; }
+            get { return clientGuid; }
         }
 
         /// <summary>
         /// The server has a unique identity for itself.
         /// </summary>
-        public override int MyUniqueIdentity
+        public override int SendingIdentity
         {
-            get { return server.UniqueIdentity; }
+            get { return owner.ServerIdentity; }
         }
 
         public override IMarshaller Marshaller
         {
-            get { return server.Marshaller; }
+            get { return owner.Marshaller; }
         }
 
         #endregion
@@ -743,12 +744,13 @@ namespace GT.Net
 
         /// <summary>Creates a new ClientConnexion to communicate with.</summary>
         /// <param name="s">The associated server instance.</param>
-        /// <param name="uniqueId">The unique identity of this new ClientConnexion.</param>
-        public ClientConnexion(Server s, Guid clientId, int uniqueId)
+        /// <param name="clientGuid">A globally unique identifier for the associated client.</param>
+        /// <param name="clientIdentity">The server-unique identity of this new client's connexion.</param>
+        public ConnexionToClient(Server s, Guid clientGuid, int clientIdentity)
         {
-            server = s;
-            this.clientId = clientId;
-            uniqueIdentity = uniqueId;
+            owner = s;
+            this.clientGuid = clientGuid;
+            identity = clientIdentity;
             active = true;
         }
 
@@ -760,7 +762,7 @@ namespace GT.Net
         /// such as in <c>List.FindAll()</c>.</summary>
         /// <param name="c">The client to check.</param>
         /// <returns>True if the client <c>c</c> </c>is dead.</returns>
-        internal static bool IsDead(ClientConnexion c)
+        internal static bool IsDead(ConnexionToClient c)
         {
             return !c.Active || c.Transports.Count == 0;
         }
@@ -769,15 +771,15 @@ namespace GT.Net
 
         override public int Compare(ITransport a, ITransport b)
         {
-            return server.Configuration.Compare(a,b);
+            return owner.Configuration.Compare(a,b);
         }
 
         public override void AddTransport(ITransport t)
         {
             base.AddTransport(t);
-            // Send their unique ID right away
-            Send(new SystemMessage(SystemMessageType.UniqueIDRequest,
-                    BitConverter.GetBytes(UniqueIdentity)),
+            // Send their identity right away
+            Send(new SystemMessage(SystemMessageType.IdentityRequest,
+                    BitConverter.GetBytes(Identity)),
                 new SpecificTransportRequirement(t), null);
         }
 
@@ -813,17 +815,17 @@ namespace GT.Net
         }
 
         /// <summary>Handles a system message in that it takes the information and does something with it.</summary>
-	/// <param name="message">The message received.</param>
-	/// <param name="transport">What channel it came in on.</param>
+	    /// <param name="message">The message received.</param>
+	    /// <param name="transport">The transport the message was received on.</param>
         override protected void HandleSystemMessage(SystemMessage message, ITransport transport)
         {
             switch (message.Descriptor)
             {
-            case SystemMessageType.UniqueIDRequest:
+            case SystemMessageType.IdentityRequest:
                 //they want to know their own id?  They should have received it already...
                 // (see above in AddTransport())
-                Send(new SystemMessage(SystemMessageType.UniqueIDRequest,
-                        BitConverter.GetBytes(UniqueIdentity)),
+                Send(new SystemMessage(SystemMessageType.IdentityRequest,
+                        BitConverter.GetBytes(Identity)),
                     new SpecificTransportRequirement(transport), null);
                 break;
 

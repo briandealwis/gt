@@ -101,7 +101,7 @@ namespace GT.GMC
 
     //    public List<string> Messages { get { return messages; } }
 
-    //    public int UniqueIdentity { get { return stream.UniqueIdentity; } }
+    //    public int Identity { get { return stream.Identity; } }
 
     //    public event StringNewMessage StringNewMessageEvent;
 
@@ -393,7 +393,7 @@ namespace GT.GMC
 
     //        BitConverter.GetBytes(e.UserID).CopyTo(b, 0);
     //        BitConverter.GetBytes(e.Template).CopyTo(b, 5);
-    //        BitConverter.GetBytes(stream.UniqueIdentity).CopyTo(b, 9);
+    //        BitConverter.GetBytes(stream.Identity).CopyTo(b, 9);
 
     //        int count = e.IDs.Count;
     //        for (int i = 0; i < count; i++)
@@ -559,7 +559,7 @@ namespace GT.GMC
 
     //    private void ReceiveRequest(int currentTime, GMCMessageType messageType, int userID, int templateID, int requesteeID, byte[] messagePayload)
     //    {
-    //        if (userID != stream.UniqueIdentity)
+    //        if (userID != stream.Identity)
     //            return;
 
     //        int count;
@@ -679,8 +679,8 @@ namespace GT.GMC
     //    protected void SendMessage(String s, MessageProtocol reli, MessageAggregation aggr, MessageOrder ordering, GMCTimeliness timeliness)
     //    {
     //        //don't do a damn thing until we're ready
-    //        if (stream.UniqueIdentity == 0)
-    //            throw new Exception("Our Unique Identity for this server equals zero, therefore we have not received our identity from the server yet."+
+    //        if (stream.Identity == 0)
+    //            throw new Exception("Our Identity for this server equals zero, therefore we have not received our identity from the server yet."+
     //                "  Please do not compress anything until we know our unique identity, so that others know who we are.");
 
     //        lock (this)
@@ -694,7 +694,7 @@ namespace GT.GMC
     //            if (co.Template != null)
     //            {
     //                data = new byte[co.Template.Length + 13];
-    //                BitConverter.GetBytes(UniqueIdentity).CopyTo(data, 0);
+    //                BitConverter.GetBytes(Identity).CopyTo(data, 0);
     //                data[4] |= (byte)GMCMessageType.Template;
     //                data[4] |= (byte)GMCDestinationType.Broadcast;
     //                co.Template.CopyTo(data, 13);
@@ -707,7 +707,7 @@ namespace GT.GMC
     //            if (co.Announcements.Count > 0)
     //            {
     //                data = new byte[co.Announcements.Count * 7 + 13];
-    //                BitConverter.GetBytes(UniqueIdentity).CopyTo(data, 0);
+    //                BitConverter.GetBytes(Identity).CopyTo(data, 0);
     //                data[4] |= (byte)GMCMessageType.Announcements;
     //                data[4] |= (byte)GMCDestinationType.Broadcast;
     //                for (int i = 0; i < co.Announcements.Count; i++)
@@ -721,7 +721,7 @@ namespace GT.GMC
     //            if (co.FrequencyTable != null)
     //            {
     //                data = new byte[co.FrequencyTable.Length + 13];
-    //                BitConverter.GetBytes(UniqueIdentity).CopyTo(data, 0);
+    //                BitConverter.GetBytes(Identity).CopyTo(data, 0);
     //                data[4] |= (byte)GMCMessageType.FrequencyTable;
     //                data[4] |= (byte)GMCDestinationType.Broadcast;
     //                co.FrequencyTable.CopyTo(data, 13);
@@ -736,7 +736,7 @@ namespace GT.GMC
     //                data[4] |= (byte)GMCOrdering.OutOfOrder;
     //            else
     //                data[4] |= (byte)GMCOrdering.InOrder;
-    //            BitConverter.GetBytes(stream.UniqueIdentity).CopyTo(data, 0);
+    //            BitConverter.GetBytes(stream.Identity).CopyTo(data, 0);
     //            co.Message.CopyTo(data, 5);
 
     //            //make sure the announcements and such get sent first

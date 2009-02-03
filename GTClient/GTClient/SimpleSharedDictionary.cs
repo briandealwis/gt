@@ -97,11 +97,12 @@ namespace GT.Net
         /// A unique number that no other client has in relation to this server.
         /// If zero, don't use.  It will be assigned a unique number by the server soon after connecting.
         /// </summary>
-        public int UniqueIdentity
+        /// <seealso cref="IStream.Identity"/>
+        public int Identity
         {
             get
             {
-                return stream.UniqueIdentity;
+                return stream.Identity;
             }
         }
 

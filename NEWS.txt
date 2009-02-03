@@ -50,6 +50,23 @@ Developer-visible changes:
         a channel id or a stream id have been redone to use channel.
 	Described in <https://papyrus.usask.ca/trac/gt/ticket/74>.
 
+      * UniqueIdentity has been renamed to simply Identity.  Although
+        the identity value is unique between clients attached to
+	the same server, the values are not globally unique.  Clients
+	*do* have a 'Guid' property, however, which is communicated
+	to the server.
+	  * IConnexion.UniqueIdentity -> Identity
+	  * IStream.UniqueIdentity -> Identity
+	  * GTCapabilities.CLIENT_ID -> CLIENT_GUID
+
+  * As part of the renames, some non-API but possibly visible classes
+    have also been renamed for clarity:
+
+      * To better reflect their intentions:
+          ClientConnexion -> ConnexionToClient
+	  ServerConnexion -> ConnexionToServer
+	    * 'server' field -> 'owner' to match ConnexionToClient
+
   * GT now uses the open-source Common.Logging package (v1.2.0) for
     logging messages.  Control-flow information is reported at the
     "Trace" level, and informational, warning, and errors are

@@ -9,7 +9,7 @@ namespace GT.Net
     /// <summary>Internal message types for SystemMessages to have.</summary>
     public enum SystemMessageType
     {
-        UniqueIDRequest = 1,
+        IdentityRequest = 1,
         // ids 2 and 3 are reserved (they have been deprecated and removed)
         PingRequest = 4,
         PingResponse = 5,
@@ -73,7 +73,7 @@ namespace GT.Net
     /// </summary>
     public struct GTCapabilities
     {
-        public static readonly string CLIENT_ID = "CLI-ID";
+        public static readonly string CLIENT_GUID = "CLI-ID";
         public static readonly string MARSHALLER_DESCRIPTORS = "MRSHLRS";
     }
     #endregion

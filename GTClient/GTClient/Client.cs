@@ -45,9 +45,9 @@ namespace GT.Net
         /// (in milliseconds).</summary>
         float Delay { get; }
 
-        /// <summary> Get the unique identity of the client for this server.  This will be
-        /// different for each server, and thus could be different for each connexion. </summary>
-        int UniqueIdentity { get; }
+        /// <summary>Return the underlying <see cref="IConnexion.Identity"/>, a
+        /// server-unique identity for this client amongst the server's clients.</summary>
+        int Identity { get; }
 
         /// <summary>Flush all pending messages on this stream.</summary>
         void Flush();
@@ -130,7 +130,7 @@ namespace GT.Net
     public abstract class AbstractBaseStream : IStream
     {
         protected byte channel;
-        protected ServerConnexion connexion;
+        protected ConnexionToServer connexion;
         protected ChannelDeliveryRequirements deliveryOptions;
 
         /// <summary> Occurs when client is updated. </summary>
@@ -142,9 +142,9 @@ namespace GT.Net
         /// <summary>Average latency between the client and this particluar server.</summary>
         public float Delay { get { return connexion.Delay; } }
 
-        /// <summary> Get the unique identity of the client for this server.  This will be
-        /// different for each server, and thus could be different for each connexion. </summary>
-        public int UniqueIdentity { get { return connexion.UniqueIdentity; } }
+        /// <summary> Get the server-unique identity of the client.</summary>
+        /// <seealso cref="IConnexion.Identity"/>
+        public int Identity { get { return connexion.Identity; } }
 
         /// <summary> Get the connexion's destination address </summary>
         public string Address { get { return connexion.Address; } }
@@ -161,7 +161,7 @@ namespace GT.Net
         public IConnexion Connexion 
         { 
             get { return connexion; }
-            internal set { connexion = (ServerConnexion)value; }
+            internal set { connexion = (ConnexionToServer)value; }
         }
 
         public ChannelDeliveryRequirements ChannelDeliveryOptions { 
@@ -169,7 +169,7 @@ namespace GT.Net
             internal set { deliveryOptions = value; }
         }
 
-        internal AbstractBaseStream(ServerConnexion cnx, byte channel, ChannelDeliveryRequirements cdr)
+        internal AbstractBaseStream(ConnexionToServer cnx, byte channel, ChannelDeliveryRequirements cdr)
         {
             connexion = cnx;
             this.channel = channel;
@@ -207,13 +207,13 @@ namespace GT.Net
 
         /// <summary> This stream uses this connexion. </summary>
         /// <remarks>deprecated</remarks>
-        public ServerConnexion Connection { get { return connexion; } }
+        public ConnexionToServer Connection { get { return connexion; } }
 
         /// <summary>Create a stream object.</summary>
         /// <param name="stream">The connexion used to actually send the messages.</param>
         /// <param name="channel">The message channel.</param>
         /// <param name="cdr">The channel delivery options.</param>
-        internal AbstractStream(ServerConnexion stream, byte channel, ChannelDeliveryRequirements cdr) 
+        internal AbstractStream(ConnexionToServer stream, byte channel, ChannelDeliveryRequirements cdr) 
             : base(stream, channel, cdr)
         {
             messages = new List<Message>();
@@ -262,7 +262,7 @@ namespace GT.Net
         /// <param name="stream">The SuperStream to use to actually send the messages.</param>
         /// <param name="channel">The message channel.</param>
         /// <param name="cdr">The channel delivery options.</param>
-        internal SessionStream(ServerConnexion stream, byte channel, ChannelDeliveryRequirements cdr) 
+        internal SessionStream(ConnexionToServer stream, byte channel, ChannelDeliveryRequirements cdr) 
             : base(stream, channel, cdr)
         {
         }
@@ -272,7 +272,7 @@ namespace GT.Net
         /// <param name="mdr">Message delivery options</param>
         override public void Send(SessionAction action, MessageDeliveryRequirements mdr)
         {
-            connexion.Send(new SessionMessage(channel, UniqueIdentity, action), mdr, deliveryOptions);
+            connexion.Send(new SessionMessage(channel, Identity, action), mdr, deliveryOptions);
         }
 
         /// <summary>Take a SessionMessage off the queue of received messages.</summary>
@@ -325,7 +325,7 @@ namespace GT.Net
         /// <param name="stream">The SuperStream to use to actually send the messages.</param>
         /// <param name="channel">The message channel.</param>
         /// <param name="cdr">The channel delivery options.</param>
-        internal StringStream(ServerConnexion stream, byte channel, ChannelDeliveryRequirements cdr) 
+        internal StringStream(ConnexionToServer stream, byte channel, ChannelDeliveryRequirements cdr) 
             : base(stream, channel, cdr)
         {
         }
@@ -386,7 +386,7 @@ namespace GT.Net
         /// <param name="stream">The SuperStream to use to actually send the objects.</param>
         /// <param name="channel">The message channel claimed.</param>
         /// <param name="cdr">The channel delivery options.</param>
-        internal ObjectStream(ServerConnexion stream, byte channel, ChannelDeliveryRequirements cdr) 
+        internal ObjectStream(ConnexionToServer stream, byte channel, ChannelDeliveryRequirements cdr) 
             : base(stream, channel, cdr)
         {
         }
@@ -447,7 +447,7 @@ namespace GT.Net
         /// <param name="stream">The SuperStream object on which to actually send the objects.</param>
         /// <param name="channel">The message channel to claim.</param>
         /// <param name="cdr">The channel delivery options.</param>
-        internal BinaryStream(ServerConnexion stream, byte channel, ChannelDeliveryRequirements cdr) 
+        internal BinaryStream(ConnexionToServer stream, byte channel, ChannelDeliveryRequirements cdr) 
             : base(stream, channel, cdr)
         {
         }
@@ -501,7 +501,7 @@ namespace GT.Net
     #endregion
 
     /// <summary>Controls the sending of messages to a particular server.</summary>
-    public class ServerConnexion : BaseConnexion, IStartable
+    public class ConnexionToServer : BaseConnexion, IStartable
     {
         private Client owner;
         private string address;
@@ -529,9 +529,10 @@ namespace GT.Net
         }
 
         /// <summary>
-        /// Return the globally unique identifier for this stream's client.
+        /// Return the globally unique identifier for the client
+        /// represented by this connexion.
         /// </summary>
-        public Guid Guid
+        override public Guid ClientGuid
         {
             get { return owner.Guid; }
         }
@@ -542,7 +543,7 @@ namespace GT.Net
         /// <param name="owner">The owning client.</param>
         /// <param name="address">Who to try to connect to.</param>
         /// <param name="port">Which port to connect to.</param>
-        protected internal ServerConnexion(Client owner, string address, string port)
+        protected internal ConnexionToServer(Client owner, string address, string port)
         {
             active = false;
             this.owner = owner;
@@ -610,9 +611,9 @@ namespace GT.Net
         /// <summary>
         /// Our unique identifier is the identifier bestowed upon us by the server.
         /// </summary>
-        public override int MyUniqueIdentity
+        public override int SendingIdentity
         {
-            get { return UniqueIdentity; }
+            get { return Identity; }
         }
 
         protected override ITransport AttemptReconnect(ITransport transport)
@@ -809,7 +810,7 @@ namespace GT.Net
                 long previousLength = stream.Length;
                 try
                 {
-                    Marshaller.Marshal(MyUniqueIdentity, pm.Message, stream, transport);
+                    Marshaller.Marshal(SendingIdentity, pm.Message, stream, transport);
                 }
                 catch (MarshallingException e)
                 {
@@ -888,8 +889,8 @@ namespace GT.Net
         {
             switch (message.Descriptor)
             {
-            case SystemMessageType.UniqueIDRequest:
-                uniqueIdentity = BitConverter.ToInt32(message.data, 0);
+            case SystemMessageType.IdentityRequest:
+                identity = BitConverter.ToInt32(message.data, 0);
                 break;
 
             default:
@@ -909,7 +910,7 @@ namespace GT.Net
 
         public override string ToString()
         {
-            return GetType().Name + "[" + UniqueIdentity + "]";
+            return GetType().Name + "[" + Identity + "]";
         }
     }
 
@@ -943,10 +944,10 @@ namespace GT.Net
         /// <param name="address">the server's address component</param>
         /// <param name="port">the server's port component</param>
         /// <returns>the server connexion</returns>
-        virtual public ServerConnexion CreateServerConnexion(Client owner,
+        virtual public ConnexionToServer CreateServerConnexion(Client owner,
             string address, string port)
         {
-            return new ServerConnexion(owner, address, port);
+            return new ConnexionToServer(owner, address, port);
         }
     }
 
@@ -1049,7 +1050,7 @@ namespace GT.Net
             get
             {
                 Dictionary<string, string> caps = new Dictionary<string, string>();
-                caps[GTCapabilities.CLIENT_ID] = 
+                caps[GTCapabilities.CLIENT_GUID] = 
                     Guid.ToString("N");  // "N" is the most compact form
                 StringBuilder sb = new StringBuilder();
                 foreach(string d in Marshaller.Descriptors) {
@@ -1071,7 +1072,7 @@ namespace GT.Net
         }
 
         /// <summary>
-        /// Return globally unique identifier for this client.
+        /// Return this client's globally unique identifier (GUID).
         /// </summary>
         public Guid Guid { get { return guid; } }
 
@@ -1243,7 +1244,7 @@ namespace GT.Net
                 return tuple;
             }
 
-            tuple = new StreamedTuple<T_X, T_Y, T_Z>(connexion as ServerConnexion, channel, milliseconds, cdr);
+            tuple = new StreamedTuple<T_X, T_Y, T_Z>(connexion as ConnexionToServer, channel, milliseconds, cdr);
             threeTupleStreams.Add(channel, tuple);
             return tuple;
         }
@@ -1288,7 +1289,7 @@ namespace GT.Net
         /// <typeparam name="T_X">The Type of the first value of the tuple</typeparam>
         /// <typeparam name="T_Y">The Type of the second value of the tuple</typeparam>
         /// <param name="connexion">The stream to use to send the tuple</param>
-        /// <param name="channel">The channel to use for this three-tuple (unique to three-tuples)</param>
+        /// <param name="channel">The channel to use for this two-tuple (unique to two-tuples)</param>
         /// <param name="milliseconds">The interval in milliseconds</param>
         /// <param name="cdr">The delivery requirements for this channel</param>
         /// <returns>The streaming tuple</returns>
@@ -1311,7 +1312,7 @@ namespace GT.Net
                 return tuple;
             }
 
-            tuple = new StreamedTuple<T_X, T_Y>(connexion as ServerConnexion, channel, milliseconds, cdr);
+            tuple = new StreamedTuple<T_X, T_Y>(connexion as ConnexionToServer, channel, milliseconds, cdr);
             twoTupleStreams.Add(channel, tuple);
             return tuple;
         }
@@ -1352,7 +1353,7 @@ namespace GT.Net
         /// is still active.</summary>
         /// <typeparam name="T_X">The Type of the first value of the tuple</typeparam>
         /// <param name="connexion">The stream to use to send the tuple</param>
-        /// <param name="channel">The channel to use for this three-tuple (unique to three-tuples)</param>
+        /// <param name="channel">The channel to use for this one-tuple (unique to one-tuples)</param>
         /// <param name="milliseconds">The interval in milliseconds</param>
         /// <param name="cdr">The delivery requirements for this channel</param>
         /// <returns>The streaming tuple</returns>
@@ -1374,7 +1375,7 @@ namespace GT.Net
                 return tuple;
             }
 
-            tuple = new StreamedTuple<T_X>(connexion as ServerConnexion, channel, milliseconds, cdr);
+            tuple = new StreamedTuple<T_X>(connexion as ConnexionToServer, channel, milliseconds, cdr);
             oneTupleStreams.Add(channel, tuple);
             return tuple;
         }
@@ -1431,13 +1432,13 @@ namespace GT.Net
                 return ss;
             }
 
-            ss = new SessionStream(connexion as ServerConnexion, channel, cdr);
+            ss = new SessionStream(connexion as ConnexionToServer, channel, cdr);
             sessionStreams.Add(channel, ss);
             return ss;
         }
 
         /// <summary>Gets an already created SessionStream</summary>
-        /// <param name="channel">The channel of the SessionStream unique to SessionStreams.</param>
+        /// <param name="channel">The channel for the stream.</param>
         /// <returns>The found SessionStream</returns>
         public ISessionStream GetSessionStream(byte channel)
         {
@@ -1495,13 +1496,13 @@ namespace GT.Net
                 return ss;
             }
 
-            ss = new StringStream(connexion as ServerConnexion, channel, cdr);
+            ss = new StringStream(connexion as ConnexionToServer, channel, cdr);
             stringStreams.Add(channel, ss);
             return ss;
         }
 
         /// <summary>Gets an already created StringStream</summary>
-        /// <param name="channel">The channel of the StringStream unique to StringStreams.</param>
+        /// <param name="channel">The channel of the stream.</param>
         /// <returns>The found StringStream</returns>
         public IStringStream GetStringStream(byte channel)
         {
@@ -1513,7 +1514,7 @@ namespace GT.Net
         /// provided connexion!</summary>
         /// <param name="address">The address to connect to.</param>
         /// <param name="port">The port to connect to.</param>
-        /// <param name="channel">The channel to claim for this ObjectStream, unique for all ObjectStreams.</param>
+        /// <param name="channel">The channel for this stream.</param>
         /// <param name="cdr">The delivery requirements for this channel</param>
         /// <returns>The created or retrived ObjectStream</returns>
         public IObjectStream GetObjectStream(string address, string port, byte channel, ChannelDeliveryRequirements cdr)
@@ -1554,13 +1555,13 @@ namespace GT.Net
                 os.Connexion = connexion;
                 return os;
             }
-            os = new ObjectStream(connexion as ServerConnexion, channel, cdr);
+            os = new ObjectStream(connexion as ConnexionToServer, channel, cdr);
             objectStreams.Add(channel, os);
             return os;
         }
 
         /// <summary>Get an already created ObjectStream</summary>
-        /// <param name="channel">The channel of the ObjectStream unique, to ObjectStreams.</param>
+        /// <param name="channel">The channel of the stream.</param>
         /// <returns>The found ObjectStream.</returns>
         public IObjectStream GetObjectStream(byte channel)
         {
@@ -1570,7 +1571,7 @@ namespace GT.Net
         /// <summary>Gets a connexion for transmitting byte arrays.</summary>
         /// <param name="address">The address to connect to.</param>
         /// <param name="port">The port to connect to.</param>
-        /// <param name="channel">The channel to claim for this BinaryStream, unique for all BinaryStreams.</param>
+        /// <param name="channel">The channel for this stream.</param>
         /// <param name="cdr">The delivery requirements for this channel</param>
         /// <returns>The created or retrived BinaryStream.</returns>
         public IBinaryStream GetBinaryStream(string address, string port, byte channel, ChannelDeliveryRequirements cdr)
@@ -1594,7 +1595,7 @@ namespace GT.Net
         /// <summary>Gets a connexion for transmitting byte arrays.  It is
         /// the caller's responsibility to ensure <see cref="connexion"/> is still active.</summary>
         /// <param name="connexion">The connexion to use for the connexion.</param>
-        /// <param name="channel">The channel to claim for this BinaryStream, unique for all BinaryStreams.</param>
+        /// <param name="channel">The channel for this stream.</param>
         /// <param name="cdr">The delivery requirements for this channel</param>
         /// <returns>The created or retrived BinaryStream.</returns>
         public IBinaryStream GetBinaryStream(IConnexion connexion, byte channel, ChannelDeliveryRequirements cdr)
@@ -1610,13 +1611,13 @@ namespace GT.Net
                 bs.Connexion = connexion;
                 return bs;
             }
-            bs = new BinaryStream(connexion as ServerConnexion, channel, cdr);
+            bs = new BinaryStream(connexion as ConnexionToServer, channel, cdr);
             binaryStreams.Add(channel, bs);
             return bs;
         }
 
         /// <summary>Get an already created BinaryStream</summary>
-        /// <param name="channel">The channel of the BinaryStream, unique to BinaryStreams.</param>
+        /// <param name="channel">The channel of the stream.</param>
         /// <returns>A BinaryStream</returns>
         public IBinaryStream GetBinaryStream(byte channel)
         {
@@ -1632,16 +1633,16 @@ namespace GT.Net
         /// <returns>The created or retrieved connexion itself.</returns>
         /// <exception cref="CannotConnectException">thrown if the
         ///     remote could not be contacted.</exception>
-        virtual protected ServerConnexion GetConnexion(string address, string port)
+        virtual protected ConnexionToServer GetConnexion(string address, string port)
         {
-            foreach (ServerConnexion s in connexions)
+            foreach (ConnexionToServer s in connexions)
             {
                 if (s.Address.Equals(address) && s.Port.Equals(port) && s.Active)
                 {
                     return s;
                 }
             }
-            ServerConnexion mySC = configuration.CreateServerConnexion(this, address, port);
+            ConnexionToServer mySC = configuration.CreateServerConnexion(this, address, port);
             mySC.ErrorEvents += NotifyError;
             mySC.Start();
             AddConnexion(mySC);
@@ -1666,12 +1667,12 @@ namespace GT.Net
                     > configuration.PingInterval.TotalMilliseconds)
                 {
                     lastPingTime = timer.TimeInMilliseconds;
-                    foreach (ServerConnexion s in connexions)
+                    foreach (ConnexionToServer s in connexions)
                     {
                         s.Ping();
                     }
                 }
-                foreach (ServerConnexion s in connexions)
+                foreach (ConnexionToServer s in connexions)
                 {
                     try
                     {
@@ -1839,9 +1840,9 @@ namespace GT.Net
         {
             StringBuilder b = new StringBuilder(GetType().Name);
             b.Append("(ids:");
-            foreach(ServerConnexion c in connexions) {
+            foreach(ConnexionToServer c in connexions) {
                 b.Append(' ');
-                b.Append(c.UniqueIdentity);
+                b.Append(c.Identity);
             }
             b.Append(")");
             return b.ToString();

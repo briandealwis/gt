@@ -392,7 +392,7 @@ namespace GT.Net
         bool Active { get; }
 
         /// <summary>The server-unique identity of this client</summary>
-        int UniqueIdentity { get; }
+        int Identity { get; }
 
         /// <summary>
         /// Notification of fatal errors occurring on the connexion.
@@ -509,7 +509,7 @@ namespace GT.Net
 	    /// identifier is only unique within the server's client
 	    /// group and is not globally unique.
         /// </summary>
-        protected int uniqueIdentity;
+        protected int identity;
 
         public BaseConnexion()
         {
@@ -528,24 +528,31 @@ namespace GT.Net
         public IList<ITransport> Transports { get { return transports; } }
 
         /// <summary>
-        /// Return the unique identity as represented by *this instance*.
-        /// For a client's server-connexion, this will be the server's id for
-        /// this client.  For a server's client-connexion, this will be the
-        /// server's id for the client represented by this connexion.
-        /// See <c>MyUniqueIdentity</c> for the local instance's identity.
+        /// Return the server-unique identity for the client represented 
+        /// by *this connexion*.
         /// </summary>
-        public int UniqueIdentity
+        /// <seealso cref="SendingIdentity"/>
+        public int Identity
         {
-            get { return uniqueIdentity; }
+            get { return identity; }
         }
 
         /// <summary>
-        /// Return the unique identity for this instance's owner.  For clients,
-        /// this is the server's id for this client.  For servers, this is the
-        /// unique identity for this server.  This id may be different from
-        /// UniqueIdentity.
+        /// Return the globally unique identifier for the client
+        /// represented by this connexion.
         /// </summary>
-        public abstract int MyUniqueIdentity { get; }
+        abstract public Guid ClientGuid { get; }
+
+        /// <summary>
+        /// Return the identity to be used for sending messages across this connexion.
+        /// For a connexion representing a client's interface to the server 
+        /// (i.e., a GT.Net.ServerConnexion), this is the server's id for 
+        /// this connexion to the client (and should be the same as 
+        /// <see cref="Identity"/>).  For a connexion representing a server's
+        /// interface to a client (i.e., a GT.Net.ClientConnexion), this is the 
+        /// server's id for itself.
+        /// </summary>
+        public abstract int SendingIdentity { get; }
 
         /// <summary>Average latency on this connexion.</summary>
         public float Delay
@@ -695,6 +702,10 @@ namespace GT.Net
             }
         }
 
+        /// <summary>
+        /// Add the provided transport to this connexion.
+        /// </summary>
+        /// <param name="t">the transport to add</param>
         public virtual void AddTransport(ITransport t)
         {
             if (log.IsTraceEnabled)
@@ -707,6 +718,11 @@ namespace GT.Net
             if (TransportAdded != null) { TransportAdded(this, t); }
         }
 
+        /// <summary>
+        /// Remove the provided transport from this connexion's list.
+        /// </summary>
+        /// <param name="t">the transport to remove</param>
+        /// <returns></returns>
         public virtual bool RemoveTransport(ITransport t) 
         {
             if (log.IsTraceEnabled)
@@ -881,7 +897,7 @@ namespace GT.Net
         {
             //pack main message into a buffer and send it right away
             Stream packet = transport.GetPacketStream();
-            Marshaller.Marshal(MyUniqueIdentity, msg, packet, transport);
+            Marshaller.Marshal(SendingIdentity, msg, packet, transport);
             try { SendPacket(transport, packet); }
             catch (TransportError e) { throw new CannotSendMessagesError(this, e, msg); }
             NotifyMessageSent(msg, transport);
@@ -897,7 +913,7 @@ namespace GT.Net
             {
                 Message m = messages[index];
                 int packetEnd = (int)ms.Position;
-                Marshaller.Marshal(MyUniqueIdentity, m, ms, transport);
+                Marshaller.Marshal(SendingIdentity, m, ms, transport);
                 if (ms.Position - packetStart > transport.MaximumPacketSize) // uh oh, rewind and redo
                 {
                     ms.SetLength(packetEnd);
@@ -1000,7 +1016,7 @@ namespace GT.Net
 
         override public string ToString()
         {
-            return GetType().Name + "(" + uniqueIdentity + ")";
+            return GetType().Name + "(" + identity + ")";
         }
 
         /// <summary>
