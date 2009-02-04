@@ -51,12 +51,12 @@ namespace GT.GMC
         /// GMC operates on the results from a different marshaller.
         /// This sub-marshaller is used to transform objects, etc. to bytes.
         /// </summary>
-        private IMarshaller subMarshaller;
+        private readonly IMarshaller subMarshaller;
 
         /// <summary>
         /// The compressor used for messages being sent by this user.
         /// </summary>
-        private GeneralMessageCompressor compressor;
+        private readonly GeneralMessageCompressor compressor;
 
         /// <summary>
         /// The per-user decompressors used to decompress messages from other users
@@ -64,7 +64,7 @@ namespace GT.GMC
         /// of the templates and announcements (new dictionary entries) from the other
         /// users' systems.
         /// </summary>
-        private Dictionary<int, GeneralMessageCompressor> decompressors; // client Identity -> GeneralMessageCompressor
+        private readonly Dictionary<int, GeneralMessageCompressor> decompressors; // client Identity -> GeneralMessageCompressor
 
         /// Statistics
         public long totalUncompressedBytes = 0;
@@ -118,12 +118,14 @@ namespace GT.GMC
             ByteUtils.Write(encoded, output);
         }
 
-        public Message Unmarshal(Stream input, ITransport t)
+        public void Unmarshal(Stream input, ITransport t, EventHandler<MessageEventArgs> messageAvailable)
         {
+            Debug.Assert(messageAvailable != null, "callers must provide a messageAvailale handler");
             int encoderId = BitConverter.ToInt32(ByteUtils.Read(input, 4), 0);
             int length = ByteUtils.DecodeLength(input);
             byte[] decoded = Decode(encoderId, ByteUtils.Read(input, length));
-            return subMarshaller.Unmarshal(new MemoryStream(decoded), t);
+            subMarshaller.Unmarshal(new MemoryStream(decoded), t,
+                (sender, mea) => messageAvailable(this, mea));
         }
 
 

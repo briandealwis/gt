@@ -23,7 +23,8 @@ namespace GT.Net
         string[] Descriptors { get; }
 
         /// <summary>
-        /// Marshal the provided message in an appropriate form for the provided transport.
+        /// Marshal the provided message in an appropriate form for the provided transport
+        /// onto the provided stream <see cref="output"/>.
         /// </summary>
         /// <param name="senderIdentity">the server-unique id of the sender of this message
         /// (i.e., the local client or server's server-unique identifier).  This
@@ -36,19 +37,52 @@ namespace GT.Net
         void Marshal(int senderIdentity, Message message, Stream output, ITransport t);
 
         /// <summary>
-        /// Unmarshal the message as encoded in the transport-specific form from the given
-        /// stream.
+        /// Unmarshal one message (or possibly more) as encoded in the transport-specific 
+        /// form from <see cref="input"/>.   Messages are notified using the provided 
+        /// <see cref="messageAvailable"/> delegate; a message may not be immediately 
+        /// available, for example, if decoding their byte-content depends on information 
+        /// carried in a not-yet-seen message.  The marshaller <b>must</b> not access
+        /// <see cref="input"/> once this call has returned: any required information 
+        /// must be retrieved from the stream during this call and cached.
         /// </summary>
         /// <param name="input">the stream with the packet content</param>
         /// <param name="t">the transport from which the packet was received</param>
-        /// <returns>the message, or null if no message was present</returns>
-        Message Unmarshal(Stream input, ITransport t);
+        /// <param name="messageAvailable">a callback for when a message becomes available
+        /// from the stream.</param>
+        void Unmarshal(Stream input, ITransport t, EventHandler<MessageEventArgs> messageAvailable);
     }
 
+    /// <summary>
+    /// Represents the event information from a message becoming available.
+    /// Some marshallers may choose to subclass this to provide additional information.
+    /// </summary>
+    public class MessageEventArgs : EventArgs
+    {
+        public MessageEventArgs(ITransport transport, Message message)
+        {
+            Transport = transport;
+            Message = message;
+        }
+
+        /// <summary>
+        /// The transport on which this message was received.
+        /// </summary>
+        public ITransport Transport { get; set; }
+
+        /// <summary>
+        /// The message received
+        /// </summary>
+        public Message Message { get; set; }
+    }
+
+    /// <summary>
+    /// An exception thrown in case of a error or warning during marshalling or unmarshalling.
+    /// </summary>
     public class MarshallingException : GTException {
-        public MarshallingException() : base(Severity.Error) { }
+        protected MarshallingException() : base(Severity.Error) { }
         public MarshallingException(string message) : base(Severity.Error, message) {}
         public MarshallingException(string message, Exception inner) : base(Severity.Error, message, inner) { }
+        public MarshallingException(Severity severity, string message, Exception inner) : base(severity, message, inner) { }
 
         public static void Assert(bool condition, string explanation)
         {
@@ -152,13 +186,15 @@ namespace GT.Net
 
         #region Unmarshalling
 
-        virtual public Message Unmarshal(Stream input, ITransport t)
+        virtual public void Unmarshal(Stream input, ITransport t, EventHandler<MessageEventArgs> messageAvailable)
         {
+            Debug.Assert(messageAvailable != null, "callers must provide a messageAvailale handler");
             // Could check the version or something here?
             MessageType type = (MessageType)input.ReadByte();
             byte channel = (byte)input.ReadByte();
             int length = ByteUtils.DecodeLength(input);
-            return UnmarshalContent(channel, type, new WrappedStream(input, (uint)length));
+            Message m = UnmarshalContent(channel, type, new WrappedStream(input, (uint)length));
+            messageAvailable(this, new MessageEventArgs(t, m));
         }
 
         virtual protected Message UnmarshalContent(byte channel, MessageType type, Stream input)

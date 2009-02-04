@@ -900,26 +900,31 @@ namespace GT.Net
             Stream stream = new MemoryStream(buffer, offset, count, false);
             while (stream.Position < stream.Length)
             {
-                Message m = Marshaller.Unmarshal(stream, transport);
+                Marshaller.Unmarshal(stream, transport, _marshaller_MessageAvailable);
                 //DebugUtils.DumpMessage("ClientConnexionConnexion.PostNewlyReceivedMessage", m);
-
-                if (m.MessageType == MessageType.System)
-                {
-                    //System messages are special!  Yay!
-                    HandleSystemMessage((SystemMessage)m, transport);
-                }
-                else
-                {
-                    if (MessageReceived == null)
-                    {
-                        log.Warn(String.Format("{0}: no MessageReceived listener!", this));
-                    }
-                    else { MessageReceived(m, this, transport); }
-                }
             }
         }
 
-
+        virtual protected void _marshaller_MessageAvailable(object marshaller, MessageEventArgs mea)
+        {
+            if (mea.Message.MessageType == MessageType.System)
+            {
+                //System messages are special!  Yay!
+                HandleSystemMessage((SystemMessage)mea.Message, mea.Transport);
+            }
+            else
+            {
+                if (MessageReceived == null)
+                {
+                    log.Warn(String.Format("{0}: no MessageReceived listener!", this));
+                }
+                else
+                {
+                    MessageReceived(mea.Message, this, mea.Transport);
+                }
+            }
+        }
+        
         protected virtual ITransport FindTransport(MessageDeliveryRequirements mdr, ChannelDeliveryRequirements cdr)
         {
             ITransport t = null;
