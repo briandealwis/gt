@@ -430,26 +430,6 @@ namespace GT.Net
             return null;
         }
 
-        public override void Sleep()
-        {
-            Sleep(configuration.TickInterval);
-        }
-
-        public override void Sleep(TimeSpan sleepTime)
-        {
-            if (sleepTime.CompareTo(TimeSpan.Zero) > 0)
-            {
-                if(log.IsTraceEnabled)
-                {
-                    log.Trace(String.Format("{0}: sleeping for {1}ms", this,
-                        sleepTime.TotalMilliseconds));
-                }
-                // FIXME: this should do something smarter
-                // Socket.Select(listenList, null, null, 1000);
-                Thread.Sleep(sleepTime);
-            }
-        }
-
         public override void Start()
         {
             if (Active) { return; }
@@ -460,6 +440,7 @@ namespace GT.Net
                 acc.Start();
             }
             marshaller = configuration.CreateMarshaller();
+            base.Start();
             running = true;
             log.Trace(this + ": started");
         }

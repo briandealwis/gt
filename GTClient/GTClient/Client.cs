@@ -1149,29 +1149,6 @@ namespace GT.Net
             get { return configuration.TickInterval; }
         }
 
-        /// <summary>
-        /// Sleep for the tick-time from the configuration
-        /// </summary>
-        public override void Sleep()
-        {
-            Sleep(TickInterval);
-        }
-
-        /// <summary>
-        /// Sleep for the specified amount of time, overruling the tick-time from the
-        /// configuration
-        /// </summary>
-        /// <param name="sleepTime"></param>
-        public override void Sleep(TimeSpan sleepTime)
-        {
-            // FIXME: this should do something smarter
-            // Socket.Select(listenList, null, null, 1000);
-            if (sleepTime.CompareTo(TimeSpan.Zero) > 0)
-            {
-                Thread.Sleep(sleepTime);
-            }
-        }
-
         #region Streams
 
         /// <summary>Get a streaming tuple: changes to a streaming tuples are automatically sent to the 

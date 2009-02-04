@@ -116,17 +116,29 @@ namespace GT.Net
         public abstract void Update();
 
         /// <summary>
-        /// Sleep for the specified amount of time, potentially responding to
-        /// incoming events.
+        /// Sleep for the <see cref="TickInterval"/>.  Return false if the sleep 
+        /// finished early, such as because some event caused the instance to wake early.
         /// </summary>
-        public abstract void Sleep();
+        public virtual bool Sleep()
+        {
+            return Sleep(TickInterval);
+        }
 
         /// <summary>
-        /// Sleep for the specified amount of time, potentially responding to
-        /// incoming events.
+        /// Sleep for the specified amount of time.  Return false if the sleep 
+        /// finished early, such as because some event caused the instance to wake early.
         /// </summary>
-        /// <param name="sleepTime"></param>
-        public abstract void Sleep(TimeSpan sleepTime);
+        /// <param name="sleepTime">the amount of time to sleep</param>
+        public virtual bool Sleep(TimeSpan sleepTime)
+        {
+            if (sleepTime.CompareTo(TimeSpan.Zero) > 0)
+            {
+                // FIXME: this should do something smarter
+                // Socket.Select(listenList, null, null, 1000);
+                Thread.Sleep(sleepTime);
+            }
+            return true;
+        }
 
         /// <summary>
         /// Starts a new thread that listens to periodically call 

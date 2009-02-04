@@ -54,6 +54,11 @@ Developer-visible changes:
 	the tuple stream methods on GT.Net.Client, GT.Net.PingedNotification,
 	GT.Net.DelayedBinaryStream, and GT.Net.AggregatedSharedDictionary.
 
+      * The Sleep() implementations on GT.Net.Client and GT.Net.Server
+	now return a boolean to indicate whether the sleep executed
+	without interruption.  Future versions of GT may provide some
+	method for event processing during Sleep().
+
       * There have been some major renames:
 
 	  * Message.Id has been renamed Channel.  The use of 'id' was
@@ -78,6 +83,9 @@ Developer-visible changes:
 	  ServerConnexion -> ConnexionToServer
 	    * 'server' field -> 'owner' to match ConnexionToClient
 
+  * GT.Net.Client and GT.Net.Server have been reworked and had common
+    code extracted to a common subclass, GT.Net.Communicator.
+
   * GT now uses the open-source Common.Logging package (v1.2.0) for
     logging messages.  Control-flow information is reported at the
     "Trace" level, and informational, warning, and errors are
@@ -96,9 +104,6 @@ Developer-visible changes:
 
     As a result of this change, GT is now much quieter with respect
     to messages written to the system console.
-
-  * GT.Net.Client and GT.Net.Server have been reworked and had common
-    code extracted to a common subclass, GT.Net.Communicator.
 
   * Clients and Servers now log a warning when there are no registered
     ErrorEvent handlers.

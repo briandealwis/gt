@@ -79,7 +79,7 @@ namespace GT.UnitTests
             Assert.IsInstanceOfType(typeof(MillipedeTransport), transport);
             Assert.AreEqual(1, recorder.NumberEvents);
             transport.SendPacket(new byte[10], 0, 10);
-            Thread.Sleep(10);   // the NumberEvent is incremented on playback, and may need time to playback
+            Thread.Sleep(20);   // the NumberEvent is incremented on playback, and may need time to playback
             Assert.AreEqual(2, recorder.NumberEvents);
             Thread.Sleep(100);
             Assert.AreEqual(3, recorder.NumberEvents);  // should have received the packet too
