@@ -59,6 +59,12 @@ Developer-visible changes:
 	without interruption.  Future versions of GT may provide some
 	method for event processing during Sleep().
 
+      * ITransport.MaximumPacketSize is now a uint and each transport must
+	support setting this value.  The transport may silently cap
+	this value at some transport-specific maximum.  TcpTransport
+	and BaseUdpTransport's CappedPacketSize have been renamed to
+	DefaultMaximumPacketSize.
+
       * There have been some major renames:
 
 	  * Message.Id has been renamed Channel.  The use of 'id' was

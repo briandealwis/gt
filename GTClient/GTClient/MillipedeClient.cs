@@ -110,7 +110,7 @@ namespace GT.Millipede
                 Dictionary<string, string> ignored = (Dictionary<string, string>)formatter.Deserialize(stream);
                 Reliability reliability = (Reliability)formatter.Deserialize(stream);
                 Ordering ordering = (Ordering)formatter.Deserialize(stream);
-                int maxPacketSize = (int)formatter.Deserialize(stream);
+                uint maxPacketSize = (uint)formatter.Deserialize(stream);
 
                 // FIXME: should we be checking the capabilities?  Probably...!
                 ITransport mockTransport = new MillipedeTransport(recorder, milliTransportDescriptor,

@@ -19,7 +19,13 @@ namespace GT.Net
         /// as compared to the OS value normally used.
         /// 512 is the historical value supported by GT.
         /// </summary>
-        public static int CappedMessageSize = 512;
+        public static uint DefaultMaximumMessageSize = 512;
+
+        /// <summary>
+        /// Theoretical maximum of a UDP datagram size as UDP length field is 16 bits.
+        /// But some systems apparently cap a datagram at 8K.
+        /// </summary>
+        public static uint UDP_MAXDGRAMSIZE = 65536;
 
         //If bits can't be written to the network now, try later
         //We use this so that we don't have to block on the writing to the network
@@ -27,6 +33,8 @@ namespace GT.Net
 
         public override Reliability Reliability { get { return Reliability.Unreliable; } }
         public override Ordering Ordering { get { return Ordering.Unordered; } }
+
+        protected uint maximumPacketSize = DefaultMaximumMessageSize;
 
         public BaseUdpTransport(uint packetHeaderSize) 
             : base(packetHeaderSize)
@@ -37,6 +45,23 @@ namespace GT.Net
         public override string Name { get { return "UDP"; } }
 
         public override uint Backlog { get { return (uint)outstanding.Count; } }
+
+        /// <summary>
+        /// Set the maximum packet size allowed by this transport.
+        /// Although UDP theoretically allows datagrams up to 64K in length
+        /// (since its length field is 16 bits), some systems apparently
+        /// cap a datagram at 8K.  So the general recommendation
+        /// is to use 8K or less.
+        /// </summary>
+        public override uint MaximumPacketSize
+        {
+            get { return maximumPacketSize; }
+            set
+            {
+                // UDP packets 
+                maximumPacketSize = Math.Min(UDP_MAXDGRAMSIZE, Math.Max(PacketHeaderSize, value));
+            }
+        }
 
         override public void Update()
         {

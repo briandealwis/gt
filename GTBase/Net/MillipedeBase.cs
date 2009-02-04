@@ -314,7 +314,7 @@ namespace GT.Millipede
         private readonly IDictionary<string,string> replayCapabilities;
         private readonly Ordering replayOrdering;
         private readonly Reliability replayReliability;
-        private readonly int replayMaximumPacketSize;
+        private uint replayMaximumPacketSize;
 
         public event PacketHandler PacketReceivedEvent;
         public event PacketHandler PacketSentEvent;
@@ -350,7 +350,7 @@ namespace GT.Millipede
         /// <param name="maxPacketSize">the <see cref="ITransport.MaximumPacketSize"/></param>
         public MillipedeTransport(MillipedeRecorder recorder, object milliTransportDescriptor, 
             string transportName, IDictionary<string, string> capabilities, 
-            Reliability reliabilty, Ordering ordering, int maxPacketSize)
+            Reliability reliabilty, Ordering ordering, uint maxPacketSize)
         {
             Debug.Assert(recorder.Mode == MillipedeMode.Playback);
             this.recorder = recorder;
@@ -467,9 +467,21 @@ namespace GT.Millipede
         /// Wraps ITransport.MaximumPacketSize.
         /// </summary>
         /// <see cref="ITransport.MaximumPacketSize"/>
-        public int MaximumPacketSize
+        public uint MaximumPacketSize
         {
             get { return underlyingTransport != null ? underlyingTransport.MaximumPacketSize : replayMaximumPacketSize; }
+            set
+            {
+                if(underlyingTransport != null)
+                {
+                    underlyingTransport.MaximumPacketSize = value;
+                    replayMaximumPacketSize = underlyingTransport.MaximumPacketSize;
+                }
+                else
+                {
+                    replayMaximumPacketSize = value;
+                }
+            }
         }
 
         /// <summary>

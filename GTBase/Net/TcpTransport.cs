@@ -14,14 +14,13 @@ namespace GT.Net
     public class TcpTransport : BaseTransport
     {
         /// <summary>
-        /// Allow setting a cap on the maximum TCP message size
-        /// as compared to the OS value normally used.
         /// 512 is the historical value supported by GT.
         /// </summary>
-        public static int CappedMessageSize = 512;
+        public static uint DefaultMaximumMessageSize = 512;
 
         private TcpClient handle;
         private readonly EndPoint remoteEndPoint;
+        private uint maximumPacketSize = DefaultMaximumMessageSize;
         private Queue<byte[]> outstanding = new Queue<byte[]>();
 
         private PacketInProgress incomingInProgress;
@@ -51,10 +50,28 @@ namespace GT.Net
             get { return Ordering.Ordered; }
         }
 
-        public override int MaximumPacketSize
+        public override uint MaximumPacketSize
         {
-            get { return CappedMessageSize; }
+            get { return maximumPacketSize; }
+            set
+            {
+                maximumPacketSize = Math.Max(PacketHeaderSize, 
+                    Math.Min(value, uint.MaxValue));    // can't exceed 2^32
+                try
+                {
+                    if (handle.SendBufferSize < maximumPacketSize)
+                    {
+                        handle.SendBufferSize = (int)maximumPacketSize;
+                    }
+                }
+                catch (SocketException e)
+                {
+                    log.Debug(
+                        String.Format("Unable to change send-buffer size to {0}", maximumPacketSize), e);
+                }
+            }
         }
+
 
         public override uint Backlog { get { return (uint)outstanding.Count; } }
 
@@ -88,7 +105,7 @@ namespace GT.Net
             InvalidStateException.Assert(Active, "Cannot send on disposed transport", this);
             ContractViolation.Assert(length > 0, "Cannot send 0-byte messages!");
             ContractViolation.Assert(length - PacketHeaderSize <= MaximumPacketSize, 
-                String.Format("Packet exceeds transport capacity: {0} > {1}", 
+                String.Format("Packet exceeds transport capacity: {0} > {1}; try increasing transport's MaximumPacketSize", 
                     length - PacketHeaderSize, MaximumPacketSize));
 
             //DebugUtils.DumpMessage(this + "SendPacket", buffer, offset, length);

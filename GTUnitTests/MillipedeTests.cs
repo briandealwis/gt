@@ -121,8 +121,8 @@ namespace GT.UnitTests
     {
         RunningState State { get; set; }
 
-        public MockTransport(string name, Dictionary<string, string> cap, Reliability reliability, Ordering ordering, 
-            int maxPacketSize)
+        public MockTransport(string name, Dictionary<string, string> cap, Reliability reliability,
+            Ordering ordering, uint maxPacketSize)
         {
             State = RunningState.Started;
 
@@ -181,7 +181,7 @@ namespace GT.UnitTests
             /* do nothing */
         }
 
-        public int MaximumPacketSize { get; set; }
+        public uint MaximumPacketSize { get; set; }
 
         public void InjectReceivedPacket(byte[] bytes)
         {

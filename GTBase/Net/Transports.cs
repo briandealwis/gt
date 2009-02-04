@@ -72,8 +72,9 @@ namespace GT.Net
 
         /// <summary>
         /// The maximum packet size supported by this transport instance (in bytes).
+        /// Particular transports may enforce a cap on this value.
         /// </summary>
-        int MaximumPacketSize { get; }
+        uint MaximumPacketSize { get; set; }
     }
 
     public abstract class BaseTransport : ITransport
@@ -103,7 +104,7 @@ namespace GT.Net
 
         public abstract Reliability Reliability { get; }
         public abstract Ordering Ordering { get; }
-        public abstract int MaximumPacketSize { get; }
+        public abstract uint MaximumPacketSize { get; set;  }
 
         /// <summary>The average amount of latency between this server 
         /// and the client (in milliseconds).</summary>

@@ -177,6 +177,7 @@ namespace GT.Net.Local
         {
             delay = 0f;             // dude, we're fast
             handle = hp;
+            MaximumPacketSize = 2048;
         }
 
         public override string Name
@@ -236,10 +237,7 @@ namespace GT.Net.Local
             }
         }
 
-        public override int MaximumPacketSize
-        {
-            get { return 2048; }
-        }
+        public override uint MaximumPacketSize { get; set; }
 
         public override string ToString()
         {

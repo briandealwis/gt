@@ -31,6 +31,11 @@ namespace GT.UnitTests
         public event PacketHandler PacketReceivedEvent;
         public event PacketHandler PacketSentEvent;
 
+        public NullTransport()
+        {
+            MaximumPacketSize = 1024;
+        }
+
         public float Delay
         {
             get { return 0; }
@@ -62,9 +67,10 @@ namespace GT.UnitTests
         {
         }
 
-        public int MaximumPacketSize
+        public uint MaximumPacketSize
         {
-            get { return 1024; }
+            get;
+            set;
         }
 
         public void Dispose()
@@ -301,7 +307,8 @@ namespace GT.UnitTests
 
             try
             {
-                client.SendPacket(new byte[client.MaximumPacketSize * 2], 0, client.MaximumPacketSize * 2);
+                client.SendPacket(new byte[client.MaximumPacketSize * 2], 0, 
+                    (int)client.MaximumPacketSize * 2);
                 Assert.Fail("Transport allowed sending packets exceeding its capacity");
             }
             catch (ContractViolation) { /* expected */ }

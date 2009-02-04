@@ -38,11 +38,6 @@ namespace GT.Net
 
         override public bool Active { get { return handle != null; } }
 
-        override public int MaximumPacketSize
-        {
-            get { return CappedMessageSize; }
-        }
-
         public override void Dispose()
         {
             lock (this)

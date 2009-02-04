@@ -125,7 +125,7 @@ namespace GT.Millipede
             Dictionary<string, string> capabilities = (Dictionary<string, string>)formatter.Deserialize(stream);
             Reliability reliability = (Reliability)formatter.Deserialize(stream);
             Ordering ordering = (Ordering)formatter.Deserialize(stream);
-            int maxPacketSize = (int)formatter.Deserialize(stream);
+            uint maxPacketSize = (uint)formatter.Deserialize(stream);
 
             ITransport mockTransport = new MillipedeTransport(recorder, milliTransportDescriptor,
                 transportName, capabilities, reliability, ordering, maxPacketSize);

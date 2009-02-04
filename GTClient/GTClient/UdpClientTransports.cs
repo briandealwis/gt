@@ -146,11 +146,6 @@ namespace GT.Net
             }
             return false;
         }
-
-        public override int MaximumPacketSize
-        {
-            get { return CappedMessageSize; }
-        }
     }
 
     /// <summary>
