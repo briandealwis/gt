@@ -10,10 +10,10 @@ namespace GT.Net
 {
 
     /// <summary>
-    /// The server configuration used for the ClientRepeater.
+    /// The server configuration used for the <see cref="ClientRepeater"/>.
     /// </summary>
     /// <remarks>
-    /// This configuration specifies the
+    /// This particular configuration specifies the
     /// <see cref="LightweightDotNetSerializingMarshaller"/> as the
     /// marshaller to be used.  This is a lightweight marshaller 
     /// that unmarshals only system messages and session messages, and leaves
@@ -118,7 +118,7 @@ namespace GT.Net
         }
 
         /// <summary>
-        /// The channel id for automatically broadcasting session changes to client members.  
+        /// The channel for automatically broadcasting session changes to client members.  
         /// If &lt; 0, then not sent.
         /// </summary>
         public int SessionChangesChannel
@@ -195,15 +195,15 @@ namespace GT.Net
             if (verbose > 0)
             {
                 DateTime now = DateTime.Now;
-                foreach(ClientConnexion client in list)
+                foreach(ConnexionToClient client in list)
                 {
                     client.TransportAdded += _client_TransportAdded;
                     client.TransportRemoved += _client_TransportRemoved;
 
                     StringBuilder builder = new StringBuilder("Client ");
-                    builder.Append(client.UniqueIdentity);
+                    builder.Append(client.Identity);
                     builder.Append(':');
-                    builder.Append(client.ClientIdentity);
+                    builder.Append(client.ClientGuid);
                     builder.Append(":");
                     foreach(ITransport t in client.Transports)
                     {
@@ -216,11 +216,11 @@ namespace GT.Net
             }
             if (sessionChangesChannel < 0) { return; }
            
-            foreach (ClientConnexion cnx in list)
+            foreach (ConnexionToClient cnx in list)
             {
-                int clientId = cnx.UniqueIdentity;
+                int clientId = cnx.Identity;
 
-                foreach (ClientConnexion c in server.Clients)
+                foreach (ConnexionToClient c in server.Clients)
                 {
                     try
                     {
@@ -241,12 +241,12 @@ namespace GT.Net
             if (verbose > 0)
             {
                 DateTime now = DateTime.Now;
-                foreach(ClientConnexion client in list)
+                foreach(ConnexionToClient client in list)
                 {
                     StringBuilder builder = new StringBuilder("Client ");
-                    builder.Append(client.UniqueIdentity);
+                    builder.Append(client.Identity);
                     builder.Append(':');
-                    builder.Append(client.ClientIdentity);
+                    builder.Append(client.ClientGuid);
                     builder.Append(":");
                     foreach(ITransport t in client.Transports)
                     {
@@ -259,12 +259,12 @@ namespace GT.Net
             }
             if (sessionChangesChannel < 0) { return; }
 
-            foreach (ClientConnexion client in list)
+            foreach (ConnexionToClient client in list)
             {
                 client.TransportAdded += _client_TransportAdded;
                 client.TransportRemoved += _client_TransportRemoved;
                 //kill client
-                int clientId = client.UniqueIdentity;
+                int clientId = client.Identity;
                 try
                 {
                     client.Dispose();
@@ -274,7 +274,7 @@ namespace GT.Net
                 }
 
                 //inform others client is gone
-                foreach (ClientConnexion c in server.Clients)
+                foreach (ConnexionToClient c in server.Clients)
                 {
                     try {
                         c.Send(clientId, SessionAction.Left, (byte)sessionChangesChannel,
@@ -294,7 +294,7 @@ namespace GT.Net
             if (verbose > 0)
             {
                 Console.WriteLine("{0} Client {1}: transport added: {2}", DateTime.Now,
-                    connexion.UniqueIdentity, newTransport);
+                    connexion.Identity, newTransport);
             }
         }
 
@@ -303,7 +303,7 @@ namespace GT.Net
             if (verbose > 0)
             {
                 Console.WriteLine("{0} Client {1}: transport removed: {2}", DateTime.Now,
-                    connexion.UniqueIdentity, newTransport);
+                    connexion.Identity, newTransport);
             }
         }
 
@@ -312,7 +312,7 @@ namespace GT.Net
             if (verbose > 1)
             {
                 Console.WriteLine("{0}: received message: {1} from Client {2} via {3}", 
-                    DateTime.Now, m, client.UniqueIdentity, transport);
+                    DateTime.Now, m, client.Identity, transport);
             }
             //repeat whatever we receive to everyone else
             server.Send(m, server.Clients, new MessageDeliveryRequirements(transport.Reliability, 

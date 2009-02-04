@@ -9,7 +9,7 @@ namespace GT.StatsGraphs
 {
     public partial class StatisticsDialog : Form
     {
-        protected readonly int MonitoredTimePeriod = 5 * 60;    // seconds
+        protected readonly TimeSpan MonitoredTimePeriod = TimeSpan.FromSeconds(5 * 60);
 
         protected Communicator _observed;
         protected CommunicationStatisticsObserver<Communicator> _statsObserver;
@@ -21,10 +21,10 @@ namespace GT.StatsGraphs
         /// <summary>
         /// Get/set the update interval in milliseconds.
         /// </summary>
-        public int Interval
+        public TimeSpan Interval
         {
-            get { return _timer.Interval; }
-            set { _timer.Interval = value; }
+            get { return TimeSpan.FromMilliseconds(_timer.Interval); }
+            set { _timer.Interval = (int)value.TotalMilliseconds; }
         }
 
         public static Thread On(Communicator c)
@@ -114,10 +114,10 @@ namespace GT.StatsGraphs
         private void _changeIntervalToolStripMenuItem_Click(object sender, EventArgs e)
         {
             // Divide by 1000 as IntervalDialog deals in seconds, not milliseconds
-            IntervalDialog id = new IntervalDialog(Interval / 1000f);   
+            IntervalDialog id = new IntervalDialog(Interval);   
             if (id.ShowDialog(this) == DialogResult.OK)
             {
-                Interval = (int)(id.Interval * 1000);
+                Interval = id.Interval;
                 if (_pingTimes != null) { _pingTimes.Interval = Interval; }
                 if (_backlog != null) { _backlog.Interval = Interval; }
             }
@@ -135,8 +135,9 @@ namespace GT.StatsGraphs
                 UpdateTitle();
                 StatisticsSnapshot stats = _statsObserver.Reset();
 
-                // Divide by 1000 as MonitoredTimePeriod is in seconds, not milliseconds
-                int numberDataPoints = MonitoredTimePeriod * 1000 / Interval;
+                // Interval is in milliseconds
+                int numberDataPoints = 
+                    (int)(MonitoredTimePeriod.TotalMilliseconds / Interval.TotalMilliseconds);
                 int index = tickCount % numberDataPoints;
 
                 if (!Paused)

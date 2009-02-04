@@ -16,11 +16,11 @@ namespace StatsGraphs
         protected SequentialSet<IConnexion> _connexions = new SequentialSet<IConnexion>();
 
         /// <summary>
-        /// Get/set the update interval in milliseconds.
+        /// Get/set the update interval
         /// </summary>
-        public int Interval { 
-            get { return _timer.Interval; } 
-            set { _timer.Interval = value; } 
+        public TimeSpan Interval { 
+            get { return TimeSpan.FromMilliseconds(_timer.Interval); } 
+            set { _timer.Interval = (int)value.TotalMilliseconds; } 
         }
 
         public PingTimesForm(Communicator comm)
@@ -29,7 +29,7 @@ namespace StatsGraphs
             _pingTimes.ClearData(ClearDataFlag.Values);
             _pingTimes.AxisX.Min = 0;
 
-            Text += ": " + comm.ToString();
+            Text += ": " + comm;
             _observed = comm;
             _statsObserver = CommunicationStatisticsObserver<Communicator>.On(comm);
         }
@@ -51,7 +51,7 @@ namespace StatsGraphs
                 {
                     _pingTimes.Value[i, index] = stats.Delays[cnx].ContainsKey(tn) 
                         ? stats.Delays[cnx][tn] : 0;
-                    _pingTimes.SerLeg[i] = cnx.UniqueIdentity + ":" + tn;
+                    _pingTimes.SerLeg[i] = cnx.Identity + ":" + tn;
                     i++;
                 }
             }

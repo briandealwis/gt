@@ -122,9 +122,9 @@ namespace GT.UnitTests
 
         public ICollection<IConnexion> Connexions { get { return server.Clients; } }
 
-        public int ServerSleepTime {
-            get { return (int)config.TickInterval.TotalMilliseconds; }
-            set { config.TickInterval = TimeSpan.FromMilliseconds(value); }
+        public TimeSpan ServerSleepTime {
+            get { return config.TickInterval; }
+            set { config.TickInterval = value; }
         }
 
         virtual public void Start()
@@ -171,7 +171,7 @@ namespace GT.UnitTests
             }
             Debug("Server: received greeting '" + s + "' on " + t);
             Debug("Server: sending response: '" + response + "'");
-            server.Send(response != null ? response : s, m.Id, new SingleItem<IConnexion>(client),
+            server.Send(response != null ? response : s, m.Channel, new SingleItem<IConnexion>(client),
                 new MessageDeliveryRequirements(t.Reliability,
                     MessageAggregation.Immediate, Ordering.Unordered));
         }
@@ -184,7 +184,7 @@ namespace GT.UnitTests
             // Array.Reverse(buffer);
             Debug("Server: sending binary message in response");
             Debug(ByteUtils.HexDump(buffer));
-            server.Send(buffer, m.Id, new SingleItem<IConnexion>(client),
+            server.Send(buffer, m.Channel, new SingleItem<IConnexion>(client),
                 new MessageDeliveryRequirements(t.Reliability, MessageAggregation.Immediate, Ordering.Unordered));
         }
 
@@ -193,7 +193,7 @@ namespace GT.UnitTests
             object o = ((ObjectMessage)m).Object;
             Debug("Server: received object '" + o + "' on " + t);
             Debug("Server: sending object back");
-            server.Send(o, m.Id, new SingleItem<IConnexion>(client),
+            server.Send(o, m.Channel, new SingleItem<IConnexion>(client),
                 new MessageDeliveryRequirements(t.Reliability, MessageAggregation.Immediate, Ordering.Unordered));
         }
 
@@ -282,8 +282,8 @@ namespace GT.UnitTests
         private Client client;
         private EchoingServer server;
 
-        private static int ServerSleepTime = 20;
-        private static int ClientSleepTime = 25;
+        private static TimeSpan ServerSleepTime = TimeSpan.FromMilliseconds(20);
+        private static TimeSpan ClientSleepTime = TimeSpan.FromMilliseconds(25);
         private static string EXPECTED_GREETING = "Hello!";
         private static string EXPECTED_RESPONSE = "Go away!";
 
@@ -362,7 +362,7 @@ namespace GT.UnitTests
                 c.MessageReceived += delegate(Message m, IConnexion conn, ITransport transport) { messageReceived = true; };
                 c.MessageSent += delegate(Message m, IConnexion conn, ITransport transport) { messageSent = true; };
                 c.PingRequested += delegate(ITransport transport, uint sequence) { pingRequested = true; };
-                c.PingReceived += delegate(ITransport transport, uint sequence, int milliseconds) { pingReceived = true; };
+                c.PingReceived += delegate(ITransport transport, uint sequence, TimeSpan roundtrip) { pingReceived = true; };
             };
             client.ConnexionRemoved += delegate(Communicator ignored, IConnexion c) { connexionRemoved = true; };
 
@@ -384,7 +384,7 @@ namespace GT.UnitTests
                 strStream.StringNewMessageEvent -= ClientStringMessageReceivedEvent;
             }
 
-            foreach (IConnexion c in client.Connexions) { ((ServerConnexion)c).Ping(); }
+            foreach (IConnexion c in client.Connexions) { ((ConnexionToServer)c).Ping(); }
             for (int i = 0; i < 10 && !pingReceived; i++)
             {
                 client.Update();
@@ -426,7 +426,7 @@ namespace GT.UnitTests
             strStream.Send(EXPECTED_GREETING); //send a string
             CheckForResponse();
 
-            Assert.IsFalse(strStream.UniqueIdentity == 0, "Unique identity should be received");
+            Assert.IsFalse(strStream.Identity == 0, "Unique identity should be received");
         }
 
         [Test]
@@ -648,7 +648,8 @@ namespace GT.UnitTests
             {
                 Debug("Client: sending tuple message: [-1, 0, 1]");
                 IStreamedTuple<int, int, int> tupleStream = 
-                    client.GetStreamedTuple<int, int, int>("127.0.0.1", "9999", 0, 20, cdr);
+                    client.GetStreamedTuple<int, int, int>("127.0.0.1", "9999", 0, 
+                    TimeSpan.FromMilliseconds(20), cdr);
                 tupleStream.StreamedTupleReceived += ClientTupleMessageReceivedEvent;
                 tupleStream.X = -1;
                 tupleStream.Y = 0;
@@ -742,7 +743,7 @@ namespace GT.UnitTests
                 AggregatingSharedDictionary d =
                     new AggregatingSharedDictionary(c.GetObjectStream("127.0.0.1", "9678", 0,
                         new ChannelDeliveryRequirements(Reliability.Reliable, MessageAggregation.Aggregatable,
-                            Ordering.Ordered)), 20);
+                            Ordering.Ordered)), TimeSpan.FromMilliseconds(20));
                 d.ChangeEvent += DictionaryChanged;
                 dictionaries.Add(d);
                 UpdateClients();
@@ -786,7 +787,7 @@ namespace GT.UnitTests
             for (int i = 0; i < 3; i++) 
             {
                 foreach (Client c in clients) {
-                    c.Update(); c.Sleep(10);  
+                    c.Update(); c.Sleep(TimeSpan.FromMilliseconds(10));  
                 }
             }
         }
@@ -820,7 +821,7 @@ namespace GT.UnitTests
         }
     }
 
-    public class DebuggingServerConnexion : ServerConnexion
+    public class DebuggingServerConnexion : ConnexionToServer
     {
         public DebuggingServerConnexion(Client owner, string address, string port)
             : base(owner, address, port) {}
@@ -845,7 +846,7 @@ namespace GT.UnitTests
             return new Client(this);
         }
 
-        public override ServerConnexion CreateServerConnexion(Client owner, string address, string port)
+        public override ConnexionToServer CreateServerConnexion(Client owner, string address, string port)
         {
             return new DebuggingServerConnexion(owner, address, port);
         }
@@ -879,7 +880,7 @@ namespace GT.UnitTests
             for (int i = 0; i < 3; i++)
             {
                 client.Update();
-                client.Sleep(20);
+                client.Sleep(TimeSpan.FromMilliseconds(20));
             }
             client.Update();
         }

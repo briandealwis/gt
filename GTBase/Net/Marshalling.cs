@@ -25,7 +25,7 @@ namespace GT.Net
         /// <summary>
         /// Marshal the provided message in an appropriate form for the provided transport.
         /// </summary>
-        /// <param name="uniqueId">the unique id of the sender of this message
+        /// <param name="senderIdentity">the server-unique id of the sender of this message
         /// (i.e., the local client or server's server-unique identifier).  This
         /// should generally be the same number across different invocations.</param>
         /// <param name="message">the message</param>
@@ -33,7 +33,7 @@ namespace GT.Net
         /// <param name="t">the transport on which the packet will be sent</param>
         /// <exception cref="MarshallingException">on a marshalling error, or if the
         /// message cannot be encoded within the transport's packet capacity</exception>
-        void Marshal(int uniqueId, Message message, Stream output, ITransport t);
+        void Marshal(int senderIdentity, Message message, Stream output, ITransport t);
 
         /// <summary>
         /// Unmarshal the message as encoded in the transport-specific form from the given
@@ -68,7 +68,7 @@ namespace GT.Net
     {
         /*
          * Messages have an 8-byte header (MessageHeaderByteSize):
-         * byte 0 is the channel id
+         * byte 0 is the channel
          * byte 1 is the message type
          * bytes 2-5 encode the message data length
          */
@@ -87,14 +87,14 @@ namespace GT.Net
 
         #region Marshalling
 
-        virtual public void Marshal(int uniqueId, Message m, Stream output, ITransport t)
+        virtual public void Marshal(int senderIdentity, Message m, Stream output, ITransport t)
         {
-            // This marshaller doesn't use the uniqueId.
+            // This marshaller doesn't use <see cref="senderIdentity"/>.
             Debug.Assert(output.CanSeek);
 
             long startPosition = output.Position;
             output.WriteByte((byte)m.MessageType);
-            output.WriteByte(m.Id);
+            output.WriteByte(m.Channel);    // NB: SystemMessages use Channel to encode the sysmsg descriptor
             if (m is RawMessage)
             {
                 RawMessage rm = (RawMessage)m;
@@ -125,7 +125,7 @@ namespace GT.Net
                 MarshalSessionAction((SessionMessage)m, output);
                 break;
             case MessageType.System:
-                // channel Id is the system message type
+                // channel is the system message type
                 MarshalSystemMessage((SystemMessage)m, output);
                 break;
             default:
@@ -143,7 +143,7 @@ namespace GT.Net
 
         protected void MarshalSystemMessage(SystemMessage systemMessage, Stream output)
         {
-            // SystemMessageType is the channel id
+            // SystemMessageType is the channel
             ByteUtils.EncodeLength(systemMessage.data.Length, output);
             output.Write(systemMessage.data, 0, systemMessage.data.Length);
         }
@@ -155,40 +155,40 @@ namespace GT.Net
         virtual public Message Unmarshal(Stream input, ITransport t)
         {
             // Could check the version or something here?
-            byte type = (byte)input.ReadByte();
-            byte id = (byte)input.ReadByte();
+            MessageType type = (MessageType)input.ReadByte();
+            byte channel = (byte)input.ReadByte();
             int length = ByteUtils.DecodeLength(input);
-            return UnmarshalContent(id, (MessageType)type, new WrappedStream(input, (uint)length));
+            return UnmarshalContent(channel, type, new WrappedStream(input, (uint)length));
         }
 
-        virtual protected Message UnmarshalContent(byte id, MessageType type, Stream input)
+        virtual protected Message UnmarshalContent(byte channel, MessageType type, Stream input)
         {
             switch (type)
             {
             case MessageType.Session:
-                return UnmarshalSessionAction(id, (MessageType)type, input);
+                return UnmarshalSessionAction(channel, type, input);
             case MessageType.System:
-                return UnmarshalSystemMessage(id, (MessageType)type, input);
+                return UnmarshalSystemMessage(channel, type, input);
             default:
                 int length = (int)(input.Length - input.Position);
                 byte[] data = new byte[length];
                 input.Read(data, 0, length);
-                return new RawMessage(id, (MessageType)type, data);
+                return new RawMessage(channel, type, data);
             }
         }
 
-        protected Message UnmarshalSystemMessage(byte id, MessageType messageType, Stream input)
+        protected Message UnmarshalSystemMessage(byte channel, MessageType messageType, Stream input)
         {
-            // SystemMessageType is the channel id
+            // SystemMessageType is the channel
             byte[] contents = new byte[input.Length - input.Position];
             input.Read(contents, 0, contents.Length);
-            return new SystemMessage((SystemMessageType)id, contents);
+            return new SystemMessage((SystemMessageType)channel, contents);
         }
 
-        protected SessionMessage UnmarshalSessionAction(byte id, MessageType type, Stream input)
+        protected SessionMessage UnmarshalSessionAction(byte channel, MessageType type, Stream input)
         {
             SessionAction ac = (SessionAction)input.ReadByte();
-            return new SessionMessage(id, BitConverter.ToInt32(ReadBytes(input, 4), 0), ac);
+            return new SessionMessage(channel, BitConverter.ToInt32(ReadBytes(input, 4), 0), ac);
         }
 
         #endregion
@@ -314,60 +314,60 @@ namespace GT.Net
 
         #region Unmarshalling
 
-        override protected Message UnmarshalContent(byte id, MessageType type, Stream input)
+        override protected Message UnmarshalContent(byte channel, MessageType type, Stream input)
         {
             switch (type)
             {
             case MessageType.Binary:
-                return UnmarshalBinary(id, (MessageType)type, input);
+                return UnmarshalBinary(channel, (MessageType)type, input);
             case MessageType.String:
-                return UnmarshalString(id, (MessageType)type, input);
+                return UnmarshalString(channel, (MessageType)type, input);
             case MessageType.Object:
-                return UnmarshalObject(id, (MessageType)type, input);
+                return UnmarshalObject(channel, (MessageType)type, input);
             case MessageType.Tuple1D:
             case MessageType.Tuple2D:
             case MessageType.Tuple3D:
-                return UnmarshalTuple(id, (MessageType)type, input);
+                return UnmarshalTuple(channel, (MessageType)type, input);
             case MessageType.Session:
-                return UnmarshalSessionAction(id, type, input);
+                return UnmarshalSessionAction(channel, type, input);
             case MessageType.System:
-                return UnmarshalSystemMessage(id, type, input);
+                return UnmarshalSystemMessage(channel, type, input);
 
             default:
                 throw new InvalidOperationException("unknown message type: " + (MessageType)type);
             }
         }
 
-        protected StringMessage UnmarshalString(byte id, MessageType type, Stream input)
+        protected StringMessage UnmarshalString(byte channel, MessageType type, Stream input)
         {
             StreamReader sr = new StreamReader(input, System.Text.UTF8Encoding.UTF8);
-            return new StringMessage(id, sr.ReadToEnd());
+            return new StringMessage(channel, sr.ReadToEnd());
         }
 
-        protected ObjectMessage UnmarshalObject(byte id, MessageType type, Stream input)
+        protected ObjectMessage UnmarshalObject(byte channel, MessageType type, Stream input)
         {
-            return new ObjectMessage(id, formatter.Deserialize(input));
+            return new ObjectMessage(channel, formatter.Deserialize(input));
         }
 
-        protected BinaryMessage UnmarshalBinary(byte id, MessageType type, Stream input)
+        protected BinaryMessage UnmarshalBinary(byte channel, MessageType type, Stream input)
         {
             int length = (int)(input.Length - input.Position);
             byte[] result = new byte[length];
             input.Read(result, 0, length);
-            return new BinaryMessage(id, result);
+            return new BinaryMessage(channel, result);
         }
 
-        protected TupleMessage UnmarshalTuple(byte id, MessageType type, Stream input)
+        protected TupleMessage UnmarshalTuple(byte channel, MessageType type, Stream input)
         {
             int clientId = BitConverter.ToInt32(ReadBytes(input, 4), 0);
             switch (type)
             {
             case MessageType.Tuple1D:
-                return new TupleMessage(id, clientId, DecodeConvertible(input));
+                return new TupleMessage(channel, clientId, DecodeConvertible(input));
             case MessageType.Tuple2D:
-                return new TupleMessage(id, clientId, DecodeConvertible(input), DecodeConvertible(input));
+                return new TupleMessage(channel, clientId, DecodeConvertible(input), DecodeConvertible(input));
             case MessageType.Tuple3D:
-                return new TupleMessage(id, clientId, DecodeConvertible(input),
+                return new TupleMessage(channel, clientId, DecodeConvertible(input),
                     DecodeConvertible(input), DecodeConvertible(input));
             }
             throw new MarshallingException("MessageType is not a tuple: " + type);

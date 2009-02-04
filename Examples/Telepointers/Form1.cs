@@ -71,7 +71,7 @@ namespace Telepointers
 
             binary = c.GetBinaryStream(f.Result, "9999", 0, ChannelDeliveryRequirements.Data);
             session = c.GetSessionStream(f.Result, "9999", 0, ChannelDeliveryRequirements.SessionLike);
-            coords = c.GetStreamedTuple<int, int>(f.Result, "9999", 1, 50, 
+            coords = c.GetStreamedTuple<int, int>(f.Result, "9999", 1, TimeSpan.FromMilliseconds(50), 
                 ChannelDeliveryRequirements.TelepointerLike);
             coords.StreamedTupleReceived += coords_StreamedTupleReceived;
             c.ErrorEvent += c_ErrorEvent;
@@ -161,7 +161,7 @@ namespace Telepointers
             Point mouse = Form1.MousePosition;
 
             //if we know who we are, then send the server our mouse coordinates.
-            if (binary.UniqueIdentity != 0)
+            if (binary.Identity != 0)
             {
                 coords.X = (mouse.X - loc.X - 10);
                 coords.Y = (mouse.Y - loc.Y - 30);

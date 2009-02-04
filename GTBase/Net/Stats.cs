@@ -282,9 +282,9 @@ namespace GT.Net
 
             // Record the messages per channel per message-type
             IDictionary<MessageType, IDictionary<string, int>> subdict;
-            if (!messagesReceivedCounts.TryGetValue(m.Id, out subdict))
+            if (!messagesReceivedCounts.TryGetValue(m.Channel, out subdict))
             {
-                subdict = messagesReceivedCounts[m.Id] =
+                subdict = messagesReceivedCounts[m.Channel] =
                     new Dictionary<MessageType, IDictionary<string, int>>();
             }
             IDictionary<string, int> transDict;
@@ -312,9 +312,9 @@ namespace GT.Net
 
             // Record the messages per channel per message-type
             IDictionary<MessageType, IDictionary<string, int>> subdict;
-            if (!messagesSentCounts.TryGetValue(m.Id, out subdict))
+            if (!messagesSentCounts.TryGetValue(m.Channel, out subdict))
             {
-                subdict = messagesSentCounts[m.Id] =
+                subdict = messagesSentCounts[m.Channel] =
                     new Dictionary<MessageType, IDictionary<string, int>>();
             }
             IDictionary<string, int> transDict;

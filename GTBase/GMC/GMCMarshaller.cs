@@ -64,7 +64,7 @@ namespace GT.GMC
         /// of the templates and announcements (new dictionary entries) from the other
         /// users' systems.
         /// </summary>
-        private Dictionary<int, GeneralMessageCompressor> decompressors; // uniqueId -> GeneralMessageCompressor
+        private Dictionary<int, GeneralMessageCompressor> decompressors; // client Identity -> GeneralMessageCompressor
 
         /// Statistics
         public long totalUncompressedBytes = 0;
@@ -108,12 +108,12 @@ namespace GT.GMC
             }
         }
 
-        public void Marshal(int uniqueId, Message message, Stream output, ITransport t)
+        public void Marshal(int senderIdentity, Message message, Stream output, ITransport t)
         {
             MemoryStream bytes = new MemoryStream();
-            subMarshaller.Marshal(uniqueId, message, bytes, t);
+            subMarshaller.Marshal(senderIdentity, message, bytes, t);
             byte[] encoded = Encode(bytes.ToArray());
-            ByteUtils.Write(BitConverter.GetBytes(uniqueId), output);
+            ByteUtils.Write(BitConverter.GetBytes(senderIdentity), output);
             ByteUtils.EncodeLength(encoded.Length, output);
             ByteUtils.Write(encoded, output);
         }

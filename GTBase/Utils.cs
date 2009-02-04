@@ -197,7 +197,7 @@ namespace GT.Utils
         public RoundRobinProcessor(IDictionary<K, Queue<V>> qs)
         {
             queues = qs;
-            keys = new List<K>(qs.Keys.Count);
+            keys = new List<K>(qs.Count);
             foreach (K id in queues.Keys)
             {
                 if (queues[id].Count == 0) { queues.Remove(id); }

@@ -18,48 +18,48 @@ namespace StatsGraphs
         protected const float maxResolution = 0.5f;
         protected const float minResolution = 0.2f;
 
-        protected float minimum = 0.0f;
-        protected float maximum = 1.0f;
-        protected float resolution = 1.0f;
+        protected double minimum = 0.0f;
+        protected double maximum = 1.0f;
+        protected double resolution = 1.0f;
 
-        public IntervalDialog(float value)
+        public IntervalDialog(TimeSpan value)
         {
             InitializeComponent();
             Interval = value;
         }
 
-        public float Interval
+        public TimeSpan Interval
         {
-            get { return float.Parse(textValue.Text); }
+            get { return TimeSpan.FromSeconds(float.Parse(textValue.Text)); }
             set
             {
-                if (value < 0) { throw new ArgumentException("value must be >= 0"); }
-                SetTrackBar(value);
-                SetTextValue(value);
+                if (value.CompareTo(TimeSpan.Zero) < 0) { throw new ArgumentException("value must be >= 0"); }
+                SetTrackBar(value.TotalSeconds);
+                SetTextValue(value.TotalSeconds);
             }
         }
 
-        protected int ToTrackBar(float v) {
+        protected int ToTrackBar(double v) {
             return (int)((v - minimum) / minResolution);
         }
 
-        protected float FromTrackBar(int tb)
+        protected double FromTrackBar(int tb)
         {
             return minimum + tb * minResolution;
         }
 
-        protected void SetTrackBar(float v)
+        protected void SetTrackBar(double v)
         {
             Accomodate(0, v);
             trackBar1.Value = ToTrackBar(v);
         }
 
-        protected void SetTextValue(float v)
+        protected void SetTextValue(double v)
         {
             textValue.Text = String.Format("{0:0.0}", v);
         }
 
-        protected void Accomodate(float min, float max)
+        protected void Accomodate(double min, double max)
         {
             if (min < minimum) { minimum = min; }
             if (max > maximum) { maximum = max; }

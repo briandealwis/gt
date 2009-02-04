@@ -19,6 +19,7 @@ namespace GT.Net
         protected ILog log;
 
         protected IList<IConnexion> connexions = new List<IConnexion>();
+        protected Thread listeningThread;
 
         #region Events
 
@@ -50,6 +51,12 @@ namespace GT.Net
         /// Return the marshaller configured for this client.
         /// </summary>
         public abstract IMarshaller Marshaller { get; }
+
+        /// <summary>
+        /// Returns the interval to wait between calls <see cref="Update"/>
+        /// in <see cref="StartListening"/>.
+        /// </summary>
+        protected abstract TimeSpan TickInterval { get; }
 
         /// <summary>
         /// Return true if the instance has been started (<see cref="Start"/>)
@@ -109,13 +116,93 @@ namespace GT.Net
         public abstract void Update();
 
         /// <summary>
+        /// Sleep for the <see cref="TickInterval"/>.  Return false if the sleep 
+        /// finished early, such as because some event caused the instance to wake early.
+        /// </summary>
+        public virtual bool Sleep()
+        {
+            return Sleep(TickInterval);
+        }
+
+        /// <summary>
+        /// Sleep for the specified amount of time.  Return false if the sleep 
+        /// finished early, such as because some event caused the instance to wake early.
+        /// </summary>
+        /// <param name="sleepTime">the amount of time to sleep</param>
+        public virtual bool Sleep(TimeSpan sleepTime)
+        {
+            if (sleepTime.CompareTo(TimeSpan.Zero) > 0)
+            {
+                // FIXME: this should do something smarter
+                // Socket.Select(listenList, null, null, 1000);
+                Thread.Sleep(sleepTime);
+            }
+            return true;
+        }
+
+        /// <summary>
         /// Starts a new thread that listens to periodically call 
         /// <see cref="Update"/>.  This thread instance will be stopped
         /// on <see cref="Stop"/> or <see cref="Dispose"/>.
         /// The frequency between calls to <see cref="Update"/> is controlled
         /// by the configuration's <see cref="BaseConfiguration.TickInterval"/>.
         /// </summary>
-        public abstract Thread StartSeparateListeningThread();
+        public virtual Thread StartSeparateListeningThread()
+        {
+            // must ensure that this instance is started before exiting 
+            // this method; otherwise can have a race condition
+            Start();
+            listeningThread = new Thread(StartListening);
+            listeningThread.Name = "Listening Thread[" + ToString() + "]";
+            listeningThread.IsBackground = true;
+            listeningThread.Start();
+            return listeningThread;
+        }
+
+        protected virtual void StopListeningThread()
+        {
+            Thread t = listeningThread;
+            listeningThread = null;
+            if(t != null && t != Thread.CurrentThread) { t.Abort(); }
+        }
+
+        /// <summary>Starts an infinite loop to periodically call
+        /// <see cref="Update"/> based on the current <see cref="TickInterval"/>.</summary>
+        public virtual void StartListening()
+        {
+            Start();
+            while (Active)
+            {
+                try
+                {
+                    // tick count is in milliseconds
+                    int oldTickCount = Environment.TickCount;
+
+                    Update();
+
+                    int newTickCount = Environment.TickCount;
+                    int sleepCount = Math.Max(0,
+                        (int)TickInterval.TotalMilliseconds - (newTickCount - oldTickCount));
+
+                    Sleep(TimeSpan.FromMilliseconds(sleepCount));
+                }
+                catch (ThreadAbortException)
+                {
+                    log.Trace(String.Format("{0}: listening thread stopped", this));
+                    Stop();
+                    return;
+                }
+                catch (Exception e)
+                {
+                    log.Warn(String.Format("Exception in listening loop: {0}", this), e);
+                    // FIXME: should we notify of such conditions?
+                    NotifyError(new ErrorSummary(Severity.Warning,
+                                SummaryErrorCode.RemoteUnavailable,
+                                "Exception occurred processing a connexion", e));
+                }
+            }
+        }
+
 
         /// <summary>
         /// Process the connexions lists to remove dead connexions.
@@ -260,12 +347,12 @@ namespace GT.Net
         }
 
         /// <summary>
-        /// The time between pings to clients.
+        /// The time between pings to clients.  This must be greater than 0.
         /// </summary>
         public virtual TimeSpan PingInterval { get; set; }
 
         /// <summary>
-        /// The time between server ticks.
+        /// The time between server ticks.  This must be greater than 0.
         /// </summary>
         public virtual TimeSpan TickInterval { get; set; }
 
@@ -366,9 +453,9 @@ namespace GT.Net
     /// </summary>
     /// <param name="transport">The transport from which the ping was received</param>
     /// <param name="sequence">The sequence number of the ping</param>
-    /// <param name="milliseconds">The delay in sending the ping to it being received
-    ///     (half of the total ping time); may be negative due to counter overflow.</param>
-    public delegate void PingedNotification(ITransport transport, uint sequence, int milliseconds);
+    /// <param name="roundtrip">The round-trip time between issuing the ping to 
+    /// the response being received</param>
+    public delegate void PingedNotification(ITransport transport, uint sequence, TimeSpan roundtrip);
 
     #endregion
 
@@ -382,7 +469,7 @@ namespace GT.Net
     public interface IConnexion : IDisposable
     {
         /// <summary>
-        /// The smoothed delay seen for this connexion (in milliseconds).
+        /// The (possibly / likely) smoothed delay seen for this connexion (in milliseconds).
         /// </summary>
         float Delay { get; }
 
@@ -392,7 +479,7 @@ namespace GT.Net
         bool Active { get; }
 
         /// <summary>The server-unique identity of this client</summary>
-        int UniqueIdentity { get; }
+        int Identity { get; }
 
         /// <summary>
         /// Notification of fatal errors occurring on the connexion.
@@ -447,32 +534,32 @@ namespace GT.Net
         /// <param name="cdr">Requirements for the message's channel.</param>
         void Send(IList<Message> msgs, MessageDeliveryRequirements mdr, ChannelDeliveryRequirements cdr);
 
-        /// <summary>Send a byte array on the channel <c>id</c>.
+        /// <summary>Send a byte array on <see cref="channel"/>.
         /// At least one of <c>mdr</c> and <c>cdr</c> are expected to be specified 
         /// (i.e., be non-null).</summary>
         /// <param name="buffer">The byte array to send</param>
-        /// <param name="id">The channel id to be sent on</param>
+        /// <param name="channel">The channel to be sent on</param>
         /// <param name="mdr">Requirements for this particular message; may be null.</param>
         /// <param name="cdr">Requirements for the message's channel.</param>
-        void Send(byte[] buffer, byte id, MessageDeliveryRequirements mdr, ChannelDeliveryRequirements cdr);
+        void Send(byte[] buffer, byte channel, MessageDeliveryRequirements mdr, ChannelDeliveryRequirements cdr);
 
-        /// <summary>Send a string on channel <c>id</c>.
+        /// <summary>Send a string on <see cref="channel"/>.
         /// At least one of <c>mdr</c> and <c>cdr</c> are expected to be specified 
         /// (i.e., be non-null).</summary>
         /// <param name="s">The string to send</param>
-        /// <param name="id">The channel id to be sent on</param>
+        /// <param name="channel">The channel to be sent on</param>
         /// <param name="mdr">Requirements for this particular message; may be null.</param>
         /// <param name="cdr">Requirements for the message's channel.</param>
-        void Send(string s, byte id, MessageDeliveryRequirements mdr, ChannelDeliveryRequirements cdr);
+        void Send(string s, byte channel, MessageDeliveryRequirements mdr, ChannelDeliveryRequirements cdr);
 
-        /// <summary>Sends an bject on channel <c>id</c>.
+        /// <summary>Sends an bject on <see cref="channel"/>.
         /// At least one of <c>mdr</c> and <c>cdr</c> are expected to be specified 
         /// (i.e., be non-null).</summary>
         /// <param name="o">The object to send</param>
-        /// <param name="id">The channel id to be sent on</param>
+        /// <param name="channel">The channel to be sent on</param>
         /// <param name="mdr">Requirements for this particular message; may be null.</param>
         /// <param name="cdr">Requirements for the message's channel.</param>
-        void Send(object o, byte id, MessageDeliveryRequirements mdr, ChannelDeliveryRequirements cdr);
+        void Send(object o, byte channel, MessageDeliveryRequirements mdr, ChannelDeliveryRequirements cdr);
     }
 
     public abstract class BaseConnexion : IConnexion, IComparer<ITransport>
@@ -509,7 +596,7 @@ namespace GT.Net
 	    /// identifier is only unique within the server's client
 	    /// group and is not globally unique.
         /// </summary>
-        protected int uniqueIdentity;
+        protected int identity;
 
         public BaseConnexion()
         {
@@ -528,24 +615,31 @@ namespace GT.Net
         public IList<ITransport> Transports { get { return transports; } }
 
         /// <summary>
-        /// Return the unique identity as represented by *this instance*.
-        /// For a client's server-connexion, this will be the server's id for
-        /// this client.  For a server's client-connexion, this will be the
-        /// server's id for the client represented by this connexion.
-        /// See <c>MyUniqueIdentity</c> for the local instance's identity.
+        /// Return the server-unique identity for the client represented 
+        /// by *this connexion*.
         /// </summary>
-        public int UniqueIdentity
+        /// <seealso cref="SendingIdentity"/>
+        public int Identity
         {
-            get { return uniqueIdentity; }
+            get { return identity; }
         }
 
         /// <summary>
-        /// Return the unique identity for this instance's owner.  For clients,
-        /// this is the server's id for this client.  For servers, this is the
-        /// unique identity for this server.  This id may be different from
-        /// UniqueIdentity.
+        /// Return the globally unique identifier for the client
+        /// represented by this connexion.
         /// </summary>
-        public abstract int MyUniqueIdentity { get; }
+        abstract public Guid ClientGuid { get; }
+
+        /// <summary>
+        /// Return the identity to be used for sending messages across this connexion.
+        /// For a connexion representing a client's interface to the server 
+        /// (i.e., a GT.Net.ServerConnexion), this is the server's id for 
+        /// this connexion to the client (and should be the same as 
+        /// <see cref="Identity"/>).  For a connexion representing a server's
+        /// interface to a client (i.e., a GT.Net.ClientConnexion), this is the 
+        /// server's id for itself.
+        /// </summary>
+        public abstract int SendingIdentity { get; }
 
         /// <summary>Average latency on this connexion.</summary>
         public float Delay
@@ -695,6 +789,10 @@ namespace GT.Net
             }
         }
 
+        /// <summary>
+        /// Add the provided transport to this connexion.
+        /// </summary>
+        /// <param name="t">the transport to add</param>
         public virtual void AddTransport(ITransport t)
         {
             if (log.IsTraceEnabled)
@@ -707,6 +805,11 @@ namespace GT.Net
             if (TransportAdded != null) { TransportAdded(this, t); }
         }
 
+        /// <summary>
+        /// Remove the provided transport from this connexion's list.
+        /// </summary>
+        /// <param name="t">the transport to remove</param>
+        /// <returns></returns>
         public virtual bool RemoveTransport(ITransport t) 
         {
             if (log.IsTraceEnabled)
@@ -750,7 +853,7 @@ namespace GT.Net
 
         virtual protected void HandleSystemMessage(SystemMessage message, ITransport transport)
         {
-            switch ((SystemMessageType)message.Id)
+            switch (message.Descriptor)
             {
             case SystemMessageType.PingRequest:
                 Send(new SystemMessage(SystemMessageType.PingResponse, message.data),
@@ -758,13 +861,19 @@ namespace GT.Net
                 break;
 
             case SystemMessageType.PingResponse:
-                //record the difference; half of it is the latency between this client and the server
+                // record the difference; half of it is the latency between this client and the server
                 // Tickcount is the # milliseconds (fixme: this could wrap...)
-                int newDelay = (Environment.TickCount - BitConverter.ToInt32(message.data, 0)) / 2;
-                uint sequence = BitConverter.ToUInt32(message.data, 4);
+                int endCount = Environment.TickCount;
+                    int startCount = BitConverter.ToInt32(message.data, 0);
+                int roundtrip = endCount >= startCount ? endCount - startCount 
+                    : (int.MaxValue - startCount) + endCount;
                 // NB: transport.Delay set may (and probably will) scale this value
-                transport.Delay = newDelay;
-                if (PingReceived != null) { PingReceived(transport, sequence, newDelay); }
+                transport.Delay = roundtrip / 2f;
+                if (PingReceived != null)
+                {
+                    uint sequence = BitConverter.ToUInt32(message.data, 4);
+                    PingReceived(transport, sequence, TimeSpan.FromMilliseconds(roundtrip));
+                }
                 break;
 
             case SystemMessageType.ConnexionClosing:
@@ -780,7 +889,7 @@ namespace GT.Net
 
             default:
                 Debug.WriteLine("connexion.HandleSystemMessage(): Unknown message type: " +
-                    (SystemMessageType)message.Id);
+                    message.Descriptor);
                 break;
             }
         }
@@ -823,34 +932,34 @@ namespace GT.Net
 
         #region Sending
 
-        /// <summary>Send a byte array on the channel <c>id</c>.</summary>
+        /// <summary>Send a byte array on <see cref="channel"/>.</summary>
         /// <param name="buffer">The byte array to send</param>
-        /// <param name="id">The channel id to be sent on</param>
+        /// <param name="channel">The channel to be sent on</param>
         /// <param name="mdr">Requirements for this particular message; may be null.</param>
         /// <param name="cdr">Requirements for the message's channel.</param>
-        public void Send(byte[] buffer, byte id, MessageDeliveryRequirements mdr, ChannelDeliveryRequirements cdr)
+        public void Send(byte[] buffer, byte channel, MessageDeliveryRequirements mdr, ChannelDeliveryRequirements cdr)
         {
-            Send(new BinaryMessage(id, buffer), mdr, cdr);
+            Send(new BinaryMessage(channel, buffer), mdr, cdr);
         }
 
-        /// <summary>Send a string on channel <c>id</c>.</summary>
+        /// <summary>Send a string on <see cref="channel"/>.</summary>
         /// <param name="s">The string to send</param>
-        /// <param name="id">The channel id to be sent on</param>
+        /// <param name="channel">The channel to be sent on</param>
         /// <param name="mdr">Requirements for this particular message; may be null.</param>
         /// <param name="cdr">Requirements for the message's channel.</param>
-        public void Send(string s, byte id, MessageDeliveryRequirements mdr, ChannelDeliveryRequirements cdr)
+        public void Send(string s, byte channel, MessageDeliveryRequirements mdr, ChannelDeliveryRequirements cdr)
         {
-            Send(new StringMessage(id, s), mdr, cdr);
+            Send(new StringMessage(channel, s), mdr, cdr);
         }
 
-        /// <summary>Sends an bject on channel <c>id</c>.</summary>
+        /// <summary>Sends an bject on <see cref="channel"/>.</summary>
         /// <param name="o">The object to send</param>
-        /// <param name="id">The channel id to be sent on</param>
+        /// <param name="channel">The channel to be sent on</param>
         /// <param name="mdr">Requirements for this particular message; may be null.</param>
         /// <param name="cdr">Requirements for the message's channel.</param>
-        public void Send(object o, byte id, MessageDeliveryRequirements mdr, ChannelDeliveryRequirements cdr)
+        public void Send(object o, byte channel, MessageDeliveryRequirements mdr, ChannelDeliveryRequirements cdr)
         {
-            Send(new ObjectMessage(id, o), mdr, cdr);
+            Send(new ObjectMessage(channel, o), mdr, cdr);
         }
 
         /// <summary>Send a message.</summary>
@@ -881,7 +990,7 @@ namespace GT.Net
         {
             //pack main message into a buffer and send it right away
             Stream packet = transport.GetPacketStream();
-            Marshaller.Marshal(MyUniqueIdentity, msg, packet, transport);
+            Marshaller.Marshal(SendingIdentity, msg, packet, transport);
             try { SendPacket(transport, packet); }
             catch (TransportError e) { throw new CannotSendMessagesError(this, e, msg); }
             NotifyMessageSent(msg, transport);
@@ -897,7 +1006,7 @@ namespace GT.Net
             {
                 Message m = messages[index];
                 int packetEnd = (int)ms.Position;
-                Marshaller.Marshal(MyUniqueIdentity, m, ms, transport);
+                Marshaller.Marshal(SendingIdentity, m, ms, transport);
                 if (ms.Position - packetStart > transport.MaximumPacketSize) // uh oh, rewind and redo
                 {
                     ms.SetLength(packetEnd);
@@ -1000,7 +1109,7 @@ namespace GT.Net
 
         override public string ToString()
         {
-            return GetType().Name + "(" + uniqueIdentity + ")";
+            return GetType().Name + "(" + identity + ")";
         }
 
         /// <summary>

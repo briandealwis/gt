@@ -97,11 +97,12 @@ namespace GT.Net
         /// A unique number that no other client has in relation to this server.
         /// If zero, don't use.  It will be assigned a unique number by the server soon after connecting.
         /// </summary>
-        public int UniqueIdentity
+        /// <seealso cref="IStream.Identity"/>
+        public int Identity
         {
             get
             {
-                return stream.UniqueIdentity;
+                return stream.Identity;
             }
         }
 
@@ -192,19 +193,12 @@ namespace GT.Net
 
         /// <summary>Create a new shared dictionary.</summary>
         /// <param name="s">A networked object stream.</param>
-        /// <param name="milliseconds">Batch updates until this amount of time has passed.</param>
-        public AggregatingSharedDictionary(IObjectStream s, int milliseconds)
-            : this(s, TimeSpan.FromMilliseconds(milliseconds))
-        { }
-
-        /// <summary>Create a new shared dictionary.</summary>
-        /// <param name="s">A networked object stream.</param>
         /// <param name="updateTime">Batch updates until this amount of time has passed.</param>
         public AggregatingSharedDictionary(IObjectStream s, TimeSpan updateTime)
             : base(s)
         {
-            this.stream.UpdateEvent += stream_UpdateEvent;
-            this.lastTimeSent = 0;
+            stream.UpdateEvent += stream_UpdateEvent;
+            lastTimeSent = 0;
             this.updateTime = updateTime;
         }
 

@@ -7,18 +7,18 @@ namespace StatsGraphs
 {
     public partial class BacklogForm : Form
     {
-        protected readonly int MonitoredTimePeriod = 5 * 60;    // seconds
+        protected readonly TimeSpan MonitoredTimePeriod = TimeSpan.FromSeconds(5 * 60);
 
         protected Communicator _observed;
         protected CommunicationStatisticsObserver<Communicator> _statsObserver;
         protected int tickCount = 0;
 
         /// <summary>
-        /// Get/set the update interval in milliseconds.
+        /// Get/set the update interval
         /// </summary>
-        public int Interval { 
-            get { return _timer.Interval; } 
-            set { _timer.Interval = value; } 
+        public TimeSpan Interval { 
+            get { return TimeSpan.FromMilliseconds(_timer.Interval); } 
+            set { _timer.Interval = (int)value.TotalMilliseconds; } 
         }
 
         public BacklogForm(Communicator comm)
@@ -27,7 +27,7 @@ namespace StatsGraphs
             _backlog.ClearData(ClearDataFlag.Values);
             _backlog.AxisX.Min = 0;
 
-            Text += ": " + comm.ToString();
+            Text += ": " + comm;
             _observed = comm;
             _statsObserver = CommunicationStatisticsObserver<Communicator>.On(comm);
         }
@@ -36,8 +36,8 @@ namespace StatsGraphs
         {
             StatisticsSnapshot stats = _statsObserver.Reset();
 
-            // Divide by 1000 as MonitoredTimePeriod is in seconds, not milliseconds
-            int numberDataPoints = MonitoredTimePeriod * 1000 / _timer.Interval;
+            // _timer.Interval is in milliseconds
+            int numberDataPoints = (int)MonitoredTimePeriod.TotalMilliseconds / _timer.Interval;
             int index = tickCount++ % numberDataPoints;
 
             _backlog.OpenData(COD.Values, stats.ConnexionCount * stats.TransportNames.Count, numberDataPoints);
@@ -49,7 +49,7 @@ namespace StatsGraphs
                 {
                     _backlog.Value[i, index] = stats.Backlogs[cnx].ContainsKey(tn) 
                         ? stats.Backlogs[cnx][tn] : 0;
-                    _backlog.SerLeg[i] = cnx.UniqueIdentity + ":" + tn;
+                    _backlog.SerLeg[i] = cnx.Identity + ":" + tn;
                     i++;
                 }
             }

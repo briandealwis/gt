@@ -59,13 +59,13 @@ namespace GT.Net
         /// Create an connexion representing the client.
         /// </summary>
         /// <param name="owner">the associated server instance</param>
-        /// <param name="clientId">the client's GUID</param>
-        /// <param name="uniqueId">the server-unique client id</param>
+        /// <param name="clientGuid">the client's GUID</param>
+        /// <param name="clientIdentity">the server-unique identity for the client</param>
         /// <returns>the client connexion</returns>
-        virtual public ClientConnexion CreateClientConnexion(Server owner, 
-            Guid clientId, int uniqueId)
+        virtual public ConnexionToClient CreateClientConnexion(Server owner, 
+            Guid clientGuid, int clientIdentity)
         {
-            return new ClientConnexion(owner, clientId, uniqueId);
+            return new ConnexionToClient(owner, clientGuid, clientIdentity);
         }
 
         /// <summary>
@@ -106,11 +106,11 @@ namespace GT.Net
         /// </summary>
         /// <param name="port">the port to be used for IP-based transports</param>
         /// <param name="pingInterval">the client-ping frequency (milliseconds to wait between pings)</param>
-        public DefaultServerConfiguration(int port, int pingInterval)
+        public DefaultServerConfiguration(int port, TimeSpan pingInterval)
             : this(port)
         {
-            Debug.Assert(pingInterval > 0);
-            this.PingInterval = TimeSpan.FromMilliseconds(pingInterval);
+            Debug.Assert(pingInterval.TotalMilliseconds > 0);
+            PingInterval = pingInterval;
         }
 
         /// <summary>
@@ -146,8 +146,7 @@ namespace GT.Net
         private static readonly Random random = new Random();
 
         private bool running = false;
-        private int uniqueIdentity;
-        private Thread listeningThread;
+        private int serverIdentity;
         protected ILog log;
 
         /// <summary>
@@ -164,11 +163,10 @@ namespace GT.Net
         private int lastPingTime = 0;
 
         /// <summary>
-        /// All of the clientIDs that this server knows about.  
-        /// Hide this so that users cannot cause mischief.
+        /// All of the client identities that this server knows about.  
         /// </summary>
-        private readonly Dictionary<int, ClientConnexion> clientIDs =
-            new Dictionary<int, ClientConnexion>();
+        private readonly Dictionary<int, ConnexionToClient> clientIDs =
+            new Dictionary<int, ConnexionToClient>();
         private readonly ICollection<IConnexion> newlyAddedClients =
             new List<IConnexion>();
 
@@ -193,7 +191,12 @@ namespace GT.Net
 	    /// <summary>
 	    /// Return this server's unique identity.
 	    /// </summary>
-        public int UniqueIdentity { get { return uniqueIdentity; } }
+        public int ServerIdentity { get { return serverIdentity; } }
+
+        protected override TimeSpan TickInterval
+        {
+            get { return configuration.TickInterval; }
+        }
 
         #endregion
 
@@ -235,9 +238,9 @@ namespace GT.Net
 
         /// <summary>Creates a new Server object.</summary>
         /// <param name="port">The port to listen on.</param>
-        /// <param name="interval">The interval in milliseconds at which to check 
+        /// <param name="interval">The update interval at which to check 
         /// for new connections or new messages.</param>
-        public Server(int port, int interval)
+        public Server(int port, TimeSpan interval)
             : this(new DefaultServerConfiguration(port, interval))
         {
         }
@@ -248,26 +251,11 @@ namespace GT.Net
         {
             log = LogManager.GetLogger(GetType());
             configuration = sc;
-            uniqueIdentity = GenerateUniqueIdentity();
+            serverIdentity = GenerateIdentity();
         }
 
 
         #region Vital Server Mechanics
-
-        /// <summary>
-        /// Starts a new thread that listens to periodically call 
-        /// <see cref="Update"/>.
-        /// </summary>
-        public override Thread StartSeparateListeningThread()
-        {
-            Start();    // must ensure that this instance is started
-                        // before exiting this method
-            listeningThread = new Thread(new ThreadStart(StartListening));
-            listeningThread.Name = "Server Thread[" + this.ToString() + "]";
-            listeningThread.IsBackground = true;
-            listeningThread.Start();
-            return listeningThread;
-        }
 
         /// <summary>
         /// Create a descriptive string representation 
@@ -305,7 +293,7 @@ namespace GT.Net
                 {
                     // DebugUtils.WriteLine("Server.Update(): pinging clients");
                     lastPingTime = System.Environment.TickCount;
-                    foreach (ClientConnexion c in clientIDs.Values)
+                    foreach (ConnexionToClient c in clientIDs.Values)
                     {
                         if (c.Active)
                         {
@@ -316,7 +304,7 @@ namespace GT.Net
 
                 // DebugUtils.WriteLine("Server.Update(): Clients.Update()");
                 //update all clients, reading from the network
-                foreach (ClientConnexion c in clientIDs.Values)
+                foreach (ConnexionToClient c in clientIDs.Values)
                 {
                     try
                     {
@@ -373,12 +361,12 @@ namespace GT.Net
         {
             base.AddConnexion(cnx);
             newlyAddedClients.Add(cnx); // used for ClientsJoined event
-            clientIDs.Add(cnx.UniqueIdentity, (ClientConnexion)cnx);
+            clientIDs.Add(cnx.Identity, (ConnexionToClient)cnx);
         }
 
         protected override void RemovedConnexion(IConnexion cnx)
         {
-            clientIDs.Remove(cnx.UniqueIdentity);
+            clientIDs.Remove(cnx.Identity);
             if (ClientsRemoved != null)
             {
                 ClientsRemoved(new SingleItem<IConnexion>(cnx));
@@ -386,9 +374,9 @@ namespace GT.Net
             base.RemovedConnexion(cnx);
         }
 
-        protected virtual ClientConnexion CreateNewConnexion(Guid clientId)
+        protected virtual ConnexionToClient CreateNewConnexion(Guid clientGuid)
         {
-            ClientConnexion cnx = configuration.CreateClientConnexion(this, clientId, GenerateUniqueIdentity());
+            ConnexionToClient cnx = configuration.CreateClientConnexion(this, clientGuid, GenerateIdentity());
             cnx.MessageReceived += ReceivedClientMessage;
             cnx.ErrorEvent += NotifyError;
             AddConnexion(cnx);
@@ -397,105 +385,49 @@ namespace GT.Net
         
         protected virtual void NewTransport(ITransport t, IDictionary<string, string> capabilities)
         {
-            Guid clientId;
+            Guid clientGuid;
             try
             {
-                clientId = new Guid(capabilities[GTCapabilities.CLIENT_ID]);
+                clientGuid = new Guid(capabilities[GTCapabilities.CLIENT_GUID]);
             }
             catch (Exception e)
             {
                 log.Warn(String.Format("Exception occurred when decoding client's GUID: {0}",
-                    capabilities[GTCapabilities.CLIENT_ID]), e);
+                    capabilities[GTCapabilities.CLIENT_GUID]), e);
                 t.Dispose();
                 return;
             }
-            ClientConnexion c = GetConnexionForClientIdentity(clientId);
+            ConnexionToClient c = GetConnexionForClientGuid(clientGuid);
             if (c == null)
             {
                 if (log.IsInfoEnabled)
                 {
-                    log.Info(String.Format("{0}: new client {1} via {2}", this, clientId, t));
+                    log.Info(String.Format("{0}: new client {1} via {2}", this, clientGuid, t));
                 }
-                c = CreateNewConnexion(clientId);
+                c = CreateNewConnexion(clientGuid);
                 newlyAddedClients.Add(c);
             }
             else
             {
                 if (log.IsInfoEnabled)
                 {
-                    log.Info(String.Format("{0}: for client {1} via {2}", this, clientId, t));
+                    log.Info(String.Format("{0}: for client {1} via {2}", this, clientGuid, t));
                 }
             }
             t = Configuration.ConfigureTransport(t);
             c.AddTransport(t);
         }
 
-        /// <summary>Returns the client matching that unique identity number.</summary>
-        /// <param name="id">The unique identity of this client</param>
-        /// <returns>The client with that unique identity.  If the number doesn't 
-        /// match a client, then it returns null.</returns>
-        virtual protected ClientConnexion GetConnexionForClientIdentity(Guid id)
+        /// <summary>Returns the client matching the provided GUID.</summary>
+        /// <param name="clientGuid">The remote client GUID.</param>
+        /// <returns>The client with that GUID.  If no match, then return null.</returns>
+        virtual protected ConnexionToClient GetConnexionForClientGuid(Guid clientGuid)
         {
-            foreach (ClientConnexion c in Clients)
+            foreach (ConnexionToClient c in Clients)
             {
-                if (c.ClientIdentity.Equals(id)) { return c; }
+                if (c.ClientGuid.Equals(clientGuid)) { return c; }
             }
             return null;
-        }
-
-        /// <summary>Starts a new thread that listens for new clients or
-        /// new messages on the current thread.</summary>
-        virtual public void StartListening()
-        {
-            Start();
-
-            //check this server for new connections or new messages forevermore
-            while (running)
-            {
-                try
-                {
-                    // tick count is in milliseconds
-                    int oldTickCount = Environment.TickCount;
-
-                    Update();
-
-                    int newTickCount = Environment.TickCount;
-                    int sleepCount = Math.Max(0,
-                        (int)configuration.TickInterval.TotalMilliseconds - (newTickCount - oldTickCount));
-
-                    Sleep(sleepCount);
-                }
-                catch (ThreadAbortException)
-                {
-                    log.Trace("listening loop stopped");
-                    Stop();
-                    return;
-                }
-                catch (Exception e)
-                {
-                    log.Warn(String.Format("Exception in listening loop: {0}", this), e);
-                    // FIXME: should we notify of such conditions?
-                    NotifyError(new ErrorSummary(Severity.Warning,
-                                SummaryErrorCode.RemoteUnavailable,
-                                "Exception occurred processing a connexion", e));
-                }
-            }
-        }
-
-        public virtual void Sleep()
-        {
-            Sleep((int)configuration.TickInterval.TotalMilliseconds);
-        }
-
-        public virtual void Sleep(int milliseconds)
-        {
-            if (log.IsTraceEnabled)
-            {
-                log.Trace(String.Format("{0}: sleeping for {1}ms", this, milliseconds));
-            }
-
-            // FIXME: This should be more clever and use Socket.Select()
-            Thread.Sleep(Math.Max(0, milliseconds));
         }
 
         public override void Start()
@@ -508,6 +440,7 @@ namespace GT.Net
                 acc.Start();
             }
             marshaller = configuration.CreateMarshaller();
+            base.Start();
             running = true;
             log.Trace(this + ": started");
         }
@@ -521,9 +454,7 @@ namespace GT.Net
                 running = false;
                 log.Trace(this + ": stopped");
 
-                Thread t = listeningThread;
-                listeningThread = null;
-                if (t != null && t != Thread.CurrentThread) { t.Abort(); }
+                StopListeningThread();
 
                 Stop(acceptors);
                 Dispose(acceptors);
@@ -539,9 +470,7 @@ namespace GT.Net
             running = false;
             log.Trace(this + ": disposed");
 
-            Thread t = listeningThread;
-            listeningThread = null;
-            if (t != null && t != Thread.CurrentThread) { t.Abort(); }
+            StopListeningThread();
 
             Dispose(acceptors);
             acceptors = null;
@@ -559,9 +488,11 @@ namespace GT.Net
             get { return acceptors; }
         }
 
-        /// <summary>Generates a unique identity number that clients can use to identify each other.</summary>
-        /// <returns>The unique identity number</returns>
-        virtual protected int GenerateUniqueIdentity()
+        /// <summary>Generates a identity number that clients (and this server) 
+        /// can use to identify each other.  These numbers are unique across this
+        /// server, but not necessarily between different servers.</summary>
+        /// <returns>The server-unique identity number</returns>
+        virtual protected int GenerateIdentity()
         {
             int clientId = 0;
             DateTime timeStamp = DateTime.Now;
@@ -570,7 +501,7 @@ namespace GT.Net
                 clientId = (timeStamp.Hour * 100 + timeStamp.Minute) * 100 + timeStamp.Second;
                 clientId = clientId * 1000 + random.Next(0, 1000);
                 // keep going until we create something never previously seen
-            } while (clientId == uniqueIdentity || clientIDs.ContainsKey(clientId));
+            } while (clientId == serverIdentity || clientIDs.ContainsKey(clientId));
             return clientId;
         }
 
@@ -578,35 +509,35 @@ namespace GT.Net
 
         #region Sending
 
-        /// <summary>Sends a byte array on channel <c>id</c> to many clients in an efficient manner.</summary>
+        /// <summary>Sends a byte array on <see cref="channel"/> to many clients in an efficient manner.</summary>
         /// <param name="buffer">The byte array to send</param>
-        /// <param name="id">The channel id to be sent on</param>
+        /// <param name="channel">The channel to be sent on</param>
         /// <param name="list">The list of clients to send it to</param>
         /// <param name="mdr">How to send it (can be null)</param>
-        virtual public void Send(byte[] buffer, byte id, ICollection<IConnexion> list, MessageDeliveryRequirements mdr)
+        virtual public void Send(byte[] buffer, byte channel, ICollection<IConnexion> list, MessageDeliveryRequirements mdr)
         {
-            Send(new SingleItem<Message>(new BinaryMessage(id, buffer)),
+            Send(new SingleItem<Message>(new BinaryMessage(channel, buffer)),
 		list, mdr);
         }
 
-        /// <summary>Sends a string on channel <c>id</c> to many clients in an efficient manner.</summary>
+        /// <summary>Sends a string on <see cref="channel"/> to many clients in an efficient manner.</summary>
         /// <param name="s">The byte array to send</param>
-        /// <param name="id">The channel id to be sent on</param>
+        /// <param name="channel">The channel to be sent on</param>
         /// <param name="list">The list of clients to send it to</param>
         /// <param name="mdr">How to send it (can be null)</param>
-        virtual public void Send(string s, byte id, ICollection<IConnexion> list, MessageDeliveryRequirements mdr)
+        virtual public void Send(string s, byte channel, ICollection<IConnexion> list, MessageDeliveryRequirements mdr)
         {
-            Send(new SingleItem<Message>(new StringMessage(id, s)), list, mdr);
+            Send(new SingleItem<Message>(new StringMessage(channel, s)), list, mdr);
         }
 
-        /// <summary>Sends an object on channel <c>id</c> to many clients in an efficient manner.</summary>
+        /// <summary>Sends an object on <see cref="channel"/> to many clients in an efficient manner.</summary>
         /// <param name="o">The bject to send</param>
-        /// <param name="id">The channel id to be sent on</param>
+        /// <param name="channel">The channel to be sent on</param>
         /// <param name="list">The list of clients to send it to</param>
         /// <param name="mdr">How to send it (can be null)</param>
-        virtual public void Send(object o, byte id, ICollection<IConnexion> list, MessageDeliveryRequirements mdr)
+        virtual public void Send(object o, byte channel, ICollection<IConnexion> list, MessageDeliveryRequirements mdr)
         {
-            Send(new SingleItem<Message>(new ObjectMessage(id, o)), list, mdr);
+            Send(new SingleItem<Message>(new ObjectMessage(channel, o)), list, mdr);
         }
 
         /// <summary>Send a message to many clients in an efficient manner.</summary>
@@ -632,7 +563,7 @@ namespace GT.Net
                 //Console.WriteLine("{0}: sending to {1}", this, c);
                 try
                 {
-                    c.Send(messages, mdr, GetChannelDeliveryRequirements(messages[0].Id));
+                    c.Send(messages, mdr, GetChannelDeliveryRequirements(messages[0].Channel));
                 }
                 catch (GTException e)
                 {
@@ -642,16 +573,34 @@ namespace GT.Net
             }
         }
 
-        virtual public ChannelDeliveryRequirements GetChannelDeliveryRequirements(byte id)
+        /// <summary>
+        /// Return the delivery requirements for a channel; if the channel has not hd
+        /// a set of delivery requirements configured, then return the default set.
+        /// </summary>
+        /// <param name="channel">the channel</param>
+        /// <returns>the delivery requirements configured for the channel</returns>
+        virtual public ChannelDeliveryRequirements GetChannelDeliveryRequirements(byte channel)
         {
             ChannelDeliveryRequirements cdr;
-            if (channelRequirements.TryGetValue(id, out cdr)) { return cdr; }
+            if (channelRequirements.TryGetValue(channel, out cdr)) { return cdr; }
             return configuration.DefaultChannelRequirements();
         }
 
-        virtual public void SetChannelDeliveryRequirements(byte id, ChannelDeliveryRequirements cdr)
+        /// <summary>
+        /// Set the delivery requirements for a particular channel.
+        /// </summary>
+        /// <param name="channel">the channel</param>
+        /// <param name="cdr">the delivery requirements to be configured; null to remove</param>
+        virtual public void SetChannelDeliveryRequirements(byte channel, ChannelDeliveryRequirements cdr)
         {
-            channelRequirements[id] = cdr;
+            if (cdr == null)
+            {
+                channelRequirements.Remove(channel);
+            }
+            else
+            {
+                channelRequirements[channel] = cdr;
+            }
         }
 
         #endregion
@@ -686,8 +635,8 @@ namespace GT.Net
         }
     }
 
-    /// <summary>Represents a client using the server.</summary>
-    public class ClientConnexion : BaseConnexion
+    /// <summary>Represents a logical connexion to a client, suitable for use of the server.</summary>
+    public class ConnexionToClient : BaseConnexion
     {
         #region Variables and Properties
 
@@ -695,28 +644,29 @@ namespace GT.Net
         public event ErrorEventNotication ErrorEvent;
 
         /// <summary>
-        /// The client's unique identifier; this should be globally unique
+        /// The client's globally unique identifier (vs <see cref="IConnexion.Identity"/>,
+        /// which is only unique to the clients connected to <see cref="owner"/>).
         /// </summary>
-        protected Guid clientId;
+        protected Guid clientGuid;
 
-        private Server server;
+        protected Server owner;
 
-        public Guid ClientIdentity
+        override public Guid ClientGuid
         {
-            get { return clientId; }
+            get { return clientGuid; }
         }
 
         /// <summary>
         /// The server has a unique identity for itself.
         /// </summary>
-        public override int MyUniqueIdentity
+        public override int SendingIdentity
         {
-            get { return server.UniqueIdentity; }
+            get { return owner.ServerIdentity; }
         }
 
         public override IMarshaller Marshaller
         {
-            get { return server.Marshaller; }
+            get { return owner.Marshaller; }
         }
 
         #endregion
@@ -725,12 +675,13 @@ namespace GT.Net
 
         /// <summary>Creates a new ClientConnexion to communicate with.</summary>
         /// <param name="s">The associated server instance.</param>
-        /// <param name="id">The unique identity of this new ClientConnexion.</param>
-        public ClientConnexion(Server s, Guid clientId, int id)
+        /// <param name="clientGuid">A globally unique identifier for the associated client.</param>
+        /// <param name="clientIdentity">The server-unique identity of this new client's connexion.</param>
+        public ConnexionToClient(Server s, Guid clientGuid, int clientIdentity)
         {
-            server = s;
-            this.clientId = clientId;
-            uniqueIdentity = id;
+            owner = s;
+            this.clientGuid = clientGuid;
+            identity = clientIdentity;
             active = true;
         }
 
@@ -742,7 +693,7 @@ namespace GT.Net
         /// such as in <c>List.FindAll()</c>.</summary>
         /// <param name="c">The client to check.</param>
         /// <returns>True if the client <c>c</c> </c>is dead.</returns>
-        internal static bool IsDead(ClientConnexion c)
+        internal static bool IsDead(ConnexionToClient c)
         {
             return !c.Active || c.Transports.Count == 0;
         }
@@ -751,28 +702,28 @@ namespace GT.Net
 
         override public int Compare(ITransport a, ITransport b)
         {
-            return server.Configuration.Compare(a,b);
+            return owner.Configuration.Compare(a,b);
         }
 
         public override void AddTransport(ITransport t)
         {
             base.AddTransport(t);
-            // Send their unique ID right away
-            Send(new SystemMessage(SystemMessageType.UniqueIDRequest,
-                    BitConverter.GetBytes(UniqueIdentity)),
+            // Send their identity right away
+            Send(new SystemMessage(SystemMessageType.IdentityRequest,
+                    BitConverter.GetBytes(Identity)),
                 new SpecificTransportRequirement(t), null);
         }
 
-        /// <summary>Send SessionAction.</summary>
-        /// <param name="clientId">ClientConnexion who is doing the action.</param>
-        /// <param name="e">Session action to send.</param>
-        /// <param name="id">Channel to send on.</param>
-        /// <param name="mdr">How to send it (can be null)</param>
+        /// <summary>Send notice of some session action.</summary>
+        /// <param name="clientId">The subject of the action.</param>
+        /// <param name="e">The session action.</param>
+        /// <param name="channel">Channel on which to send the notice.</param>
+        /// <param name="mdr">How to send the session message (can be null)</param>
         /// <param name="cdr">Requirements for the message's channel.</param>
-        public void Send(int clientId, SessionAction e, byte id, MessageDeliveryRequirements mdr,
+        public void Send(int clientId, SessionAction e, byte channel, MessageDeliveryRequirements mdr,
             ChannelDeliveryRequirements cdr)
         {
-            Send(new SessionMessage(id, clientId, e), mdr, cdr);
+            Send(new SessionMessage(channel, clientId, e), mdr, cdr);
         }
 
         public override void Send(IList<Message> messages, MessageDeliveryRequirements mdr,
@@ -795,17 +746,17 @@ namespace GT.Net
         }
 
         /// <summary>Handles a system message in that it takes the information and does something with it.</summary>
-	/// <param name="message">The message received.</param>
-	/// <param name="transport">What channel it came in on.</param>
+	    /// <param name="message">The message received.</param>
+	    /// <param name="transport">The transport the message was received on.</param>
         override protected void HandleSystemMessage(SystemMessage message, ITransport transport)
         {
-            switch ((SystemMessageType)message.Id)
+            switch (message.Descriptor)
             {
-            case SystemMessageType.UniqueIDRequest:
+            case SystemMessageType.IdentityRequest:
                 //they want to know their own id?  They should have received it already...
                 // (see above in AddTransport())
-                Send(new SystemMessage(SystemMessageType.UniqueIDRequest,
-                        BitConverter.GetBytes(UniqueIdentity)),
+                Send(new SystemMessage(SystemMessageType.IdentityRequest,
+                        BitConverter.GetBytes(Identity)),
                     new SpecificTransportRequirement(transport), null);
                 break;
 
