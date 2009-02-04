@@ -45,6 +45,7 @@
   <ItemGroup>
     <Compile Include="Bag.cs" />
     <Compile Include="BitUtils.cs" />
+    <Compile Include="GetOpt.cs" />
     <Compile Include="GMC\CompressedStream.cs" />
     <Compile Include="GMC\HuffmanCompressor.cs" />
     <Compile Include="GMC\TemplateBasedCompressor.cs" />
