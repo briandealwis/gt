@@ -79,11 +79,61 @@ namespace GT.UnitTests
             Assert.IsInstanceOfType(typeof(MillipedeTransport), transport);
             Assert.AreEqual(1, recorder.NumberEvents);
             transport.SendPacket(new byte[10], 0, 10);
-            Thread.Sleep(20);   // the NumberEvent is incremented on playback, and may need time to playback
+            Thread.Sleep(10);   // the NumberEvent is incremented on playback, and may need time to playback
             Assert.AreEqual(2, recorder.NumberEvents);
             Thread.Sleep(100);
             Assert.AreEqual(3, recorder.NumberEvents);  // should have received the packet too
         }
+
+        [Test]
+        public void TestMillipedeAcceptor()
+        {
+            string tempFileName = Path.GetTempFileName();
+            toBeDeleted.Add(tempFileName);
+
+            // Create the mock connector and transport
+            MockTransport mockTransport = new MockTransport("MOCK", new Dictionary<string, string>(),
+                Reliability.Reliable, Ordering.Ordered, 1024);
+            uint packetsSent = 0;
+            mockTransport.PacketSentEvent += delegate { packetsSent++; };
+            MockAcceptor mockAcceptor = new MockAcceptor();
+            mockAcceptor.Start();
+
+            recorder.StartRecording(tempFileName);
+            Assert.AreEqual(MillipedeMode.Record, recorder.Mode);
+            Assert.AreEqual(0, recorder.NumberEvents);
+            ITransport transport = null;
+            MillipedeAcceptor acceptor =
+                (MillipedeAcceptor)MillipedeAcceptor.Wrap(mockAcceptor, recorder);
+            acceptor.NewClientEvent += delegate(ITransport t, IDictionary<string,string> cap) { 
+                transport = t; 
+            };
+            Thread.Sleep(5);
+            mockAcceptor.Trigger(mockTransport, new Dictionary<string, string>());
+            Thread.Sleep(5);
+            Assert.IsNotNull(transport);
+            Assert.IsInstanceOfType(typeof(MillipedeTransport), transport);
+            Assert.AreEqual(1, recorder.NumberEvents);
+
+            recorder.Dispose(); // don't want the disposes add to the list
+            mockAcceptor.Dispose(); mockAcceptor = null;
+            mockTransport.Dispose(); mockTransport = null;
+
+            transport = null;
+
+            recorder = new MillipedeRecorder();
+            acceptor = (MillipedeAcceptor)MillipedeAcceptor.Wrap(new MockAcceptor(), recorder);
+            acceptor.NewClientEvent += delegate(ITransport t, IDictionary<string, string> cap)
+            {
+                transport = t;
+            };
+            recorder.StartReplaying(tempFileName);
+            Thread.Sleep(100);
+            Assert.IsNotNull(transport);
+            Assert.IsInstanceOfType(typeof(MillipedeTransport), transport);
+            Assert.AreEqual(1, recorder.NumberEvents);
+        }
+
     }
 
     internal delegate R Creator<T1, T2, R>(T1 arg1, T2 arg2);
@@ -115,6 +165,31 @@ namespace GT.UnitTests
         {
             throw new System.NotImplementedException();
         }
+    }
+
+    internal class MockAcceptor : IAcceptor
+    {
+        public RunningState State { get; private set; }
+
+        public void Dispose() { State = RunningState.Disposed; }
+
+        public void Start() { State = RunningState.Started; }
+
+        public void Stop() { State = RunningState.Stopped; }
+
+        public bool Active { get { return State == RunningState.Started; } }
+        
+        public event NewClientHandler NewClientEvent;
+
+        public void Trigger(ITransport transport, IDictionary<string, string> capabilities)
+        {
+            if(NewClientEvent != null)
+            {
+                NewClientEvent(transport, capabilities);
+            }
+        }
+
+        public void Update() { }
     }
 
     public class MockTransport : ITransport

@@ -43,8 +43,10 @@ namespace GT.Millipede
     /// </summary>
     public class MillipedeRecorder : IDisposable
     {
+
+        #region Singleton
+
         private static MillipedeRecorder singleton;
-        protected ILog log;
 
         /// <summary>
         /// Return the singleton recorder instance.
@@ -53,15 +55,23 @@ namespace GT.Millipede
         {
             get
             {
-                if (singleton == null) { 
-                    singleton = new MillipedeRecorder();
+                if (singleton != null)
+                {
+                    return singleton;
+                }
+                if (Interlocked.Exchange(ref singleton, new MillipedeRecorder()) == null)
+                {
                     string envvar = Environment.GetEnvironmentVariable("GTMILLIPEDE");
                     singleton.Configure(envvar);
                 }
                 return singleton;
             }
         }
-        
+
+        #endregion
+
+        protected ILog log;
+
         private MillipedeMode mode = MillipedeMode.Unconfigured;
         private Stopwatch timer = null;
         private FileStream sinkFile = null;
@@ -72,6 +82,11 @@ namespace GT.Millipede
         private Timer syncingTimer;
 
         private NetworkEvent nextEvent = null;
+        private int uniqueCount = 0;
+
+        /// <summary>
+        /// Return the number of events replayed or recordered to this point.
+        /// </summary>
         public int NumberEvents = 0;
 
         /// <summary>
@@ -130,6 +145,23 @@ namespace GT.Millipede
         }
 
         /// <summary>
+        /// Generate a unique descriptor for the provided object
+        /// </summary>
+        /// <param name="obj"></param>
+        /// <returns></returns>
+        public object GenerateDescriptor(object obj)
+        {
+            string typeName = obj.GetType().FullName;
+            string toString = obj.ToString();
+            if (toString.Equals(typeName))
+            {
+                return typeName + "@" + Interlocked.Increment(ref uniqueCount);
+            }
+            return typeName + ":" + toString;
+        }
+
+
+        /// <summary>
         /// Register the <see cref="action"/> for any events occurring by <see cref="descriptor"/>.
         /// This is an internal method and is only intended for registering objects that
         /// can be recorded and replayed.
@@ -173,11 +205,11 @@ namespace GT.Millipede
                 networkEvent.Time = timer.ElapsedMilliseconds;
                 lock (this)
                 {
-                    NumberEvents++; // important for replaying too
+                    int eventNo = Interlocked.Increment(ref NumberEvents); // important for replaying too
                     if (log.IsTraceEnabled)
                     {
-                        log.Trace(String.Format("Recording event #{0}: {1}",
-                            NumberEvents, networkEvent));
+                        log.Trace(String.Format("[{2}] Recording event #{0}: {1}",
+                            eventNo, networkEvent, networkEvent.Time));
                     }
                     if(dataSink != null) { networkEvent.Serialize(dataSink); }
                 }
@@ -230,6 +262,8 @@ namespace GT.Millipede
             }
             TimeSpan duration = TimeSpan.FromMilliseconds(Math.Max(0,
                 nextEvent.Time - timer.ElapsedMilliseconds));
+            Console.WriteLine("[{1}] Scheduling next event for {0}ms", duration.TotalMilliseconds,
+                timer.ElapsedMilliseconds);
             if (syncingTimer == null)
             {
                 syncingTimer = new Timer(ReplayNextEvent, null, duration,
@@ -244,8 +278,8 @@ namespace GT.Millipede
         private void ReplayNextEvent(object state)
         {
             Action<NetworkEvent> activator;
-            NumberEvents++;
-            Console.WriteLine("Replaying event #{0}: {1}", NumberEvents, nextEvent);
+            int eventNo = Interlocked.Increment(ref NumberEvents);
+            Console.WriteLine("[{2}] Replaying event #{0}: {1}", eventNo, nextEvent, timer.ElapsedMilliseconds);
             if (injectors.TryGetValue(nextEvent.ObjectDescriptor, out activator))
             {
                 activator.Invoke(nextEvent);
@@ -570,16 +604,6 @@ namespace GT.Millipede
         {
             running = false;
             if (underlyingTransport != null) { underlyingTransport.Dispose(); }
-        }
-
-        /// <summary>
-        /// Generate a unique descriptor for the provided transport type
-        /// </summary>
-        /// <param name="transport"></param>
-        /// <returns></returns>
-        public static object GenerateDescriptor(ITransport transport)
-        {
-            return transport.GetType() + transport.GetHashCode().ToString();
         }
     }
 

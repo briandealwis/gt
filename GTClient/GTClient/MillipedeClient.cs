@@ -32,8 +32,7 @@ namespace GT.Millipede
         /// <returns>an appropriately configured connector</returns>
         public static IConnector Wrap(IConnector connector, MillipedeRecorder recorder)
         {
-            if (recorder.Mode == MillipedeMode.Unconfigured 
-                || recorder.Mode == MillipedeMode.PassThrough)
+            if (recorder.Mode == MillipedeMode.PassThrough)
             {
                 return connector;
             }
@@ -74,7 +73,7 @@ namespace GT.Millipede
         /// <param name="recorder">The Millipede Replayer/Recorder</param>
         protected MillipedeConnector(IConnector underlyingConnector, MillipedeRecorder recorder)
         {
-            milliDescriptor = underlyingConnector.GetType() + underlyingConnector.ToString();
+            milliDescriptor = recorder.GenerateDescriptor(underlyingConnector);
             this.recorder = recorder;
             if (recorder.Mode == MillipedeMode.Playback)
             {
@@ -122,7 +121,7 @@ namespace GT.Millipede
                 ITransport transport = underlyingConnector.Connect(address, port, capabilities);
                 if (recorder.Mode == MillipedeMode.PassThrough) { return transport; }
 
-                object milliTransportDesriptor = MillipedeTransport.GenerateDescriptor(transport);
+                object milliTransportDesriptor = recorder.GenerateDescriptor(transport);
                 MemoryStream stream = new MemoryStream();
                 BinaryFormatter formatter = new BinaryFormatter();
                 formatter.Serialize(stream, milliTransportDesriptor);

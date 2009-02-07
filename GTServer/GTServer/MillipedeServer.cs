@@ -34,8 +34,7 @@ namespace GT.Millipede
         /// <returns>an appropriately configured acceptor</returns>
         public static IAcceptor Wrap(IAcceptor acceptor, MillipedeRecorder recorder) 
         {
-            if (recorder.Mode == MillipedeMode.Unconfigured
-                || recorder.Mode == MillipedeMode.PassThrough)
+            if (recorder.Mode == MillipedeMode.PassThrough)
             {
                 return acceptor;
             }
@@ -79,7 +78,7 @@ namespace GT.Millipede
             this.underlyingAcceptor = underlyingAcceptor;
 
             this.recorder = recorder;
-            milliDescriptor = underlyingAcceptor.GetType() + underlyingAcceptor.ToString();
+            milliDescriptor = recorder.GenerateDescriptor(underlyingAcceptor);
             this.underlyingAcceptor.NewClientEvent += UnderlyingAcceptor_NewClientEvent;
             recorder.Notify(milliDescriptor, InjectRecordedEvent);
         }
@@ -99,7 +98,7 @@ namespace GT.Millipede
                 return;
             }
 
-            object milliTransportDescriptor = MillipedeTransport.GenerateDescriptor(transport);
+            object milliTransportDescriptor = recorder.GenerateDescriptor(transport);
             MemoryStream stream = new MemoryStream();
             BinaryFormatter formatter = new BinaryFormatter();
             formatter.Serialize(stream, milliTransportDescriptor);
