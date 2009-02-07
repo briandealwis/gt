@@ -50,7 +50,14 @@ namespace GT.Net
 
         public void Start()
         {
-            udpClient = new UdpClient(new IPEndPoint(address, port));
+            try
+            {
+                udpClient = new UdpClient(new IPEndPoint(address, port));
+            }
+            catch (SocketException e)
+            {
+                throw new TransportError(this, "Unable to create UDP socket", e);
+            }
             udpClient.Client.Blocking = false;
             DisableUdpConnectionResetBehaviour();
         }

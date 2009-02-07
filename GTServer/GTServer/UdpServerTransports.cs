@@ -198,10 +198,10 @@ namespace GT.Net
     /// The use of <see cref="TransportFactory{T}"/> may seem to be a bit complicated,
     /// but it greatly simplifies testing.
     /// </remarks>
-    public class UdpAcceptor : BaseAcceptor
+    public class UdpAcceptor : IPBasedAcceptor
     {
         protected TransportFactory<UdpHandle> factory;
-        internal protected UdpMultiplexer udpMultiplexer;
+        protected UdpMultiplexer udpMultiplexer;
 
         /// <summary>
         /// Create an acceptor to accept incoming UDP connections, with no guarantees
@@ -262,11 +262,12 @@ namespace GT.Net
         {
             get { return udpMultiplexer != null && udpMultiplexer.Active; }
         }
+
         public override void Start()
         {
             if (Active) { return; }
             if (udpMultiplexer == null) { udpMultiplexer = new UdpMultiplexer(address, port); }
-            udpMultiplexer.SetDefaultMessageHandler(new NetPacketReceivedHandler(PreviouslyUnseenUdpEndpoint));
+            udpMultiplexer.SetDefaultMessageHandler(PreviouslyUnseenUdpEndpoint);
             udpMultiplexer.Start();
         }
 
@@ -303,12 +304,12 @@ namespace GT.Net
             }
         }
 
-        public byte[] ProtocolDescriptor
+        protected byte[] ProtocolDescriptor
         {
             get { return factory.ProtocolDescriptor; }
         }
 
-        public void PreviouslyUnseenUdpEndpoint(EndPoint ep, byte[] packet)
+        protected void PreviouslyUnseenUdpEndpoint(EndPoint ep, byte[] packet)
         {
             MemoryStream ms = null;
             // Console.WriteLine(this + ": Incoming unaddressed packet from " + ep);
@@ -375,7 +376,7 @@ namespace GT.Net
 
         public override string ToString()
         {
-            return "UdpAcceptor(" + udpMultiplexer.LocalEndPoint + ")";
+            return GetType().FullName + "(" + udpMultiplexer.LocalEndPoint + ")";
         }
     }
 }

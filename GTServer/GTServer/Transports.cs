@@ -11,12 +11,16 @@ namespace GT.Net
     /// <summary>
     /// An object responsible for negotiating and accepting incoming connections.
     /// The remote service is often implemented using an <c>IConnector</c>.
+    /// Acceptors should throw a <see cref="TransportError"/> if they
+    /// cannot be successfully started.
     /// See
+    /// <blockquote>
     ///    DC Schmidt (1997). Acceptor and connector: A family of object 
     ///    creational patterns for initializing communication services. 
     ///    In R Martin, F Buschmann, D Riehle (Eds.), Pattern Languages of 
     ///    Program Design 3. Addison-Wesley
-    ///    http://www.cs.wustl.edu/~schmidt/PDF/Acc-Con.pdf
+    ///    &lt;http://www.cs.wustl.edu/~schmidt/PDF/Acc-Con.pdf&gt;
+    /// </blockquote>
     /// </summary>
     public interface IAcceptor : IStartable
     {
@@ -25,15 +29,23 @@ namespace GT.Net
         void Update();
     }
 
-    public abstract class BaseAcceptor : IAcceptor
+    /// <summary>
+    /// A base class for IP-based acceptors.
+    /// </summary>
+    public abstract class IPBasedAcceptor : IAcceptor
     {
         protected ILog log;
 
+        /// <summary>
+        /// An event triggered when a new transport has been
+        /// successfully negotiated.
+        /// </summary>
         public event NewClientHandler NewClientEvent;
+
         protected IPAddress address;
         protected int port;
 
-        public BaseAcceptor(IPAddress address, int port)
+        protected IPBasedAcceptor(IPAddress address, int port)
         {
             log = LogManager.GetLogger(GetType());
 
@@ -41,16 +53,39 @@ namespace GT.Net
             this.port = port;
         }
 
+        /// <summary>
+        /// Run a cycle to process any pending events for this acceptor.
+        /// This method is <strong>not</strong> re-entrant.
+        /// </summary>
         public abstract void Update();
 
+        /// <summary>
+        /// Indicate whether this instance is currently active (i.e.,
+        //  started).
+        /// </summary>
         public abstract bool Active { get; }
+
+        /// <exception cref="TransportError">thrown if the acceptor is
+        /// unable to initialize</exception>
         public abstract void Start();
         public abstract void Stop();
         public abstract void Dispose();
 
-        public void NotifyNewClient(ITransport t, IDictionary<string,string> capabilities)
+        /// <summary>
+        /// Notify interested parties that a new transport connection has been
+        /// successfully negotiated.
+        /// </summary>
+        /// <param name="t">the newly-negotiated transport</param>
+        /// <param name="capabilities">a dictionary describing the
+        ///     capabilities of the remote system</param>
+        internal void NotifyNewClient(ITransport t, IDictionary<string,string> capabilities)
         {
             NewClientEvent(t, capabilities);
+        }
+
+        public override string ToString()
+        {
+            return GetType().FullName + "(" + address + "," + port + ")";
         }
     }
 }

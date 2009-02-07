@@ -93,7 +93,55 @@ namespace GT.UnitTests
     }
     #endregion
 
-    /// <summary>
+    [TestFixture]
+    public class ZAIPBasedComponentTests
+    {
+        [Test]
+        public void TestDualTcpAcceptors() { 
+            TcpAcceptor acc1 = new TcpAcceptor(IPAddress.Any, 9999);
+            TcpAcceptor acc2 = new TcpAcceptor(IPAddress.Any, 9999);
+            try
+            {
+                acc1.Start();
+                try
+                {
+                    acc2.Start();
+                    Assert.Fail("Should have thrown a transport error");
+                }
+                catch (TransportError) { /* do nothing */ }
+            }
+            finally
+            {
+                acc1.Dispose();
+                acc2.Dispose();
+            }
+        }
+
+        [Test]
+        public void TestDualUdpAcceptors()
+        {
+            UdpAcceptor acc1 = new UdpAcceptor(IPAddress.Any, 9999);
+            UdpAcceptor acc2 = new UdpAcceptor(IPAddress.Any, 9999);
+            try
+            {
+                acc1.Start();
+                try
+                {
+                    acc2.Start();
+                    Assert.Fail("Should have thrown a transport error");
+                }
+                catch (TransportError) { /* do nothing */ }
+            }
+            finally
+            {
+                acc1.Dispose();
+                acc2.Dispose();
+            }
+        }
+
+    }
+
+        /// <summary>
     /// Test GT transports functionality
     /// </summary>
     [TestFixture]

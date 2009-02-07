@@ -116,6 +116,7 @@ namespace GT.Net
         protected int clientId;
 
         /// <summary>Create a new SessionMessage</summary>
+        /// <param name="channel">The channel that this message is on.</param>
         /// <param name="clientId">The subject of the session action.</param>
         /// <param name="e">The session action.</param>
         public SessionMessage(byte channel, int clientId, SessionAction e)

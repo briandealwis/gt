@@ -377,12 +377,12 @@ namespace GT.Utils
         /// valid index in the set</exception>
         public T this[int index] { get { return elements[index]; } }
 
-        ///<summary>
-        ///Add the provided item to the set.
-        ///</summary>
-        ///<param name="item">the item to be added</param>
-        ///<returns>true if the item was newly added, or false if the item
-        ///was already part of the set</returns>
+        /// <summary>
+        /// Add the provided item to the set.
+        /// </summary>
+        /// <param name="item">the item to be added</param>
+        /// <returns>true if the item was newly added, or false if the item
+        ///    was already part of the set</returns>
         public bool Add(T item)
         {
             if (containedSet.ContainsKey(item))

@@ -273,7 +273,6 @@ namespace GT.GMC
         /// </summary>
         /// <param name="templateId">the template to be used</param>
         /// <param name="message">the message to encode</param>
-        /// <param name="cmp">the place for additional results</param>
         /// <returns></returns>
         public CompressedMessagePackage EncodeWith(int templateId, byte[] message)
         {
@@ -283,8 +282,7 @@ namespace GT.GMC
         /// <summary>
         /// Decode the provided message using the specified template
         /// </summary>
-        /// <param name="templateName">the template identifier</param>
-        /// <param name="message">the encoded (compressed) message</param>
+        /// <param name="cmp">the message package to be decompressed</param>
         /// <param name="userId">the user from which the encoded message was received</param>
         /// <returns>The decoded (uncompressed) message</returns>
         public byte[] Decode(CompressedMessagePackage cmp, int userId)

@@ -6,6 +6,9 @@ using System;
 using System.IO;
 using System.Diagnostics;
 
+/// <summary>
+/// Networking-related parts of GT.
+/// </summary>
 namespace GT.Net 
 {
     public delegate void ConnexionLifecycleNotification(Communicator c, IConnexion conn);

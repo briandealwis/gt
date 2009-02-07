@@ -55,8 +55,9 @@ namespace GT.Net
         void SendPacket(byte[] packet, int offset, int count);
 
         /// <summary>
-        /// Send the given message to the server.  The stream is sent <b>from the stream's current 
-        /// position</b> to the end of the stream.  <b>It is not sent from position 0.</b></b>
+        /// Send the given message to the server.  The stream is sent 
+        /// <b>from the stream's current position</b> to the end of the stream.  
+        /// <b>It is not sent from position 0.</b>
         /// </summary>
         /// <param name="stream">the stream encoding the packet</param>
         /// <exception cref="TransportError">thrown on a fatal transport error.</exception>

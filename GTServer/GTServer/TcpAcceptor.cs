@@ -12,12 +12,16 @@ using GT.Utils;
 namespace GT.Net
 {
 
-    public class TcpAcceptor : BaseAcceptor
+    /// <summary>
+    /// Accept incoming connections across a TCP socket.
+    /// </summary>
+    public class TcpAcceptor : IPBasedAcceptor
     {
-        protected ILog log;
-
-        /// <summary>The listening backlog to use for the server socket.  Historically
-        /// the maximum was 5; some newer OS' support up to 128.</summary>
+        /// <summary>
+        /// The listening backlog to use for the server socket.  
+        /// Historically the maximum was 5; some newer OS' support
+        /// up to 128.
+        /// </summary>
         public static int LISTENER_BACKLOG = 10;
 
         private TcpListener bouncer;
@@ -27,7 +31,6 @@ namespace GT.Net
         public TcpAcceptor(IPAddress address, int port)
             : base(address, port)
         {
-            log = LogManager.GetLogger(GetType());
         }
 
         public byte[] ProtocolDescriptor
@@ -63,7 +66,9 @@ namespace GT.Net
                 //    ErrorEvent(e, SocketError.Fault, null, "A socket exception occurred when we tried to start listening for incoming connections.");
                 log.Error(String.Format("exception creating TCP listening socket on {0}/{1}",
                     address, port), e);
+                if(bouncer != null) { bouncer.Stop(); }
                 bouncer = null;
+                throw new TransportError(this, "Unable to create TCP listening socket", e);
             }
         }
 
@@ -79,7 +84,14 @@ namespace GT.Net
 
         public override string ToString()
         {
-            return "TcpAcceptor(" + bouncer.LocalEndpoint + ")";
+            try 
+            {
+                return GetType().FullName + "(" + bouncer.LocalEndpoint + ")";
+            }
+            catch(Exception e) 
+            {
+                return base.ToString();
+            }
         }
 
         public override void Update()

@@ -3,6 +3,9 @@ using System.Collections.Generic;
 using System.Text;
 using System.IO;
 
+/// <summary>
+/// A set of useful utility classes for building applications.
+/// </summary>
 namespace GT.Utils
 {
     #region Queue Processing
@@ -233,13 +236,19 @@ namespace GT.Utils
         }
     }
 
-
-
     #endregion
 
     #region Byte-related Utilities
+
     /// <summary>
-    /// Set of useful functions for byte arrays
+    /// Set of useful functions for byte arrays including:
+    /// <ul>
+    /// <li> dumping human-readable representations; </li>
+    /// <li> finding differences between byte-arrays; </li>
+    /// <li> reading and writing to streams; </li>
+    /// <li> reading and writing compact representations of
+    ///      integers and dictionaries. </li>
+    /// </ul>
     /// </summary>
     public class ByteUtils
     {
@@ -342,6 +351,7 @@ namespace GT.Utils
         #endregion
 
         #region Byte Array Comparisons
+
         public static bool Compare(byte[] b1, byte[] b2)
         {
             if (b1.Length != b2.Length) { return false; }
@@ -359,9 +369,11 @@ namespace GT.Utils
             }
             return true;
         }
+
         #endregion
 
         #region Stream Utilities
+
         public static void Write(byte[] buffer, Stream output)
         {
             output.Write(buffer, 0, buffer.Length);
@@ -374,6 +386,7 @@ namespace GT.Utils
             if (rc != length) { Array.Resize(ref bytes, rc); }
             return bytes;
         }
+
         #endregion
 
         #region Special Number Marshalling Operations
@@ -451,13 +464,16 @@ namespace GT.Utils
 
         #region String-String Dictionary Encoding and Decoding
 
-        /// <summary>
         /// A simple string-string dictionary that is simply encoded as a stream of bytes.
-        /// This uses an encoding *similar* to Bencoding (<see>http://en.wikipedia.org/wiki/Bencoding</see>).
-        /// Encoding of numbers is done with <c>ByteUtils.EncodeLength</c> and <c>ByteUtils.DecodeLength</c>.
+        /// This uses an encoding *similar* to bencoding (http://en.wikipedia.org/wiki/Bencoding).
+        /// Encoding of numbers is done with <see cref="EncodeLength"/> and <see cref="DecodeLength"/>.
         /// First is the number of key-value pairs.  Followed are the list of the n key-value pairs.  
         /// Each string is prefixed by its encoded length (in bytes as encoded in UTF-8) and then 
         /// the UTF-8 encoded string.
+
+        /// <summary>
+        /// Figure out how many bytes would be necessary to encode the provided dictionary
+        /// using our bencoding-like format.
         /// </summary>
         public static int EncodedDictionaryByteCount(IDictionary<string, string> dict)
         {
@@ -467,32 +483,43 @@ namespace GT.Utils
             EncodeLength(dict.Count, ms);
             foreach (string key in dict.Keys)
             {
-                int nBytes = UTF8Encoding.UTF8.GetByteCount(key);
+                int nBytes = Encoding.UTF8.GetByteCount(key);
                 EncodeLength(nBytes, ms);
                 count += nBytes;
 
-                nBytes = UTF8Encoding.UTF8.GetByteCount(dict[key]);
+                nBytes = Encoding.UTF8.GetByteCount(dict[key]);
                 EncodeLength(nBytes, ms);
                 count += nBytes;
             }
             return (int)ms.Length + count;
         }
 
+        /// <summary>
+        /// Encode a strings dictionary onto a stream as using our bencoding-like format.
+        /// </summary>
+        /// <param name="dict">the dictionary to encode</param>
+        /// <param name="output">the stream from which to decode</param>
+        /// <returns>the decoded dictionary</returns>
         public static void EncodeDictionary(IDictionary<string, string> dict, Stream output)
         {
             EncodeLength(dict.Count, output);
             foreach (string key in dict.Keys)
             {
-                byte[] bytes = UTF8Encoding.UTF8.GetBytes(key);
+                byte[] bytes = Encoding.UTF8.GetBytes(key);
                 EncodeLength(bytes.Length, output);
                 output.Write(bytes, 0, bytes.Length);
 
-                bytes = UTF8Encoding.UTF8.GetBytes(dict[key]);
+                bytes = Encoding.UTF8.GetBytes(dict[key]);
                 EncodeLength(bytes.Length, output);
                 output.Write(bytes, 0, bytes.Length);
             }
         }
 
+        /// <summary>
+        /// Decode a strings dictionary from a stream encoded in our bencoding-like format.
+        /// </summary>
+        /// <param name="input">the stream from which to decode</param>
+        /// <returns>the decoded dictionary</returns>
         public static Dictionary<string, string> DecodeDictionary(Stream input)
         {
             Dictionary<string, string> dict = new Dictionary<string, string>();
@@ -502,19 +529,19 @@ namespace GT.Utils
                 int nBytes = DecodeLength(input);
                 byte[] bytes = new byte[nBytes];
                 input.Read(bytes, 0, nBytes);
-                string key = UTF8Encoding.UTF8.GetString(bytes);
+                string key = Encoding.UTF8.GetString(bytes);
 
                 nBytes = DecodeLength(input);
                 bytes = new byte[nBytes];
                 input.Read(bytes, 0, nBytes);
-                string value = UTF8Encoding.UTF8.GetString(bytes);
+                string value = Encoding.UTF8.GetString(bytes);
 
                 dict[key] = value;
             }
             return dict;
         }
-        #endregion
 
+        #endregion
 
     }
 

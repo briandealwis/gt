@@ -22,8 +22,8 @@ namespace GT.Utils
         public BitTuple(int setBits) : this(setBits, setBits) { }
 
         /// <summary>
-        /// Create a new bit tuple with <c>setBits</c> allocated (and zero'd) 
-        /// and space for <c>estimatedBits</c>.</c>
+        /// Create a new bit tuple with <see cref="setBits"/> allocated (and zero'd) 
+        /// and space for <see cref="estimatedBits"/>.
         /// </summary>
         /// <param name="setBits">number of bits to be set</param>
         /// <param name="estimatedBits">initially allocated space</param>

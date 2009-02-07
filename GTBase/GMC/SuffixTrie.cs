@@ -50,10 +50,19 @@ namespace GT.GMC
         }
 
         /// <summary>
-        /// Returns an encoding for the given byte
+        /// Search for and return an encoding for the maximal byte sequence found in
+        /// <see cref="key"/> starting at position <see cref="startIndex"/>.  At the 
+        /// conclusion of this method, the encoding for the maximal byte sequence will 
+        /// be returned. <see cref="escapedIndex"/> will point to the start of bytes
+        /// that do not have an encoding.  <see cref="startIndex"/> will have been 
+        /// advanced to the next character after the maximal seqence and after any
+        /// bytes needing to be escaped; if <see cref="startIndex"/> == <see cref="escapedIndex"/>
+        /// then no bytes needed escaping.
         /// </summary>
-        /// <param name="key"></param>
-        /// <returns></returns>
+        /// <param name="key">the bytes</param>
+        /// <param name="startIndex">starting point in <see cref="key"/> for encoding</param>
+        /// <param name="escapedIndex">pointer to sequence of bytes that cannot be encoded</param>
+        /// <returns>the encoding</returns>
         public uint GetCode(byte[] key, ref int startIndex, out int escapedIndex)
         {
             uint code = root.GetCode(key, ref startIndex);
@@ -101,7 +110,8 @@ namespace GT.GMC
         /// of the trie.  To avoid generating unnecessary garbage, we pass a start index
         /// into key.
         /// </summary>
-        /// <param name="key">the key to lookup/update, relative to <c>startIndex</c></param>
+        /// <param name="key">the key to lookup/update, relative to <see cref="startIndex"/></param>
+        /// <param name="startIndex">start location into <see cref="key"/></param>
         /// <param name="nextCode">the next code to be assigned</param>
         public void Update(byte[] key, int startIndex, ref uint nextCode)
         {
@@ -127,7 +137,8 @@ namespace GT.GMC
             return GetCode(key, ref index);
         }
 
-        /// <summary>Recursively search for a code. After GetCode(), startIndex will 
+        /// <summary>
+        /// Recursively search for a code. After GetCode(), startIndex will 
         /// point to the *next* character to consider. So 
         /// message[startIndex .. startIndex'-1] will be represented by the return code.
         /// </summary>

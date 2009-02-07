@@ -221,10 +221,7 @@ namespace GT.GMC
         /// <summary>
         /// Decompresses a message using the provided compressors.
         /// </summary>
-        /// <param name="ct">the compressors corresponding the template</param>
-        /// <param name="templateName">the template identifier</param>
-        /// <param name="message">the encoded (compressed) message</param>
-        /// <param name="userId">the user from which the encoded message was received</param>
+        /// <param name="cmp">the details of the message to be decompressed</param>
         /// <returns>The decoded (uncompressed) message</returns>
         public byte[] Decode(CompressedMessagePackage cmp)
         {

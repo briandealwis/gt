@@ -237,6 +237,8 @@ namespace GT.Net
         /// See <see cref="IGenericStream{SI,RI}.Send(SI,MessageDeliveryRequirements)"/>
         /// </summary>
         /// <param name="item">the item to send</param>
+        /// <param name="mdr">the delivery requirements for the message, overriding the
+        /// channel's delivery requirements</param>
         public abstract void Send(SI item, MessageDeliveryRequirements mdr);
 
         /// <summary>

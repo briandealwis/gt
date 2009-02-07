@@ -3,6 +3,10 @@ using System.Runtime.Serialization;
 using System.Collections.Generic;
 using GT.Net;
 
+/// <summary>
+/// Fundamental classes and interfaces used throughout GT, including
+/// for reporting errors.
+/// <summary>
 namespace GT
 {
     /// <summary>
@@ -139,7 +143,7 @@ namespace GT
         /// Initializes a new instance of the System.Exception class with a specified error message
         /// and a reference to some object that is the cause of this exception.
         /// </summary>
-        /// <param name="message">The message that describes the error.</parameter>
+        /// <param name="message">The message that describes the error.</param>
         /// <param name="source">The object that is the cause of the current exception.</param>
         public InvalidStateException(string message, object source)
             : base(Severity.Warning, message)
