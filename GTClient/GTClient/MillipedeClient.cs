@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Runtime.Serialization.Formatters.Binary;
+using System.Threading;
 using GT.Net;
 using GT.Utils;
 
@@ -18,7 +19,6 @@ namespace GT.Millipede
         private readonly IConnector underlyingConnector = null;
         private object milliDescriptor;
         private MillipedeRecorder recorder;
-        private SharedQueue<NetworkEvent> replayConnections;
 
         /// <summary>
         /// Wrap the provided connector for use with Millipede.
@@ -75,21 +75,9 @@ namespace GT.Millipede
         {
             milliDescriptor = recorder.GenerateDescriptor(underlyingConnector);
             this.recorder = recorder;
-            if (recorder.Mode == MillipedeMode.Playback)
-            {
-                recorder.Notify(milliDescriptor, InjectNetworkEvent);
-                replayConnections = new SharedQueue<NetworkEvent>();
-            }
             this.underlyingConnector = underlyingConnector;
         }
 
-        private void InjectNetworkEvent(NetworkEvent e)
-        {
-            if (e.Type == NetworkEventType.Connected)
-            {
-                replayConnections.Enqueue(e);
-            }
-        }
 
         /// <summary>
         /// Wraps IConnector.Connect. In addition, writes data to a sink if MillipedeConnector is
@@ -99,7 +87,9 @@ namespace GT.Millipede
         public ITransport Connect(string address, string port, IDictionary<string, string> capabilities)
         {
             if (recorder.Mode == MillipedeMode.Playback) {
-                NetworkEvent connectEvent = replayConnections.Dequeue();
+                // Wait until a connection event comes in
+                NetworkEvent connectEvent = recorder.WaitForReplayEvent(milliDescriptor);
+
                 Debug.Assert(connectEvent.Type == NetworkEventType.Connected);
 
                 MemoryStream stream = new MemoryStream(connectEvent.Message);

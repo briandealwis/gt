@@ -75,14 +75,34 @@ namespace GT.Millipede
         private MillipedeMode mode = MillipedeMode.Unconfigured;
         private Stopwatch timer = null;
         private FileStream sinkFile = null;
-        private readonly IDictionary<object, Action<NetworkEvent>> injectors =
-            new Dictionary<object, Action<NetworkEvent>>();
 
         private MemoryStream dataSink = null;
         private Timer syncingTimer;
 
-        private NetworkEvent nextEvent = null;
+        /// <summary>
+        /// Used for allocating stable but unique descriptors for recordable objects.
+        /// For example, two TcpConnectors have no distinguishing characteristics;
+        /// we can't use their ToString() as they'll be identical.  So we instead
+        /// increment this value as necessary.  As long as the app's execution path
+        /// is stable, then we'll allocate the same descriptors in the same order
+        /// during playback as was allocated for the recording run.
+        /// </summary>
         private int uniqueCount = 0;
+
+        /// <summary>
+        /// The next event to release during playback.
+        /// </summary>
+        private NetworkEvent nextEvent = null;
+
+        /// <summary>
+        /// The time in milliseconds when <see cref="nextEvent"/> *should* be released,
+        /// as opposed to the timestamp in its timestamp, <see cref="NetworkEvent.Time"/>.
+        /// This value helps replay events as according to the logical time: <see cref="timer"/>,
+        /// being an instance of <see cref="Stopwatch"/>, is based on wall-clock, and hence
+        /// will be thrown off by delays introduced from debugging, such as stepping into
+        /// a function.
+        /// </summary>
+        private long nextEventReleaseTime = 0;
 
         /// <summary>
         /// Return the number of events replayed or recordered to this point.
@@ -119,7 +139,7 @@ namespace GT.Millipede
             dataSink = null;
             sinkFile = File.OpenRead(replayFile);
             LastFileName = replayFile;
-            ScheduleNextEvent();
+            LoadNextEvent();
         }
 
         public void StartRecording(string recordingFile) {
@@ -161,24 +181,11 @@ namespace GT.Millipede
         }
 
 
-        /// <summary>
-        /// Register the <see cref="action"/> for any events occurring by <see cref="descriptor"/>.
-        /// This is an internal method and is only intended for registering objects that
-        /// can be recorded and replayed.
-        /// </summary>
-        /// <param name="descriptor">a unique descriptor for some object</param>
-        /// <param name="action">delegate for any events occurring for <see cref="descriptor"/></param>
-        public void Notify(object descriptor, Action<NetworkEvent> action)
-        {
-            injectors[descriptor] = action;
-        }
-
         public void Dispose()
         {
             lock (this)
             {
                 if(this == singleton) { singleton = null; }
-                injectors.Clear();
                 if(syncingTimer != null) { syncingTimer.Dispose(); }
                 syncingTimer = null;
 
@@ -199,9 +206,9 @@ namespace GT.Millipede
 
         public void Record(NetworkEvent networkEvent)
         {
-            if(dataSink == null) { return; }
             if(mode == MillipedeMode.Record)
             {
+                if (dataSink == null) { return; }
                 networkEvent.Time = timer.ElapsedMilliseconds;
                 lock (this)
                 {
@@ -216,27 +223,39 @@ namespace GT.Millipede
             }
             else if(mode == MillipedeMode.Playback)
             {
-                if (log.IsInfoEnabled)
+                NetworkEvent e = nextEvent;
+                if(e == null)
                 {
-                    NetworkEvent e = nextEvent;
-                    if(e == null)
+                    log.Trace("Millipede Playback: no matching event! (nextEvent == null)");
+                    // although this may be of interest, it's likely because the recorder
+                    // was explicitly stopped 
+                }
+                else if(!e.Type.Equals(networkEvent.Type))
+                {
+                    if (log.IsInfoEnabled)
                     {
-                        // log.Info("Millipede Playback: no matching event! (nextEvent == null)");
-                        // although this may be of interest, it's likely because the recorder
-                        // was explicitly stopped 
+                        log.Trace("Millipede Playback: different type of operation than expected!");
+                        log.Trace("   expected: " + nextEvent.Type);
+                        log.Trace("   provided: " + e.Type);
                     }
-                    else if(!e.Type.Equals(networkEvent.Type))
+                }
+                else if(!e.ObjectDescriptor.Equals(networkEvent.ObjectDescriptor))
+                {
+                    if (log.IsInfoEnabled)
                     {
-                        log.Info("Millipede Playback: different type of operation than expected!");
-                        log.Info("   expected: " + nextEvent.Type);
-                        log.Info("   provided: " + e.Type);
+                        log.Trace("Millipede Playback: different message sent than expected!");
+                        log.Trace("   expected: " + nextEvent.ObjectDescriptor);
+                        log.Trace("   provided: " + e.ObjectDescriptor);
                     }
-                    else if(!e.ObjectDescriptor.Equals(networkEvent.ObjectDescriptor))
+                } 
+                else 
+                {
+                    Interlocked.Increment(ref NumberEvents);
+                    if (log.IsInfoEnabled)
                     {
-                        log.Info("Millipede Playback: different message sent than expected!");
-                        log.Info("   expected: " + nextEvent.ObjectDescriptor);
-                        log.Info("   provided: " + e.ObjectDescriptor);
+                        log.Trace(String.Format("Recorded packet {0}: {1}", NumberEvents, e));
                     }
+                    LoadNextEvent();
                 }
             }
         }
@@ -252,39 +271,79 @@ namespace GT.Millipede
             }
         }
 
-        private void ScheduleNextEvent()
+        /// <summary>
+        /// Check if the next event waiting is for the recordable object identified 
+        /// as <see cref="descriptor"/>.  The next event is properly delayed to
+        /// match the recorded session.
+        /// </summary>
+        /// <param name="descriptor"></param>
+        /// <returns>the next event for the recordable object, or null if there is no
+        /// such event waiting</returns>
+        public NetworkEvent CheckReplayEvent(object descriptor)
         {
+            Debug.Assert(Mode == MillipedeMode.Playback, "Can only check replay events in playback mode!");
             lock (this)
             {
-                if(!Active) { return; }
-                if(sinkFile.Position == sinkFile.Length) { return; }
-                nextEvent = NetworkEvent.DeSerialize(sinkFile);
-            }
-            TimeSpan duration = TimeSpan.FromMilliseconds(Math.Max(0,
-                nextEvent.Time - timer.ElapsedMilliseconds));
-            Console.WriteLine("[{1}] Scheduling next event for {0}ms", duration.TotalMilliseconds,
-                timer.ElapsedMilliseconds);
-            if (syncingTimer == null)
-            {
-                syncingTimer = new Timer(ReplayNextEvent, null, duration,
-                    TimeSpan.FromMilliseconds(-1));
-            }
-            else
-            {
-                syncingTimer.Change(duration, TimeSpan.FromMilliseconds(-1));
+                if(!Active) { return null; }
+                if (nextEvent == null) { return null; }
+                if (!nextEvent.ObjectDescriptor.Equals(descriptor)) { return null; }
+                if (nextEventReleaseTime > timer.ElapsedMilliseconds) { return null; }
+                NetworkEvent e = nextEvent;
+                Interlocked.Increment(ref NumberEvents);
+                //Console.WriteLine("Message returned to waiting object " + descriptor);
+                LoadNextEvent();
+                return e;
             }
         }
 
-        private void ReplayNextEvent(object state)
-        {
-            Action<NetworkEvent> activator;
-            int eventNo = Interlocked.Increment(ref NumberEvents);
-            Console.WriteLine("[{2}] Replaying event #{0}: {1}", eventNo, nextEvent, timer.ElapsedMilliseconds);
-            if (injectors.TryGetValue(nextEvent.ObjectDescriptor, out activator))
+        /// <summary>
+        /// Check and wait for the next event waiting for the recordable object identified 
+        /// as <see cref="descriptor"/>.  The next event is properly delayed to
+        /// match the recorded session.
+        /// </summary>
+        /// <param name="descriptor">the descriptor</param>
+        /// <returns>the event or null</returns>
+        public NetworkEvent WaitForReplayEvent(object descriptor) {
+            Debug.Assert(Mode == MillipedeMode.Playback, "Can only check replay events in playback mode!");
+            lock (this)
             {
-                activator.Invoke(nextEvent);
+                if(!Active) { return null; }
+                if (nextEvent == null) { return null; }
+                while(!nextEvent.ObjectDescriptor.Equals(descriptor))
+                {
+                    //Console.WriteLine("Waiting for message from {0}: pulsing", descriptor);
+                    Monitor.Pulse(this);
+                    if (!Active || nextEvent == null) { return null; }
+                }
+                int remainingTime = (int)(nextEventReleaseTime - timer.ElapsedMilliseconds);
+                if(remainingTime > 0) { Monitor.Wait(this, remainingTime); }
+                NetworkEvent e = nextEvent;
+                Interlocked.Increment(ref NumberEvents);
+                //Console.WriteLine("Message returned to waiting object " + descriptor);
+                LoadNextEvent();
+                return e;
             }
-            ScheduleNextEvent();
+        }
+
+        private void LoadNextEvent()
+        {
+            lock (this)
+            {
+                if (sinkFile.Position == sinkFile.Length)
+                {
+                    // EOF
+                    nextEvent = null;
+                    return;
+                }
+                // delayOffset = difference in when this event actually happened vs scheduled.
+                // See comment for nextEventReleaseTime for details
+                long delayOffset = timer.ElapsedMilliseconds - (nextEvent == null ? 0 : nextEvent.Time);
+                nextEvent = NetworkEvent.DeSerialize(sinkFile);
+                nextEventReleaseTime = nextEvent.Time + delayOffset;
+                //Console.WriteLine("Loaded event {0}: recorded at {1}ms, shifted by {2}ms to replay at {3}ms",
+                //    NumberEvents + 1, nextEvent.Time, delayOffset, nextEventReleaseTime);
+                //Console.WriteLine("  " + nextEvent);
+            }
         }
 
         public override string ToString()
@@ -344,7 +403,6 @@ namespace GT.Millipede
         private readonly object milliDescriptor;
 
         private readonly string replayName;
-        private float replayDelay = 10;
         private readonly IDictionary<string,string> replayCapabilities;
         private readonly Ordering replayOrdering;
         private readonly Reliability replayReliability;
@@ -366,7 +424,6 @@ namespace GT.Millipede
             this.underlyingTransport = underlyingTransport;
             this.recorder = recorder;
             milliDescriptor = milliTransportDescriptor;
-            recorder.Notify(milliTransportDescriptor, InjectRecordedEvent);
             this.underlyingTransport.PacketReceivedEvent += UnderlyingTransports_PacketReceivedEvent;
             this.underlyingTransport.PacketSentEvent += UnderlyingTransports_PacketSentEvent;
             running = true;
@@ -395,7 +452,6 @@ namespace GT.Millipede
             replayOrdering = ordering;
             replayMaximumPacketSize = maxPacketSize;
 
-            recorder.Notify(milliTransportDescriptor, InjectRecordedEvent);
             running = true;
         }
 
@@ -430,26 +486,6 @@ namespace GT.Millipede
                 buffer, offset, count));
             if (PacketReceivedEvent == null) { return; }
             PacketReceivedEvent(buffer, offset, count, this);
-        }
-
-        /// <summary>
-        /// On playback mode (Mode.Playback), this method is used to inject previoulsy recorded
-        /// network traffic to other registered GT2 comonents via the ITransport.PacketReceivedEvent.
-        /// </summary>
-        /// <param name="e"></param>
-        private void InjectRecordedEvent(NetworkEvent e)
-        {
-            if (e.Type == NetworkEventType.Disposed)
-            {
-                running = false;
-            }
-            else if (e.Type == NetworkEventType.PacketReceived)
-            {
-                if(PacketReceivedEvent != null)
-                {
-                    PacketReceivedEvent(e.Message, 0, e.Message.Length, this);
-                }
-            }
         }
 
         /// <summary>
@@ -560,6 +596,20 @@ namespace GT.Millipede
             if (recorder.Mode != MillipedeMode.Playback)
             {
                 underlyingTransport.Update();
+                return;
+            }
+            NetworkEvent e = recorder.CheckReplayEvent(milliDescriptor);
+            if (e == null) { return; }
+            if (e.Type == NetworkEventType.Disposed)
+            {
+                running = false;
+            }
+            else if (e.Type == NetworkEventType.PacketReceived)
+            {
+                if(PacketReceivedEvent != null)
+                {
+                    PacketReceivedEvent(e.Message, 0, e.Message.Length, this);
+                }
             }
         }
 

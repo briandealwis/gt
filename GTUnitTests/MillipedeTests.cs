@@ -8,7 +8,7 @@ using GT.Millipede;
 namespace GT.UnitTests
 {
     [TestFixture]
-    public class MillipedeTests
+    public class ZPMillipedeTests
     {
         IList<string> toBeDeleted = new List<string>();
         MillipedeRecorder recorder;
@@ -68,6 +68,7 @@ namespace GT.UnitTests
 
             recorder = new MillipedeRecorder();
             recorder.StartReplaying(tempFileName);
+            Assert.AreEqual(0, recorder.NumberEvents);
             connector = (MillipedeConnector)MillipedeConnector.Wrap(mockConnector = new MockConnector(), 
                 recorder);
             transport = connector.Connect("localhost", "9999", new Dictionary<string, string>());
@@ -79,9 +80,13 @@ namespace GT.UnitTests
             Assert.IsInstanceOfType(typeof(MillipedeTransport), transport);
             Assert.AreEqual(1, recorder.NumberEvents);
             transport.SendPacket(new byte[10], 0, 10);
-            Thread.Sleep(10);   // the NumberEvent is incremented on playback, and may need time to playback
             Assert.AreEqual(2, recorder.NumberEvents);
-            Thread.Sleep(100);
+            transport.Update();
+            for (int i = 0; i < 5 && recorder.NumberEvents == 2; i++)
+            {
+                Thread.Sleep(100);
+                transport.Update();
+            }
             Assert.AreEqual(3, recorder.NumberEvents);  // should have received the packet too
         }
 
@@ -115,6 +120,13 @@ namespace GT.UnitTests
             Assert.IsInstanceOfType(typeof(MillipedeTransport), transport);
             Assert.AreEqual(1, recorder.NumberEvents);
 
+            transport.SendPacket(new byte[10], 0, 10);
+            Assert.AreEqual(2, recorder.NumberEvents);
+            Assert.AreEqual(1, packetsSent, "millipede didn't pass down packet-send in record");
+            Thread.Sleep(50);  // give a good amount of time for the test below
+            mockTransport.InjectReceivedPacket(new byte[5]);
+            Assert.AreEqual(3, recorder.NumberEvents);
+
             recorder.Dispose(); // don't want the disposes add to the list
             mockAcceptor.Dispose(); mockAcceptor = null;
             mockTransport.Dispose(); mockTransport = null;
@@ -128,10 +140,25 @@ namespace GT.UnitTests
                 transport = t;
             };
             recorder.StartReplaying(tempFileName);
-            Thread.Sleep(100);
+            acceptor.Update();
+            for (int i = 0; i < 5 && transport == null; i++)
+            {
+                Thread.Sleep(100);
+                acceptor.Update();
+            }
             Assert.IsNotNull(transport);
             Assert.IsInstanceOfType(typeof(MillipedeTransport), transport);
             Assert.AreEqual(1, recorder.NumberEvents);
+
+            transport.SendPacket(new byte[10], 0, 10);
+            Assert.AreEqual(2, recorder.NumberEvents);
+            transport.Update();
+            for (int i = 0; i < 5 && recorder.NumberEvents == 2; i++)
+            {
+                Thread.Sleep(100);
+                transport.Update();
+            }
+            Assert.AreEqual(3, recorder.NumberEvents);  // should have received the packet too
         }
 
     }
