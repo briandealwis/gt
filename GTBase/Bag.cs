@@ -2,7 +2,6 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Threading;
-using GT.Net;
 
 namespace GT.Utils
 {
@@ -321,6 +320,25 @@ namespace GT.Utils
             }
         }
 
+        /// <summary>
+        /// Try to dequeue an object.
+        /// </summary>
+        /// <param name="value">the dequeued result, or the default of <typeparamref name="T"/>
+        /// if the timeout expires.</param>
+        /// <returns>true if a value was dequeued, or false if there was nothing available</returns>
+        public bool TryDequeue(out T value)
+        {
+            lock (queueLock)
+            {
+                if(queue.Count > 0)
+                {
+                    value = queue.Dequeue();
+                    return true;
+                }
+                value = default(T);
+                return false;
+            }
+        }
 
         public int Count
         {
