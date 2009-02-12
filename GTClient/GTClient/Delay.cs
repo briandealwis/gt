@@ -34,7 +34,7 @@ namespace GT.Net
             sendQueue = new SortedDictionary<long, byte[]>();
             dequeueQueue = new SortedDictionary<long, byte[]>();
             this.bs = bs;
-            bs.BinaryNewMessageEvent += BinaryNewMessageEvent;
+            bs.MessagesReceived += BinaryNewMessageEvent;
             Messages = new List<byte[]>();
             timer = new HPTimer();
             InjectedDelay = injectedDelay;

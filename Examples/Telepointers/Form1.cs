@@ -75,7 +75,7 @@ namespace Telepointers
                 ChannelDeliveryRequirements.TelepointerLike);
             coords.StreamedTupleReceived += coords_StreamedTupleReceived;
             c.ErrorEvent += c_ErrorEvent;
-            session.SessionNewMessageEvent += session_SessionNewMessageEvent;
+            session.MessagesReceived += session_SessionNewMessageEvent;
 
         }
 

@@ -42,6 +42,13 @@ Developer-visible changes:
       * Replaced uses of GT.Net.{Session,String,Object,Binary}MessageHandler
         delegates with the equivalent GT.Net.MessageHandler
 
+      * We reworked the IStream implementations to reduce code duplication. 
+	As a result, we replaced the GT.Net.{Session,String,Object,
+	Binary}NewMessageEvent delegates with the equivalent
+	IAction<ST> where ST is the appropriate IStream subinterface.
+	The actual events have been renamed to MessagesReceived
+	to be more consistent with similar events elsewhere.
+
       * The delegate GT.Net.PingReceived's time component now
 	returns the round-trip ping time, and not half of the time.
 

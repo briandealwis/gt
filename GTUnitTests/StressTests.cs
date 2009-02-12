@@ -209,13 +209,13 @@ namespace GT.UnitTests
             client.Start();
             objectStream = client.GetObjectStream(host, port,
                 0, ChannelDeliveryRequirements.MostStrict);
-            objectStream.ObjectNewMessageEvent += client_ReceivedObjectMessage;
+            objectStream.MessagesReceived += client_ReceivedObjectMessage;
             stringStream = client.GetStringStream(host, port,
                 1, ChannelDeliveryRequirements.MostStrict);
-            stringStream.StringNewMessageEvent += client_ReceivedStringMessage;
+            stringStream.MessagesReceived += client_ReceivedStringMessage;
             binaryStream = client.GetBinaryStream(host, port,
                 2, ChannelDeliveryRequirements.MostStrict);
-            binaryStream.BinaryNewMessageEvent += client_ReceivedBinaryMessage;
+            binaryStream.MessagesReceived += client_ReceivedBinaryMessage;
 
             client.StartSeparateListeningThread();
             for (int i = 0; i < numberSenders; i++)

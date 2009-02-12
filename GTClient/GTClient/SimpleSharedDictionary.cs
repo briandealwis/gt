@@ -50,7 +50,7 @@ namespace GT.Net
         public SimpleSharedDictionary(IObjectStream s)
         {
             this.stream = s;
-            this.stream.ObjectNewMessageEvent += stream_NewMessageEvent;
+            this.stream.MessagesReceived += stream_NewMessageEvent;
             this.Master = new List<string>();
             this.sharedDictionary = new Dictionary<string, object>();
         }

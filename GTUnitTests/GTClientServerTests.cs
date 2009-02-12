@@ -374,14 +374,14 @@ namespace GT.UnitTests
                 Debug("Client: sending greeting: " + EXPECTED_GREETING);
                 IStringStream strStream = client.GetStringStream("127.0.0.1", "9999", 0,
                     new TestChannelDeliveryRequirements(typeof(BaseUdpTransport)));  //connect here
-                strStream.StringNewMessageEvent += ClientStringMessageReceivedEvent;
+                strStream.MessagesReceived += ClientStringMessageReceivedEvent;
                 strStream.Send(EXPECTED_GREETING);  //send a string
                 CheckForResponse();
                 Assert.AreEqual(1, strStream.Messages.Count);
                 string s = strStream.DequeueMessage(0);
                 Assert.IsNotNull(s);
                 Assert.AreEqual(EXPECTED_RESPONSE, s);
-                strStream.StringNewMessageEvent -= ClientStringMessageReceivedEvent;
+                strStream.MessagesReceived -= ClientStringMessageReceivedEvent;
             }
 
             foreach (IConnexion c in client.Connexions) { ((ConnexionToServer)c).Ping(); }
@@ -422,7 +422,7 @@ namespace GT.UnitTests
 
             IStringStream strStream = client.GetStringStream("127.0.0.1", "9999", 0,
                 new TestChannelDeliveryRequirements(typeof(BaseUdpTransport))); //connect here
-            strStream.StringNewMessageEvent += ClientStringMessageReceivedEvent;
+            strStream.MessagesReceived += ClientStringMessageReceivedEvent;
             strStream.Send(EXPECTED_GREETING); //send a string
             CheckForResponse();
 
@@ -469,14 +469,14 @@ namespace GT.UnitTests
                 Debug("Client: sending greeting: " + EXPECTED_GREETING);
                 IStringStream strStream = client.GetStringStream("127.0.0.1", "9999", 0,
                     new TestChannelDeliveryRequirements(typeof(BaseUdpTransport)));  //connect here
-                strStream.StringNewMessageEvent += ClientStringMessageReceivedEvent;
+                strStream.MessagesReceived += ClientStringMessageReceivedEvent;
                 strStream.Send(EXPECTED_GREETING);  //send a string
                 CheckForResponse();
                 Assert.AreEqual(1, strStream.Messages.Count);
                 string s = strStream.DequeueMessage(0);
                 Assert.IsNotNull(s);
                 Assert.AreEqual(EXPECTED_RESPONSE, s);
-                strStream.StringNewMessageEvent -= ClientStringMessageReceivedEvent;
+                strStream.MessagesReceived -= ClientStringMessageReceivedEvent;
             }
 
             client.Stop();
@@ -512,7 +512,7 @@ namespace GT.UnitTests
                 Debug("Client: sending greeting: " + EXPECTED_GREETING);
                 IStringStream strStream = client.GetStringStream("127.0.0.1", "9999", 0,
                     new TestChannelDeliveryRequirements(typeof(BaseUdpTransport))); //connect here
-                strStream.StringNewMessageEvent += ClientStringMessageReceivedEvent;
+                strStream.MessagesReceived += ClientStringMessageReceivedEvent;
                 Assert.IsTrue(connexionAdded, "should have connected");
 
                 for (int i = 0; i < 5; i++)
@@ -578,14 +578,14 @@ namespace GT.UnitTests
             {
                 Debug("Client: sending greeting: " + EXPECTED_GREETING);
                 IStringStream strStream = client.GetStringStream("127.0.0.1", "9999", 0, cdr);  //connect here
-                strStream.StringNewMessageEvent += ClientStringMessageReceivedEvent;
+                strStream.MessagesReceived += ClientStringMessageReceivedEvent;
                 strStream.Send(EXPECTED_GREETING);  //send a string
                 CheckForResponse();
                 Assert.AreEqual(1, strStream.Messages.Count);
                 string s = strStream.DequeueMessage(0);
                 Assert.IsNotNull(s);
                 Assert.AreEqual(EXPECTED_RESPONSE, s);
-                strStream.StringNewMessageEvent -= ClientStringMessageReceivedEvent;
+                strStream.MessagesReceived -= ClientStringMessageReceivedEvent;
             }
 
             responseReceived = false;
@@ -596,14 +596,14 @@ namespace GT.UnitTests
                 byte[] sentBytes = new byte[] { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9 };
                 Debug("Client: sending byte message: [0 1 2 3 4 5 6 7 8 9]");
                 IBinaryStream binStream = client.GetBinaryStream("127.0.0.1", "9999", 0, cdr);  //connect here
-                binStream.BinaryNewMessageEvent += ClientBinaryMessageReceivedEvent;
+                binStream.MessagesReceived += ClientBinaryMessageReceivedEvent;
                 binStream.Send(sentBytes);
                 CheckForResponse();
                 Assert.AreEqual(1, binStream.Messages.Count);
                 byte[] bytes = binStream.DequeueMessage(0);
                 Assert.IsNotNull(bytes);
                 Assert.AreEqual(sentBytes, bytes);
-                binStream.BinaryNewMessageEvent -= ClientBinaryMessageReceivedEvent;
+                binStream.MessagesReceived -= ClientBinaryMessageReceivedEvent;
             }
 
             responseReceived = false;
@@ -613,7 +613,7 @@ namespace GT.UnitTests
             {
                 Debug("Client: sending greeting: list(\"hello\",\"world\")");
                 IObjectStream objStream = client.GetObjectStream("127.0.0.1", "9999", 0, cdr);  //connect here
-                objStream.ObjectNewMessageEvent += ClientObjectMessageReceivedEvent;
+                objStream.MessagesReceived += ClientObjectMessageReceivedEvent;
                 objStream.Send(new List<string>(new string[] { "hello", "world" }));  //send a string
                 CheckForResponse();
                 Assert.AreEqual(1, objStream.Messages.Count);
@@ -621,7 +621,7 @@ namespace GT.UnitTests
                 Assert.IsNotNull(o);
                 Assert.IsInstanceOfType(typeof(List<string>), o);
                 Assert.AreEqual(new List<string>(new string[] { "hello", "world" }), o);
-                objStream.ObjectNewMessageEvent -= ClientObjectMessageReceivedEvent;
+                objStream.MessagesReceived -= ClientObjectMessageReceivedEvent;
             }
 
             responseReceived = false;
@@ -631,14 +631,14 @@ namespace GT.UnitTests
             {
                 Debug("Client: sending greeting: SessionAction.Joined");
                 ISessionStream sessStream = client.GetSessionStream("127.0.0.1", "9999", 0, cdr);  //connect here
-                sessStream.SessionNewMessageEvent += ClientSessionMessageReceivedEvent;
+                sessStream.MessagesReceived += ClientSessionMessageReceivedEvent;
                 sessStream.Send(SessionAction.Joined);  //send a string
                 CheckForResponse();
                 Assert.AreEqual(1, sessStream.Messages.Count);
                 SessionMessage sm = sessStream.DequeueMessage(0);
                 Assert.IsNotNull(sm);
                 Assert.AreEqual(sm.Action, SessionAction.Joined);
-                sessStream.SessionNewMessageEvent -= ClientSessionMessageReceivedEvent;
+                sessStream.MessagesReceived -= ClientSessionMessageReceivedEvent;
             }
 
             responseReceived = false;

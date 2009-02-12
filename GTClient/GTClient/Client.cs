@@ -17,19 +17,6 @@ namespace GT.Net
 
     #region Delegates
 
-    /// <summary>Handles a Message event, when a message arrives.</summary>
-    /// <param name="stream">The stream that has the new message.</param>
-    public delegate void SessionNewMessage(ISessionStream stream);
-    /// <summary>Handles a Message event, when a message arrives.</summary>
-    /// /// <param name="stream">The stream that has the new message.</param>
-    public delegate void StringNewMessage(IStringStream stream);
-    /// <summary>Handles a Message event, when a message arrives.</summary>
-    /// /// <param name="stream">The stream that has the new message.</param>
-    public delegate void ObjectNewMessage(IObjectStream stream);
-    /// <summary>Handles a Message event, when a message arrives.</summary>
-    /// /// <param name="stream">The stream that has the new message.</param>
-    public delegate void BinaryNewMessage(IBinaryStream stream);
-
     /// <summary>Occurs whenever a client is updated.</summary>
     public delegate void UpdateEventDelegate(HPTimer hpTimer);
 
@@ -41,9 +28,13 @@ namespace GT.Net
 
     public interface IStream
     {
-        /// <summary>Average latency between the client and this particluar server 
-        /// (in milliseconds).</summary>
-        float Delay { get; }
+        /// <summary>Occurs whenever this client is updated.</summary>
+        event UpdateEventDelegate UpdateEvent;
+
+        /// <summary>
+        /// Return this stream's associated channel.
+        /// </summary>
+        byte Channel { get; }
 
         /// <summary>Return the underlying <see cref="IConnexion.Identity"/>, a
         /// server-unique identity for this client amongst the server's clients.</summary>
@@ -57,9 +48,11 @@ namespace GT.Net
         /// </summary>
         IConnexion Connexion { get; }
         
-        /// <summary>Occurs whenever this client is updated.</summary>
-        event UpdateEventDelegate UpdateEvent;
-
+        /// <summary>
+        /// Average latency between the client and this particluar server 
+        /// (in milliseconds).
+        /// </summary>
+        float Delay { get; }
     }
 
     /// <summary>
@@ -69,7 +62,10 @@ namespace GT.Net
     /// <typeparam name="RI">The type of received items, which is generally expected to be
     ///     the same as <c>SI</c>.  Some special streams, such as <c>ISessionStream</c>, return
     ///     more complex objects.</typeparam>
-    public interface IGenericStream<SI,RI> : IStream
+    /// <typeparam name="ST">The type of this stream.</typeparam>
+    public interface IGenericStream<SI,RI,ST> : IStream
+        where RI : class
+        where ST : IStream
     {
         /// <summary>Send an item to the server</summary>
         /// <param name="item">The item</param>
@@ -80,9 +76,10 @@ namespace GT.Net
         /// <param name="mdr">How to send it</param>
         void Send(SI item, MessageDeliveryRequirements mdr);
 
-        /// <summary>Take an item off the queue of received messages.</summary>
+        /// <summary>Take an item off the queue of received messages and returns its content
+        /// object.</summary>
         /// <param name="index">The message to be dequeued, with a higher number indicating a newer message.</param>
-        /// <returns>The message, or null if there is no such message.</returns>
+        /// <returns>The message content, or null if the content could not be obtained.</returns>
         RI DequeueMessage(int index);
 
         /// <summary>Return the number of waiting messages.</summary>
@@ -92,37 +89,28 @@ namespace GT.Net
         /// <summary>Received messages from the server.</summary>
         IList<Message> Messages { get; }
 
-        // FIXME: How can the new message event be brought in?
-        ///// <summary> Occurs when this connexion receives a message. </summary>
-        //// event SessionNewMessage SessionNewMessageEvent;
+        /// <summary> Triggered when the underlying connexion has new messages. </summary>
+        event Action<ST> MessagesReceived;
     }
 
     /// <summary>A connexion of session events.</summary>
-    public interface ISessionStream : IGenericStream<SessionAction,SessionMessage>
+    public interface ISessionStream : IGenericStream<SessionAction,SessionMessage,ISessionStream>
     {
-        /// <summary> Occurs when this connexion receives a message. </summary>
-        event SessionNewMessage SessionNewMessageEvent;
     }
 
     /// <summary>A connexion of strings.</summary>
-    public interface IStringStream : IGenericStream<string,string>
+    public interface IStringStream : IGenericStream<string,string,IStringStream>
     {
-        /// <summary> Occurs when this connexion receives a message. </summary>
-        event StringNewMessage StringNewMessageEvent;
     }
 
     /// <summary>A connexion of objects.</summary>
-    public interface IObjectStream : IGenericStream<object,object>
+    public interface IObjectStream : IGenericStream<object,object,IObjectStream>
     {
-        /// <summary> Occurs when this connexion receives a message. </summary>
-        event ObjectNewMessage ObjectNewMessageEvent;
     }
 
     /// <summary>A connexion of byte arrays.</summary>
-    public interface IBinaryStream : IGenericStream<byte[],byte[]>
+    public interface IBinaryStream : IGenericStream<byte[],byte[],IBinaryStream>
     {
-        /// <summary> Occurs when this connexion receives a message. </summary>
-        event BinaryNewMessage BinaryNewMessageEvent;
     }
 
     #endregion
@@ -198,8 +186,12 @@ namespace GT.Net
     /// </summary>
     /// <typeparam name="SI">the type of stream items</typeparam>
     /// <typeparam name="RI">the type of returned items</typeparam>
-    public abstract class AbstractStream<SI,RI> : AbstractBaseStream, IGenericStream<SI,RI>
+    /// <typeparam name="ST">the type of this stream interface</typeparam>
+    public abstract class AbstractStream<SI, RI, ST> : AbstractBaseStream, IGenericStream<SI, RI, ST>
+        where ST: IStream
+        where RI: class
     {
+        public event Action<ST> MessagesReceived;
         protected List<Message> messages;
 
         /// <summary>Received messages from the server.</summary>
@@ -220,12 +212,12 @@ namespace GT.Net
         }
 
         /// <summary>
-        /// See <see cref="IGenericStream{SI,RI}.Count"/>
+        /// See <see cref="IGenericStream{SI,RI,ST}.Count"/>
         /// </summary>
         public virtual int Count { get { return messages.Count; } }
 
         /// <summary>
-        /// See <see cref="IGenericStream{SI,RI}.Send(SI)"/>
+        /// See <see cref="IGenericStream{SI,RI,ST}.Send(SI)"/>
         /// </summary>
         /// <param name="item">the item to send</param>
         public void Send(SI item)
@@ -234,7 +226,7 @@ namespace GT.Net
         }
 
         /// <summary>
-        /// See <see cref="IGenericStream{SI,RI}.Send(SI,MessageDeliveryRequirements)"/>
+        /// See <see cref="IGenericStream{SI,RI,ST}.Send(SI,MessageDeliveryRequirements)"/>
         /// </summary>
         /// <param name="item">the item to send</param>
         /// <param name="mdr">the delivery requirements for the message, overriding the
@@ -242,24 +234,64 @@ namespace GT.Net
         public abstract void Send(SI item, MessageDeliveryRequirements mdr);
 
         /// <summary>
-        /// See <see cref="IGenericStream{SI,RI}.DequeueMessage"/>
+        /// See <see cref="IGenericStream{SI,RI,ST}.DequeueMessage"/>
         /// </summary>
         /// <param name="index">the message to dequeue (FIFO order)</param>
-        public abstract RI DequeueMessage(int index);
+        virtual public RI DequeueMessage(int index)
+        {
+            try
+            {
+                if (index >= messages.Count)
+                    return null;
+
+                Message m;
+                lock (messages)
+                {
+                    m = messages[index];
+                    messages.RemoveAt(index);
+                }
+                return GetMessageContents(m);
+            }
+            catch (IndexOutOfRangeException)
+            {
+                return null;
+            }
+            catch (ArgumentOutOfRangeException)
+            {
+                return null;
+            }
+        }
+
+        /// <summary>
+        /// Extract the appropriate typed object from the provided message.
+        /// </summary>
+        /// <param name="m">the message</param>
+        /// <returns>the appropriately-typed object content from <see cref="m"/></returns>
+        abstract public RI GetMessageContents(Message m);
 
         /// <summary>Flush all aggregated messages on this connexion</summary>
         public override void Flush()
         {
             connexion.FlushChannelMessages(this.channel, deliveryOptions);
         }
+
+        protected abstract ST CastedStream { get; }
+
+        /// <summary>Queue a message in the list, triggering events</summary>
+        /// <param name="message">The message to be queued.</param>
+        internal void QueueMessage(Message message)
+        {
+            messages.Add(message);
+            if (MessagesReceived != null)
+                MessagesReceived(CastedStream);
+        }
+
+
     }
 
     /// <summary>A connexion of session events.</summary>
-    internal class SessionStream : AbstractStream<SessionAction, SessionMessage>, ISessionStream
+    internal class SessionStream : AbstractStream<SessionAction, SessionMessage, ISessionStream>, ISessionStream
     {
-        /// <summary> Occurs when this session receives a message. </summary>
-        public event SessionNewMessage SessionNewMessageEvent;
-
         /// <summary>Create a SessionStream object.</summary>
         /// <param name="stream">The SuperStream to use to actually send the messages.</param>
         /// <param name="channel">The message channel.</param>
@@ -277,52 +309,17 @@ namespace GT.Net
             connexion.Send(new SessionMessage(channel, Identity, action), mdr, deliveryOptions);
         }
 
-        /// <summary>Take a SessionMessage off the queue of received messages.</summary>
-        /// <param name="index">Which one to take off, the higher number being newer messages.</param>
-        /// <returns>The message.</returns>
-        override public SessionMessage DequeueMessage(int index)
+        override public SessionMessage GetMessageContents(Message m)
         {
-            try
-            {
-                SessionMessage m;
-                if (index >= messages.Count)
-                    return null;
-
-                lock (messages)
-                {
-                    m = ((SessionMessage)messages[index]);
-                    messages.RemoveAt(index);
-                }
-
-                return m;
-            }
-            catch (IndexOutOfRangeException)
-            {
-                return null;
-            }
-            catch (ArgumentOutOfRangeException)
-            {
-                return null;
-            }
+            return (SessionMessage)m;
         }
 
-        /// <summary>Queue a message in the list, triggering events</summary>
-        /// <param name="message">The message to be queued.</param>
-        internal void QueueMessage(Message message)
-        {
-            messages.Add(message);
-            if(SessionNewMessageEvent != null)
-                SessionNewMessageEvent(this);
-        }
-
+        protected override ISessionStream CastedStream { get { return this; } }
     }
 
     /// <summary>A connexion of strings.</summary>
-    internal class StringStream : AbstractStream<string, string>, IStringStream
+    internal class StringStream : AbstractStream<string, string, IStringStream>, IStringStream
     {
-        /// <summary> Occurs when this connexion receives a message. </summary>
-        public event StringNewMessage StringNewMessageEvent;
-
         /// <summary>Create a StringStream object.</summary>
         /// <param name="stream">The SuperStream to use to actually send the messages.</param>
         /// <param name="channel">The message channel.</param>
@@ -341,49 +338,17 @@ namespace GT.Net
             connexion.Send(new StringMessage(channel, s), mdr, deliveryOptions);
         }
 
-        /// <summary>Take a String off the queue of received messages.</summary>
-        /// <param name="index">Which message to take, with higher numbers being newer messages.</param>
-        /// <returns>The message.</returns>
-        override public string DequeueMessage(int index)
+        override public string GetMessageContents(Message m)
         {
-            try
-            {
-                StringMessage m;
-                if (index >= messages.Count) { return null; }
-
-                lock (messages)
-                {
-                    m = (StringMessage)messages[index];
-                    messages.RemoveAt(index);
-                }
-                return m.Text;
-            }
-            catch (IndexOutOfRangeException)
-            {
-                return null;
-            }
-            catch (ArgumentOutOfRangeException)
-            {
-                return null;
-            }
+            return ((StringMessage)m).Text;
         }
 
-        /// <summary>Queue a message in the list, triggering events</summary>
-        /// <param name="message">The message to be queued.</param>
-        internal void QueueMessage(Message message)
-        {
-            messages.Add(message);
-            if (StringNewMessageEvent != null)
-                StringNewMessageEvent(this);
-        }
+        protected override IStringStream CastedStream { get { return this; } }
     }
 
     /// <summary>A connexion of Objects.</summary>
-    internal class ObjectStream : AbstractStream<object, object>, IObjectStream
+    internal class ObjectStream : AbstractStream<object, object, IObjectStream>, IObjectStream
     {
-        /// <summary> Occurs when this connexion receives a message. </summary>
-        public event ObjectNewMessage ObjectNewMessageEvent;
-
         /// <summary>Create an ObjectStream object.</summary>
         /// <param name="stream">The SuperStream to use to actually send the objects.</param>
         /// <param name="channel">The message channel claimed.</param>
@@ -401,50 +366,17 @@ namespace GT.Net
             connexion.Send(new ObjectMessage(channel, o), mdr, deliveryOptions);
         }
 
-        /// <summary>Dequeues an object from the message list.</summary>
-        /// <param name="index">Which to dequeue, where a higher number means a newer message.</param>
-        /// <returns>The object that was there.</returns>
-        override public object DequeueMessage(int index)
+        override public object GetMessageContents(Message m)
         {
-            try
-            {
-                ObjectMessage m;
-                if (index >= messages.Count)
-                    return null;
-
-                lock (messages)
-                {
-                    m = (ObjectMessage)messages[index];
-                    messages.RemoveAt(index);
-                }
-                return m.Object;
-            }
-            catch (IndexOutOfRangeException)
-            {
-                return null;
-            }
-            catch (ArgumentOutOfRangeException)
-            {
-                return null;
-            }
+            return ((ObjectMessage)m).Object;
         }
 
-        /// <summary>Queue a message in the list, triggering events</summary>
-        /// <param name="message">The message to be queued.</param>
-        internal void QueueMessage(Message message)
-        {
-            messages.Add(message);
-            if (ObjectNewMessageEvent != null)
-                ObjectNewMessageEvent(this);
-        }
+        protected override IObjectStream CastedStream { get { return this; } }
     }
 
     /// <summary>A connexion of byte arrays.</summary>
-    internal class BinaryStream : AbstractStream<byte[],byte[]>, IBinaryStream
+    internal class BinaryStream : AbstractStream<byte[],byte[], IBinaryStream>, IBinaryStream
     {
-        /// <summary> Occurs when this connexion receives a message. </summary>
-        public event BinaryNewMessage BinaryNewMessageEvent;
-
         /// <summary>Creates a BinaryStream object.</summary>
         /// <param name="stream">The SuperStream object on which to actually send the objects.</param>
         /// <param name="channel">The message channel to claim.</param>
@@ -462,42 +394,12 @@ namespace GT.Net
             connexion.Send(new BinaryMessage(channel, b), mdr, deliveryOptions);
         }
 
-        /// <summary>Takes a message from the message list.</summary>
-        /// <param name="index">The message to take, where a higher number means a newer message.</param>
-        /// <returns>The byte array of the message.</returns>
-        override public byte[] DequeueMessage(int index)
+        override public byte[] GetMessageContents(Message m)
         {
-            try
-            {
-                BinaryMessage m;
-                if (index >= messages.Count)
-                    return null;
-
-                lock (messages)
-                {
-                    m = (BinaryMessage)messages[index];
-                    messages.RemoveAt(index);
-                }
-                return m.Bytes;
-            }
-            catch (IndexOutOfRangeException)
-            {
-                return null;
-            }
-            catch (ArgumentOutOfRangeException)
-            {
-                return null;
-            }
+            return ((BinaryMessage)m).Bytes;
         }
-
-        /// <summary>Queue a message in the list, triggering events</summary>
-        /// <param name="message">The message to be queued.</param>
-        internal void QueueMessage(Message message)
-        {
-            messages.Add(message);
-            if (BinaryNewMessageEvent != null)
-                    BinaryNewMessageEvent(this);
-        }
+        
+        protected override IBinaryStream CastedStream { get { return this; } }
     }
 
     #endregion
