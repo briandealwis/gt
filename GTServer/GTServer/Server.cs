@@ -611,7 +611,7 @@ namespace GT.Net
         /// <param name="m">The message.</param>
         /// <param name="client">Which client sent it.</param>
         /// <param name="t">How the message was sent</param>
-        virtual public void ReceivedClientMessage(Message m, IConnexion client, ITransport t)
+        virtual protected void ReceivedClientMessage(Message m, IConnexion client, ITransport t)
         {
             if (log.IsTraceEnabled)
             {
