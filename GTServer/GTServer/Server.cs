@@ -557,10 +557,13 @@ namespace GT.Net
         virtual public void Send(IList<Message> messages, ICollection<IConnexion> list, MessageDeliveryRequirements mdr)
         {
             InvalidStateException.Assert(Active, "Cannot send on a stopped server", this);
-            if(MessagesSent != null) { MessagesSent(messages, list, mdr); }
-
+            if (list == null)
+            {
+                list = Connexions;
+            }
             foreach (IConnexion c in list)
             {
+                if (!c.Active) { continue; }
                 //Console.WriteLine("{0}: sending to {1}", this, c);
                 try
                 {
@@ -572,6 +575,7 @@ namespace GT.Net
                         "Exception when sending messages", e));
                 }
             }
+            if (MessagesSent != null) { MessagesSent(messages, list, mdr); }
         }
 
         /// <summary>
