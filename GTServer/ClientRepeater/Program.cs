@@ -126,7 +126,7 @@ namespace GT.Net
             }
             catch (GetOptException e)
             {
-                Console.WriteLine(e.ToString());
+                Console.WriteLine(e.Message);
                 Usage();
                 return;
             }
@@ -152,7 +152,7 @@ namespace GT.Net
             ClientRepeater cr = new ClientRepeater(config);
             cr.SessionChangesChannel = sessionChannel;
             cr.Verbose = verbose;
-            cr.Start();
+            cr.StartListening();
             if (verbose > 0) { Console.WriteLine("Server stopped"); }
         }
 
@@ -291,7 +291,7 @@ namespace GT.Net
             {
                 foreach(ConnexionToClient client in list)
                 {
-                    StringBuilder builder = new StringBuilder("Client left");
+                    StringBuilder builder = new StringBuilder("Client left: ");
                     builder.Append(client.Identity);
                     builder.Append(':');
                     builder.Append(client.ClientGuid);
