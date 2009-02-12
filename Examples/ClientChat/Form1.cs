@@ -12,13 +12,32 @@ namespace ClientChat
 {
     public partial class Form1 : Form
     {
-        private Client c;
-        private IStringStream s;
-        private ISessionStream session;
+        /// <summary>
+        /// Use channel #1 for sending and receiving chat messages
+        /// </summary>
+        private const int ChatMessagesChannel = 1;
+
+        /// <summary>
+        /// The client repeater uses channel #0 by default to send updates
+        /// on clients joining or leaving the group.
+        /// </summary>
+        private const int SessionUpdatesChannel = 0;
+
+        private Client client;
+
+        /// <summary>
+        /// Used to send and receive new chat messages.
+        /// </summary>
+        private IStringStream chats;
+
+        /// <summary>
+        /// Receives session updates from the client repeater
+        /// when clients join or leave the group.
+        /// </summary>
+        private ISessionStream updates;
 
         public Form1()
         {
-            c = new Client();
             InputDialog d = new InputDialog("Connection details", "Which server:port ?", "localhost:9999");
             if (d.ShowDialog() != DialogResult.OK)
             {
@@ -28,39 +47,46 @@ namespace ClientChat
             string host = parts[0];
             string port = parts.Length > 1 ? parts[1] : "9999";
 
-            s = c.GetStringStream(host, port,0, ChannelDeliveryRequirements.ChatLike);
-            session = c.GetSessionStream(host, port, 0, ChannelDeliveryRequirements.SessionLike);
+            client = new Client();
+            chats = client.GetStringStream(host, port, ChatMessagesChannel, ChannelDeliveryRequirements.ChatLike);
+            updates = client.GetSessionStream(host, port, SessionUpdatesChannel, ChannelDeliveryRequirements.SessionLike);
+            client.Start();
             InitializeComponent();
             this.Disposed += Form1_Disposed;
         }
 
         private void timer_Tick(object sender, EventArgs e)
         {
-            c.Update();
+            client.Update();
+
             String str;
+            while((str = chats.DequeueMessage(0)) != null)
+                transcriptBox.Text += str + "\n";
+
             SessionMessage mes;
-
-            while((str = s.DequeueMessage(0)) != null)
-                richTextBox.Text += str + "\n";
-
-            while ((mes = session.DequeueMessage(0)) != null)
-                richTextBox.Text += "Client " + mes.ClientId + " " + mes.Action + "\n";
+            while ((mes = updates.DequeueMessage(0)) != null)
+                transcriptBox.Text += "Client " + mes.ClientId + " " + mes.Action + "\n";
         }
 
-        private void textBox1_KeyDown(object sender, KeyEventArgs e)
+        private void composedBox_KeyDown(object sender, KeyEventArgs e)
         {
-            e.Handled = true;
             if (e.KeyCode == Keys.Enter)
             {
-                s.Send(textBox1.Text);
-                textBox1.Text = "";
+                chats.Send(composedBox.Text);
+                composedBox.Text = "";
+                e.Handled = true;
             }
         }
 
-        void Form1_Disposed(object sender, EventArgs e)
+        private void Form1_Disposed(object sender, EventArgs e)
         {
-            c.Stop();
-            c.Dispose();
+            client.Stop();
+            client.Dispose();
+        }
+
+        private void Form1_Activated(object sender, EventArgs e)
+        {
+            composedBox.Focus();
         }
 
 
