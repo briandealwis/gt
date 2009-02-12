@@ -6,7 +6,7 @@ using Common.Logging;
 
 namespace GT.Net
 {
-    public delegate void NewClientHandler(ITransport transport, IDictionary<string,string> capabilities);
+    public delegate void NewTransportHandler(ITransport transport, IDictionary<string,string> capabilities);
 
     /// <summary>
     /// An object responsible for negotiating and accepting incoming connections.
@@ -24,8 +24,17 @@ namespace GT.Net
     /// </summary>
     public interface IAcceptor : IStartable
     {
-        event NewClientHandler NewClientEvent;
+        /// <summary>
+        /// Triggered when a new incoming connection has been successfully
+        /// negotiated.
+        /// </summary>
+        event NewTransportHandler NewTransportAccepted;
 
+        /// <summary>
+        /// Run a cycle to process any pending connection negotiations.  
+        /// This method is <strong>not</strong> re-entrant and should not 
+        /// be called from GT callbacks.
+        /// </summary>
         void Update();
     }
 
@@ -40,7 +49,7 @@ namespace GT.Net
         /// An event triggered when a new transport has been
         /// successfully negotiated.
         /// </summary>
-        public event NewClientHandler NewClientEvent;
+        public event NewTransportHandler NewTransportAccepted;
 
         protected IPAddress address;
         protected int port;
@@ -80,7 +89,7 @@ namespace GT.Net
         ///     capabilities of the remote system</param>
         internal void NotifyNewClient(ITransport t, IDictionary<string,string> capabilities)
         {
-            NewClientEvent(t, capabilities);
+            NewTransportAccepted(t, capabilities);
         }
 
         public override string ToString()

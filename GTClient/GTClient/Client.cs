@@ -1630,7 +1630,8 @@ namespace GT.Net
         }
 
         /// <summary>
-        /// Process a single tick of the client.  This method is <strong>not</strong> 
+        /// Run a cycle to process any pending events for the connexions or
+        /// other related objects for this instance.  This method is <strong>not</strong> 
         /// re-entrant and should not be called from GT callbacks.
         /// </summary>
         public override void Update()

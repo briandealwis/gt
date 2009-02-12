@@ -35,15 +35,12 @@ Developer-visible changes:
       * The delegate GT.Net.ConnexionLifecycleNotification has been
         expanded to include the associated Communicator (Client or Server)
 
-      * The delegate GT.Net.NewClientHandler has had its second argument
-        changed to pass an IDictionary, instead of a Dictionary
-
       * The delegate GT.Net.TickHandler has been removed and replaced
 	with System.Action<Communicator>, whose argument is the
 	Communicator instance.
 
-      * Removed GT.Net.{Session,String,Object,Binary}MessageHandler
-        delegates and replaced with equivalent GT.Net.MessageHandler
+      * Replaced uses of GT.Net.{Session,String,Object,Binary}MessageHandler
+        delegates with the equivalent GT.Net.MessageHandler
 
       * The delegate GT.Net.PingReceived's time component now
 	returns the round-trip ping time, and not half of the time.
@@ -70,6 +67,14 @@ Developer-visible changes:
 	was necessary to support marshallers that have dependencies
 	on receiving previous messages.
 
+      * The delegate GT.Net.NewClientHandler has been renamed to
+	NewTransportHandler to better reflect its purpose, and had
+	its second argument changed to pass an IDictionary, instead
+	of a Dictionary.
+
+      * GT.Net.IAcceptor's NewClientEvent event has been renamed
+	to NewTransportAccepted.
+ 
       * There have been some major renames:
 
 	  * Message.Id has been renamed Channel.  The use of 'id' was
@@ -85,6 +90,9 @@ Developer-visible changes:
 	      * IConnexion.UniqueIdentity -> Identity
 	      * IStream.UniqueIdentity -> Identity
 	      * GTCapabilities.CLIENT_ID -> CLIENT_GUID
+
+	  * GT.Net.BaseAcceptor has been renamed to IPBasedAcceptor,
+	    to reflect its IP-centric implementation.
 
   * As part of the renames, some non-API but possibly visible classes
     have also been renamed for clarity:

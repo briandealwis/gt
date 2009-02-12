@@ -266,7 +266,9 @@ namespace GT.Net
             return this.GetType().Name + "(" + (Clients == null ? 0 : Clients.Count) + " clients)";
         }
 
-        /// <summary>Process a single tick of the server.  This method is <strong>not</strong> 
+        /// <summary>
+        /// Run a cycle to process any pending events for the connexions or
+        /// other related objects for this instance.  This method is <strong>not</strong> 
         /// re-entrant and should not be called from GT callbacks.
         /// <strong>deprecated behaviour:</strong> the server is started if not active.
         /// </summary>
@@ -436,7 +438,7 @@ namespace GT.Net
             acceptors = configuration.CreateAcceptors();
             foreach (IAcceptor acc in acceptors)
             {
-                acc.NewClientEvent += NewTransport;
+                acc.NewTransportAccepted += NewTransport;
                 acc.Start();
             }
             marshaller = configuration.CreateMarshaller();

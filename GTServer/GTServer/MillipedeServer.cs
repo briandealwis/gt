@@ -20,7 +20,7 @@ namespace GT.Millipede
         private readonly IAcceptor underlyingAcceptor = null;
         private object milliDescriptor = null;
         private MillipedeRecorder recorder;
-        public event NewClientHandler NewClientEvent;
+        public event NewTransportHandler NewTransportAccepted;
 
         /// <summary>
         /// Wrap the provided acceptor for use with Millipede.
@@ -82,7 +82,7 @@ namespace GT.Millipede
             if (recorder.Mode != MillipedeMode.Playback)
             {
                 // we only pass-through recorded connections in playback mode
-                this.underlyingAcceptor.NewClientEvent += UnderlyingAcceptor_NewClientEvent;
+                this.underlyingAcceptor.NewTransportAccepted += UnderlyingAcceptor_NewClientEvent;
             }
         }
 
@@ -92,13 +92,13 @@ namespace GT.Millipede
         /// there must be a mechanism to forward notifications from the IAcceptor to other GT2
         /// components.
         /// </summary>
-        /// <see cref="IAcceptor.NewClientEvent"/>
+        /// <see cref="IAcceptor.NewTransportAccepted"/>
         private void UnderlyingAcceptor_NewClientEvent(ITransport transport, IDictionary<string, string> capabilities)
         {
             if (recorder.Mode == MillipedeMode.PassThrough 
                 || recorder.Mode == MillipedeMode.Unconfigured)
             {
-                if(NewClientEvent != null) { NewClientEvent(transport, capabilities); }
+                if(NewTransportAccepted != null) { NewTransportAccepted(transport, capabilities); }
                 return;
             } 
             // If we support mode-switching in the future, we need to consider
@@ -115,8 +115,8 @@ namespace GT.Millipede
             formatter.Serialize(stream, transport.MaximumPacketSize);
 
             recorder.Record(new NetworkEvent(milliDescriptor, NetworkEventType.NewClient, stream.ToArray()));
-            if (NewClientEvent == null) { return; }
-            NewClientEvent(new MillipedeTransport(transport, recorder, milliTransportDescriptor), capabilities);
+            if (NewTransportAccepted == null) { return; }
+            NewTransportAccepted(new MillipedeTransport(transport, recorder, milliTransportDescriptor), capabilities);
         }
 
         /// <summary>
@@ -131,7 +131,7 @@ namespace GT.Millipede
                 return;
             }
 
-            if (NewClientEvent == null) { return; } // or if recorder.Mode == MillipedeMode.PassThrough?
+            if (NewTransportAccepted == null) { return; } // or if recorder.Mode == MillipedeMode.PassThrough?
             // See if there's an event and process it if so
             NetworkEvent e = recorder.CheckReplayEvent(milliDescriptor);
             if (e == null) { return; }
@@ -148,7 +148,7 @@ namespace GT.Millipede
 
             ITransport mockTransport = new MillipedeTransport(recorder, milliTransportDescriptor,
                 transportName, capabilities, reliability, ordering, maxPacketSize);
-            NewClientEvent(mockTransport, capabilities);
+            NewTransportAccepted(mockTransport, capabilities);
 
         }
 

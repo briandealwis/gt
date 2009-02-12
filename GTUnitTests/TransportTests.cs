@@ -327,7 +327,7 @@ namespace GT.UnitTests
             connector = conn;
 
             acceptor.Start();
-            acceptor.NewClientEvent += SetupServer;
+            acceptor.NewTransportAccepted += SetupServer;
             acceptorThread = new Thread(RunAcceptor);
             acceptorThread.Name = "Acceptor";
             acceptorThread.IsBackground = true;
@@ -411,7 +411,7 @@ namespace GT.UnitTests
                     h => new UdpSequencedClientTestTransport(h),
                     t => t is UdpSequencedClientTestTransport));
 
-            acceptor.NewClientEvent += delegate(ITransport transport, IDictionary<string, string> capabilities)
+            acceptor.NewTransportAccepted += delegate(ITransport transport, IDictionary<string, string> capabilities)
             {
                 serverTransport = (UdpSequencedServerTestTransport)transport;
             };

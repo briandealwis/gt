@@ -14,7 +14,7 @@ namespace GT.Net.Local
         protected List<LocalHalfPipe> pending;
         protected List<LocalHalfPipe> toBeRemoved;
        
-        public event NewClientHandler NewClientEvent;
+        public event NewTransportHandler NewTransportAccepted;
 
         public LocalAcceptor(string name)
         {
@@ -66,7 +66,7 @@ namespace GT.Net.Local
                     {
                         Dictionary<string, string> capabilities =
                              ByteUtils.DecodeDictionary(new MemoryStream(message));
-                        NewClientEvent(new LocalTransport(hp), capabilities);
+                        NewTransportAccepted(new LocalTransport(hp), capabilities);
                     }
                     catch (Exception e)
                     {

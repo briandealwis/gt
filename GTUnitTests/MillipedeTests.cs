@@ -110,7 +110,7 @@ namespace GT.UnitTests
             ITransport transport = null;
             MillipedeAcceptor acceptor =
                 (MillipedeAcceptor)MillipedeAcceptor.Wrap(mockAcceptor, recorder);
-            acceptor.NewClientEvent += delegate(ITransport t, IDictionary<string,string> cap) { 
+            acceptor.NewTransportAccepted += delegate(ITransport t, IDictionary<string,string> cap) { 
                 transport = t; 
             };
             Thread.Sleep(5);
@@ -135,7 +135,7 @@ namespace GT.UnitTests
 
             recorder = new MillipedeRecorder();
             acceptor = (MillipedeAcceptor)MillipedeAcceptor.Wrap(new MockAcceptor(), recorder);
-            acceptor.NewClientEvent += delegate(ITransport t, IDictionary<string, string> cap)
+            acceptor.NewTransportAccepted += delegate(ITransport t, IDictionary<string, string> cap)
             {
                 transport = t;
             };
@@ -206,13 +206,13 @@ namespace GT.UnitTests
 
         public bool Active { get { return State == RunningState.Started; } }
         
-        public event NewClientHandler NewClientEvent;
+        public event NewTransportHandler NewTransportAccepted;
 
         public void Trigger(ITransport transport, IDictionary<string, string> capabilities)
         {
-            if(NewClientEvent != null)
+            if(NewTransportAccepted != null)
             {
-                NewClientEvent(transport, capabilities);
+                NewTransportAccepted(transport, capabilities);
             }
         }
 
