@@ -74,7 +74,9 @@ namespace GT.Net
         protected ServerConfiguration config;
         protected Server server;
         protected Thread serverThread;
-
+        protected MessageDeliveryRequirements sessionMDR =
+            new MessageDeliveryRequirements(Reliability.Reliable,
+                MessageAggregation.Immediate, Ordering.Unordered);
 
         /// <summary>
         /// The channel for automatically broadcasting session changes to client members.  
@@ -264,24 +266,13 @@ namespace GT.Net
                 }
             }
             if (SessionChangesChannel < 0) { return; }
-           
-            foreach (ConnexionToClient cnx in list)
-            {
-                int clientId = cnx.Identity;
 
-                foreach (ConnexionToClient c in server.Clients)
-                {
-                    try
-                    {
-                        c.Send(clientId, SessionAction.Joined, (byte)SessionChangesChannel,
-                            new MessageDeliveryRequirements(Reliability.Reliable, MessageAggregation.Immediate,
-                                Ordering.Unordered), null);
-                    }
-                    catch (GTException e)
-                    {
-                        log.Warn("Exception raised on send: " + e.Message, e);
-                    }
-                }
+            foreach (IConnexion cnx in list)
+            {
+                cnx.TransportAdded += _client_TransportAdded;
+                cnx.TransportRemoved += _client_TransportRemoved;
+                server.Send(new SessionMessage((byte)SessionChangesChannel, cnx.Identity,
+                    SessionAction.Joined), null, sessionMDR);
             }
         }
 
@@ -307,33 +298,11 @@ namespace GT.Net
             }
             if (SessionChangesChannel < 0) { return; }
 
-            foreach (ConnexionToClient client in list)
+            foreach (IConnexion cnx in list)
             {
-                client.TransportAdded += _client_TransportAdded;
-                client.TransportRemoved += _client_TransportRemoved;
-                //kill client
-                int clientId = client.Identity;
-                try
-                {
-                    client.Dispose();
-                } catch(Exception e) {
-                    log.Warn(String.Format("Exception raised when stopping client {0}: {1}",
-                        clientId, e.Message), e);
-                }
-
                 //inform others client is gone
-                foreach (ConnexionToClient c in server.Clients)
-                {
-                    try {
-                        c.Send(clientId, SessionAction.Left, (byte)SessionChangesChannel,
-                            new MessageDeliveryRequirements(Reliability.Reliable, MessageAggregation.Immediate,
-                                Ordering.Unordered), null);
-                    }
-                    catch (GTException e)
-                    {
-                        log.Warn("Exception raised on send: " + e.Message, e);
-                    }
-                }
+                server.Send(new SessionMessage((byte)SessionChangesChannel, cnx.Identity,
+                    SessionAction.Left), null, sessionMDR);
             }
         }
 
@@ -363,7 +332,7 @@ namespace GT.Net
                     DateTime.Now, m, client.Identity, transport);
             }
             //repeat whatever we receive to everyone else
-            server.Send(m, server.Clients, new MessageDeliveryRequirements(transport.Reliability, 
+            server.Send(m, null, new MessageDeliveryRequirements(transport.Reliability, 
                 MessageAggregation.Immediate, transport.Ordering));
         }
 
