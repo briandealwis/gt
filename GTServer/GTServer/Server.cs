@@ -407,7 +407,6 @@ namespace GT.Net
                     log.Info(String.Format("{0}: new client {1} via {2}", this, clientGuid, t));
                 }
                 c = CreateNewConnexion(clientGuid);
-                newlyAddedClients.Add(c);
             }
             else
             {
