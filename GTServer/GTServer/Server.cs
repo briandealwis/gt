@@ -513,7 +513,7 @@ namespace GT.Net
         /// <summary>Sends a byte array on <see cref="channel"/> to many clients in an efficient manner.</summary>
         /// <param name="buffer">The byte array to send</param>
         /// <param name="channel">The channel to be sent on</param>
-        /// <param name="list">The list of clients to send it to</param>
+        /// <param name="list">The list of clients; if null then all clients</param>
         /// <param name="mdr">How to send it (can be null)</param>
         virtual public void Send(byte[] buffer, byte channel, ICollection<IConnexion> list, MessageDeliveryRequirements mdr)
         {
@@ -522,9 +522,9 @@ namespace GT.Net
         }
 
         /// <summary>Sends a string on <see cref="channel"/> to many clients in an efficient manner.</summary>
-        /// <param name="s">The byte array to send</param>
+        /// <param name="s">The string to send</param>
         /// <param name="channel">The channel to be sent on</param>
-        /// <param name="list">The list of clients to send it to</param>
+        /// <param name="list">The list of clients; if null then all clients</param>
         /// <param name="mdr">How to send it (can be null)</param>
         virtual public void Send(string s, byte channel, ICollection<IConnexion> list, MessageDeliveryRequirements mdr)
         {
@@ -532,9 +532,9 @@ namespace GT.Net
         }
 
         /// <summary>Sends an object on <see cref="channel"/> to many clients in an efficient manner.</summary>
-        /// <param name="o">The bject to send</param>
+        /// <param name="o">The object to send</param>
         /// <param name="channel">The channel to be sent on</param>
-        /// <param name="list">The list of clients to send it to</param>
+        /// <param name="list">The list of clients; if null then all clients</param>
         /// <param name="mdr">How to send it (can be null)</param>
         virtual public void Send(object o, byte channel, ICollection<IConnexion> list, MessageDeliveryRequirements mdr)
         {
@@ -543,7 +543,7 @@ namespace GT.Net
 
         /// <summary>Send a message to many clients in an efficient manner.</summary>
         /// <param name="message">The message to send</param>
-        /// <param name="list">The list of clients to send it to</param>
+        /// <param name="list">The list of clients; if null then all clients</param>
         /// <param name="mdr">How to send it (can be null)</param>
         virtual public void Send(Message message, ICollection<IConnexion> list, MessageDeliveryRequirements mdr)
         {
@@ -551,8 +551,8 @@ namespace GT.Net
         }
 
         /// <summary>Sends a collection of messages in an efficient way to a list of clients.</summary>
-        /// <param name="messages">The list of messages</param>
-        /// <param name="list">The list of clients</param>
+        /// <param name="messages">The list of messages to send</param>
+        /// <param name="list">The list of clients; if null then all clients</param>
         /// <param name="mdr">How to send it (can be null)</param>
         virtual public void Send(IList<Message> messages, ICollection<IConnexion> list, MessageDeliveryRequirements mdr)
         {
