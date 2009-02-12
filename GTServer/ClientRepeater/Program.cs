@@ -248,9 +248,6 @@ namespace GT.Net
             {
                 foreach(ConnexionToClient client in list)
                 {
-                    client.TransportAdded += _client_TransportAdded;
-                    client.TransportRemoved += _client_TransportRemoved;
-
                     StringBuilder builder = new StringBuilder("Client joined: ");
                     builder.Append(client.Identity);
                     builder.Append(':');
@@ -267,11 +264,11 @@ namespace GT.Net
             }
             if (SessionChangesChannel < 0) { return; }
 
-            foreach (IConnexion cnx in list)
+            foreach (IConnexion client in list)
             {
-                cnx.TransportAdded += _client_TransportAdded;
-                cnx.TransportRemoved += _client_TransportRemoved;
-                server.Send(new SessionMessage((byte)SessionChangesChannel, cnx.Identity,
+                client.TransportAdded += _client_TransportAdded;
+                client.TransportRemoved += _client_TransportRemoved;
+                server.Send(new SessionMessage((byte)SessionChangesChannel, client.Identity,
                     SessionAction.Joined), null, sessionMDR);
             }
         }
@@ -298,29 +295,29 @@ namespace GT.Net
             }
             if (SessionChangesChannel < 0) { return; }
 
-            foreach (IConnexion cnx in list)
+            foreach (IConnexion client in list)
             {
                 //inform others client is gone
-                server.Send(new SessionMessage((byte)SessionChangesChannel, cnx.Identity,
+                server.Send(new SessionMessage((byte)SessionChangesChannel, client.Identity,
                     SessionAction.Left), null, sessionMDR);
             }
         }
 
-        private void _client_TransportAdded(IConnexion connexion, ITransport newTransport)
+        private void _client_TransportAdded(IConnexion client, ITransport newTransport)
         {
             if (Verbose > 0)
             {
                 Console.WriteLine(String.Format("{0}: Client {1}: transport added: {2}",
-                    DateTime.Now, connexion.Identity, newTransport));
+                    DateTime.Now, client.Identity, newTransport));
             }
         }
 
-        private void _client_TransportRemoved(IConnexion connexion, ITransport newTransport)
+        private void _client_TransportRemoved(IConnexion client, ITransport newTransport)
         {
             if (Verbose > 0)
             {
                 Console.WriteLine(String.Format("{0}: Client {1}: transport removed: {2}",
-                    DateTime.Now, connexion.Identity, newTransport));
+                    DateTime.Now, client.Identity, newTransport));
             }
         }
 
