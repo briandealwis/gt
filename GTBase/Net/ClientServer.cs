@@ -420,8 +420,12 @@ namespace GT.Net
 
         public override string ToString()
         {
-            return String.Format("{0}[{1}]: {2}: {3}", Severity, ErrorCode,
-                Message, Context);
+            if (Context == null)
+            {
+                return String.Format("{0}[{1}]: {2}", Severity, ErrorCode, Message);
+            }
+            return String.Format("{0}[{1}]: {2}: {3} {4}", Severity, ErrorCode,
+                Message, Context.GetType(), Context.Message);
         }
     }
 

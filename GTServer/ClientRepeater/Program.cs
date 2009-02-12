@@ -214,17 +214,7 @@ namespace GT.Net
 
         private void s_ErrorEvent(ErrorSummary es)
         {
-            string message;
-            if (es.Context != null)
-            {
-                message = String.Format("{0}[{1}]: {2} [{3}: {4}]", es.Severity,
-                    es.ErrorCode, es.Message, es.Context.GetType().Name, es.Context.Message);
-            }
-            else
-            {
-                message = String.Format("{0}[{1}]: {2}", es.Severity,
-                    es.ErrorCode, es.Message);
-            }
+            string message = es.ToString();
             switch(es.Severity)
             {
             case Severity.Error:
