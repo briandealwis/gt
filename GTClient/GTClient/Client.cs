@@ -141,7 +141,10 @@ namespace GT.Net
         public string Port { get { return connexion.Port; } }
 
         /// <summary>Flush all pending messages on this stream.</summary>
-        public abstract void Flush();
+        public virtual void Flush()
+        {
+            connexion.FlushChannelMessages(this.channel, deliveryOptions);
+        }
 
         /// <summary>
         /// Return this stream's connexion.
@@ -270,11 +273,6 @@ namespace GT.Net
         abstract public RI GetMessageContents(Message m);
 
         /// <summary>Flush all aggregated messages on this connexion</summary>
-        public override void Flush()
-        {
-            connexion.FlushChannelMessages(this.channel, deliveryOptions);
-        }
-
         protected abstract ST CastedStream { get; }
 
         /// <summary>Queue a message in the list, triggering events</summary>

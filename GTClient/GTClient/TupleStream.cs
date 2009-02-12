@@ -83,9 +83,9 @@ namespace GT.Net
 
         public override void Flush()
         {
-            if (!changed) { return; }
+            if (changed) { connexion.Send(AsTupleMessage(), null, deliveryOptions); }
             changed = false;
-            connexion.Send(AsTupleMessage(), null, deliveryOptions);
+            base.Flush();
         }
 
         protected abstract TupleMessage AsTupleMessage();
