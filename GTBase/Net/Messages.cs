@@ -128,7 +128,7 @@ namespace GT.Net
 
         public override string ToString()
         {
-            return GetType().Name + "(type:" + type + " channel:" + channel + " client:" + clientId + " " + action + ")";
+            return String.Format("Client {0}: {1}", clientId, action);
         }
     }
 
