@@ -1,40 +1,58 @@
 using System;
 using System.Collections.Generic;
-using System.ComponentModel;
-using System.Data;
 using System.Drawing;
-using System.Text;
 using System.Windows.Forms;
-using GT.Net;
 using GT.Net;
 
 namespace Telepointers
 {
+    /// <summary>
+    /// A simple demonstration of using a streamed tuple to communicate
+    /// telepointer presence messages.  The local mouse pointers is propagated
+    /// automatically on a periodic basis.
+    /// </summary>
     public partial class Form1 : Form
     {
-        Graphics g;
-        Dictionary<int, Telepointer> teleList = new Dictionary<int, Telepointer>();
-        Client c = new Client();
-        IBinaryStream binary;
-        ISessionStream session;
-        IStreamedTuple<int, int> coords;
+        /// <summary>
+        /// Use channel #1 for sending and receiving telepointer updates
+        /// </summary>
+        private const int TelepointersChannel = 1;
 
-        List<Control> controls = new List<Control>();
+        /// <summary>
+        /// The client repeater uses channel #0 by default to send updates
+        /// on clients joining or leaving the group.
+        /// </summary>
+        private const int SessionUpdatesChannel = 0;
 
+        private Client client;
+
+        /// <summary>
+        /// Used to send and receive updated telepointer coordinates.
+        /// </summary>
+        private IStreamedTuple<int, int> coords;
+
+        /// <summary>
+        /// Receives session updates from the client repeater
+        /// when clients join or leave the group.
+        /// </summary>
+        private ISessionStream updates;
+
+        /// <summary>
+        /// The list of current clients and their respective telepointers.
+        /// </summary>
+        private Dictionary<int, Telepointer> telepointers = new Dictionary<int, Telepointer>();
+
+        /// <summary>
+        /// A record for a particular telepointer.
+        /// </summary>
         private class Telepointer
         {
-            float vx = 0, vy = 0, x = 0, y = 0;
-            Color color;
+            float x = 0, y = 0;
+            readonly Color color;
 
             public Telepointer(Color color)
             {
                 this.color = color;
-            }
-
-            public void Update()
-            {
-                x += vx;
-                y += vy;
             }
 
             public void Draw(Graphics g)
@@ -42,12 +60,10 @@ namespace Telepointers
                 g.DrawRectangle(new Pen(color), x, y, 5, 5);
             }
 
-            public void Update(float x, float y, float vx, float vy)
+            public void Update(float newX, float newY)
             {
-                this.x = x;
-                this.y = y;
-                this.vx = vx;
-                this.vy = vy;
+                this.x = newX;
+                this.y = newY;
             }
         }
 
@@ -56,127 +72,105 @@ namespace Telepointers
             Form2 f = new Form2();
             f.ShowDialog();
 
-            this.ControlAdded += new ControlEventHandler(Form1_ControlAdded);
-            this.Paint += new PaintEventHandler(Form1_Paint);
-            this.Disposed += new EventHandler(Form1_Disposed);
+            this.Paint += Form1_Paint;
+            this.Disposed += Form1_Disposed;
+            this.MouseMove += Form1_MouseMoved;
 
             InitializeComponent();
 
-            g = this.CreateGraphics();
             this.SetStyle(ControlStyles.UserPaint, true);
             this.SetStyle(ControlStyles.AllPaintingInWmPaint, true);
             this.SetStyle(ControlStyles.DoubleBuffer, true);
 
-            teleList.Add(0,new Telepointer(Color.Pink));
+            // Set up GT
+            client = new Client(new DefaultClientConfiguration());
+            client.ErrorEvent += es => Console.WriteLine(es);
+            client.Start();
 
-            binary = c.GetBinaryStream(f.Result, "9999", 0, ChannelDeliveryRequirements.Data);
-            session = c.GetSessionStream(f.Result, "9999", 0, ChannelDeliveryRequirements.SessionLike);
-            coords = c.GetStreamedTuple<int, int>(f.Result, "9999", 1, TimeSpan.FromMilliseconds(50), 
+            updates = client.GetSessionStream(f.Result, "9999", SessionUpdatesChannel, 
+                ChannelDeliveryRequirements.SessionLike);
+            updates.MessagesReceived += updates_SessionMessagesReceived;
+
+            coords = client.GetStreamedTuple<int, int>(f.Result, "9999", TelepointersChannel, 
+                TimeSpan.FromMilliseconds(50), 
                 ChannelDeliveryRequirements.TelepointerLike);
             coords.StreamedTupleReceived += coords_StreamedTupleReceived;
-            c.ErrorEvent += c_ErrorEvent;
-            session.MessagesReceived += session_SessionNewMessageEvent;
-
         }
 
-        void session_SessionNewMessageEvent(ISessionStream stream)
+        /// <summary>
+        /// Cause the streamed tuple to be updated on local mouse movement.
+        /// This value is only stored locally, and only propagated to the other 
+        /// clients every 50 ms as defined by the tuple stream creation in the
+        /// <see cref="IStreamedTuple{T_X,T_Y}.UpdatePeriod"/>
+        /// <see cref="Form1">constructor</see>.
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="e"></param>
+        private void Form1_MouseMoved(object sender, MouseEventArgs e)
+        {
+            coords.X = e.X;
+            coords.Y = e.Y;
+        }
+
+        /// <summary>
+        /// Process an update about my fellows
+        /// </summary>
+        /// <param name="stream"></param>
+        private void updates_SessionMessagesReceived(ISessionStream stream)
         {
             SessionMessage m;
             while ((m = stream.DequeueMessage(0)) != null)
             {
                 Console.WriteLine("Session: " + m);
-            }
-        }
-
-        void c_ErrorEvent(ErrorSummary e)
-        {
-            Console.WriteLine("{0}[{1}]: {2}: {3}", e.Severity, e.ErrorCode,
-                e.Message, e.Context);
-        }
-
-        //update other person
-        void coords_StreamedTupleReceived(RemoteTuple<int, int> tuple, int clientID)
-        {
-            int id = clientID;
-            float x = tuple.X;
-            float y = tuple.Y;
-            float vx = 0;
-            float vy = 0;
-
-            if (!teleList.ContainsKey(id))
-            {
-                teleList.Add(id, new Telepointer(Color.Blue));
-            }
-            teleList[id].Update(x, y, vx, vy);
-        }
-
-        void Form1_Paint(object sender, PaintEventArgs e)
-        {
-            Control c = (Control)sender;
-            PaintWindow(c.CreateGraphics());
-        }
-
-        void Form1_ControlAdded(object sender, ControlEventArgs e)
-        {
-            Control c = (Control)sender;
-            c.Paint += new PaintEventHandler(c_Paint);
-            controls.Add(c);
-        }
-
-        void Form1_Disposed(object sender, EventArgs e)
-        {
-            c.Stop();
-            c.Dispose();
-        }
-
-        void c_Paint(object sender, PaintEventArgs e)
-        {
-            Control c = (Control)sender;
-            PaintWindow(c.CreateGraphics());
-        }
-
-
-        public void PaintWindow(Graphics g)
-        {
-            g.Clear(Color.SeaShell);
-
-            foreach (int i in teleList.Keys)
-            {
-                if (i == 0)
+                if (m.Action == SessionAction.Left)
                 {
-                    Point loc = this.Location;
-                    Point mouse = Form1.MousePosition;
-                    teleList[0].Update(mouse.X - loc.X - 10, mouse.Y - loc.Y - 30, 0, 0);
+                    telepointers.Remove(m.ClientId);
+                    Redraw();
                 }
-                teleList[i].Draw(g);
             }
+        }
+
+        /// <summary>
+        /// Update telepointers for some client (may be my own!)
+        /// </summary>
+        /// <param name="tuple"></param>
+        /// <param name="clientId"></param>
+        private void coords_StreamedTupleReceived(RemoteTuple<int, int> tuple, int clientId)
+        {
+            if (!telepointers.ContainsKey(clientId))
+            {
+                // Ensure we're different
+                Color tpc = clientId == coords.Identity ? Color.Pink : Color.Blue;
+                telepointers.Add(clientId, new Telepointer(tpc));
+            }
+            telepointers[clientId].Update(tuple.X, tuple.Y);
+        }
+
+        private void Redraw()
+        {
+            BeginInvoke(new MethodInvoker(Invalidate));
+        }
+
+        private void Form1_Paint(object sender, PaintEventArgs e)
+        {
+            Graphics g = e.Graphics;
+            g.Clear(Color.SeaShell);
+            foreach (int i in telepointers.Keys)
+            {
+                telepointers[i].Draw(g);
+            }
+        }
+
+        private void Form1_Disposed(object sender, EventArgs e)
+        {
+            client.Stop();
+            client.Dispose();
         }
 
         private void timerRepaint_Tick(object sender, EventArgs e)
         {
-            c.Update();
-            coords.Flush();
-
-            Point loc = this.Location;
-            Point mouse = Form1.MousePosition;
-
-            //if we know who we are, then send the server our mouse coordinates.
-            if (binary.Identity != 0)
-            {
-                coords.X = (mouse.X - loc.X - 10);
-                coords.Y = (mouse.Y - loc.Y - 30);
-            }
-
-            SessionMessage ses;
-            while ((ses = session.DequeueMessage(0)) != null)
-            {
-                if (teleList.ContainsKey(ses.ClientId) && ses.Action == SessionAction.Left)
-                {
-                    teleList.Remove(ses.ClientId);
-                }
-            }
-
-            this.RaisePaintEvent(null, null);
+            client.Update();
+            Redraw();
         }
     }
 }

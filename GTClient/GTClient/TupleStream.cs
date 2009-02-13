@@ -1,8 +1,4 @@
 using System;
-using System.Collections.Generic;
-using System.Text;
-using System.IO;
-using GT.Net;
 
 namespace GT.Net
 {
@@ -21,6 +17,11 @@ namespace GT.Net
 
         /// <summary>Occurs when we receive a tuple from someone else.</summary>
         event StreamedTupleReceivedDelegate<T_X> StreamedTupleReceived;
+
+        /// <summary>
+        /// The frequency at which this tuple's changes should be propagated.
+        /// </summary>
+        TimeSpan UpdatePeriod { get; set; }
     }
 
     public interface IStreamedTuple<T_X, T_Y> : IStream
@@ -35,6 +36,11 @@ namespace GT.Net
 
         /// <summary>Occurs when we receive a tuple from someone else.</summary>
         event StreamedTupleReceivedDelegate<T_X, T_Y> StreamedTupleReceived;
+
+        /// <summary>
+        /// The frequency at which this tuple's changes should be propagated.
+        /// </summary>
+        TimeSpan UpdatePeriod { get; set; }
     }
 
     public interface IStreamedTuple<T_X, T_Y, T_Z> : IStream
@@ -53,6 +59,11 @@ namespace GT.Net
 
         /// <summary>Occurs when we receive a tuple from someone else.</summary>
         event StreamedTupleReceivedDelegate<T_X, T_Y, T_Z> StreamedTupleReceived;
+
+        /// <summary>
+        /// The frequency at which this tuple's changes should be propagated.
+        /// </summary>
+        TimeSpan UpdatePeriod { get; set; }
     }
 
 
@@ -61,12 +72,35 @@ namespace GT.Net
         protected bool changed;
         protected long updateDelayMS;     // milliseconds
         protected long lastTimeSentMS;    // milliseconds
+        protected TimeSpan updatePeriod;
 
+        /// <summary>
+        /// The frequency at which this tuple's changes should be propagated.
+        /// </summary>
+        public TimeSpan UpdatePeriod
+        {
+            get { return updatePeriod; }
+            set
+            {
+                updatePeriod = value;
+                updateDelayMS = (long)value.TotalMilliseconds;
+            }
+        }
+
+        /// <summary>
+        /// Create a new streamed tuple for the given connexion and on the given
+        /// channel.  This tuple should propagate any changes every <see cref="updateDelay"/>.
+        /// </summary>
+        /// <param name="s">the given connexion</param>
+        /// <param name="channel">the channel on which to send and receive updates</param>
+        /// <param name="updateDelay">the frequency to send our updates</param>
+        /// <param name="cdr">the delivery requirements to be used in sending or updates</param>
         protected AbstractStreamedTuple(ConnexionToServer s, byte channel, TimeSpan updateDelay,
-                ChannelDeliveryRequirements cdr) : base(s, channel, cdr)
+                ChannelDeliveryRequirements cdr) 
+            : base(s, channel, cdr)
         {
             changed = false;
-            this.updateDelayMS = (long)updateDelay.TotalMilliseconds;
+            UpdatePeriod = updateDelay;
         }
 
         abstract internal void QueueMessage(Message m);
