@@ -11,8 +11,6 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "GTServer", "GTServer\GTServ
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ClientChat", "Examples\ClientChat\ClientChat.csproj", "{4582FA58-11F9-4C2B-B2B9-C4DC51C3FC26}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "PassiveTelepointers", "Examples\PassiveTelepointers\PassiveTelepointers.csproj", "{C50DD63B-0ACE-4F9B-A8C9-7E2C7EC0D3C8}"
-EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Telepointers", "Examples\Telepointers\Telepointers.csproj", "{0429E659-A35B-4A5C-917A-49CEA6D48B5E}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "GTUnitTests", "GTUnitTests\GTUnitTests.csproj", "{855C7346-A594-466E-9250-087A5CC62ABC}"
@@ -57,10 +55,6 @@ Global
 		{4582FA58-11F9-4C2B-B2B9-C4DC51C3FC26}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{4582FA58-11F9-4C2B-B2B9-C4DC51C3FC26}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{4582FA58-11F9-4C2B-B2B9-C4DC51C3FC26}.Release|Any CPU.Build.0 = Release|Any CPU
-		{C50DD63B-0ACE-4F9B-A8C9-7E2C7EC0D3C8}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{C50DD63B-0ACE-4F9B-A8C9-7E2C7EC0D3C8}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{C50DD63B-0ACE-4F9B-A8C9-7E2C7EC0D3C8}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{C50DD63B-0ACE-4F9B-A8C9-7E2C7EC0D3C8}.Release|Any CPU.Build.0 = Release|Any CPU
 		{0429E659-A35B-4A5C-917A-49CEA6D48B5E}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{0429E659-A35B-4A5C-917A-49CEA6D48B5E}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{0429E659-A35B-4A5C-917A-49CEA6D48B5E}.Release|Any CPU.ActiveCfg = Release|Any CPU
