@@ -61,14 +61,12 @@ namespace GT.Net
             catch (ThreadAbortException t) { throw t; }
             catch (SocketException e)
             {
-                //LastError = e;
-                //if (ErrorEvent != null)
-                //    ErrorEvent(e, SocketError.Fault, null, "A socket exception occurred when we tried to start listening for incoming connections.");
-                log.Error(String.Format("exception creating TCP listening socket on {0}/{1}",
-                    address, port), e);
+                string message = String.Format("Unable to create TCP listening socket on {0}/{1}",
+                    address, port);
+                log.Error(message, e);
                 if(bouncer != null) { bouncer.Stop(); }
                 bouncer = null;
-                throw new TransportError(this, "Unable to create TCP listening socket", e);
+                throw new TransportError(this, message, e);
             }
         }
 

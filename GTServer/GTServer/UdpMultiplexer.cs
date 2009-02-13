@@ -56,7 +56,10 @@ namespace GT.Net
             }
             catch (SocketException e)
             {
-                throw new TransportError(this, "Unable to create UDP socket", e);
+                string message = String.Format("Unable to create UDP listening socket on {0}/{1}",
+                    address, port);
+                log.Error(message, e);
+                throw new TransportError(this, message, e);
             }
             udpClient.Client.Blocking = false;
             DisableUdpConnectionResetBehaviour();
