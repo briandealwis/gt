@@ -47,6 +47,10 @@ namespace Telepointers
             this.MinimumSize = new System.Drawing.Size(300, 300);
             this.Name = "Form1";
             this.Text = "Telepointers";
+            this.Load += new System.EventHandler(this.Form1_Load);
+            this.Paint += new System.Windows.Forms.PaintEventHandler(this.Form1_Paint);
+            this.FormClosed += new System.Windows.Forms.FormClosedEventHandler(this.Form1_FormClosed);
+            this.MouseMove += new System.Windows.Forms.MouseEventHandler(this.Form1_MouseMoved);
             this.ResumeLayout(false);
 
         }

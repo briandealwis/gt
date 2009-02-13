@@ -1,11 +1,8 @@
 using System;
-using System.Resources;
-using System.Drawing;
-using System.Collections;
 using System.Windows.Forms;
 using System.ComponentModel;
 
-namespace ClientChat
+namespace GT.UI
 {
     public class InputDialog : Form
     {
@@ -19,7 +16,7 @@ namespace ClientChat
         {
             InitializeComponent();
             this.StartPosition = FormStartPosition.CenterParent;
-	    this.Text = dialogTitle;
+	        Text = dialogTitle;
             Prompt = prompt;
             Input = defaultText;
         }
@@ -75,7 +72,7 @@ namespace ClientChat
             // btnOK
             // 
             this.btnOK.DialogResult = System.Windows.Forms.DialogResult.OK;
-            this.btnOK.Location = new System.Drawing.Point(16, 104);
+            this.btnOK.Location = new System.Drawing.Point(16, 112);
             this.btnOK.Name = "btnOK";
             this.btnOK.Size = new System.Drawing.Size(96, 24);
             this.btnOK.TabIndex = 2;
@@ -85,7 +82,7 @@ namespace ClientChat
             // btnCancel
             // 
             this.btnCancel.DialogResult = System.Windows.Forms.DialogResult.Cancel;
-            this.btnCancel.Location = new System.Drawing.Point(152, 104);
+            this.btnCancel.Location = new System.Drawing.Point(152, 112);
             this.btnCancel.Name = "btnCancel";
             this.btnCancel.Size = new System.Drawing.Size(96, 24);
             this.btnCancel.TabIndex = 3;
@@ -103,6 +100,7 @@ namespace ClientChat
             // 
             this.AcceptButton = this.btnOK;
             this.AutoScaleBaseSize = new System.Drawing.Size(5, 13);
+            this.CancelButton = this.btnCancel;
             this.ClientSize = new System.Drawing.Size(266, 151);
             this.Controls.Add(this.btnCancel);
             this.Controls.Add(this.btnOK);

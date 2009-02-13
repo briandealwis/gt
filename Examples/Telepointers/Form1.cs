@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Drawing;
 using System.Windows.Forms;
 using GT.Net;
+using GT.UI;
 
 namespace Telepointers
 {
@@ -69,30 +70,36 @@ namespace Telepointers
 
         public Form1()
         {
-            Form2 f = new Form2();
-            f.ShowDialog();
-
-            this.Paint += Form1_Paint;
-            this.Disposed += Form1_Disposed;
-            this.MouseMove += Form1_MouseMoved;
-
             InitializeComponent();
 
             this.SetStyle(ControlStyles.UserPaint, true);
             this.SetStyle(ControlStyles.AllPaintingInWmPaint, true);
             this.SetStyle(ControlStyles.DoubleBuffer, true);
+        }
+
+        private void Form1_Load(object sender, EventArgs e)
+        {
+            InputDialog d = new InputDialog("Connection details", "Which server:port ?", "localhost:9999");
+            if (d.ShowDialog() != DialogResult.OK)
+            {
+                throw new InvalidOperationException();
+            }
+            string[] parts = d.Input.Split(':');
+            string host = parts[0];
+            string port = parts.Length > 1 ? parts[1] : "9999";
+
 
             // Set up GT
             client = new Client(new DefaultClientConfiguration());
             client.ErrorEvent += es => Console.WriteLine(es);
             client.Start();
 
-            updates = client.GetSessionStream(f.Result, "9999", SessionUpdatesChannel, 
+            updates = client.GetSessionStream(host, port, SessionUpdatesChannel,
                 ChannelDeliveryRequirements.SessionLike);
             updates.MessagesReceived += updates_SessionMessagesReceived;
 
-            coords = client.GetStreamedTuple<int, int>(f.Result, "9999", TelepointersChannel, 
-                TimeSpan.FromMilliseconds(50), 
+            coords = client.GetStreamedTuple<int, int>(host, port, TelepointersChannel,
+                TimeSpan.FromMilliseconds(50),
                 ChannelDeliveryRequirements.TelepointerLike);
             coords.StreamedTupleReceived += coords_StreamedTupleReceived;
         }
@@ -140,7 +147,7 @@ namespace Telepointers
             if (!telepointers.ContainsKey(clientId))
             {
                 // Ensure we're different
-                Color tpc = clientId == coords.Identity ? Color.Pink : Color.Blue;
+                Color tpc = clientId == coords.Identity ? Color.Red : Color.Blue;
                 telepointers.Add(clientId, new Telepointer(tpc));
             }
             telepointers[clientId].Update(tuple.X, tuple.Y);
@@ -161,16 +168,18 @@ namespace Telepointers
             }
         }
 
-        private void Form1_Disposed(object sender, EventArgs e)
+        private void timerRepaint_Tick(object sender, EventArgs e)
+        {
+            // timer starts on creation; client created only on form load
+            if (client != null) { client.Update(); }
+            Redraw();
+        }
+
+        private void Form1_FormClosed(object sender, FormClosedEventArgs e)
         {
             client.Stop();
             client.Dispose();
         }
 
-        private void timerRepaint_Tick(object sender, EventArgs e)
-        {
-            client.Update();
-            Redraw();
-        }
     }
 }
