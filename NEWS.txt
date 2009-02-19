@@ -4,6 +4,11 @@ GT NEWS
 
 New Functionality:
 
+  * The ClientConfiguration and ServerConfiguration classes are now
+    afforded the opportunity to configure (or even wrap or replace)
+    new transport instances through a ConfigureTransport() method.
+    (see BaseConfiguration.ConfigureTransport()).
+
   * Millipede-style packet recording and replay: Thanks to a code
     contribution from Adrian Reetz, GT now has a packet recording/replay
     framework inspired by the Millipede sequential debugging module.
@@ -27,6 +32,24 @@ New Functionality:
     See <https://papyrus.usask.ca/trac/gt/ticket/45> for details
     and pointers for other work.
 
+  * New traffic shaping transport wrappers, LeakyBucketTransport and
+    TokenBucketTransport, respectively implementing the leaky bucket
+    and token bucket traffic shaping algorithms. 
+
+      * LeakyBucketTransport wraps a provided transport and restricts
+	the transport to sending a certain amount of data per time
+	unit; the LBT will buffer up to a specified number of bytes,
+	and any bytes in excess are discarded (and raising a
+	TransportBackloggedWarning).
+
+      * TokenBucketTransport also wraps a provided transport, but
+        allows the transport to accumulate unused send capacity.
+	This better supports bursty traffic.  In the TBT, all data
+	is queued, and released as capacity becomes available.
+
+    These wrappers are easily configured by overriding the new
+    ConfigureTransport() method on the ClientConfiguration and
+    ServerConfiguration (see BaseConfiguration).
 
 Developer-visible changes:
 

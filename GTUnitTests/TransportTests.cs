@@ -16,6 +16,9 @@ namespace GT.UnitTests
 
     internal class NullTransport : ITransport
     {
+        uint bytesSent = 0;
+        public uint BytesSent { get { return bytesSent; } }
+
         public string Name
         {
             get { return "NULL"; }
@@ -52,10 +55,12 @@ namespace GT.UnitTests
 
         public void SendPacket(byte[] packet, int offset, int count)
         {
+            bytesSent += (uint)count;
         }
 
         public void SendPacket(Stream stream)
         {
+            bytesSent += (uint)stream.Length;
         }
 
         public Stream GetPacketStream()
@@ -552,4 +557,118 @@ namespace GT.UnitTests
 
     }
 
+    [TestFixture]
+    public class ZABucketTransportTests
+    {
+        [Test]
+        public void TestLeakyBucketTransport()
+        {
+            NullTransport nt = new NullTransport();
+            // drain at 128 bytes every 10 milliseconds, and buffer up to 
+            // 384 bytes (or 3 packets of 128 bytes)
+            LeakyBucketTransport lbt = new LeakyBucketTransport(nt, 128, 
+                TimeSpan.FromMilliseconds(10), 384);
+
+            for(int i = 0; i < 5; i++)
+            {
+                uint startBytesSent = nt.BytesSent;
+                Assert.AreEqual(128, lbt.AvailableCapacity);
+                Assert.AreEqual(384, lbt.RemainingBucketCapacity);
+                
+                lbt.SendPacket(new byte[128], 0, 128);  // should send
+                Assert.AreEqual(0, lbt.AvailableCapacity);
+                Assert.AreEqual(384, lbt.RemainingBucketCapacity);
+
+                lbt.SendPacket(new byte[128], 0, 128);  // should be buffered
+                Assert.AreEqual(0, lbt.AvailableCapacity);
+                Assert.AreEqual(256, lbt.RemainingBucketCapacity);
+
+                lbt.SendPacket(new byte[128], 0, 128);  // should be buffered
+                Assert.AreEqual(0, lbt.AvailableCapacity);
+                Assert.AreEqual(128, lbt.RemainingBucketCapacity);
+
+                lbt.SendPacket(new byte[128], 0, 128);  // should be buffered
+                Assert.AreEqual(0, lbt.AvailableCapacity);
+                Assert.AreEqual(0, lbt.RemainingBucketCapacity);
+                try
+                {
+                    lbt.SendPacket(new byte[128], 0, 128);  // should exceed bucket capacity
+                    Assert.Fail("should have thrown a backlogged exception");
+                }
+                catch(TransportBackloggedWarning)
+                {
+                    // this was expected
+                }
+                Assert.AreEqual(128, nt.BytesSent - startBytesSent);
+
+                // Drain the bucket
+                while (lbt.RemainingBucketCapacity < lbt.MaximumCapacity)
+                {
+                    lbt.Update();
+                    Thread.Sleep(20);
+                }
+                Assert.AreEqual(128, lbt.AvailableCapacity);
+
+            }
+        }
+
+        [Test]
+        public void TestTokenBucketTransport()
+        {
+            NullTransport nt = new NullTransport();
+            TokenBucketTransport tbt = new TokenBucketTransport(nt, 512, 1024);
+            Assert.IsTrue(tbt.AvailableCapacity == 1024, "starting capacity is the maximum capacity");
+            for (int i = 0; i < 5; i++)
+            {
+                uint startBytesSent = nt.BytesSent;
+                tbt.SendPacket(new byte[128], 0, 128);
+                tbt.SendPacket(new byte[128], 0, 128);
+                tbt.SendPacket(new byte[128], 0, 128);
+                tbt.SendPacket(new byte[128], 0, 128);
+                tbt.SendPacket(new byte[128], 0, 128);
+                tbt.SendPacket(new byte[128], 0, 128);
+                tbt.SendPacket(new byte[128], 0, 128);
+                tbt.SendPacket(new byte[128], 0, 128);
+                Assert.AreEqual(1024, nt.BytesSent - startBytesSent);
+                try
+                {
+                    tbt.SendPacket(new byte[128], 0, 128); // this packet will be sent though
+                    Assert.Fail("should have thrown a backlogged exception");
+                }
+                catch (TransportBackloggedWarning)
+                {
+                    // this was expected
+                }
+                Assert.AreEqual(1024, nt.BytesSent - startBytesSent);
+
+                // Build up some capacity
+                while(tbt.AvailableCapacity < 256)
+                {
+                    Thread.Sleep(200);
+                }
+                //Console.WriteLine("Test: slept {0}ms", timer.ElapsedMilliseconds);
+                tbt.SendPacket(new byte[128], 0, 128);  // plus the outstanding packet
+                Assert.AreEqual(1024 + 2 * 128, nt.BytesSent - startBytesSent);
+
+                // we should now have little capacity again, so sending another packet will backlog
+                Assert.IsTrue(tbt.AvailableCapacity < 128);
+                try
+                {
+                    tbt.SendPacket(new byte[128], 0, 128); // this packet will be sent next though
+                    Assert.Fail("should have thrown a backlogged exception");
+                }
+                catch (TransportBackloggedWarning)
+                {
+                    // this was expected
+                }
+
+                // Sleep until there is plenty of capacity
+                while(tbt.AvailableCapacity < tbt.MaximumCapacity)
+                {
+                    Thread.Sleep(200);
+                    tbt.Update();
+                }
+            }
+        }
+    }
 }
