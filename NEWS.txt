@@ -51,6 +51,21 @@ New Functionality:
     ConfigureTransport() method on the ClientConfiguration and
     ServerConfiguration (see BaseConfiguration).
 
+Interoperability changes:
+
+  * The LightweightDotNetSerializingMarshaller and
+    DotNetSerializingMarshaller on-wire formats have changed, which
+    will break compatibility with previous releases.  Previously
+    these marshallers recorded the marshalled payload length using
+    an adaptive scheme.  This meant that many message types had to
+    be serialized to an interim buffer to determine the length, and
+    then copied; this was rather wasteful.  To avoid this duplicate
+    copy, the payload length is now a fixed-length value.  As a
+    result, the internal requirement of
+    LightweightDotNetSerializingMarshaller have changed such that
+    the Marshal* methods are no longer responsible for encoding the
+    payload length.
+
 Developer-visible changes:
 
   * There have been some breaks with previous API. 
