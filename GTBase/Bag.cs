@@ -1,6 +1,7 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Text;
 using System.Threading;
 
 namespace GT.Utils
@@ -284,7 +285,7 @@ namespace GT.Utils
     public class SharedQueue<T>
     {
         readonly object queueLock = new object();
-        Queue<T> queue = new Queue<T>();
+        protected Queue<T> queue = new Queue<T>();
 
         public void Enqueue(T o)
         {
@@ -340,6 +341,9 @@ namespace GT.Utils
             }
         }
 
+        /// <summary>
+        /// Return the number of objects available in this queue.
+        /// </summary>
         public int Count
         {
             get
@@ -349,6 +353,24 @@ namespace GT.Utils
                     return queue.Count;
                 }
             }
+        }
+
+        public override string ToString()
+        {
+            StringBuilder result = new StringBuilder("[");
+            int count = 0;
+            foreach (object item in queue)
+            {
+                result.Append(item.ToString());
+                result.Append(", ");
+                count++;
+            }
+            if (count > 0)
+            {
+                result.Remove(result.Length - 2, 2);
+            }
+            result.Append("]");
+            return result.ToString();
         }
     }
 
