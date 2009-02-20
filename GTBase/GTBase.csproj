@@ -59,6 +59,7 @@
     <Compile Include="Net\ClientServer.cs" />
     <Compile Include="Net\Stats.cs" />
     <Compile Include="Net\MillipedeBase.cs" />
+    <Compile Include="Pool.cs" />
     <Compile Include="Statistics.cs" />
     <Compile Include="Exceptions.cs" />
     <Compile Include="Lifecycle.cs" />
