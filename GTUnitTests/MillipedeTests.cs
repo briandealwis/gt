@@ -1,4 +1,5 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Threading;
 using NUnit.Framework;
@@ -26,7 +27,8 @@ namespace GT.UnitTests
             MillipedeRecorder.Singleton.Dispose();
             foreach (string fn in toBeDeleted)
             {
-                try { File.Delete(fn); } catch { /* ignore */ }
+                try { File.Delete(fn); }
+                catch { /* ignore */ }
             }
         }
 
@@ -49,7 +51,7 @@ namespace GT.UnitTests
             recorder.StartRecording(tempFileName);
             Assert.AreEqual(MillipedeMode.Record, recorder.Mode);
             Assert.AreEqual(0, recorder.NumberEvents);
-            MillipedeConnector connector = 
+            MillipedeConnector connector =
                 (MillipedeConnector)MillipedeConnector.Wrap(mockConnector, recorder);
             ITransport transport = connector.Connect("localhost", "9999", new Dictionary<string, string>());
             Assert.IsInstanceOfType(typeof(MillipedeTransport), transport);
@@ -69,10 +71,11 @@ namespace GT.UnitTests
             recorder = new MillipedeRecorder();
             recorder.StartReplaying(tempFileName);
             Assert.AreEqual(0, recorder.NumberEvents);
-            connector = (MillipedeConnector)MillipedeConnector.Wrap(mockConnector = new MockConnector(), 
+            connector = (MillipedeConnector)MillipedeConnector.Wrap(mockConnector = new MockConnector(),
                 recorder);
             transport = connector.Connect("localhost", "9999", new Dictionary<string, string>());
-            transport.PacketReceivedEvent += ((packet, offset, count, t) => {
+            transport.PacketReceivedEvent += ((packet, offset, count, t) =>
+            {
                 Assert.AreEqual(new byte[5], packet);
                 Assert.AreEqual(3, recorder.NumberEvents);
             });
@@ -110,8 +113,9 @@ namespace GT.UnitTests
             ITransport transport = null;
             MillipedeAcceptor acceptor =
                 (MillipedeAcceptor)MillipedeAcceptor.Wrap(mockAcceptor, recorder);
-            acceptor.NewTransportAccepted += delegate(ITransport t, IDictionary<string,string> cap) { 
-                transport = t; 
+            acceptor.NewTransportAccepted += delegate(ITransport t, IDictionary<string, string> cap)
+            {
+                transport = t;
             };
             Thread.Sleep(5);
             mockAcceptor.Trigger(mockTransport, new Dictionary<string, string>());
@@ -159,6 +163,98 @@ namespace GT.UnitTests
                 transport.Update();
             }
             Assert.AreEqual(3, recorder.NumberEvents);  // should have received the packet too
+        }
+
+        [Test]
+        public void TestSingletonReplayConfiguration()
+        {
+            string tmppath = Path.GetTempFileName();
+            FileStream tmpFile = File.OpenWrite(tmppath);
+            new NetworkEvent("test", NetworkEventType.Disposed).Serialize(tmpFile);
+            tmpFile.Close();
+
+            Environment.SetEnvironmentVariable("GTMILLIPEDE", "play:" + tmppath);
+            try
+            {
+                MillipedeRecorder.Singleton.Dispose();
+                Assert.IsTrue(MillipedeRecorder.Singleton.Active);
+            }
+            finally
+            {
+                Environment.SetEnvironmentVariable("GTMILLIPEDE", null);
+                MillipedeRecorder.Singleton.Dispose();
+                File.Delete(tmppath);
+            }
+        }
+
+        [Test]
+        public void TestSingletonRecordConfiguration()
+        {
+            string tmppath = Path.GetTempFileName();
+            Environment.SetEnvironmentVariable("GTMILLIPEDE", "record:" + tmppath);
+            try
+            {
+                MillipedeRecorder.Singleton.Dispose();
+                Assert.IsTrue(MillipedeRecorder.Singleton.Active);
+            }
+            finally
+            {
+                Environment.SetEnvironmentVariable("GTMILLIPEDE", null);
+                MillipedeRecorder.Singleton.Dispose();
+                File.Delete(tmppath);
+            }
+        }
+
+        [Test]
+        public void TestSingletonPassthroughConfiguration()
+        {
+            Environment.SetEnvironmentVariable("GTMILLIPEDE", "passthrough");
+            try
+            {
+                MillipedeRecorder.Singleton.Dispose();
+                Assert.IsFalse(MillipedeRecorder.Singleton.Active);
+            }
+            finally
+            {
+                Environment.SetEnvironmentVariable("GTMILLIPEDE", null);
+                MillipedeRecorder.Singleton.Dispose();
+            }
+        }
+
+        [Test]
+        public void TestSingletonBlankConfiguration()
+        {
+            Environment.SetEnvironmentVariable("GTMILLIPEDE", "  ");    // should be trimmed
+            try
+            {
+                MillipedeRecorder.Singleton.Dispose();
+                Assert.IsFalse(MillipedeRecorder.Singleton.Active);
+            }
+            finally
+            {
+                Environment.SetEnvironmentVariable("GTMILLIPEDE", null);
+                MillipedeRecorder.Singleton.Dispose();
+            }
+        }
+
+        [Test]
+        public void TestSingletonInvalidConfiguration()
+        {
+            Environment.SetEnvironmentVariable("GTMILLIPEDE", "blahblah");
+            try
+            {
+                try
+                {
+                    MillipedeRecorder.Singleton.Dispose();
+                    Assert.IsTrue(MillipedeRecorder.Singleton.Active);
+                    Assert.Fail("should have thrown an error");
+                } catch(ArgumentException e) { /* ignore */ }
+            }
+            finally
+            {
+                Environment.SetEnvironmentVariable("GTMILLIPEDE", null);
+                MillipedeRecorder.Singleton.Dispose();
+            }
         }
 
     }

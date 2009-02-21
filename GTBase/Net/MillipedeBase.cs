@@ -157,7 +157,7 @@ namespace GT.Millipede
         public void StartPassThrough() {
             InvalidStateException.Assert(mode == MillipedeMode.Unconfigured,
                 "Recorder is already started", mode);
-            timer = Stopwatch.StartNew();
+            // timer = Stopwatch.StartNew();
             mode = MillipedeMode.PassThrough;
             dataSink = null;
             sinkFile = null;
@@ -351,14 +351,26 @@ namespace GT.Millipede
             return GetType().Name + "(mode: " + Mode + ")";
         }
 
+        /// <summary>
+        /// Parse the provided configuration directive to configure this 
+        /// instance.  Throw an exception if the directive is not parsable.
+        /// Throw one of the many possible file-related exceptions on file error
+        /// from  <see cref="File.Create(string)"/>  (for "record:" directives) 
+        /// and <see cref="File.OpenRead"/>  (for "play:" directives).
+        /// </summary>
+        /// <param name="envvar">the configuration directive</param>
+        /// <seealso cref="File.Create(string)"/>
+        /// <seealso cref="File.OpenRead"/>
+        /// <exception cref="ArgumentException">if the directive is unknown</exception>
+        /// <exception cref="FileNotFoundException">for play: of a non-existant file</exception>
         private void Configure(string envvar)
         {
             envvar = envvar == null ? "" : envvar.Trim();
 
-            if(envvar.StartsWith("record"))
+            if(envvar.StartsWith("record:"))
             {
                 string[] splits = envvar.Split(new[] { ':' }, 2);
-                if (envvar.StartsWith("record:") && splits.Length == 2)
+                if (splits.Length == 2)
                 {
                     StartRecording(splits[1]);
                 }
@@ -367,10 +379,10 @@ namespace GT.Millipede
                     Console.WriteLine("FIXME: unknown Millipede configuration directive: " + envvar);
                 }
             }
-            else if(envvar.StartsWith("play"))
+            else if (envvar.StartsWith("play:") || envvar.StartsWith("replay:"))
             {
                 string[] splits = envvar.Split(new[] { ':' }, 2);
-                if (envvar.StartsWith("play:") && splits.Length == 2)
+                if (splits.Length == 2)
                 {
                     StartReplaying(envvar.Split(new[] { ':' }, 2)[1]);
                 }
@@ -385,7 +397,8 @@ namespace GT.Millipede
             }
             else
             {
-                Console.WriteLine("FIXME: unknown Millipede configuration directive: " + envvar);
+                throw new ArgumentException("Unknown GT-Millipede configuration directive: {0};"
+                    + " expected 'play:<file>', 'record:<file>', passthrough, or nothing", envvar);
             }
         }
     }
