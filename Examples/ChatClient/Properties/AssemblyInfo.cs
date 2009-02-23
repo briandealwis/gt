@@ -5,12 +5,12 @@ using System.Runtime.InteropServices;
 // General Information about an assembly is controlled through the following 
 // set of attributes. Change these attribute values to modify the information
 // associated with an assembly.
-[assembly: AssemblyTitle("ClientChat")]
-[assembly: AssemblyDescription("")]
+[assembly: AssemblyTitle("GT Chat Client")]
+[assembly: AssemblyDescription("A simple chat client illustrating GT use")]
 [assembly: AssemblyConfiguration("")]
-[assembly: AssemblyCompany("fdsa")]
-[assembly: AssemblyProduct("ClientChat")]
-[assembly: AssemblyCopyright("Copyright © fdsa 2006")]
+[assembly: AssemblyCompany("HCI Lab, University of Saskatchewan")]
+[assembly: AssemblyProduct("GTChatClient")]
+[assembly: AssemblyCopyright("Copyright © University of Saskatchewan")]
 [assembly: AssemblyTrademark("")]
 [assembly: AssemblyCulture("")]
 

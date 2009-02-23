@@ -7,8 +7,8 @@
     <ProjectGuid>{4582FA58-11F9-4C2B-B2B9-C4DC51C3FC26}</ProjectGuid>
     <OutputType>WinExe</OutputType>
     <AppDesignerFolder>Properties</AppDesignerFolder>
-    <RootNamespace>ClientChat</RootNamespace>
-    <AssemblyName>ClientChat</AssemblyName>
+    <RootNamespace>GT.ChatClient</RootNamespace>
+    <AssemblyName>ChatClient</AssemblyName>
     <SccProjectName>
     </SccProjectName>
     <SccLocalPath>

@@ -5,12 +5,12 @@ using System.Runtime.InteropServices;
 // General Information about an assembly is controlled through the following 
 // set of attributes. Change these attribute values to modify the information
 // associated with an assembly.
-[assembly: AssemblyTitle("ClientRepeater")]
-[assembly: AssemblyDescription("")]
+[assembly: AssemblyTitle("GT ClientRepeater")]
+[assembly: AssemblyDescription("A simple server that broadcasts each incoming packet to all of its connected clients")]
 [assembly: AssemblyConfiguration("")]
-[assembly: AssemblyCompany("")]
-[assembly: AssemblyProduct("ClientRepeater")]
-[assembly: AssemblyCopyright("Copyright ©  2006")]
+[assembly: AssemblyCompany("HCI Lab, University of Saskatchewan")]
+[assembly: AssemblyProduct("GTClientRepeater")]
+[assembly: AssemblyCopyright("Copyright © University of Saskatchewan")]
 [assembly: AssemblyTrademark("")]
 [assembly: AssemblyCulture("")]
 

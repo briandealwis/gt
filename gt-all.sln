@@ -9,7 +9,7 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ClientRepeater", "GTServer\
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "GTServer", "GTServer\GTServer\GTServer.csproj", "{709C5E40-E732-4196-A2F0-5B72206B7179}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ClientChat", "Examples\ClientChat\ClientChat.csproj", "{4582FA58-11F9-4C2B-B2B9-C4DC51C3FC26}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ChatClient", "Examples\ChatClient\ChatClient.csproj", "{4582FA58-11F9-4C2B-B2B9-C4DC51C3FC26}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Telepointers", "Examples\Telepointers\Telepointers.csproj", "{0429E659-A35B-4A5C-917A-49CEA6D48B5E}"
 EndProject

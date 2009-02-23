@@ -1,4 +1,4 @@
-namespace ClientChat
+namespace GT.ChatClient
 {
     partial class Form1
     {

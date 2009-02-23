@@ -5,12 +5,12 @@ using System.Runtime.InteropServices;
 // General Information about an assembly is controlled through the following 
 // set of attributes. Change these attribute values to modify the information
 // associated with an assembly.
-[assembly: AssemblyTitle("GTBase")]
+[assembly: AssemblyTitle("GT Base Functionality")]
 [assembly: AssemblyDescription("Classes and utilities common to server and clients")]
 [assembly: AssemblyConfiguration("")]
-[assembly: AssemblyCompany("")]
-[assembly: AssemblyProduct("GT")]
-[assembly: AssemblyCopyright("Copyright © 2008")]
+[assembly: AssemblyCompany("HCI Lab, University of Saskatchewan")]
+[assembly: AssemblyProduct("GTBase")]
+[assembly: AssemblyCopyright("Copyright © University of Saskatchewan")]
 [assembly: AssemblyTrademark("")]
 [assembly: AssemblyCulture("")]
 

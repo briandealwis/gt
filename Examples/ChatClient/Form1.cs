@@ -3,7 +3,7 @@ using System.Windows.Forms;
 using GT.Net;
 using GT.UI;
 
-namespace ClientChat
+namespace GT.ChatClient
 {
     public partial class Form1 : Form
     {
