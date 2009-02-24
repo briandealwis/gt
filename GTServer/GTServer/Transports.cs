@@ -94,7 +94,7 @@ namespace GT.Net
 
         public override string ToString()
         {
-            return GetType().FullName + "(" + address + "," + port + ")";
+            return String.Format("{0}({1}:{2})", GetType().FullName, address, port);
         }
     }
 }

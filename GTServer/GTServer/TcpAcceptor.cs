@@ -80,18 +80,6 @@ namespace GT.Net
             }
         }
 
-        public override string ToString()
-        {
-            try 
-            {
-                return GetType().FullName + "(" + bouncer.LocalEndpoint + ")";
-            }
-            catch(Exception e) 
-            {
-                return base.ToString();
-            }
-        }
-
         public override void Update()
         {
             // Console.WriteLine(this + ": checking TCP listening socket...");

@@ -373,10 +373,5 @@ namespace GT.Net
                 return;
             }
         }
-
-        public override string ToString()
-        {
-            return GetType().FullName + "(" + udpMultiplexer.LocalEndPoint + ")";
-        }
     }
 }
