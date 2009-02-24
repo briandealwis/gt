@@ -466,6 +466,12 @@ namespace GT.Net
             messageQueues = new Dictionary<byte, Queue<PendingMessage>>();
             receivedMessages = new Queue<Message>();
 
+            if (owner.Connectors.Count == 0)
+            {
+                NotifyError(new ErrorSummary(Severity.Error, SummaryErrorCode.RemoteUnavailable,
+                    "There are no connectors configured", null));
+                throw new CannotConnectException("There are no connectors configured!");
+            }
             transports = new List<ITransport>();
 
             // FIXME: should this be done on demand?
@@ -486,6 +492,8 @@ namespace GT.Net
             }
             if (transports.Count == 0)
             {
+                NotifyError(new ErrorSummary(Severity.Error, SummaryErrorCode.RemoteUnavailable,
+                    String.Format("Unable to establish any connections to {0}:{1}", Address, Port), null));
                 throw new CannotConnectException("could not connect to any transports");
             }
             // otherwise...
