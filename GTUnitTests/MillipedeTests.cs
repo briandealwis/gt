@@ -34,6 +34,28 @@ namespace GT.UnitTests
 
 
         [Test]
+        public void BaseTestUniqueStableDescriptor() {
+            string[] values = { typeof(String).FullName, "test", "bar", "test" };
+            foreach (string value in values) {
+                object d1 = recorder.GenerateDescriptor(value);
+                recorder.Dispose();
+                recorder = new MillipedeRecorder();
+                object d2 = recorder.GenerateDescriptor(value);
+                recorder.Dispose();
+                Assert.AreEqual(d1,d2);
+                recorder = new MillipedeRecorder();
+            }
+
+            Dictionary<object, object> descriptors = new Dictionary<object, object>();
+            foreach (string value in values)
+            {
+                object d1 = recorder.GenerateDescriptor(value);
+                Assert.IsFalse(descriptors.ContainsKey(d1));
+                descriptors[d1] = d1;
+            }
+        }
+
+        [Test]
         public void TestMillipedeConnector()
         {
             string tempFileName = Path.GetTempFileName();

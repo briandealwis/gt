@@ -84,6 +84,7 @@ namespace GT.Millipede
 
         private MemoryStream dataSink = null;
         private Timer syncingTimer;
+        private IDictionary<string,object> assignedDescriptors = new Dictionary<string, object>();
 
         /// <summary>
         /// Used for allocating stable but unique descriptors for recordable objects.
@@ -171,19 +172,40 @@ namespace GT.Millipede
         }
 
         /// <summary>
-        /// Generate a unique descriptor for the provided object
+        /// Generate a unique descriptor for the provided object.
+        /// This method assumes the object's <see cref="ToString"/> is 
+        /// stable (i.e., it will produce the same value on subsequent
+        /// runs when configured the same way).
+        /// For the descriptor to be stable, this method must be called
+        /// with the same objects and in the same order.
+        /// This method assumes that it is called once per object;
+        /// do not call this method multiple times for the same object.
         /// </summary>
-        /// <param name="obj"></param>
-        /// <returns></returns>
+        /// <param name="obj">the object needing a descriptor</param>
+        /// <returns>a unique descriptor for the provided object</returns>
         public object GenerateDescriptor(object obj)
         {
             string typeName = obj.GetType().FullName;
             string toString = obj.ToString();
-            if (toString.Equals(typeName))
+            string descriptorBase = typeName + ":" + toString;
+            string descriptor = descriptorBase;
+            // can't use a GUID as they are never the same
+            lock (this)
             {
-                return typeName + "@" + Interlocked.Increment(ref uniqueCount);
+                if(toString.Equals(typeName))
+                {
+                    descriptorBase = typeName;
+                    descriptor = typeName + "@" + Interlocked.Increment(ref uniqueCount);
+                }
+
+                while(assignedDescriptors.ContainsKey(descriptor))
+                {
+                    descriptor = descriptorBase + "@" + Interlocked.Increment(ref uniqueCount);
+                }
+
+                assignedDescriptors[descriptor] = descriptor;
             }
-            return typeName + ":" + toString;
+            return descriptor;
         }
 
 
