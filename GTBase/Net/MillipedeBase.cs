@@ -49,6 +49,12 @@ namespace GT.Millipede
         private static MillipedeRecorder singleton;
 
         /// <summary>
+        /// The name of the environment variable used by GT-Millipede for
+        /// configuration of the singleton instance.
+        /// </summary>
+        public static readonly string ConfigurationEnvironmentVariableName = "GTMILLIPEDE";
+
+        /// <summary>
         /// Return the singleton recorder instance.
         /// </summary>
         public static MillipedeRecorder Singleton
@@ -61,7 +67,7 @@ namespace GT.Millipede
                 }
                 if (Interlocked.Exchange(ref singleton, new MillipedeRecorder()) == null)
                 {
-                    string envvar = Environment.GetEnvironmentVariable("GTMILLIPEDE");
+                    string envvar = Environment.GetEnvironmentVariable(ConfigurationEnvironmentVariableName);
                     singleton.Configure(envvar);
                 }
                 return singleton;
@@ -232,7 +238,7 @@ namespace GT.Millipede
                 }
                 else if(!e.Type.Equals(networkEvent.Type))
                 {
-                    if (log.IsInfoEnabled)
+                    if (log.IsTraceEnabled)
                     {
                         log.Trace("Millipede Playback: different type of operation than expected!");
                         log.Trace("   expected: " + nextEvent.Type);
@@ -241,7 +247,7 @@ namespace GT.Millipede
                 }
                 else if(!e.ObjectDescriptor.Equals(networkEvent.ObjectDescriptor))
                 {
-                    if (log.IsInfoEnabled)
+                    if (log.IsTraceEnabled)
                     {
                         log.Trace("Millipede Playback: different message sent than expected!");
                         log.Trace("   expected: " + nextEvent.ObjectDescriptor);

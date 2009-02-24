@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Text;
 using System.Threading;
 using Common.Logging;
+using GT.Millipede;
 using GT.Utils;
 
 namespace GT.Net
@@ -87,11 +88,12 @@ namespace GT.Net
 
         static void Usage()
         {
-            Console.WriteLine("Use: <ClientRepeater.exe> [-v] [-m pktsize] [-s channel] [port]");
+            Console.WriteLine("Use: <ClientRepeater.exe> [-v] [-m pktsize] [-s channel] [-M mpede] [port]");
             Console.WriteLine("  -v   be more verbose");
             Console.WriteLine("  -s   cause session announcements to be sent on specified channel");
             Console.WriteLine("       (use -1 to disable session announcements)");
             Console.WriteLine("  -m   set the maximum packet size to <pktsize>");
+            Console.WriteLine("  -M   set the GT-Millipede configuration string");
             Console.WriteLine("[port] defaults to {0} if not specified", DefaultPort);
             Console.WriteLine("[channel] defaults to {0} if not specified", DefaultSessionChannel);
         }
@@ -103,7 +105,7 @@ namespace GT.Net
             uint maxPacketSize = 0;
             int sessionChannel = DefaultSessionChannel;
 
-            GetOpt options = new GetOpt(args, "vm:s:");
+            GetOpt options = new GetOpt(args, "vm:s:M:");
             try
             {
                 Option opt;
@@ -119,6 +121,10 @@ namespace GT.Net
                             break;
                         case 'b':
                             sessionChannel = int.Parse(opt.Argument);
+                            break;
+
+                        case 'M':
+                            Environment.SetEnvironmentVariable(MillipedeRecorder.ConfigurationEnvironmentVariableName, opt.Argument);
                             break;
                     }
                 }
