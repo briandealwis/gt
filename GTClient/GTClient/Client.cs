@@ -167,6 +167,14 @@ namespace GT.Net
             deliveryOptions = cdr;
         }
 
+        /// <summary>
+        /// Handle this incoming message.  Must check that <see cref="m"/>
+        /// can be handled by this stream (channels can have messages of
+        /// different types).
+        /// </summary>
+        /// <param name="m"></param>
+        abstract internal void QueueMessage(Message m);
+
         internal virtual void Update(HPTimer hpTimer)
         {
             if (UpdateEvent != null)
@@ -199,10 +207,6 @@ namespace GT.Net
 
         /// <summary>Received messages from the server.</summary>
         public IList<Message> Messages { get { return messages; } }
-
-        /// <summary> This stream uses this connexion. </summary>
-        /// <remarks>deprecated</remarks>
-        public ConnexionToServer Connection { get { return connexion; } }
 
         /// <summary>Create a stream object.</summary>
         /// <param name="stream">The connexion used to actually send the messages.</param>
@@ -244,16 +248,21 @@ namespace GT.Net
         {
             try
             {
-                if (index >= messages.Count)
-                    return null;
-
                 Message m;
-                lock (messages)
+                while (index < messages.Count)
                 {
-                    m = messages[index];
-                    messages.RemoveAt(index);
+                    lock(messages)
+                    {
+                        m = messages[index];
+                        messages.RemoveAt(index);
+                    }
+                    RI result;
+                    if(GetMessageContents(m, out result))
+                    {
+                        return result;
+                    }
                 }
-                return GetMessageContents(m);
+                return null;
             }
             catch (IndexOutOfRangeException)
             {
@@ -269,16 +278,19 @@ namespace GT.Net
         /// Extract the appropriate typed object from the provided message.
         /// </summary>
         /// <param name="m">the message</param>
-        /// <returns>the appropriately-typed object content from <see cref="m"/></returns>
-        abstract public RI GetMessageContents(Message m);
+        /// <param name="contents">the appropriately-typed object content from <s
+        /// <returns>true if the contents was successfully extracted</returns>
+        abstract protected bool GetMessageContents(Message m, out RI contents);
 
         /// <summary>Flush all aggregated messages on this connexion</summary>
         protected abstract ST CastedStream { get; }
 
         /// <summary>Queue a message in the list, triggering events</summary>
         /// <param name="message">The message to be queued.</param>
-        internal void QueueMessage(Message message)
+        internal override void QueueMessage(Message message)
         {
+            RI content;
+            if (!GetMessageContents(message, out content)) { return; }
             messages.Add(message);
             if (MessagesReceived != null)
                 MessagesReceived(CastedStream);
@@ -307,9 +319,15 @@ namespace GT.Net
             connexion.Send(new SessionMessage(channel, Identity, action), mdr, deliveryOptions);
         }
 
-        override public SessionMessage GetMessageContents(Message m)
+        override protected bool GetMessageContents(Message m, out SessionMessage contents)
         {
-            return (SessionMessage)m;
+            if(m is SessionMessage)
+            {
+                contents = (SessionMessage)m;
+                return true;
+            }
+            contents = null;
+            return false;
         }
 
         protected override ISessionStream CastedStream { get { return this; } }
@@ -336,9 +354,15 @@ namespace GT.Net
             connexion.Send(new StringMessage(channel, s), mdr, deliveryOptions);
         }
 
-        override public string GetMessageContents(Message m)
+        override protected bool GetMessageContents(Message m, out string contents)
         {
-            return ((StringMessage)m).Text;
+            if (m is StringMessage)
+            {
+                contents = ((StringMessage)m).Text;
+                return true;
+            }
+            contents = null;
+            return false;
         }
 
         protected override IStringStream CastedStream { get { return this; } }
@@ -364,9 +388,15 @@ namespace GT.Net
             connexion.Send(new ObjectMessage(channel, o), mdr, deliveryOptions);
         }
 
-        override public object GetMessageContents(Message m)
+        override protected bool GetMessageContents(Message m, out object contents)
         {
-            return ((ObjectMessage)m).Object;
+            if(m is ObjectMessage)
+            {
+                contents = ((ObjectMessage)m).Object;
+                return true;
+            }
+            contents = null;
+            return false;
         }
 
         protected override IObjectStream CastedStream { get { return this; } }
@@ -392,9 +422,15 @@ namespace GT.Net
             connexion.Send(new BinaryMessage(channel, b), mdr, deliveryOptions);
         }
 
-        override public byte[] GetMessageContents(Message m)
+        override protected bool GetMessageContents(Message m, out byte[] contents)
         {
-            return ((BinaryMessage)m).Bytes;
+            if (m is BinaryMessage)
+            {
+                contents = ((BinaryMessage)m).Bytes;
+                return true;
+            }
+            contents = null;
+            return false;
         }
         
         protected override IBinaryStream CastedStream { get { return this; } }

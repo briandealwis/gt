@@ -103,8 +103,6 @@ namespace GT.Net
             UpdatePeriod = updateDelay;
         }
 
-        abstract internal void QueueMessage(Message m);
-
         override internal void Update(HPTimer hpTimer)
         {
             if (changed && connexion.Identity != 0 
@@ -164,8 +162,10 @@ namespace GT.Net
 
         internal override void QueueMessage(Message message)
         {
-            RemoteTuple<T_X, T_Y, T_Z> tuple = new RemoteTuple<T_X, T_Y, T_Z>();
+            if (!(message is TupleMessage)) { return; }
             TupleMessage tm = (TupleMessage)message;
+            if (!(tm.Dimension == 3 && tm.X is T_X && tm.Y is T_Y && tm.Z is T_Z)) { return; }
+            RemoteTuple<T_X, T_Y, T_Z> tuple = new RemoteTuple<T_X, T_Y, T_Z>();
             tuple.X = (T_X)tm.X;
             tuple.Y = (T_Y)tm.Y;
             tuple.Z = (T_Z)tm.Z;
@@ -210,8 +210,10 @@ namespace GT.Net
 
         internal override void QueueMessage(Message message)
         {
-            RemoteTuple<T_X, T_Y> tuple = new RemoteTuple<T_X, T_Y>();
+            if (!(message is TupleMessage)) { return; }
             TupleMessage tm = (TupleMessage)message;
+            if (!(tm.Dimension == 2 && tm.X is T_X && tm.Y is T_Y)) { return; }
+            RemoteTuple<T_X, T_Y> tuple = new RemoteTuple<T_X, T_Y>();
             tuple.X = (T_X)tm.X;
             tuple.Y = (T_Y)tm.Y;
 
@@ -250,8 +252,10 @@ namespace GT.Net
 
         internal override void QueueMessage(Message message)
         {
-            RemoteTuple<T_X> tuple = new RemoteTuple<T_X>();
+            if (!(message is TupleMessage)) { return; }
             TupleMessage tm = (TupleMessage)message;
+            if (!(tm.Dimension == 1 && tm.X is T_X)) { return; }
+            RemoteTuple<T_X> tuple = new RemoteTuple<T_X>();
             tuple.X = (T_X)tm.X;
 
             if (StreamedTupleReceived != null) { StreamedTupleReceived(tuple, tm.ClientId); }

@@ -271,6 +271,243 @@ namespace GT.UnitTests
     }
 
     /// <summary>
+    /// Test that client-facing streams can handle messages that are
+    /// of a different type than expected.
+    /// </summary>
+    [TestFixture]
+    public class ZTMessageHandling
+    {
+        Client client;
+        Server server;
+
+        [SetUp]
+        public void SetUp() {
+            client = new LocalClientConfiguration().BuildClient();
+            client.Start();
+            server = new LocalServerConfiguration(9999).BuildServer();
+            server.StartSeparateListeningThread();
+        }
+
+        [TearDown]
+        public void TearDown() {
+            server.Stop();
+            client.Stop();
+        }
+
+        [Test]
+        public void TestObjectMessageMishandling()
+        {
+            IObjectStream objStream = client.GetObjectStream("127.0.0.1", "9999", 0, ChannelDeliveryRequirements.LeastStrict);
+            for (int i = 0; server.Connexions.Count < 1 && i < 10; i++) { Thread.Sleep(200); }
+            Assert.IsNotNull(objStream);
+            Assert.AreEqual(1, server.Connexions.Count);
+            bool received = false;
+            objStream.MessagesReceived += delegate { received = true; };
+            Assert.IsFalse(received);
+
+            foreach (IConnexion c in server.Connexions)
+            {
+                c.Send("this is a test", 0, null, ChannelDeliveryRequirements.LeastStrict);
+            }
+            Assert.IsFalse(received);
+            Assert.IsTrue(objStream.Count == 0);
+
+            foreach (IConnexion c in server.Connexions)
+            {
+                c.Send(new object(), 0, null, ChannelDeliveryRequirements.LeastStrict);
+            }
+            for (int i = 0; !received && i < 10; i++) { client.Update(); Thread.Sleep(20); }
+            Assert.IsTrue(received);
+            Assert.IsTrue(objStream.Count > 0);
+            Assert.IsNotNull(objStream.DequeueMessage(0));
+        }
+
+        [Test]
+        public void TestStringMessageMishandling()
+        {
+            IStringStream strStream = client.GetStringStream("127.0.0.1", "9999", 0, ChannelDeliveryRequirements.LeastStrict);
+            for (int i = 0; server.Connexions.Count < 1 && i < 10; i++) { Thread.Sleep(200); }
+            Assert.IsNotNull(strStream);
+            Assert.AreEqual(1, server.Connexions.Count);
+            bool received = false;
+            strStream.MessagesReceived += delegate { received = true; };
+            Assert.IsFalse(received);
+
+            foreach (IConnexion c in server.Connexions)
+            {
+                c.Send(new byte[1], 0, null, ChannelDeliveryRequirements.LeastStrict);
+            }
+            Assert.IsFalse(received);
+            Assert.IsTrue(strStream.Count == 0);
+
+            foreach (IConnexion c in server.Connexions)
+            {
+                c.Send("this is a test", 0, null, ChannelDeliveryRequirements.LeastStrict);
+            }
+            for (int i = 0; !received && i < 10; i++) { client.Update(); Thread.Sleep(20); }
+            Assert.IsTrue(received);
+            Assert.IsTrue(strStream.Count > 0);
+            Assert.IsNotNull(strStream.DequeueMessage(0));
+        }
+
+        [Test]
+        public void TestBinaryMessageMishandling()
+        {
+            IBinaryStream binStream = client.GetBinaryStream("127.0.0.1", "9999", 0, ChannelDeliveryRequirements.LeastStrict);
+            for (int i = 0; server.Connexions.Count < 1 && i < 10; i++) { Thread.Sleep(200); }
+            Assert.IsNotNull(binStream);
+            Assert.AreEqual(1, server.Connexions.Count);
+            bool received = false;
+            binStream.MessagesReceived += delegate { received = true; };
+            Assert.IsFalse(received);
+
+            foreach (IConnexion c in server.Connexions)
+            {
+                c.Send("this is a test", 0, null, ChannelDeliveryRequirements.LeastStrict);
+            }
+            Assert.IsFalse(received);
+            Assert.IsTrue(binStream.Count == 0);
+
+            foreach (IConnexion c in server.Connexions)
+            {
+                c.Send(new byte[1], 0, null, ChannelDeliveryRequirements.LeastStrict);
+            }
+            for (int i = 0; !received && i < 10; i++) { client.Update(); Thread.Sleep(20); }
+            Assert.IsTrue(received);
+            Assert.IsTrue(binStream.Count > 0);
+            Assert.IsNotNull(binStream.DequeueMessage(0));
+        }
+
+        [Test]
+        public void TestSessionMessageMishandling()
+        {
+            ISessionStream sessStream = client.GetSessionStream("127.0.0.1", "9999", 0, ChannelDeliveryRequirements.LeastStrict);
+            for (int i = 0; server.Connexions.Count < 1 && i < 10; i++) { Thread.Sleep(200); }
+            Assert.IsNotNull(sessStream);
+            Assert.AreEqual(1, server.Connexions.Count);
+            bool received = false;
+            sessStream.MessagesReceived += delegate { received = true; };
+            Assert.IsFalse(received);
+
+            foreach (IConnexion c in server.Connexions)
+            {
+                c.Send("this is a test", 0, null, ChannelDeliveryRequirements.LeastStrict);
+            }
+            Assert.IsFalse(received);
+            Assert.IsTrue(sessStream.Count == 0);
+
+            foreach (IConnexion c in server.Connexions)
+            {
+                c.Send(new SessionMessage(0, 0, SessionAction.Left), null, ChannelDeliveryRequirements.LeastStrict);
+            }
+            for (int i = 0; !received && i < 10; i++) { client.Update(); Thread.Sleep(20); }
+            Assert.IsTrue(received);
+            Assert.IsTrue(sessStream.Count > 0);
+            Assert.IsNotNull(sessStream.DequeueMessage(0));
+        }
+
+        [Test]
+        public void TestStreamed1TupleMishandling()
+        {
+            IStreamedTuple<int> st = client.GetStreamedTuple<int>("127.0.0.1", "9999",
+                0, TimeSpan.FromSeconds(1), ChannelDeliveryRequirements.LeastStrict);
+            for (int i = 0; server.Connexions.Count < 1 && i < 10; i++) { Thread.Sleep(200); }
+            Assert.IsNotNull(st);
+            Assert.AreEqual(1, server.Connexions.Count);
+            bool received = false;
+            st.StreamedTupleReceived += delegate { received = true; };
+            Assert.IsFalse(received);
+
+            foreach (IConnexion c in server.Connexions)
+            {
+                c.Send(new byte[1], 0, null, ChannelDeliveryRequirements.LeastStrict);
+            }
+            Assert.IsFalse(received);
+
+            foreach (IConnexion c in server.Connexions)
+            {
+                c.Send(new TupleMessage(0, 0, "foo"), null, ChannelDeliveryRequirements.LeastStrict);
+            }
+            for (int i = 0; !received && i < 10; i++) { client.Update(); Thread.Sleep(20); }
+            Assert.IsFalse(received);
+
+            foreach (IConnexion c in server.Connexions)
+            {
+                c.Send(new TupleMessage(0, 0, 1), null, ChannelDeliveryRequirements.LeastStrict);
+            }
+            for (int i = 0; !received && i < 10; i++) { client.Update(); Thread.Sleep(20); }
+            Assert.IsTrue(received);
+        }
+
+        [Test]
+        public void TestStreamed2TupleMishandling()
+        {
+            IStreamedTuple<int,int> st = client.GetStreamedTuple<int,int>("127.0.0.1", "9999",
+                0, TimeSpan.FromSeconds(1), ChannelDeliveryRequirements.LeastStrict);
+            for (int i = 0; server.Connexions.Count < 1 && i < 10; i++) { Thread.Sleep(200); }
+            Assert.IsNotNull(st);
+            Assert.AreEqual(1, server.Connexions.Count);
+            bool received = false;
+            st.StreamedTupleReceived += delegate { received = true; };
+            Assert.IsFalse(received);
+
+            foreach (IConnexion c in server.Connexions)
+            {
+                c.Send(new byte[1], 0, null, ChannelDeliveryRequirements.LeastStrict);
+            }
+            Assert.IsFalse(received);
+
+            foreach (IConnexion c in server.Connexions)
+            {
+                c.Send(new TupleMessage(0, 0, "foo", "bar"), null, ChannelDeliveryRequirements.LeastStrict);
+            }
+            for (int i = 0; !received && i < 10; i++) { client.Update(); Thread.Sleep(20); }
+            Assert.IsFalse(received);
+
+            foreach (IConnexion c in server.Connexions)
+            {
+                c.Send(new TupleMessage(0, 0, 1, 1), null, ChannelDeliveryRequirements.LeastStrict);
+            }
+            for (int i = 0; !received && i < 10; i++) { client.Update(); Thread.Sleep(20); }
+            Assert.IsTrue(received);
+        }
+
+        [Test]
+        public void TestStreamed3TupleMishandling()
+        {
+            IStreamedTuple<int, int, int> st = client.GetStreamedTuple<int, int, int>("127.0.0.1", "9999",
+                0, TimeSpan.FromSeconds(1), ChannelDeliveryRequirements.LeastStrict);
+            for (int i = 0; server.Connexions.Count < 1 && i < 10; i++) { Thread.Sleep(200); }
+            Assert.IsNotNull(st);
+            Assert.AreEqual(1, server.Connexions.Count);
+            bool received = false;
+            st.StreamedTupleReceived += delegate { received = true; };
+            Assert.IsFalse(received);
+
+            foreach (IConnexion c in server.Connexions)
+            {
+                c.Send(new byte[1], 0, null, ChannelDeliveryRequirements.LeastStrict);
+            }
+            Assert.IsFalse(received);
+
+            foreach (IConnexion c in server.Connexions)
+            {
+                c.Send(new TupleMessage(0, 0, "foo", "bar", "baz"), null, ChannelDeliveryRequirements.LeastStrict);
+            }
+            for (int i = 0; !received && i < 10; i++) { client.Update(); Thread.Sleep(20); }
+            Assert.IsFalse(received);
+
+            foreach (IConnexion c in server.Connexions)
+            {
+                c.Send(new TupleMessage(0, 0, 1, 1, 1), null, ChannelDeliveryRequirements.LeastStrict);
+            }
+            for (int i = 0; !received && i < 10; i++) { client.Update(); Thread.Sleep(20); }
+            Assert.IsTrue(received);
+        }
+
+    }
+
+    /// <summary>
     /// Test basic GT functionality
     /// </summary>
     [TestFixture]
