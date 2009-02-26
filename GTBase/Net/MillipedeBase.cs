@@ -39,7 +39,7 @@ namespace GT.Millipede
     }
 
     /// <summary>
-    /// A recorder is able to record or replay a stream of <see cref="NetworkEvent"/>.
+    /// A recorder is able to record or replay a stream of <see cref="MillipedeEvent"/>.
     /// </summary>
     public class MillipedeRecorder : IDisposable
     {
@@ -99,11 +99,11 @@ namespace GT.Millipede
         /// <summary>
         /// The next event to release during playback.
         /// </summary>
-        private NetworkEvent nextEvent = null;
+        private MillipedeEvent nextEvent = null;
 
         /// <summary>
         /// The time in milliseconds when <see cref="nextEvent"/> *should* be released,
-        /// as opposed to the timestamp in its timestamp, <see cref="NetworkEvent.Time"/>.
+        /// as opposed to the timestamp in its timestamp, <see cref="MillipedeEvent.Time"/>.
         /// This value helps replay events as according to the logical time: <see cref="timer"/>,
         /// being an instance of <see cref="Stopwatch"/>, is based on wall-clock, and hence
         /// will be thrown off by delays introduced from debugging, such as stepping into
@@ -141,6 +141,7 @@ namespace GT.Millipede
         public void StartReplaying(string replayFile) {
             InvalidStateException.Assert(mode == MillipedeMode.Unconfigured,
                 "Recorder is already started", mode);
+            NumberEvents = 0;
             timer = Stopwatch.StartNew();
             mode = MillipedeMode.Playback;
             dataSink = null;
@@ -152,6 +153,7 @@ namespace GT.Millipede
         public void StartRecording(string recordingFile) {
             InvalidStateException.Assert(mode == MillipedeMode.Unconfigured,
                 "Recorder is already started", mode);
+            NumberEvents = 0;
             timer = Stopwatch.StartNew();
             mode = MillipedeMode.Record;
             dataSink = new MemoryStream();
@@ -164,6 +166,7 @@ namespace GT.Millipede
         public void StartPassThrough() {
             InvalidStateException.Assert(mode == MillipedeMode.Unconfigured,
                 "Recorder is already started", mode);
+            NumberEvents = 0;
             // timer = Stopwatch.StartNew();
             mode = MillipedeMode.PassThrough;
             dataSink = null;
@@ -228,37 +231,38 @@ namespace GT.Millipede
                     sinkFile = null;
                     dataSink = null;
                 }
+                assignedDescriptors = null;
             }
-            mode = MillipedeMode.Unconfigured;
+            mode = MillipedeMode.PassThrough;
         }
 
-        public void Record(NetworkEvent networkEvent)
+        public void Record(MillipedeEvent millipedeEvent)
         {
             if(mode == MillipedeMode.Record)
             {
                 if (dataSink == null) { return; }
-                networkEvent.Time = timer.ElapsedMilliseconds;
+                millipedeEvent.Time = timer.ElapsedMilliseconds;
                 lock (this)
                 {
                     int eventNo = Interlocked.Increment(ref NumberEvents); // important for replaying too
                     if (log.IsTraceEnabled)
                     {
                         log.Trace(String.Format("[{2}] Recording event #{0}: {1}",
-                            eventNo, networkEvent, networkEvent.Time));
+                            eventNo, millipedeEvent, millipedeEvent.Time));
                     }
-                    if(dataSink != null) { networkEvent.Serialize(dataSink); }
+                    if(dataSink != null) { millipedeEvent.Serialize(dataSink); }
                 }
             }
             else if(mode == MillipedeMode.Playback)
             {
-                NetworkEvent e = nextEvent;
+                MillipedeEvent e = nextEvent;
                 if(e == null)
                 {
                     log.Trace("Millipede Playback: no matching event! (nextEvent == null)");
                     // although this may be of interest, it's likely because the recorder
                     // was explicitly stopped 
                 }
-                else if(!e.Type.Equals(networkEvent.Type))
+                else if(!e.Type.Equals(millipedeEvent.Type))
                 {
                     if (log.IsTraceEnabled)
                     {
@@ -267,7 +271,7 @@ namespace GT.Millipede
                         log.Trace("   provided: " + e.Type);
                     }
                 }
-                else if(!e.ObjectDescriptor.Equals(networkEvent.ObjectDescriptor))
+                else if(!e.ObjectDescriptor.Equals(millipedeEvent.ObjectDescriptor))
                 {
                     if (log.IsTraceEnabled)
                     {
@@ -305,9 +309,11 @@ namespace GT.Millipede
         /// match the recorded session.
         /// </summary>
         /// <param name="descriptor"></param>
+        /// <param name="expected">the expected event types; if specified, used to log
+        ///     a warning if an unexpected event type is found</param>
         /// <returns>the next event for the recordable object, or null if there is no
         /// such event waiting</returns>
-        public NetworkEvent CheckReplayEvent(object descriptor)
+        public MillipedeEvent CheckReplayEvent(object descriptor, params MillipedeEventType[] expected)
         {
             Debug.Assert(Mode == MillipedeMode.Playback, "Can only check replay events in playback mode!");
             lock (this)
@@ -316,9 +322,15 @@ namespace GT.Millipede
                 if (nextEvent == null) { return null; }
                 if (!nextEvent.ObjectDescriptor.Equals(descriptor)) { return null; }
                 if (nextEventReleaseTime > timer.ElapsedMilliseconds) { return null; }
-                NetworkEvent e = nextEvent;
+                MillipedeEvent e = nextEvent;
                 Interlocked.Increment(ref NumberEvents);
                 //Console.WriteLine("Message returned to waiting object " + descriptor);
+                if (expected.Length > 0 && log.IsTraceEnabled && Array.IndexOf(expected, e.Type) < 0)
+                {
+                    log.Trace("Millipede Playback: different type of operation than expected!");
+                    log.Trace("   expected: " + nextEvent.Type);
+                    log.Trace("   provided: " + e.Type);
+                }
                 LoadNextEvent();
                 return e;
             }
@@ -330,8 +342,10 @@ namespace GT.Millipede
         /// match the recorded session.
         /// </summary>
         /// <param name="descriptor">the descriptor</param>
+        /// <param name="expected">the expected event types; if specified, used to log
+        ///     a warning if an unexpected event type is found</param>
         /// <returns>the event or null</returns>
-        public NetworkEvent WaitForReplayEvent(object descriptor) {
+        public MillipedeEvent WaitForReplayEvent(object descriptor, params MillipedeEventType[] expected) {
             Debug.Assert(Mode == MillipedeMode.Playback, "Can only check replay events in playback mode!");
             lock (this)
             {
@@ -339,13 +353,51 @@ namespace GT.Millipede
                 if (nextEvent == null) { return null; }
                 while(!nextEvent.ObjectDescriptor.Equals(descriptor))
                 {
-                    //Console.WriteLine("Waiting for message from {0}: pulsing", descriptor);
-                    Monitor.Pulse(this);
+                    Console.WriteLine("Waiting for message from {0}: pulsing", descriptor);
+                    Monitor.Wait(this);
                     if (!Active || nextEvent == null) { return null; }
                 }
                 int remainingTime = (int)(nextEventReleaseTime - timer.ElapsedMilliseconds);
                 if(remainingTime > 0) { Monitor.Wait(this, remainingTime); }
-                NetworkEvent e = nextEvent;
+                MillipedeEvent e = nextEvent;
+                Interlocked.Increment(ref NumberEvents);
+                if (expected.Length > 0 && log.IsTraceEnabled && Array.IndexOf(expected, e.Type) < 0)
+                {
+                    log.Trace("Millipede Playback: different type of operation than expected!");
+                    log.Trace("   expected: " + nextEvent.Type);
+                    log.Trace("   provided: " + e.Type);
+                }
+
+                //Console.WriteLine("Message returned to waiting object " + descriptor);
+                LoadNextEvent();
+                return e;
+            }
+        }
+
+        /// <summary>
+        /// Check if the next event waiting is a NotedDetail for the recordable object 
+        /// identified  as <see cref="descriptor"/>.  The next event is properly delayed to
+        /// match the recorded session.  Noted details are intended to record the
+        /// results of some possible source of non-determinism to reproduce similar
+        /// behaviour on playback, and thus a NotedDetail can be fetched before it
+        /// was recorded.
+        /// </summary>
+        /// <param name="descriptor"></param>
+        /// <returns>the next event for the recordable object, or null if there is no
+        /// such event waiting</returns>
+        public MillipedeEvent CheckForNotedDetails(object descriptor)
+        {
+            Debug.Assert(Mode == MillipedeMode.Playback, "Can only check replay events in playback mode!");
+            lock (this)
+            {
+                if (!Active) { return null; }
+                if (nextEvent == null) { return null; }
+                if (!nextEvent.ObjectDescriptor.Equals(descriptor)) { return null; }
+                // Hmmm, this still means that the noted-detail must be the next event
+                // But the details may have been recorded after a number of other
+                // events...
+                if (nextEvent.Type == MillipedeEventType.NotedDetails) { return null; }
+                MillipedeEvent e = nextEvent;
                 Interlocked.Increment(ref NumberEvents);
                 //Console.WriteLine("Message returned to waiting object " + descriptor);
                 LoadNextEvent();
@@ -366,11 +418,12 @@ namespace GT.Millipede
                 // delayOffset = difference in when this event actually happened vs scheduled.
                 // See comment for nextEventReleaseTime for details
                 long delayOffset = timer.ElapsedMilliseconds - (nextEvent == null ? 0 : nextEvent.Time);
-                nextEvent = NetworkEvent.DeSerialize(sinkFile);
+                nextEvent = MillipedeEvent.Deserialize(sinkFile);
                 nextEventReleaseTime = nextEvent.Time + delayOffset;
                 //Console.WriteLine("Loaded event {0}: recorded at {1}ms, shifted by {2}ms to replay at {3}ms",
                 //    NumberEvents + 1, nextEvent.Time, delayOffset, nextEventReleaseTime);
                 //Console.WriteLine("  " + nextEvent);
+                Monitor.Pulse(this);    // wake any listeners in WaitForReplayEvent
             }
         }
 
@@ -523,7 +576,7 @@ namespace GT.Millipede
         /// <see cref="ITransport.PacketReceivedEvent"/>
         private void UnderlyingTransports_PacketReceivedEvent(byte[] buffer, int offset, int count, ITransport transport)
         {
-            recorder.Record(new NetworkEvent(milliDescriptor, NetworkEventType.PacketReceived, 
+            recorder.Record(new MillipedeEvent(milliDescriptor, MillipedeEventType.PacketReceived, 
                 buffer, offset, count));
             if (PacketReceivedEvent == null) { return; }
             PacketReceivedEvent(buffer, offset, count, this);
@@ -602,10 +655,38 @@ namespace GT.Millipede
         /// <see cref="ITransport.SendPacket(byte[],int,int)"/>
         public void SendPacket(byte[] packet, int offset, int count)
         {
-            recorder.Record(new NetworkEvent(milliDescriptor, NetworkEventType.SentPacket, packet, offset, count));
-            if (recorder.Mode != MillipedeMode.Playback)
+            switch (recorder.Mode)
             {
+            case MillipedeMode.Unconfigured:
+            case MillipedeMode.PassThrough:
+            default:
                 underlyingTransport.SendPacket(packet, 0, packet.Length);
+                return;
+
+            case MillipedeMode.Record:
+                try
+                {
+                    underlyingTransport.SendPacket(packet, 0, packet.Length);
+                    recorder.Record(new MillipedeEvent(milliDescriptor,
+                        MillipedeEventType.SentPacket,
+                        packet, offset, count));
+                }
+                catch(GTException ex)
+                {
+                    recorder.Record(new MillipedeEvent(milliDescriptor,
+                        MillipedeEventType.Exception, ex));
+                    throw;
+                }
+                return;
+
+            case MillipedeMode.Playback:
+                MillipedeEvent e = recorder.WaitForReplayEvent(milliDescriptor,
+                    MillipedeEventType.Exception, MillipedeEventType.SentPacket);
+                if(e.Type == MillipedeEventType.Exception)
+                {
+                    throw (Exception)e.Context;
+                }
+                return;
             }
         }
 
@@ -621,11 +702,7 @@ namespace GT.Millipede
             packetStream.Position = 0;
             packetStream.Read(buffer, 0, (int)packetStream.Length);
             packetStream.Position = position;   // restore
-            recorder.Record(new NetworkEvent(milliDescriptor, NetworkEventType.SentPacket, buffer));
-            if (recorder.Mode != MillipedeMode.Playback)
-            {
-                underlyingTransport.SendPacket(packetStream);
-            }
+            SendPacket(buffer, 0, buffer.Length);
         }
 
         /// <summary>
@@ -634,23 +711,51 @@ namespace GT.Millipede
         /// <see cref="ITransport.Update"/>
         public void Update()
         {
-            if (recorder.Mode != MillipedeMode.Playback)
+            switch (recorder.Mode)
             {
-                underlyingTransport.Update();
-                return;
-            }
-            NetworkEvent e = recorder.CheckReplayEvent(milliDescriptor);
-            if (e == null) { return; }
-            if (e.Type == NetworkEventType.Disposed)
-            {
-                running = false;
-            }
-            else if (e.Type == NetworkEventType.PacketReceived)
-            {
-                if(PacketReceivedEvent != null)
+                case MillipedeMode.PassThrough:
+                case MillipedeMode.Unconfigured:
+                default:
+                    underlyingTransport.Update();
+                    return;
+
+                case MillipedeMode.Record:
+                try
                 {
-                    PacketReceivedEvent(e.Message, 0, e.Message.Length, this);
+                    underlyingTransport.Update();
                 }
+                catch(GTException ex)
+                {
+                    recorder.Record(new MillipedeEvent(milliDescriptor,
+                        MillipedeEventType.Exception, ex));
+                    throw;
+                }
+                return;
+
+            case MillipedeMode.Playback:
+                MillipedeEvent e = recorder.CheckReplayEvent(milliDescriptor,
+                    MillipedeEventType.PacketReceived, MillipedeEventType.Exception,
+                    MillipedeEventType.Disposed);
+                if(e == null)
+                {
+                    return;
+                }
+                if(e.Type == MillipedeEventType.Disposed)
+                {
+                    running = false;
+                }
+                else if(e.Type == MillipedeEventType.PacketReceived)
+                {
+                    if(PacketReceivedEvent != null)
+                    {
+                        PacketReceivedEvent(e.Message, 0, e.Message.Length, this);
+                    }
+                }
+                else if(e.Type == MillipedeEventType.Exception)
+                {
+                    throw (Exception)e.Context;
+                }
+                return;
             }
         }
 
@@ -701,35 +806,114 @@ namespace GT.Millipede
     /// <summary>
     /// The event types that are recorded by Millipede.
     /// </summary>
-    public enum NetworkEventType
+    public enum MillipedeEventType
     {
+        /// <summary>
+        /// The object was started
+        /// </summary>
         Started,
+
+        /// <summary>
+        /// A packet was received by the obejct; contents are in the event's Message
+        /// </summary>
         PacketReceived,
+
+        /// <summary>
+        /// A packet was sent by the obejct; contents are in the event's Message
+        /// </summary>
         SentPacket,
+
+        /// <summary>
+        /// A new incoming connection was received; details in the event's Message
+        /// </summary>
         NewClient,
+
+        /// <summary>
+        /// The object connected to some remote; remote details are in the event's Message
+        /// </summary>
         Connected,
+
+        /// <summary>
+        /// An exception was thrown; the exception is in the event's Context object
+        /// </summary>
+        Exception,
+
+        /// <summary>
+        /// The object was stopped
+        /// </summary>
         Stopped,
+
+        /// <summary>
+        /// The object was disposed
+        /// </summary>
         Disposed,
+
+        /// <summary>
+        /// A generic catchall for other non-GT events.
+        /// The event's Context object should record the necessary details.
+        /// </summary>
+        Other,
+
+        /// <summary>
+        /// Provided for other objects to note details during recording to avoid
+        /// prompting users and avoiding causes of non-determinisms during playback.
+        /// This is the only event that can be fetched before its scheduled time:
+        /// see <see cref="MillipedeRecorder.CheckForNotedDetails"/>.
+        /// The event's Context object should record the necessary details.
+        /// </summary>
+        NotedDetails,
     }
 
     /// <summary>
-    /// Holds all necessary information about an network event.
+    /// Holds all necessary information about a millipede event.
     /// </summary>
     [Serializable]
-    public class NetworkEvent
+    public class MillipedeEvent
     {
-        public long Time { get; set; }
-        public object ObjectDescriptor { get; private set; }
-        public NetworkEventType Type { get; private set; }
-        public byte[] Message { get; private set; }
-        [NonSerialized] private static readonly IFormatter formatter = new BinaryFormatter();
+        [NonSerialized]
+        private static readonly IFormatter formatter = new BinaryFormatter();
 
         /// <summary>
-        /// Creates a NetworkEvent with null as Message.
+        /// The time of when this event occured, relative to the start of the
+        /// recording.
+        /// </summary>
+        public long Time { get; set; }
+
+        /// <summary>
+        /// The descriptor of the object that raised this event
+        /// </summary>
+        public object ObjectDescriptor { get; private set; }
+
+        /// <summary>
+        /// The type of this event
+        /// </summary>
+        public MillipedeEventType Type { get; private set; }
+
+        /// <summary>
+        /// For those events that prefer to record a byte array instead of an object...
+        /// </summary>
+        public byte[] Message { get; private set; }
+
+        /// <summary>
+        /// For those events that prefer to record an object instead of a message...
+        /// </summary>
+        public object Context
+        {
+            get { return formatter.Deserialize(new MemoryStream(Message)); }
+            set
+            {
+                MemoryStream ms = new MemoryStream(64);
+                formatter.Serialize(ms, value);
+                Message = ms.ToArray();
+            }
+        }
+
+        /// <summary>
+        /// Creates a MillipedeEvent with null as Message.
         /// </summary>
         /// <param name="obj">the object descriptor generating this event</param>
-        /// <param name="type">Method name from where the constructor is called</param>
-        public NetworkEvent(object obj, NetworkEventType type)
+        /// <param name="type">event type</param>
+        public MillipedeEvent(object obj, MillipedeEventType type)
         {
             ObjectDescriptor = obj;
             Type = type;
@@ -737,12 +921,12 @@ namespace GT.Millipede
         }
 
         /// <summary>
-        /// Creates a NetworkEvent
+        /// Creates a MillipedeEvent
         /// </summary>
         /// <param name="obj">the object descriptor generating this event</param>
-        /// <param name="type">Method name from where the constructor is called</param>
-        /// <param name="message">Message to be stored</param>
-        public NetworkEvent(object obj, NetworkEventType type, byte[] message)
+        /// <param name="type">event type</param>
+        /// <param name="message">associated data for the event</param>
+        public MillipedeEvent(object obj, MillipedeEventType type, byte[] message)
         {
             ObjectDescriptor = obj;
             Type = type;
@@ -750,14 +934,14 @@ namespace GT.Millipede
         }
 
         /// <summary>
-        /// Creates a NetworkEvent
+        /// Creates a MillipedeEvent
         /// </summary>
         /// <param name="obj">the object descriptor generating this event</param>
-        /// <param name="type">Method name from where the constructor is called</param>
-        /// <param name="message">Message, of which a subset is to be stored</param>
+        /// <param name="type">event type</param>
+        /// <param name="message">associated data for the event</param>
         /// <param name="offset">the offset of the bytes to store</param>
         /// <param name="count">the number of bytes of message to store</param>
-        public NetworkEvent(object obj, NetworkEventType type, byte[] message, int offset, int count)
+        public MillipedeEvent(object obj, MillipedeEventType type, byte[] message, int offset, int count)
         {
             ObjectDescriptor = obj;
             Type = type;
@@ -772,19 +956,38 @@ namespace GT.Millipede
             }
         }
 
+        /// <summary>
+        /// Creates a MillipedeEvent, but with a context object instead of a message
+        /// </summary>
+        /// <param name="obj">the object descriptor generating this event</param>
+        /// <param name="type">event type</param>
+        /// <param name="context">associated context object for the event</param>
+        public MillipedeEvent(object obj, MillipedeEventType type, object context)
+        {
+            ObjectDescriptor = obj;
+            Type = type;
+            Context = context;
+        }
+
 
         /// <summary>
-        /// Serializes itself to a stream.
+        /// Serialize this object to a stream.
         /// </summary>
         /// <param name="sink">Target stream for serialization</param>
-        public void Serialize(Stream sink) { formatter.Serialize(sink, this); }
+        public void Serialize(Stream sink)
+        {
+            formatter.Serialize(sink, this);
+        }
 
         /// <summary>
-        /// Deserializes itself from a stream.
+        /// Deserialize an event from a stream.
         /// </summary>
         /// <param name="source">Source stream for deserialization</param>
         /// <returns>Deserialized NetworkEvent</returns>
-        public static NetworkEvent DeSerialize(Stream source) { return (NetworkEvent)formatter.Deserialize(source); }
+        public static MillipedeEvent Deserialize(Stream source)
+        {
+            return (MillipedeEvent)formatter.Deserialize(source);
+        }
 
         public override string ToString()
         {

@@ -37,7 +37,14 @@ namespace GT.Net
         /// </summary>
         uint Backlog { get; }
 
+        /// <summary>
+        /// An event triggered on receiving an incoming packet.
+        /// </summary>
         event PacketHandler PacketReceivedEvent;
+        
+        /// <summary>
+        /// An event triggered having sent a packet.
+        /// </summary>
         event PacketHandler PacketSentEvent;
 
         /// <summary>
@@ -53,6 +60,8 @@ namespace GT.Net
         /// <param name="offset">the offset into the packet to send</param>
         /// <param name="count">the number of bytes within the packet to send</param>
         /// <exception cref="TransportError">thrown on a fatal transport error.</exception>
+        /// <exception cref="TransportBackloggedWarning">thrown if this packet cannot
+        ///     be sent at the moment</exception>
         void SendPacket(byte[] packet, int offset, int count);
 
         /// <summary>
@@ -62,6 +71,8 @@ namespace GT.Net
         /// </summary>
         /// <param name="stream">the stream encoding the packet</param>
         /// <exception cref="TransportError">thrown on a fatal transport error.</exception>
+        /// <exception cref="TransportBackloggedWarning">thrown if this packet cannot
+        ///     be sent at the moment</exception>
         void SendPacket(Stream stream);
 
         /// <summary>
@@ -69,6 +80,10 @@ namespace GT.Net
         /// </summary>
         Stream GetPacketStream();
 
+        /// <summary>
+        /// Process any events pertaining to this instance; also flushes any 
+        /// backlogged outgoing packets.
+        /// </summary>
         /// <exception cref="TransportError">thrown on a fatal transport error.</exception>
         void Update();
 

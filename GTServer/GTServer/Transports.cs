@@ -35,6 +35,7 @@ namespace GT.Net
         /// This method is <strong>not</strong> re-entrant and should not 
         /// be called from GT callbacks.
         /// </summary>
+        /// <exception cref="TransportError">thrown in case of an error</exception>
         void Update();
     }
 

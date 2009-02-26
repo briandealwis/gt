@@ -1,4 +1,6 @@
 using System;
+using System.Runtime.Serialization;
+using System.Security.Permissions;
 using GT;
 using System.Collections.Generic;
 
@@ -84,7 +86,17 @@ namespace GT.Net
         }
     }
 
-    public class CannotConnectException : GTException
+    /// <summary>
+    /// Represents an error situation where a connection cannot be established for
+    /// some reason.
+    /// </summary>
+    /// <remarks>
+    /// This class is serializable to support GT-Millipede,
+    /// though the deserialized form may not correspond directly
+    /// if some of the relevant objects are not themselves serializable.
+    /// </remarks>
+    [Serializable]
+    public class CannotConnectException : GTException, ISerializable
     {
         public CannotConnectException(string m)
             : base(Severity.Error, m)
@@ -94,10 +106,19 @@ namespace GT.Net
             : base(Severity.Error, m, e)
         { }
 
-        // "There was a problem connecting to the server you specified. " +
-        //"The address or port you provided may be improper, the receiving server may be down, " +
-        //"full, or unavailable, or your system's host file may be corrupted. " +
-        //"See inner exception for details."
+        protected CannotConnectException(SerializationInfo info, StreamingContext context) 
+            : base((Severity)info.GetInt32("severity"), info.GetString("message"))
+        {
+            Source = info.GetString("source");
+        }
+
+        [SecurityPermissionAttribute(SecurityAction.Demand, SerializationFormatter = true)]
+        public virtual void GetObjectData(SerializationInfo info, StreamingContext context)
+        {
+            info.AddValue("source", Source);
+            info.AddValue("severity", Severity);
+            info.AddValue("message", Message);
+        }
     }
 
     /// <summary>
@@ -140,7 +161,13 @@ namespace GT.Net
     /// Catchers have the option of restarting / reinitializing the
     /// underlying system object.
     /// </summary>
-    public class TransportError : GTException
+    /// <remarks>
+    /// This class is serializable to support GT-Millipede,
+    /// though the deserialized form may not correspond directly
+    /// if some of the relevant objects are not themselves serializable.
+    /// </remarks>
+    [Serializable]
+    public class TransportError : GTException, ISerializable
     {
         protected object transportError;
 
@@ -152,9 +179,38 @@ namespace GT.Net
         }
 
         public object ErrorObject { get { return transportError; } }
+
+        protected TransportError(SerializationInfo info, StreamingContext context)
+            : this(info.GetValue("sourcecomponent", typeof(object)), info.GetString("message"),
+            info.GetValue("error", typeof(object)))
+        {
+            Source = info.GetString("source");
+        }
+
+        [SecurityPermissionAttribute(SecurityAction.Demand, SerializationFormatter = true)]
+        public virtual void GetObjectData(SerializationInfo info, StreamingContext context)
+        {
+            info.AddValue("source", Source);
+            info.AddValue("sourcecomponent", 
+                SourceComponent is ISerializable ? SourceComponent : SourceComponent.ToString());
+            info.AddValue("message", Message);
+            info.AddValue("error", 
+                ErrorObject is ISerializable ? ErrorObject : ErrorObject.ToString());
+        }
+
     }
 
-    public class TransportBackloggedWarning : GTException
+    /// <summary>
+    /// Notification that a particular transport is unable to send a packet
+    /// immediately as the underlying network transport is busy.
+    /// </summary>
+    /// <remarks>
+    /// This class is serializable to support GT-Millipede,
+    /// though the deserialized form may not correspond directly
+    /// if some of the relevant objects are not themselves serializable.
+    /// </remarks>
+    [Serializable]
+    public class TransportBackloggedWarning : GTException, ISerializable
     {
         public TransportBackloggedWarning(ITransport t) 
             : this(Severity.Information, t)
@@ -165,6 +221,20 @@ namespace GT.Net
         {
             SourceComponent = t;
         }
-    }
+
+        protected TransportBackloggedWarning(SerializationInfo info, StreamingContext context)
+            : this((Severity)info.GetInt32("severity"), null)
+        {
+            Source = info.GetString("source");
+        }
+
+        [SecurityPermissionAttribute(SecurityAction.Demand, SerializationFormatter = true)]
+        public virtual void GetObjectData(SerializationInfo info, StreamingContext context)
+        {
+            info.AddValue("source", Source);
+            info.AddValue("severity", Severity);
+        }
+}
+
 
 }

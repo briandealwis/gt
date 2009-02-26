@@ -52,8 +52,7 @@ namespace GT.Millipede
         public static ICollection<IConnector> Wrap(ICollection<IConnector> connectors,
             MillipedeRecorder recorder)
         {
-            if (recorder.Mode == MillipedeMode.Unconfigured
-                || recorder.Mode == MillipedeMode.PassThrough)
+            if (recorder.Mode == MillipedeMode.PassThrough)
             {
                 return connectors;
             }
@@ -86,44 +85,69 @@ namespace GT.Millipede
         /// <see cref="IConnector.Connect"/>
         public ITransport Connect(string address, string port, IDictionary<string, string> capabilities)
         {
-            if (recorder.Mode == MillipedeMode.Playback) {
-                // Wait until a connection event comes in
-                NetworkEvent connectEvent = recorder.WaitForReplayEvent(milliDescriptor);
-
-                Debug.Assert(connectEvent.Type == NetworkEventType.Connected);
-
-                MemoryStream stream = new MemoryStream(connectEvent.Message);
-                BinaryFormatter formatter = new BinaryFormatter();
-                object milliTransportDescriptor = formatter.Deserialize(stream);
-                string transportName = (string)formatter.Deserialize(stream);
-                Dictionary<string, string> ignored = (Dictionary<string, string>)formatter.Deserialize(stream);
-                Reliability reliability = (Reliability)formatter.Deserialize(stream);
-                Ordering ordering = (Ordering)formatter.Deserialize(stream);
-                uint maxPacketSize = (uint)formatter.Deserialize(stream);
-
-                // FIXME: should we be checking the capabilities?  Probably...!
-                ITransport mockTransport = new MillipedeTransport(recorder, milliTransportDescriptor,
-                    transportName, capabilities, reliability, ordering, maxPacketSize);
-                return mockTransport;
-            }
-            else
+            switch (recorder.Mode)
             {
-                ITransport transport = underlyingConnector.Connect(address, port, capabilities);
-                if (recorder.Mode == MillipedeMode.PassThrough) { return transport; }
+            case MillipedeMode.Unconfigured:
+            case MillipedeMode.PassThrough:
+            default:
+                return underlyingConnector.Connect(address, port, capabilities);
 
-                object milliTransportDesriptor = recorder.GenerateDescriptor(transport);
-                MemoryStream stream = new MemoryStream();
-                BinaryFormatter formatter = new BinaryFormatter();
-                formatter.Serialize(stream, milliTransportDesriptor);
-                formatter.Serialize(stream, transport.Name);
-                formatter.Serialize(stream, capabilities);
-                formatter.Serialize(stream, transport.Reliability);
-                formatter.Serialize(stream, transport.Ordering);
-                formatter.Serialize(stream, transport.MaximumPacketSize);
+            case MillipedeMode.Playback:
+                // Wait until a connection event comes in
+                MillipedeEvent connectEvent = recorder.WaitForReplayEvent(milliDescriptor,
+                    MillipedeEventType.Connected, MillipedeEventType.Exception);
 
-                ITransport mockTransport = new MillipedeTransport(transport, recorder, milliTransportDesriptor);
-                recorder.Record(new NetworkEvent(milliDescriptor, NetworkEventType.Connected, stream.ToArray()));
-                return mockTransport;
+                if(connectEvent.Type == MillipedeEventType.Exception)
+                {
+                    throw (Exception)connectEvent.Context;
+                }
+                if(connectEvent.Type == MillipedeEventType.Connected)
+                {
+                    MemoryStream stream = new MemoryStream(connectEvent.Message);
+                    BinaryFormatter formatter = new BinaryFormatter();
+                    object milliTransportDescriptor = formatter.Deserialize(stream);
+                    string transportName = (string)formatter.Deserialize(stream);
+                    Dictionary<string, string> ignored =
+                        (Dictionary<string, string>)formatter.Deserialize(stream);
+                    Reliability reliability = (Reliability)formatter.Deserialize(stream);
+                    Ordering ordering = (Ordering)formatter.Deserialize(stream);
+                    uint maxPacketSize = (uint)formatter.Deserialize(stream);
+
+                    // FIXME: should we be checking the capabilities?  Probably...!
+                    ITransport mockTransport = new MillipedeTransport(recorder,
+                        milliTransportDescriptor,
+                        transportName, capabilities, reliability, ordering, maxPacketSize);
+                    return mockTransport;
+                }
+                throw new InvalidStateException("invalid event type for Connect()!", connectEvent);
+
+            case MillipedeMode.Record:
+                ITransport transport;
+                try
+                {
+                    transport = underlyingConnector.Connect(address, port, capabilities);
+                    object milliTransportDesriptor = recorder.GenerateDescriptor(transport);
+                    MemoryStream stream = new MemoryStream();
+                    BinaryFormatter formatter = new BinaryFormatter();
+                    formatter.Serialize(stream, milliTransportDesriptor);
+                    formatter.Serialize(stream, transport.Name);
+                    formatter.Serialize(stream, capabilities);
+                    formatter.Serialize(stream, transport.Reliability);
+                    formatter.Serialize(stream, transport.Ordering);
+                    formatter.Serialize(stream, transport.MaximumPacketSize);
+
+                    ITransport mockTransport = new MillipedeTransport(transport, recorder,
+                        milliTransportDesriptor);
+                    recorder.Record(new MillipedeEvent(milliDescriptor, MillipedeEventType.Connected,
+                        stream.ToArray()));
+                    return mockTransport;
+                }
+                catch(GTException e)
+                {
+                    recorder.Record(new MillipedeEvent(milliDescriptor,
+                        MillipedeEventType.Exception, e));
+                    throw;
+                }
             }
         }
 
@@ -147,7 +171,7 @@ namespace GT.Millipede
         /// <see cref="IStartable.Start"/>
         public void Start()
         {
-            recorder.Record(new NetworkEvent(milliDescriptor, NetworkEventType.Started));
+            recorder.Record(new MillipedeEvent(milliDescriptor, MillipedeEventType.Started));
             underlyingConnector.Start();
         }
 
@@ -158,7 +182,7 @@ namespace GT.Millipede
         /// <see cref="IStartable.Stop"/>
         public void Stop()
         {
-            recorder.Record(new NetworkEvent(milliDescriptor, NetworkEventType.Stopped));
+            recorder.Record(new MillipedeEvent(milliDescriptor, MillipedeEventType.Stopped));
             underlyingConnector.Stop();
         }
 
@@ -179,7 +203,7 @@ namespace GT.Millipede
         /// <see cref="IDisposable.Dispose"/>
         public void Dispose()
         {
-            recorder.Record(new NetworkEvent(milliDescriptor, NetworkEventType.Disposed));
+            recorder.Record(new MillipedeEvent(milliDescriptor, MillipedeEventType.Disposed));
             underlyingConnector.Dispose();
         }
     }

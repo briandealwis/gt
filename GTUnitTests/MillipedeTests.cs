@@ -56,6 +56,59 @@ namespace GT.UnitTests
         }
 
         [Test]
+        public void TestMillipedeExceptions()
+        {
+            TryMillipedeException(new CannotConnectException("test"));
+            TryMillipedeException(new TransportError("this", "foo", "this"));
+            TryMillipedeException(new TransportBackloggedWarning(null));
+        }
+
+        protected void TryMillipedeException(Exception exception)
+        {
+            string tempFileName = Path.GetTempFileName();
+            toBeDeleted.Add(tempFileName);
+
+            // Create the mock connector
+            MockConnector mockConnector = new MockConnector();
+            mockConnector.CreateTransport = delegate { throw exception; };
+            mockConnector.Start();
+
+            recorder = new MillipedeRecorder();
+            recorder.StartRecording(tempFileName);
+            Assert.AreEqual(MillipedeMode.Record, recorder.Mode);
+            Assert.AreEqual(0, recorder.NumberEvents);
+            MillipedeConnector connector =
+                (MillipedeConnector)MillipedeConnector.Wrap(mockConnector, recorder);
+            try
+            {
+                connector.Connect("localhost", "9999", new Dictionary<string, string>());
+                Assert.Fail("should have thrown CannotConnectException");
+            }
+            catch(GTException) { /* ignored */ }
+            Assert.AreEqual(1, recorder.NumberEvents);
+
+            recorder.Dispose(); // don't want the disposes add to the list
+            mockConnector.Dispose();
+            recorder = new MillipedeRecorder();
+            recorder.StartReplaying(tempFileName);
+            Assert.AreEqual(0, recorder.NumberEvents);
+            connector = (MillipedeConnector)MillipedeConnector.Wrap(mockConnector = new MockConnector(),
+                recorder);
+            try
+            {
+                connector.Connect("localhost", "9999", new Dictionary<string, string>());
+                Assert.Fail("should have thrown " + exception.GetType());
+            }
+            catch (Exception e)
+            {
+                Assert.AreEqual(exception.GetType(), e.GetType());
+            }
+            Assert.AreEqual(1, recorder.NumberEvents);
+
+            recorder.Dispose();
+        }
+
+        [Test]
         public void TestMillipedeConnector()
         {
             string tempFileName = Path.GetTempFileName();
@@ -192,7 +245,7 @@ namespace GT.UnitTests
         {
             string tmppath = Path.GetTempFileName();
             FileStream tmpFile = File.OpenWrite(tmppath);
-            new NetworkEvent("test", NetworkEventType.Disposed).Serialize(tmpFile);
+            new MillipedeEvent("test", MillipedeEventType.Disposed).Serialize(tmpFile);
             tmpFile.Close();
 
             Environment.SetEnvironmentVariable("GTMILLIPEDE", "play:" + tmppath);
