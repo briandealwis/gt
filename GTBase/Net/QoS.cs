@@ -404,6 +404,9 @@ namespace GT.Net
         }
     }
 
+    /// <summary>
+    /// An interface describing the delivery characteristics of a transport.
+    /// </summary>
     public interface ITransportDeliveryCharacteristics
     {
         /// <summary>
@@ -421,8 +424,12 @@ namespace GT.Net
         /// </summary>
         float Delay { get; set; }
 
-        // loss?
-        // jitter?
+        /// <summary>
+        /// The maximum packet size supported by this transport instance (in bytes).
+        /// </summary>
+        uint MaximumPacketSize { get; }
 
+        // loss?  would this be a percentage?
+        // jitter?  in milliseconds?
     }
 }
