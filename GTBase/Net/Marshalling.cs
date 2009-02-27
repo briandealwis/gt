@@ -1,4 +1,5 @@
 using System;
+using System.Collections;
 using System.IO;
 using System.Runtime.Serialization.Formatters.Binary;
 using System.Text;
@@ -90,6 +91,232 @@ namespace GT.Net
             {
                 throw new MarshallingException("assertion failed: " + explanation);
             }
+        }
+    }
+
+    /// <summary>
+    /// Represents a byte-array with appropriately marshalled content ready to send
+    /// across a particular transport.
+    /// </summary>
+    public class MarshalledPacket : IList<ArraySegment<byte>>
+    {
+        /// <summary>
+        /// An ordered set of byte arrays; the marshalled packet is
+        /// made up of these segments laid one after the other.
+        /// </summary>
+        protected List<ArraySegment<byte>> list;
+
+        /// <summary>
+        /// The total number of bytes in this marshalled packet (should be 
+        /// equal to the sum of the <see cref="ArraySegment{T}.Count"/> for
+        /// each segment in <see cref="list"/>).
+        /// </summary>
+        protected int length = 0;
+
+        public MarshalledPacket()
+        {
+            list = new List<ArraySegment<byte>>();
+        }
+
+        /// <summary>
+        /// Create an instance expecting <see cref="expectedSegments"/> segments.
+        /// </summary>
+        /// <param name="expectedSegments">the expected number of segments</param>
+        public MarshalledPacket(int expectedSegments)
+        {
+            list = new List<ArraySegment<byte>>(expectedSegments);
+        }
+
+        public MarshalledPacket(byte[] bytes, int offset, int count)
+            : this(new ArraySegment<byte>(bytes, offset, count)) { }
+
+        public MarshalledPacket(MemoryStream ms)
+            : this(ms.GetBuffer(), 0, (int)ms.Length)
+        {
+        }
+
+        public MarshalledPacket(ArraySegment<byte> segment) 
+            : this(1)
+        {
+            Add(segment);
+        }
+
+        public MarshalledPacket(params byte[][] bytesArrays) 
+            : this(bytesArrays.Length)
+        {
+            foreach (byte[] bytes in bytesArrays)
+            {
+                Add(bytes, 0, bytes.Length);
+            }
+        }
+
+
+        /// <summary>
+        /// Create a new marshalled packet as a subset of another packet <see cref="source"/>
+        /// </summary>
+        /// <param name="source">the provided marshalled packet</param>
+        /// <param name="offset">the start position of the subset to include</param>
+        /// <param name="count">the number of bytes of the subset to include</param>
+        public MarshalledPacket(MarshalledPacket source, int offset, int count)
+        {
+            list = new List<ArraySegment<byte>>(source.Count);
+
+            // We proceed through the segments of source, copying those portions
+            // that fall in our defined area of interest.
+            int sourceStart = offset;           // index of first byte of AOI
+            int sourceEnd = offset + count - 1; // index of last byte of AOI
+            int segmentStart = 0;               // index of first byte of current <segment>
+            foreach(ArraySegment<byte> segment in source)
+            {
+                int segmentEnd = segmentStart + segment.Count - 1;  // index of last byte
+                // if this segment appears after the area of interest then we're finished:
+                // none of the remaining segments can possibly be in our AOI
+                if (sourceEnd < segmentStart)
+                {
+                    break;
+                }
+                // but it this segment is at least partially contained within our area of interest
+                if (sourceStart <= segmentEnd)
+                {
+                    int segOffset = Math.Max(segmentStart, sourceStart) - segmentStart;
+                    int segLen = Math.Min(segmentEnd, sourceEnd) - segmentStart;
+                    Add(new ArraySegment<byte>(segment.Array, segment.Offset + segOffset,
+                        segment.Offset + segOffset + segLen));
+                }
+                segmentStart += segment.Count;
+            }
+        }
+
+        /// <summary>
+        /// Return the number of bytes in this packet.
+        /// </summary>
+        public int Length { get { return length; } }
+
+        /// <summary>
+        /// Return a subset of this marshalled packet; this is non-destructive.
+        /// </summary>
+        /// <param name="offset">the start position of the subset</param>
+        /// <param name="count">the number of bytes in the subset</param>
+        /// <returns></returns>
+        public MarshalledPacket Subset(int offset, int count)
+        {
+            return new MarshalledPacket(this, offset, count);
+        }
+
+        /// <summary>
+        /// Prepend the byte segment to this item.
+        /// </summary>
+        /// <param name="item"></param>
+        public void Prepend(ArraySegment<byte> item)
+        {
+            list.Insert(0, item);
+            length += item.Count;
+        }
+
+        /// <summary>
+        /// Append the byte segment to this item.  This adds a reference
+        /// to <see cref="item"/>; any changes made to <see cref="item"/>
+        /// will be reflected in this packet's contents.
+        /// </summary>
+        /// <param name="item"></param>
+        public void Add(ArraySegment<byte> item)
+        {
+            list.Add(item);
+            length += item.Count;
+        }
+
+        /// <summary>
+        /// Append the byte segment to this item.  This adds a reference
+        /// to <see cref="source"/>; any changes made to <see cref="source"/>
+        /// will be reflected in this packet's contents.
+        /// </summary>
+        /// <param name="source">source array</param>
+        /// <param name="offset">offset into <see cref="source"/></param>
+        /// <param name="count">number of bytes from <see cref="source"/> starting 
+        ///     at <see cref="offset"/></param>
+        public void Add(byte[] source, int offset, int count)
+        {
+            Add(new ArraySegment<byte>(source, offset, count));
+        }
+
+        public void Clear()
+        {
+            list.Clear();
+            length = 0;
+        }
+
+        public bool Contains(ArraySegment<byte> item)
+        {
+            return list.Contains(item);
+        }
+
+        public void CopyTo(ArraySegment<byte>[] array, int arrayIndex)
+        {
+            list.CopyTo(array, arrayIndex);
+        }
+
+        public bool Remove(ArraySegment<byte> item)
+        {
+            length -= item.Count;
+            return list.Remove(item);
+        }
+
+        public int Count
+        {
+            get { return list.Count; }
+        }
+
+        public bool IsReadOnly
+        {
+            get { return false; }
+        }
+
+        public int IndexOf(ArraySegment<byte> item)
+        {
+            return list.IndexOf(item);
+        }
+
+        public void Insert(int index, ArraySegment<byte> item)
+        {
+            list.Insert(index, item);
+            length += item.Count;
+        }
+
+        public void RemoveAt(int index)
+        {
+            length -= list[index].Count;
+            list.RemoveAt(index);
+        }
+
+        public ArraySegment<byte> this[int index]
+        {
+            get { return list[index]; }
+            set {
+                length -= list[index].Count;
+                list[index] = value;
+                length += value.Count;
+            }
+        }
+
+        public IEnumerator<ArraySegment<byte>> GetEnumerator()
+        {
+            return list.GetEnumerator();
+        }
+
+        IEnumerator IEnumerable.GetEnumerator()
+        {
+            return list.GetEnumerator();
+        }
+
+
+        public byte[] ToArray()
+        {
+            MemoryStream ms = new MemoryStream(length);
+            foreach (ArraySegment<byte> segment in list)
+            {
+                ms.Write(segment.Array, segment.Offset, segment.Count);
+            }
+            return ms.ToArray();
         }
     }
 
