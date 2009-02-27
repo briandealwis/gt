@@ -1123,42 +1123,6 @@ namespace GT.Net
         {
             return GetType().Name + "(" + identity + ")";
         }
-
-        /// <summary>
-        /// Filter the list of provided connexions to only include those that are usable.
-        /// A usable connexion is active and has transports available to send and receive messages.
-        /// </summary>
-        /// <typeparam name="T">an IConnexion implementation</typeparam>
-        /// <param name="connexions">the provided connexions</param>
-        /// <returns>the usable subset of <c>connexions</c></returns>
-        public static ICollection<IConnexion> SelectUsable<T>(ICollection<T> connexions)
-            where T : IConnexion
-        {
-            List<IConnexion> usable = new List<IConnexion>(connexions.Count);
-            foreach (T connexion in connexions)
-            {
-                if (connexion.Active && connexion.Transports.Count > 0) { usable.Add(connexion); }
-            }
-            return usable;
-        }
-
-        /// <summary>
-        /// Downcast the list of provided objects to a common superclass/interface.
-        /// </summary>
-        /// <typeparam name="S">the superclass</typeparam>
-        /// <typeparam name="T">the current list type</typeparam>
-        /// <param name="original">the original collection</param>
-        /// <returns>the downcast collection</returns>
-        public static ICollection<S> Downcast<S,T>(ICollection<T> original)
-            where T : S
-        {
-            List<S> downcast = new List<S>(original.Count);
-            foreach (T element in original)
-            {
-                downcast.Add(element);
-            }
-            return downcast;
-        }
     }
 
     /// <summary>
