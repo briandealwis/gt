@@ -24,18 +24,18 @@ namespace GT.Net
         string[] Descriptors { get; }
 
         /// <summary>
-        /// Marshal the provided message in an appropriate form for the provided transport
-        /// onto the provided stream <see cref="output"/>.
+        /// Marshal the provided message in an appropriate form for the provided transport.
         /// </summary>
         /// <param name="senderIdentity">the server-unique id of the sender of this message
         /// (i.e., the local client or server's server-unique identifier).  This
         /// should generally be the same number across different invocations.</param>
         /// <param name="message">the message</param>
-        /// <param name="output">the stream collecting the packet content</param>
         /// <param name="t">the transport on which the packet will be sent</param>
+        /// <returns>the marshalled result, containing a set of transport packets;
+        ///     this result <b>must</b> be disposed of when finished with</returns>
         /// <exception cref="MarshallingException">on a marshalling error, or if the
         /// message cannot be encoded within the transport's packet capacity</exception>
-        void Marshal(int senderIdentity, Message message, Stream output, ITransport t);
+        MarshalledResult Marshal(int senderIdentity, Message message, ITransport t);
 
         /// <summary>
         /// Unmarshal one message (or possibly more) as encoded in the transport-specific 
@@ -50,7 +50,8 @@ namespace GT.Net
         /// <param name="t">the transport from which the packet was received</param>
         /// <param name="messageAvailable">a callback for when a message becomes available
         /// from the stream.</param>
-        void Unmarshal(Stream input, ITransport t, EventHandler<MessageEventArgs> messageAvailable);
+        void Unmarshal(TransportPacket input, ITransport t, 
+            EventHandler<MessageEventArgs> messageAvailable);
     }
 
     /// <summary>
@@ -98,7 +99,7 @@ namespace GT.Net
     /// Represents a byte-array with appropriately marshalled content ready to send
     /// across a particular transport.
     /// </summary>
-    public class MarshalledPacket : IList<ArraySegment<byte>>
+    public class TransportPacket : IList<ArraySegment<byte>>
     {
         /// <summary>
         /// An ordered set of byte arrays; the marshalled packet is
@@ -113,7 +114,7 @@ namespace GT.Net
         /// </summary>
         protected int length = 0;
 
-        public MarshalledPacket()
+        public TransportPacket()
         {
             list = new List<ArraySegment<byte>>();
         }
@@ -122,26 +123,26 @@ namespace GT.Net
         /// Create an instance expecting <see cref="expectedSegments"/> segments.
         /// </summary>
         /// <param name="expectedSegments">the expected number of segments</param>
-        public MarshalledPacket(int expectedSegments)
+        public TransportPacket(int expectedSegments)
         {
             list = new List<ArraySegment<byte>>(expectedSegments);
         }
 
-        public MarshalledPacket(byte[] bytes, int offset, int count)
+        public TransportPacket(byte[] bytes, int offset, int count)
             : this(new ArraySegment<byte>(bytes, offset, count)) { }
 
-        public MarshalledPacket(MemoryStream ms)
+        public TransportPacket(MemoryStream ms)
             : this(ms.GetBuffer(), 0, (int)ms.Length)
         {
         }
 
-        public MarshalledPacket(ArraySegment<byte> segment) 
+        public TransportPacket(ArraySegment<byte> segment) 
             : this(1)
         {
             Add(segment);
         }
 
-        public MarshalledPacket(params byte[][] bytesArrays) 
+        public TransportPacket(params byte[][] bytesArrays) 
             : this(bytesArrays.Length)
         {
             foreach (byte[] bytes in bytesArrays)
@@ -157,7 +158,7 @@ namespace GT.Net
         /// <param name="source">the provided marshalled packet</param>
         /// <param name="offset">the start position of the subset to include</param>
         /// <param name="count">the number of bytes of the subset to include</param>
-        public MarshalledPacket(MarshalledPacket source, int offset, int count)
+        public TransportPacket(TransportPacket source, int offset, int count)
         {
             list = new List<ArraySegment<byte>>(source.Count);
 
@@ -198,9 +199,9 @@ namespace GT.Net
         /// <param name="offset">the start position of the subset</param>
         /// <param name="count">the number of bytes in the subset</param>
         /// <returns></returns>
-        public MarshalledPacket Subset(int offset, int count)
+        public TransportPacket Subset(int offset, int count)
         {
-            return new MarshalledPacket(this, offset, count);
+            return new TransportPacket(this, offset, count);
         }
 
         /// <summary>

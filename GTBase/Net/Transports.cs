@@ -11,7 +11,7 @@ using GT.Utils;
 namespace GT.Net
 {
 
-    public delegate void PacketHandler(byte[] buffer, int offset, int count, ITransport transport);
+    public delegate void PacketHandler(TransportPacket packet, ITransport transport);
 
     /// <remarks>
     /// Represents a connection to either a server or a client.
@@ -65,20 +65,13 @@ namespace GT.Net
         void SendPacket(byte[] packet, int offset, int count);
 
         /// <summary>
-        /// Send the given message to the server.  The stream is sent 
-        /// <b>from the stream's current position</b> to the end of the stream.  
-        /// <b>It is not sent from position 0.</b>
+        /// Send the given message to the server.
         /// </summary>
-        /// <param name="stream">the stream encoding the packet</param>
+        /// <param name="packet">the packet to send</param>
         /// <exception cref="TransportError">thrown on a fatal transport error.</exception>
         /// <exception cref="TransportBackloggedWarning">thrown if this packet cannot
         ///     be sent at the moment</exception>
-        void SendPacket(Stream stream);
-
-        /// <summary>
-        /// Get a suitable stream for the transport.
-        /// </summary>
-        Stream GetPacketStream();
+        void SendPacket(IList<ArraySegment<byte>> packet);
 
         /// <summary>
         /// Process any events pertaining to this instance; also flushes any 

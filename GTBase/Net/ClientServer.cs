@@ -902,14 +902,10 @@ namespace GT.Net
         }
 
 
-        virtual protected void HandleNewPacket(byte[] buffer, int offset, int count, ITransport transport)
+        virtual protected void HandleNewPacket(TransportPacket packet, ITransport transport)
         {
-            Stream stream = new MemoryStream(buffer, offset, count, false);
-            while (stream.Position < stream.Length)
-            {
-                Marshaller.Unmarshal(stream, transport, _marshaller_MessageAvailable);
-                //DebugUtils.DumpMessage("ClientConnexionConnexion.PostNewlyReceivedMessage", m);
-            }
+            Marshaller.Unmarshal(packet, transport, _marshaller_MessageAvailable);
+            //DebugUtils.DumpMessage("ClientConnexionConnexion.PostNewlyReceivedMessage", m);
         }
 
         virtual protected void _marshaller_MessageAvailable(object marshaller, MessageEventArgs mea)
@@ -980,9 +976,7 @@ namespace GT.Net
         /// <param name="cdr">Requirements for the message's channel.</param>
         public virtual void Send(Message message, MessageDeliveryRequirements mdr, ChannelDeliveryRequirements cdr)
         {
-            IList<Message> messages = new List<Message>(1);
-            messages.Add(message);
-            Send(messages, mdr, cdr);
+            Send(new SingleItem<Message>(message), mdr, cdr);
         }
 
         /// <summary>Send a set of messages.</summary>
@@ -1001,69 +995,112 @@ namespace GT.Net
         protected void SendMessage(ITransport transport, Message msg)
         {
             //pack main message into a buffer and send it right away
-            Stream packet = transport.GetPacketStream();
-            Marshaller.Marshal(SendingIdentity, msg, packet, transport);
-            try { SendPacket(transport, packet); }
-            catch (TransportError e) { throw new CannotSendMessagesError(this, e, msg); }
+            MarshalledResult result = Marshaller.Marshal(SendingIdentity, msg, transport);
+            try
+            {
+                while (result.HasPackets)
+                {
+                    try
+                    {
+                        SendPacket(transport, result.RemovePacket());
+                    }
+                    catch (TransportError e)
+                    {
+                        throw new CannotSendMessagesError(this, e, msg);
+                    }
+                }
+            }
+            finally
+            {
+                result.Dispose();
+            }
             NotifyMessageSent(msg, transport);
         }
 
         protected void SendMessages(ITransport transport, IList<Message> messages)
         {
             //Console.WriteLine("{0}: Sending {1} messages to {2}", this, messages.Count, transport);
-            Stream ms = transport.GetPacketStream();
-            int packetStart = (int)ms.Position;
-            int index = 0;
-            while (index < messages.Count)
-            {
-                Message m = messages[index];
-                int packetEnd = (int)ms.Position;
-                Marshaller.Marshal(SendingIdentity, m, ms, transport);
-                if (ms.Position - packetStart > transport.MaximumPacketSize) // uh oh, rewind and redo
-                {
-                    ms.SetLength(packetEnd);
-                    ms.Position = packetStart;
-                    try { SendPacket(transport, ms); }
-                    catch (TransportError e)
-                    {
-                        throw new CannotSendMessagesError(this, e, messages);
-                    }
-                    NotifyMessagesSent(messages, transport);
+            Dictionary<Message,MarshalledResult> marshalledResults = 
+                new Dictionary<Message,MarshalledResult>(messages.Count);
 
-                    ms = transport.GetPacketStream();
-                    packetStart = (int)ms.Position;
-                }
-                else { index++; }
-            }
-            if (ms.Position - packetStart != 0)
-            {
-                ms.Position = packetStart;
+            foreach(Message m in messages) {
                 try
                 {
-                    SendPacket(transport, ms);
+                    MarshalledResult mr = Marshaller.Marshal(SendingIdentity, m, transport);
+                    Debug.Assert(mr.HasPackets);
+                    marshalledResults[m] = mr;
                 }
-                catch (TransportError e)
+                catch(MarshallingException e)
                 {
-                    throw new CannotSendMessagesError(this, e, messages);
+                    NotifyError(new ErrorSummary(e.Severity, SummaryErrorCode.MessagesCannotBeSent,
+                        e.Message, e));
                 }
-                NotifyMessagesSent(messages, transport);
+            }
+            if(marshalledResults.Count == 0) { return; }
+            TransportPacket packet = new TransportPacket(10);
+            List<Message> finished = new List<Message>(10);
+            do
+            {
+                for(int i = 0; i < messages.Count;) {
+                    TransportPacket other = marshalledResults[messages[i]].RemovePacket();
+                    if(packet.Length + other.Length > transport.MaximumPacketSize)
+                    {
+                        try
+                        {
+                            SendPacket(transport, packet);
+                        }
+                        catch(TransportError e)
+                        {
+                            finished.AddRange(messages);
+                            throw new CannotSendMessagesError(this, e, finished);
+                        }
+                        NotifyMessagesSent(finished, transport);
+                        finished.Clear();
+                        packet.Clear();
+                    }
+                    packet.Add(other);
+                    if (marshalledResults[messages[i]].HasPackets)
+                    {
+                        i++;
+                    }
+                    else
+                    {
+                        finished.Add(messages[i]);
+                        marshalledResults[messages[i]].Dispose();
+                        marshalledResults.Remove(messages[i]);
+                        messages.RemoveAt(i);
+                    }
+                }
+            }
+            if (packet.Count > 0)
+            {
+                try
+                {
+                    SendPacket(transport, packet);
+                }
+                catch(TransportError e)
+                {
+                    finished.AddRange(messages);
+                    throw new CannotSendMessagesError(this, e, finished);
+                }
+                NotifyMessagesSent(finished, transport);
             }
         }
 
-        protected void SendPacket(ITransport transport, Stream stream)
+        protected void SendPacket(ITransport transport, TransportPacket packet)
         {
-            try { transport.SendPacket(stream); }
+            try { transport.SendPacket(packet); }
             catch (TransportBackloggedWarning e)
             {
                 NotifyError(new ErrorSummary(e.Severity, SummaryErrorCode.TransportBacklogged,
                     "Transport is backlogged: there are too many messages being sent", e));
                 // rethrow the error if it's not for information purposes
-                if (e.Severity != Severity.Information) { throw e; }
+                if (e.Severity != Severity.Information) { throw; }
             }
             catch (TransportError e)
             {
                 HandleTransportDisconnect(transport);
-                throw e;
+                throw;
             }
         }
 
