@@ -30,12 +30,13 @@ namespace GT.Net
         /// (i.e., the local client or server's server-unique identifier).  This
         /// should generally be the same number across different invocations.</param>
         /// <param name="message">the message</param>
-        /// <param name="t">the transport on which the packet will be sent</param>
+        /// <param name="tdc">the characteristics of the transport on which the packet 
+        ///     will be sent; this may be the actual transport</param>
         /// <returns>the marshalled result, containing a set of transport packets;
         ///     this result <b>must</b> be disposed of when finished with</returns>
         /// <exception cref="MarshallingException">on a marshalling error, or if the
         /// message cannot be encoded within the transport's packet capacity</exception>
-        MarshalledResult Marshal(int senderIdentity, Message message, ITransport t);
+        MarshalledResult Marshal(int senderIdentity, Message message, ITransportDeliveryCharacteristics tdc);
 
         /// <summary>
         /// Unmarshal one message (or possibly more) as encoded in the transport-specific 
@@ -47,11 +48,60 @@ namespace GT.Net
         /// must be retrieved from the stream during this call and cached.
         /// </summary>
         /// <param name="input">the stream with the packet content</param>
-        /// <param name="t">the transport from which the packet was received</param>
+        /// <param name="tdc">the characteristics of transport from which the packet was 
+        ///     received; this may be the actual transport</param>
         /// <param name="messageAvailable">a callback for when a message becomes available
         /// from the stream.</param>
-        void Unmarshal(TransportPacket input, ITransport t, 
+        void Unmarshal(TransportPacket input, ITransportDeliveryCharacteristics tdc, 
             EventHandler<MessageEventArgs> messageAvailable);
+    }
+
+    /// <summary>
+    /// A representation of a marshalled message
+    /// </summary>
+    public class MarshalledResult : IDisposable
+    {
+        protected Action<MarshalledResult> disposeCallback;
+        protected IList<TransportPacket> packets = new List<TransportPacket>(2);
+        protected IList<TransportPacket> removed = new List<TransportPacket>(2);
+
+        public IList<TransportPacket> Packets { get { return packets; } }
+        public IList<TransportPacket> ProcessedPackets { get { return removed; } }
+
+        public bool HasPackets { get { return Packets.Count > 0; } }
+
+        public TransportPacket RemovePacket()
+        {
+            if (!HasPackets) { return null; }
+            TransportPacket p = packets[0];
+            packets.RemoveAt(0);
+            removed.Add(p);
+            return p;
+        }
+
+        public void AddPacket(TransportPacket packet)
+        {
+            packets.Add(packet);
+        }
+
+        public void SetDisposeCallback(Action<MarshalledResult> callback)
+        {
+            disposeCallback = callback;
+        }
+
+        public void Reset()
+        {
+            packets.Clear();
+            removed.Clear();
+        }
+
+        public void Dispose()
+        {
+            if (disposeCallback != null)
+            {
+                disposeCallback(this);
+            }
+        }
     }
 
     /// <summary>
@@ -96,251 +146,29 @@ namespace GT.Net
     }
 
     /// <summary>
-    /// Represents a byte-array with appropriately marshalled content ready to send
-    /// across a particular transport.
-    /// </summary>
-    public class TransportPacket : IList<ArraySegment<byte>>
-    {
-        /// <summary>
-        /// An ordered set of byte arrays; the marshalled packet is
-        /// made up of these segments laid one after the other.
-        /// </summary>
-        protected List<ArraySegment<byte>> list;
-
-        /// <summary>
-        /// The total number of bytes in this marshalled packet (should be 
-        /// equal to the sum of the <see cref="ArraySegment{T}.Count"/> for
-        /// each segment in <see cref="list"/>).
-        /// </summary>
-        protected int length = 0;
-
-        public TransportPacket()
-        {
-            list = new List<ArraySegment<byte>>();
-        }
-
-        /// <summary>
-        /// Create an instance expecting <see cref="expectedSegments"/> segments.
-        /// </summary>
-        /// <param name="expectedSegments">the expected number of segments</param>
-        public TransportPacket(int expectedSegments)
-        {
-            list = new List<ArraySegment<byte>>(expectedSegments);
-        }
-
-        public TransportPacket(byte[] bytes, int offset, int count)
-            : this(new ArraySegment<byte>(bytes, offset, count)) { }
-
-        public TransportPacket(MemoryStream ms)
-            : this(ms.GetBuffer(), 0, (int)ms.Length)
-        {
-        }
-
-        public TransportPacket(ArraySegment<byte> segment) 
-            : this(1)
-        {
-            Add(segment);
-        }
-
-        public TransportPacket(params byte[][] bytesArrays) 
-            : this(bytesArrays.Length)
-        {
-            foreach (byte[] bytes in bytesArrays)
-            {
-                Add(bytes, 0, bytes.Length);
-            }
-        }
-
-
-        /// <summary>
-        /// Create a new marshalled packet as a subset of another packet <see cref="source"/>
-        /// </summary>
-        /// <param name="source">the provided marshalled packet</param>
-        /// <param name="offset">the start position of the subset to include</param>
-        /// <param name="count">the number of bytes of the subset to include</param>
-        public TransportPacket(TransportPacket source, int offset, int count)
-        {
-            list = new List<ArraySegment<byte>>(source.Count);
-
-            // We proceed through the segments of source, copying those portions
-            // that fall in our defined area of interest.
-            int sourceStart = offset;           // index of first byte of AOI
-            int sourceEnd = offset + count - 1; // index of last byte of AOI
-            int segmentStart = 0;               // index of first byte of current <segment>
-            foreach(ArraySegment<byte> segment in source)
-            {
-                int segmentEnd = segmentStart + segment.Count - 1;  // index of last byte
-                // if this segment appears after the area of interest then we're finished:
-                // none of the remaining segments can possibly be in our AOI
-                if (sourceEnd < segmentStart)
-                {
-                    break;
-                }
-                // but it this segment is at least partially contained within our area of interest
-                if (sourceStart <= segmentEnd)
-                {
-                    int segOffset = Math.Max(segmentStart, sourceStart) - segmentStart;
-                    int segLen = Math.Min(segmentEnd, sourceEnd) - segmentStart;
-                    Add(new ArraySegment<byte>(segment.Array, segment.Offset + segOffset,
-                        segment.Offset + segOffset + segLen));
-                }
-                segmentStart += segment.Count;
-            }
-        }
-
-        /// <summary>
-        /// Return the number of bytes in this packet.
-        /// </summary>
-        public int Length { get { return length; } }
-
-        /// <summary>
-        /// Return a subset of this marshalled packet; this is non-destructive.
-        /// </summary>
-        /// <param name="offset">the start position of the subset</param>
-        /// <param name="count">the number of bytes in the subset</param>
-        /// <returns></returns>
-        public TransportPacket Subset(int offset, int count)
-        {
-            return new TransportPacket(this, offset, count);
-        }
-
-        /// <summary>
-        /// Prepend the byte segment to this item.
-        /// </summary>
-        /// <param name="item"></param>
-        public void Prepend(ArraySegment<byte> item)
-        {
-            list.Insert(0, item);
-            length += item.Count;
-        }
-
-        /// <summary>
-        /// Append the byte segment to this item.  This adds a reference
-        /// to <see cref="item"/>; any changes made to <see cref="item"/>
-        /// will be reflected in this packet's contents.
-        /// </summary>
-        /// <param name="item"></param>
-        public void Add(ArraySegment<byte> item)
-        {
-            list.Add(item);
-            length += item.Count;
-        }
-
-        /// <summary>
-        /// Append the byte segment to this item.  This adds a reference
-        /// to <see cref="source"/>; any changes made to <see cref="source"/>
-        /// will be reflected in this packet's contents.
-        /// </summary>
-        /// <param name="source">source array</param>
-        /// <param name="offset">offset into <see cref="source"/></param>
-        /// <param name="count">number of bytes from <see cref="source"/> starting 
-        ///     at <see cref="offset"/></param>
-        public void Add(byte[] source, int offset, int count)
-        {
-            Add(new ArraySegment<byte>(source, offset, count));
-        }
-
-        public void Clear()
-        {
-            list.Clear();
-            length = 0;
-        }
-
-        public bool Contains(ArraySegment<byte> item)
-        {
-            return list.Contains(item);
-        }
-
-        public void CopyTo(ArraySegment<byte>[] array, int arrayIndex)
-        {
-            list.CopyTo(array, arrayIndex);
-        }
-
-        public bool Remove(ArraySegment<byte> item)
-        {
-            length -= item.Count;
-            return list.Remove(item);
-        }
-
-        public int Count
-        {
-            get { return list.Count; }
-        }
-
-        public bool IsReadOnly
-        {
-            get { return false; }
-        }
-
-        public int IndexOf(ArraySegment<byte> item)
-        {
-            return list.IndexOf(item);
-        }
-
-        public void Insert(int index, ArraySegment<byte> item)
-        {
-            list.Insert(index, item);
-            length += item.Count;
-        }
-
-        public void RemoveAt(int index)
-        {
-            length -= list[index].Count;
-            list.RemoveAt(index);
-        }
-
-        public ArraySegment<byte> this[int index]
-        {
-            get { return list[index]; }
-            set {
-                length -= list[index].Count;
-                list[index] = value;
-                length += value.Count;
-            }
-        }
-
-        public IEnumerator<ArraySegment<byte>> GetEnumerator()
-        {
-            return list.GetEnumerator();
-        }
-
-        IEnumerator IEnumerable.GetEnumerator()
-        {
-            return list.GetEnumerator();
-        }
-
-
-        public byte[] ToArray()
-        {
-            MemoryStream ms = new MemoryStream(length);
-            foreach (ArraySegment<byte> segment in list)
-            {
-                ms.Write(segment.Array, segment.Offset, segment.Count);
-            }
-            return ms.ToArray();
-        }
-    }
-
-    /// <summary>The lightweight marshaller is a provides the message payloads as raw 
+    /// The lightweight marshaller provides the message payloads as raw 
     /// uninterpreted byte arrays so as to avoid introducing latency from unneeded processing.
     /// Should your server need to use the message content, then you server should 
-    /// use the DotNetSerializingMarshaller.</summary>
+    /// use a <see cref="DotNetSerializingMarshaller"/>.
+    /// 
+    /// <para>
+    /// The <see cref="LightweightDotNetSerializingMarshaller"/> and <see cref="DotNetSerializingMarshaller"/>
+    /// marshallers prefix each marshaller with a 6 byte header:
+    /// </para>
+    /// <list>
+    /// <item> byte 0 is the channel</item>
+    /// <item> byte 1 is the message type</item>
+    /// <item> bytes 2-6 encode the message data length using the <see cref="BitConverter"/>
+    ///     format.</item>
+    /// </list>
+    /// </summary>
     /// <seealso cref="T:GT.Net.DotNetSerializingMarshaller"/>
     public class LightweightDotNetSerializingMarshaller : IMarshaller
     {
-        /*
-         * Messages have an 8-byte header (MessageHeaderByteSize):
-         * byte 0 is the channel
-         * byte 1 is the message type
-         * bytes 2-5 encode the message data length
-         */
 
         public virtual string[] Descriptors
         {
-            get
-            {
-                return new string[] { ".NET-1.0" };
-            }
+            get { return new[] { ".NET-1.1" }; }
         }
 
         public virtual void Dispose()
@@ -349,37 +177,62 @@ namespace GT.Net
 
         #region Marshalling
 
-        virtual public void Marshal(int senderIdentity, Message m, Stream output, ITransport t)
+        /// <summary>
+        /// Marshal the given message to the provided stream in a form suitable to
+        /// be sent out on transport t.
+        /// </summary>
+        /// <param name="senderIdentity">the identity of the sender</param>
+        /// <param name="msg">the message being sent, that is to be marshalled</param>
+        /// <param name="tdc">the characteristics of the transport that will send the marshalled form</param>
+        /// <returns>the marshalled representation</returns>
+        virtual public MarshalledResult Marshal(int senderIdentity, Message msg, ITransportDeliveryCharacteristics tdc)
         {
             // This marshaller doesn't use <see cref="senderIdentity"/>.
-            Debug.Assert(output.CanSeek);
+            MarshalledResult mr = new MarshalledResult();
+            TransportPacket tp = new TransportPacket();
+            Stream output = tp.AsWriteStream();
+            Debug.Assert(output.CanSeek);   // should add support for non-seekable streams?
 
+            output.WriteByte((byte)msg.MessageType);
+            output.WriteByte(msg.Channel);    // NB: SystemMessages use Channel to encode the sysmsg descriptor
             long startPosition = output.Position;
-            output.WriteByte((byte)m.MessageType);
-            output.WriteByte(m.Channel);    // NB: SystemMessages use Channel to encode the sysmsg descriptor
-            if (m is RawMessage)
+            if (msg is RawMessage)
             {
-                RawMessage rm = (RawMessage)m;
-                ByteUtils.EncodeLength((int)rm.Bytes.Length, output);
+                RawMessage rm = (RawMessage)msg;
+                output.Write(BitConverter.GetBytes(rm.Bytes.Length), 0, 4);
                 output.Write(rm.Bytes, 0, rm.Bytes.Length);
             }
             else
             {
-                // MarshalContents, and its callers, are responsible for putting on
-                // the payload length
-                MarshalContents(m, output, t);
+                /// This method is responsible for putting on the message payload length 
+                /// (4 bytes in the <see cref="BitConverter"/> format).  So reserve the
+                /// 4 bytes, then marshal the payload, and then return to fix the
+                /// the message payload length.
+                long lengthPosition = output.Position;
+                output.Write(new byte[4], 0, 4);
+                MarshalContents(msg, output, tdc);
+                long savedPosition = output.Position;
+                int payloadLength = (int)(output.Position - lengthPosition - 4);
+                output.Position = lengthPosition;
+                output.Write(BitConverter.GetBytes(payloadLength), 0, 4);
+                output.Position = savedPosition;
             }
-            if (output.Position - startPosition > t.MaximumPacketSize)
-            {
-                throw new MarshallingException(
-                    String.Format("marshalled message exceeds transport's capacity ({0} vs {1} max)",
-                    output.Position - startPosition, t.MaximumPacketSize));
-            }
+            output.Flush();
+            mr.AddPacket(tp);
+            return mr;
         }
 
-        virtual protected void MarshalContents(Message m, Stream output, ITransport t)
+        /// <summary>
+        /// Marshal the contents of the message <see cref="m"/> onto the stream <see cref="output"/>.
+        /// The channel and message type have already been placed on <see cref="output"/>.
+        /// This method is **not responsible** for encoding the message payload length.
+        /// </summary>
+        /// <param name="m">the message contents to be marshalled</param>
+        /// <param name="output">the destination for the marshalled message payload</param>
+        /// <param name="tdc">the characteristics of the transport that is to be used for sending</param>
+        virtual protected void MarshalContents(Message m, Stream output, ITransportDeliveryCharacteristics tdc)
         {
-            // Individual marshalling methods are responsible for first encoding
+            // Individual marshalling methods are **NO LONGER RESPONSIBLE** for encoding
             // the payload length
             switch (m.MessageType)
             {
@@ -398,7 +251,6 @@ namespace GT.Net
 
         protected void MarshalSessionAction(SessionMessage sm, Stream output)
         {
-            ByteUtils.EncodeLength(1 + 4, output);
             output.WriteByte((byte)sm.Action);
             output.Write(BitConverter.GetBytes(sm.ClientId), 0, 4);
         }
@@ -406,7 +258,6 @@ namespace GT.Net
         protected void MarshalSystemMessage(SystemMessage systemMessage, Stream output)
         {
             // SystemMessageType is the channel
-            ByteUtils.EncodeLength(systemMessage.data.Length, output);
             output.Write(systemMessage.data, 0, systemMessage.data.Length);
         }
 
@@ -414,43 +265,52 @@ namespace GT.Net
 
         #region Unmarshalling
 
-        virtual public void Unmarshal(Stream input, ITransport t, EventHandler<MessageEventArgs> messageAvailable)
+        virtual public void Unmarshal(TransportPacket tp, ITransportDeliveryCharacteristics tdc, EventHandler<MessageEventArgs> messageAvailable)
         {
             Debug.Assert(messageAvailable != null, "callers must provide a messageAvailale handler");
+            Stream input = tp.AsReadStream();
             // Could check the version or something here?
             MessageType type = (MessageType)input.ReadByte();
             byte channel = (byte)input.ReadByte();
-            int length = ByteUtils.DecodeLength(input);
-            Message m = UnmarshalContent(channel, type, new WrappedStream(input, (uint)length));
-            messageAvailable(this, new MessageEventArgs(t, m));
+            int length = BitConverter.ToInt32(ReadBytes(input, 4), 0);
+            Message m = UnmarshalContent(channel, type, new WrappedStream(input, (uint)length), length);
+            messageAvailable(this, new MessageEventArgs(tdc as ITransport, m)); // FIXME!!!
         }
 
-        virtual protected Message UnmarshalContent(byte channel, MessageType type, Stream input)
+        /// <summary>
+        /// Unmarshal the content from the provided stream.  The message payload was marshalled as
+        /// <see cref="length"/> bytes, is of type <see cref="type"/>, and is intended for 
+        /// channel <see cref="channel"/>.
+        /// </summary>
+        /// <param name="channel">the channel received on</param>
+        /// <param name="type">the type of message</param>
+        /// <param name="input">the marshalled contents</param>
+        /// <param name="length">the number of bytes available</param>
+        /// <returns>the unmarshalled message</returns>
+        virtual protected Message UnmarshalContent(byte channel, MessageType type, Stream input, int length)
         {
             switch (type)
             {
             case MessageType.Session:
-                return UnmarshalSessionAction(channel, type, input);
+                return UnmarshalSessionAction(channel, type, input, length);
             case MessageType.System:
-                return UnmarshalSystemMessage(channel, type, input);
+                return UnmarshalSystemMessage(channel, type, input, length);
             default:
-                int length = (int)(input.Length - input.Position);
                 byte[] data = new byte[length];
                 input.Read(data, 0, length);
                 return new RawMessage(channel, type, data);
             }
         }
 
-        protected Message UnmarshalSystemMessage(byte channel, MessageType messageType, Stream input)
+        protected Message UnmarshalSystemMessage(byte channel, MessageType messageType, Stream input, int length)
         {
             // SystemMessageType is the channel
-            byte[] contents = new byte[input.Length - input.Position];
-            input.Read(contents, 0, contents.Length);
-            return new SystemMessage((SystemMessageType)channel, contents);
+            return new SystemMessage((SystemMessageType)channel, ReadBytes(input, length));
         }
 
-        protected SessionMessage UnmarshalSessionAction(byte channel, MessageType type, Stream input)
+        protected SessionMessage UnmarshalSessionAction(byte channel, MessageType type, Stream input, int length)
         {
+            Debug.Assert(length == 5);
             SessionAction ac = (SessionAction)input.ReadByte();
             return new SessionMessage(channel, BitConverter.ToInt32(ReadBytes(input, 4), 0), ac);
         }
@@ -463,8 +323,41 @@ namespace GT.Net
             input.Read(result, 0, length);
             return result;
         }
+
+        /// <summary>
+        /// An uninterpreted, length-prefixed message
+        /// </summary>
+        public class RawMessage : Message
+        {
+            /// <summary>The binary byte content.</summary>
+            public byte[] Bytes { get { return bytes; } }
+
+            protected byte[] bytes;
+
+            public RawMessage(byte channel, MessageType t, byte[] data)
+                : base(channel, t)
+            {
+                this.bytes = data;
+            }
+
+            public override string ToString()
+            {
+                return "Raw Message (uninterpreted bytes)";
+            }
+
+            public virtual void WriteTo(Stream output)
+            {
+                ByteUtils.EncodeLength(Bytes.Length, output);
+                output.Write(Bytes, 0, Bytes.Length);
+            }
+        }
     }
 
+    /// <summary>
+    /// A standard-issue marshaller that marshals strings, byte arrays, and objects.
+    /// Strings are marshalled as UTF-8, byte arrays are marshalled as-is, and objects
+    /// are marshalled using the .NET Serialization framework.
+    /// </summary>
     public class DotNetSerializingMarshaller :
             LightweightDotNetSerializingMarshaller
     {
@@ -478,9 +371,9 @@ namespace GT.Net
 
         #region Marshalling
 
-        override protected void MarshalContents(Message m, Stream output, ITransport t)
+        override protected void MarshalContents(Message m, Stream output, ITransportDeliveryCharacteristics tdc)
         {
-            // Individual marshalling methods are responsible for first encoding
+            // Individual marshalling methods are **NO LONGER RESPONSIBLE** for encoding
             // the payload length
             switch (m.MessageType)
             {
@@ -512,46 +405,26 @@ namespace GT.Net
         protected void MarshalString(string s, Stream output)
         {
             StreamWriter w = new StreamWriter(output, UTF8Encoding.UTF8);
-            ByteUtils.EncodeLength(UTF8Encoding.UTF8.GetByteCount(s), output);
             w.Write(s);
             w.Flush();
         }
 
         protected void MarshalObject(object o, Stream output)
         {
-            // adaptive length-encoding has one major downside: we
-            // can't predict how many bytes the length will require.  
-            // So all the hard work for trying to minimize copies buys
-            // us little :-(
-            // FIXME: could just reserve a fixed 3 bytes instead?
-            MemoryStream ms = new MemoryStream(64);    // guestimate
-            formatter.Serialize(ms, o);
-            ByteUtils.EncodeLength((int)ms.Length, output);
-            ms.WriteTo(output);
+            formatter.Serialize(output, o);
         }
 
         protected void MarshalBinary(byte[] bytes, Stream output)
         {
-            ByteUtils.EncodeLength(bytes.Length, output);
             output.Write(bytes, 0, bytes.Length);
         }
 
         protected void MarshalTupleMessage(TupleMessage tm, Stream output)
         {
-            // adaptive length-encoding has one major downside: we
-            // can't predict how many bytes the length will require.  
-            // So all the hard work for trying to minimize copies buys
-            // us little :-(
-            // FIXME: could just reserve a fixed 3 bytes instead?
-            MemoryStream ms = new MemoryStream(64);    // guestimate
-
-            ms.Write(BitConverter.GetBytes(tm.ClientId), 0, 4);
-            if (tm.Dimension >= 1) { EncodeConvertible(tm.X, ms); }
-            if (tm.Dimension >= 2) { EncodeConvertible(tm.Y, ms); }
-            if (tm.Dimension >= 3) { EncodeConvertible(tm.Z, ms); }
-            
-            ByteUtils.EncodeLength((int)ms.Length, output);
-            ms.WriteTo(output);
+            output.Write(BitConverter.GetBytes(tm.ClientId), 0, 4);
+            if (tm.Dimension >= 1) { EncodeConvertible(tm.X, output); }
+            if (tm.Dimension >= 2) { EncodeConvertible(tm.Y, output); }
+            if (tm.Dimension >= 3) { EncodeConvertible(tm.Z, output); }
         }
 
         protected void EncodeConvertible(IConvertible value, Stream output) {
@@ -578,27 +451,27 @@ namespace GT.Net
 
         #region Unmarshalling
 
-        override protected Message UnmarshalContent(byte channel, MessageType type, Stream input)
+        override protected Message UnmarshalContent(byte channel, MessageType type, Stream input, int length)
         {
             switch (type)
             {
             case MessageType.Binary:
-                return UnmarshalBinary(channel, (MessageType)type, input);
+                return UnmarshalBinary(channel, type, input);
             case MessageType.String:
-                return UnmarshalString(channel, (MessageType)type, input);
+                return UnmarshalString(channel, type, input);
             case MessageType.Object:
-                return UnmarshalObject(channel, (MessageType)type, input);
+                return UnmarshalObject(channel, type, input);
             case MessageType.Tuple1D:
             case MessageType.Tuple2D:
             case MessageType.Tuple3D:
-                return UnmarshalTuple(channel, (MessageType)type, input);
+                return UnmarshalTuple(channel, type, input);
             case MessageType.Session:
-                return UnmarshalSessionAction(channel, type, input);
+                return UnmarshalSessionAction(channel, type, input, length);
             case MessageType.System:
-                return UnmarshalSystemMessage(channel, type, input);
+                return UnmarshalSystemMessage(channel, type, input, length);
 
             default:
-                throw new InvalidOperationException("unknown message type: " + (MessageType)type);
+                throw new InvalidOperationException("unknown message type: " + type);
             }
         }
 

@@ -1,5 +1,6 @@
 using System;
 using System.Diagnostics;
+using System.IO;
 using System.Text;
 using GT.Utils;
 namespace GT.Net
@@ -172,87 +173,6 @@ namespace GT.Net
             return GetType().Name + "(" + Descriptor +
                 " data:[" + ByteUtils.DumpBytes(data) + "])";
         }
-    }
-
-    /// <summary>
-    /// An uninterpreted message
-    /// </summary>
-    public class RawMessage : Message
-    {
-        /// <summary>The binary byte content.</summary>
-        public byte[] Bytes { get { return bytes; } }
-
-        protected byte[] bytes;
-
-        public RawMessage(byte channel, MessageType t, byte[] data)
-            : base(channel, t)
-        {
-            this.bytes = data;
-        }
-
-        public override string ToString()
-        {
-            return "Raw Message (uninterpreted bytes)";
-        }
-    }
-
-
-    /// <remarks>
-    /// Record information necessary for reading or writing a packet from the wire.
-    /// Assumes reading is a two-phase process, of first reading in a packet header 
-    /// and then reading in the packet body.
-    /// </remarks>
-    public class PacketInProgress
-    {
-        public bool isHeader;
-
-        /// <summary>The packet payload.</summary>
-        public byte[] data;
-
-        public uint position;
-        public uint bytesRemaining;
-
-        /// <summary>
-        /// Construct a Packet-in-Progress for reading in a packet.
-        /// </summary>
-        public PacketInProgress(uint size, bool isHeader)
-        {
-            data = new byte[size];
-            this.isHeader = isHeader;
-            this.position = 0;
-            this.bytesRemaining = size;
-        }
-
-        /// <summary>
-        /// Construct a Packet-in-Progress for sending a packet.
-        /// </summary>
-        public PacketInProgress(byte[] packet)
-        {
-            data = packet;
-            this.isHeader = false;
-            this.position = 0;
-            this.bytesRemaining = (uint)packet.Length;
-        }
-
-
-        /// <summary>
-        /// For incoming packets, distinguish whether this instance represents a packet header 
-        /// or a packet body.
-        /// </summary>
-        /// <returns>true if this instance represents a header</returns>
-        public bool IsMessageHeader()
-        {
-            return isHeader;
-        }
-
-        public void Advance(uint increment)
-        {
-            Debug.Assert(increment > 0);
-            position += increment;
-            bytesRemaining -= increment;
-        }
-
-        public uint Length { get { return (uint)data.Length; } }
     }
 
     #endregion

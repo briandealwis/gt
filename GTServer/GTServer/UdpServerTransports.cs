@@ -63,19 +63,16 @@ namespace GT.Net
             {
                 while (outstanding.Count > 0)
                 {
-                    byte[] b = outstanding.Peek();
+                    TransportPacket packet = outstanding.Peek();
                     try
                     {
-                        handle.Send(b, 0, b.Length);
-                        outstanding.Dequeue();
+                        handle.Send(packet);
                     }
                     catch (SocketException e)
                     {
                         switch (e.SocketErrorCode)
                         {
                         case SocketError.Success: // this can't happen, right?
-                            outstanding.Dequeue();
-                            NotifyPacketSent(b, 0, b.Length);
                             break;
                         case SocketError.WouldBlock:
                             //don't die, but try again next time; not clear if this does (can) happen with UDP
@@ -86,9 +83,11 @@ namespace GT.Net
                             //something terrible happened, but this is only UDP, so stick around.
                             throw new TransportError(this,
                                 String.Format("Error sending UDP message ({0} bytes): {1}",
-                                    b.Length, e), e);
+                                    packet.Length, e), e);
                         }
                     }
+                    outstanding.Dequeue();
+                    NotifyPacketSent(packet);
                 }
             }
         }
@@ -108,9 +107,8 @@ namespace GT.Net
                     while (handle.Available > 0)
                     {
                         // get a packet
-                        byte[] buffer = handle.Receive();
-                        NotifyPacketReceived(buffer, (int)PacketHeaderSize, 
-                            (int)(buffer.Length - PacketHeaderSize));
+                        TransportPacket packet = handle.Receive();
+                        NotifyPacketReceived(packet);
                         return true;
                     }
                 }
@@ -165,15 +163,17 @@ namespace GT.Net
         {
         }
 
-        protected override void NotifyPacketReceived(byte[] buffer, int offset, int count)
+        protected override void NotifyPacketReceived(TransportPacket packet)
         {
-            Debug.Assert(offset == PacketHeaderSize, "datagram doesn't include packet header!");
-            if (buffer.Length < PacketHeaderSize)
+            if (packet.Length < PacketHeaderSize)
             {
                 throw new TransportError(this,
-                    "should not receive datagrams whose size is less than PacketHeaderSize bytes", buffer);
+                    "should not receive datagrams whose size is less than PacketHeaderSize bytes", packet);
             }
-            uint packetSeqNo = BitConverter.ToUInt32(buffer, 0);
+            uint packetSeqNo = 0;
+            packet.BytesAt(0, 4, (b,offset) => packetSeqNo = BitConverter.ToUInt32(b, offset));
+            packet.RemoveBytes(0, 4);
+
             // We handle wrap around by checking if the difference between the
             // packet-seqno and the expected next packet-seqno > uint.MaxValue / 2
             // After all, it's unlikely that 2 billion packets will mysteriously disappear!
@@ -182,12 +182,12 @@ namespace GT.Net
             nextIncomingPacketSeqNo = packetSeqNo + 1;
 
             // pass it on
-            base.NotifyPacketReceived(buffer, offset, count);
+            base.NotifyPacketReceived(packet);
         }
 
-        protected override void WritePacketHeader(byte[] buffer, uint packetLength)
+        protected override void WritePacketHeader(TransportPacket packet)
         {
-            BitConverter.GetBytes(nextOutgoingPacketSeqNo++).CopyTo(buffer, 0);
+            packet.Prepend(BitConverter.GetBytes(nextOutgoingPacketSeqNo++));
         }
     }
 
@@ -309,39 +309,46 @@ namespace GT.Net
             get { return factory.ProtocolDescriptor; }
         }
 
-        protected void PreviouslyUnseenUdpEndpoint(EndPoint ep, byte[] packet)
+        protected void PreviouslyUnseenUdpEndpoint(EndPoint ep, TransportPacket packet)
         {
-            MemoryStream ms = null;
+            TransportPacket response;
+            Stream ms;
+
             // Console.WriteLine(this + ": Incoming unaddressed packet from " + ep);
             if (packet.Length < ProtocolDescriptor.Length)
             {
+                response = new TransportPacket();
+                ms = response.AsWriteStream();
                 log.Info("Undecipherable packet (ignored)");
-                ms = new MemoryStream();
                 // NB: following follows the format used by the LightweightDotNetSerializingMarshaller 
                 ms.WriteByte((byte)MessageType.System);
                 ms.WriteByte((byte)SystemMessageType.UnknownConnexion);
                 ByteUtils.EncodeLength(ProtocolDescriptor.Length, ms);
                 ms.Write(ProtocolDescriptor, 0, ProtocolDescriptor.Length);
-                udpMultiplexer.Send(ms.ToArray(), 0, (int)ms.Length, ep);
+                ms.Flush();
+                udpMultiplexer.Send(response, ep);
                 return;
             }
 
-            if (!ByteUtils.Compare(packet, 0, ProtocolDescriptor, 0, ProtocolDescriptor.Length))
+            if (!ByteUtils.Compare(packet.ToArray(0, ProtocolDescriptor.Length), ProtocolDescriptor))
             {
+                response = new TransportPacket();
+                ms = response.AsWriteStream(); 
                 log.Info("Unknown protocol version: "
-                    + ByteUtils.DumpBytes(packet, 0, 4) + " [" 
-                    + ByteUtils.AsPrintable(packet, 0, 4) + "]");
-                ms = new MemoryStream();
+                    + ByteUtils.DumpBytes(packet.ToArray(), 0, 4) + " [" 
+                    + ByteUtils.AsPrintable(packet.ToArray(), 0, 4) + "]");
                 // NB: following follows the format used by the LightweightDotNetSerializingMarshaller 
                 ms.WriteByte((byte)MessageType.System);
                 ms.WriteByte((byte)SystemMessageType.IncompatibleVersion);
                 ByteUtils.EncodeLength(ProtocolDescriptor.Length, ms);
                 ms.Write(ProtocolDescriptor, 0, ProtocolDescriptor.Length);
-                udpMultiplexer.Send(ms.ToArray(), 0, (int)ms.Length, ep);
+                ms.Flush();
+                udpMultiplexer.Send(response, ep);
                 return;
             }
 
-            ms = new MemoryStream(packet, ProtocolDescriptor.Length, packet.Length - ProtocolDescriptor.Length);
+            packet.RemoveBytes(0, ProtocolDescriptor.Length);
+            ms = packet.AsReadStream();
             Dictionary<string, string> dict = null;
             try
             {
@@ -349,12 +356,10 @@ namespace GT.Net
                 dict = ByteUtils.DecodeDictionary(ms);
                 if (ms.Position != ms.Length)
                 {
-                    log.Info(String.Format("{0} bytes still left at end of UDP handshake packet: ({1} vs {2})",
-                        ms.Length - ms.Position, ms.Position, ms.Length));
-                    byte[] rest = new byte[ms.Length - ms.Position];
-                    ms.Read(rest, 0, (int)rest.Length);
-                    log.Info("   " + ByteUtils.DumpBytes(rest, 0, rest.Length) + "   " +
-                        ByteUtils.AsPrintable(rest, 0, rest.Length));
+                    byte[] rest = packet.ToArray();
+                    log.Info(String.Format("{0} bytes still left at end of UDP handshake packet: {1} ({2})",
+                        rest.Length, ByteUtils.DumpBytes(rest, 0, rest.Length),
+                        ByteUtils.AsPrintable(rest, 0, rest.Length)));
                 }
                 //Debug.Assert(ms.Position != ms.Length, "crud left at end of UDP handshake packet");
                 NotifyNewClient(factory.CreateTransport(new UdpHandle(ep, udpMultiplexer)), dict);
@@ -363,13 +368,15 @@ namespace GT.Net
             {
                 log.Warn(String.Format("Error decoding handshake from remote {0}", ep), e);
 
-                ms = new MemoryStream();
+                response = new TransportPacket();
+                ms = response.AsWriteStream();
                 // NB: following follows the format used by the LightweightDotNetSerializingMarshaller 
                 ms.WriteByte((byte)MessageType.System);
                 ms.WriteByte((byte)SystemMessageType.IncompatibleVersion);
                 ByteUtils.EncodeLength(ProtocolDescriptor.Length, ms);
                 ms.Write(ProtocolDescriptor, 0, ProtocolDescriptor.Length);
-                udpMultiplexer.Send(ms.ToArray(), 0, (int)ms.Length, ep);
+                ms.Flush();
+                udpMultiplexer.Send(response, ep);
                 return;
             }
         }

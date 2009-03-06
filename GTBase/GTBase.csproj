@@ -41,6 +41,8 @@
       <HintPath>..\Common.Logging\bin\net\2.0\release\Common.Logging.dll</HintPath>
     </Reference>
     <Reference Include="System" />
+    <Reference Include="System.Data" />
+    <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
     <Compile Include="Bag.cs" />
@@ -59,6 +61,7 @@
     <Compile Include="Net\ClientServer.cs" />
     <Compile Include="Net\Stats.cs" />
     <Compile Include="Net\MillipedeBase.cs" />
+    <Compile Include="Net\TransportPacket.cs" />
     <Compile Include="Pool.cs" />
     <Compile Include="Statistics.cs" />
     <Compile Include="Exceptions.cs" />

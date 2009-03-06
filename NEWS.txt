@@ -1,6 +1,9 @@
 GT NEWS
+=======
 
-=== GT XXX ===
+==============
+=== GT 3.0 ===
+==============
 
 New Functionality:
 
@@ -51,89 +54,9 @@ New Functionality:
     ConfigureTransport() method on the ClientConfiguration and
     ServerConfiguration (see BaseConfiguration).
 
-Developer-visible changes:
-
-  * There have been some breaks with previous API. 
-
-      * The delegate GT.Net.ConnexionLifecycleNotification has been
-        expanded to include the associated Communicator (Client or Server)
-
-      * The delegate GT.Net.TickHandler has been removed and replaced
-	with System.Action<Communicator>, whose argument is the
-	Communicator instance.
-
-      * Replaced uses of GT.Net.{Session,String,Object,Binary}MessageHandler
-        delegates with the equivalent GT.Net.MessageHandler
-
-      * We reworked the IStream implementations to reduce code duplication. 
-	As a result, we replaced the GT.Net.{Session,String,Object,
-	Binary}NewMessageEvent delegates with the equivalent
-	IAction<ST> where ST is the appropriate IStream subinterface.
-	The actual events have been renamed to MessagesReceived
-	to be more consistent with similar events elsewhere.
-
-      * The delegate GT.Net.PingReceived's time component now
-	returns the round-trip ping time, and not half of the time.
-
-      * Times have been moved to be specified using System.TimeSpan
-	instances.  Notable changes include to the Sleep() methods on
-	GT.Net.Client and GT.Net.Server, GT.Net.DefaultServerConfiguration,
-	the tuple stream methods on GT.Net.Client, GT.Net.PingedNotification,
-	GT.Net.DelayedBinaryStream, and GT.Net.AggregatedSharedDictionary.
-
-      * The Sleep() implementations on GT.Net.Client and GT.Net.Server
-	now return a boolean to indicate whether the sleep executed
-	without interruption.  Future versions of GT may provide some
-	method for event processing during Sleep().
-
-      * ITransport.MaximumPacketSize is now a uint and each transport must
-	support setting this value.  The transport may silently cap
-	this value at some transport-specific maximum.  TcpTransport
-	and BaseUdpTransport's CappedPacketSize have been renamed to
-	DefaultMaximumPacketSize.
-
-      * IMarshaller's Unmarshal() method has been changed to use an
-        event to notify of a message having become available.  This
-	was necessary to support marshallers that have dependencies
-	on receiving previous messages.
-
-      * The delegate GT.Net.NewClientHandler has been renamed to
-	NewTransportHandler to better reflect its purpose, and had
-	its second argument changed to pass an IDictionary, instead
-	of a Dictionary.
-
-      * GT.Net.IAcceptor's NewClientEvent event has been renamed
-	to NewTransportAccepted.
- 
-      * There have been some major renames:
-
-	  * Message.Id has been renamed Channel.  The use of 'id' was
-	    somewhat ambiguous and causing confusion.  All uses of 'id' to
-	    mean a channel id or a stream id have been redone to use channel. 
-	    Described in <https://papyrus.usask.ca/trac/gt/ticket/74>.
-
-	  * UniqueIdentity has been renamed to simply Identity.  Although
-	    the identity value is unique between clients attached to
-	    the same server, the values are not globally unique.  Clients
-	    *do* have a 'Guid' property, however, which is communicated
-	    to the server.
-	      * IConnexion.UniqueIdentity -> Identity
-	      * IStream.UniqueIdentity -> Identity
-	      * GTCapabilities.CLIENT_ID -> CLIENT_GUID
-
-	  * GT.Net.BaseAcceptor has been renamed to IPBasedAcceptor,
-	    to reflect its IP-centric implementation.
-
-  * As part of the renames, some non-API but possibly visible classes
-    have also been renamed for clarity:
-
-      * To better reflect their intentions:
-          ClientConnexion -> ConnexionToClient
-	  ServerConnexion -> ConnexionToServer
-	    * 'server' field -> 'owner' to match ConnexionToClient
-
-  * GT.Net.Client and GT.Net.Server have been reworked and had common
-    code extracted to a common subclass, GT.Net.Communicator.
+  * Support for a large-object sending marshaller.  This functionality
+    has necessitated some changes to the marshaller APIs; see below
+    for details.
 
   * GT now uses the open-source Common.Logging package (v1.2.0) for
     logging messages.  Control-flow information is reported at the
@@ -154,10 +77,157 @@ Developer-visible changes:
     As a result of this change, GT is now much quieter with respect
     to messages written to the system console.
 
-  * Clients and Servers now log a warning when there are no registered
-    ErrorEvent handlers.
 
-Some bugs have been fixed since GT 2.0:
+Interoperability changes:
+=========================
+
+  * The LightweightDotNetSerializingMarshaller and
+    DotNetSerializingMarshaller on-wire formats have changed, which
+    will break compatibility with previous releases.  Previously
+    these marshallers recorded the marshalled payload length using
+    an adaptive scheme.  This meant that many message types had to
+    be serialized to an interim buffer to determine the length, and
+    then copied; this was rather wasteful.  To avoid this duplicate
+    copy, the payload length is now a fixed-length value.  As a
+    result, the internal requirement of
+    LightweightDotNetSerializingMarshaller have changed such that
+    the Marshal* methods are no longer responsible for encoding the
+    payload length.
+
+
+Developer-visible changes:
+==========================
+
+We have made numerous breaks with previous API to streamline GT
+usage and reconcile inconsistencies, hence the bump from GT 2.0 to
+GT 3.0.
+
+  * Delegate changes:
+
+      * The delegate GT.Net.ConnexionLifecycleNotification has been
+        expanded to include the associated Communicator (Client or Server)
+
+      * The delegate GT.Net.TickHandler has been removed and replaced
+	with System.Action<Communicator>, whose argument is the
+	Communicator instance.
+
+      * Replaced uses of GT.Net.{Session,String,Object,Binary}MessageHandler
+        delegates with the equivalent GT.Net.MessageHandler
+
+      * We reworked the IStream implementations to reduce code duplication. 
+	As a result, we replaced the GT.Net.{Session,String,Object,
+	Binary}NewMessageEvent delegates with the equivalent
+	IAction<ST> where ST is the appropriate IStream subinterface.
+
+      * The delegate GT.Net.PingReceived's time component now
+	returns the round-trip ping time, and not half of the time.
+
+      * The delegate GT.Net.NewClientHandler has been renamed to
+	NewTransportHandler to better reflect its purpose, and had
+	its second argument changed to pass an IDictionary, instead
+	of a Dictionary.
+
+  * Event changes:
+
+      * As part of reworking the IStream implementations, the actual 
+        new-message events have been renamed to MessagesReceived
+	to be more consistent with similar events defined elsewhere.
+	The Streamed Tuple implementations continue to use
+	StreamedTupleReceived however.
+
+  * ITransport changes:
+
+      * The ITransport.SendPacket() methods have been consolidated
+	into a single method taking a TransportPacket.  This is a
+	generalized class for representing growable byte arrays,
+	intended to support more memory-conscious operation and
+	avoid generating garbage.
+
+      * ITransport.MaximumPacketSize is now a uint and each transport must
+	support setting this value.  The transport may silently cap
+	this value at some transport-specific maximum.  TcpTransport
+	and BaseUdpTransport's CappedPacketSize have been renamed to
+	DefaultMaximumPacketSize.
+
+  * IMarshaller changes:
+
+      * IMarshaller.Marshal() now return an instance of IMarshalledResult,
+        and should allocate instances of TransportPacket to record the
+	marshalled values.  This is to add support for marshalling
+	messages that are too large to fit into a single transport-level
+	packet, or for marshallers that wish to stream objects.
+	TransportPacket.AsWriteStream() will result in a writeable
+	stream; be sure to call Flush() on this stream at the end.
+
+      * IMarshaller.Marshal() and Unmarshal() now are now provided an
+        ITransportDeliveryCharacteristics rather than an ITransport.
+	The instance may be the actual transport, but this is not
+	guaranteed.
+
+      * IMarshaller's Unmarshal() method has been changed to use an
+        event to notify of a message having become available.  This
+	was necessary to support marshallers that have dependencies
+	on receiving previous messages.
+
+      * Marshallers that cannot deal with splitting their result into
+        multiple packets should not check their resulting packet
+	lengths against the transport's maximum packet size.  We
+	now provide a LargeObjectMarshaller that wraps another
+	marshaller and performs the appropriate splitting to and
+	reassembling from multiple packets.
+
+  * There have been some major renames:
+
+      * Message.Id has been renamed Channel.  The use of 'id' was
+	somewhat ambiguous and causing confusion.  All uses of 'id' to
+	mean a channel id or a stream id have been redone to use channel. 
+	Described in <https://papyrus.usask.ca/trac/gt/ticket/74>.
+
+      * The use of UniqueIdentity has been renamed to simply Identity. 
+	  * IConnexion.UniqueIdentity -> Identity
+	  * IStream.UniqueIdentity -> Identity
+	  * GTCapabilities.CLIENT_ID -> CLIENT_GUID
+	Although the identity value is unique between clients
+	attached to the same server, the values are not globally
+	unique.  Clients *do* have a 'Guid' property, however, which
+	is communicated to the server.
+
+      * GT.Net.BaseAcceptor has been renamed to IPBasedAcceptor,
+	to reflect its IP-centric implementation.
+
+      * GT.Net.IAcceptor's NewClientEvent event has been renamed
+	to NewTransportAccepted.
+
+      * As part of the renames, some non-API but possibly visible classes
+	have also been renamed for clarity:
+
+	  * To better reflect their intentions:
+	      ClientConnexion -> ConnexionToClient
+	      ServerConnexion -> ConnexionToServer
+		* 'server' field -> 'owner' to match ConnexionToClient
+
+  * Other changes:
+
+      * Times have been moved to be specified using System.TimeSpan
+	instances.  Notable changes include to the Sleep() methods on
+	GT.Net.Client and GT.Net.Server, GT.Net.DefaultServerConfiguration,
+	the tuple stream methods on GT.Net.Client, GT.Net.PingedNotification,
+	GT.Net.DelayedBinaryStream, and GT.Net.AggregatedSharedDictionary.
+
+      * The Sleep() implementations on GT.Net.Client and GT.Net.Server
+	now return a boolean to indicate whether the sleep executed
+	without interruption.  Future versions of GT may provide some
+	method for event processing during Sleep().
+
+      * GT.Net.Client and GT.Net.Server have been reworked and had common
+	code extracted to a common subclass, GT.Net.Communicator.
+
+      * Clients and Servers now log a warning when there are no registered
+	ErrorEvent handlers.
+
+
+Bugs have been fixed since GT 2.0:
+==================================
 
   * Server.UpdateAcceptors() threw an NullRefEx as it wasn't properly
     handling case where an acceptor was inactive but the first to 
@@ -190,7 +260,9 @@ Some bugs have been fixed since GT 2.0:
     messages.  <https://papyrus.usask.ca/trac/gt/ticket/61>
 
 
+==============
 === GT 2.0 ===
+==============
 
 GT 2.0 has undergone a significant re-architecturing from GT 1.0
 to promote more flexibility and extensibility.  There have been a

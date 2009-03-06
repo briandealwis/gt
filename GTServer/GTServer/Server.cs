@@ -1,13 +1,8 @@
 using System;
 using System.Net;
 using System.Collections.Generic;
-using System.IO;
-using System.Text;
-using System.Threading;
 using System.Diagnostics;
 using Common.Logging;
-using GT;
-using System.Net.Sockets;
 using GT.Millipede;
 using GT.Utils;
 
@@ -748,6 +743,31 @@ namespace GT.Net
                 NotifyError(new ErrorSummary(e.Severity, SummaryErrorCode.MessagesCannotBeSent,
                     e.Message, e));
             }
+        }
+
+        protected void SendMessages(ITransport transport, IList<Message> messages)
+        {
+            foreach (Message msg in messages)
+            {
+                //pack main message into a buffer and send it right away
+                MarshalledResult result = Marshaller.Marshal(SendingIdentity, msg, transport);
+                try
+                {
+                    while(result.HasPackets)
+                    {
+                        SendPacket(transport, result.RemovePacket());
+                    }
+                }
+                catch (TransportError e)
+                {
+                    throw new CannotSendMessagesError(this, e, msg);
+                }
+                finally
+                {
+                    result.Dispose();
+                }
+            }
+            NotifyMessagesSent(messages, transport);
         }
 
         /// <summary>Handles a system message in that it takes the information and does something with it.</summary>

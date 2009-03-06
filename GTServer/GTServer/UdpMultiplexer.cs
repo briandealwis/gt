@@ -5,12 +5,10 @@ using System.IO;
 using System.Collections.Generic;
 using System.Diagnostics;
 using Common.Logging;
-using GT.Net;
-using GT.Utils;
 
 namespace GT.Net
 {
-    public delegate void NetPacketReceivedHandler(EndPoint ep, byte[] message);
+    public delegate void NetPacketReceivedHandler(EndPoint ep, TransportPacket packet);
 
     public class UdpMultiplexer : IStartable
     {
@@ -21,10 +19,6 @@ namespace GT.Net
         protected Dictionary<EndPoint,NetPacketReceivedHandler> handlers = 
             new Dictionary<EndPoint,NetPacketReceivedHandler>();
         protected NetPacketReceivedHandler defaultHandler;
-
-        // theoretical maximum is 65535 bytes; practical limit is 65507
-        // <http://en.wikipedia.org/wiki/User_Datagram_Protocol>
-        protected byte[] buffer = new byte[65535];
 
         public UdpMultiplexer(IPAddress address, int port)
         {
@@ -128,9 +122,9 @@ namespace GT.Net
         {
             while (udpClient.Available > 0)
             {
-                EndPoint remote = new IPEndPoint(IPAddress.Any, 0);
+                IPEndPoint remote = new IPEndPoint(IPAddress.Any, 0);
                 // any SocketExceptions will be caught by callers
-                int rc = udpClient.Client.ReceiveFrom(buffer, ref remote);
+                byte[] buffer = udpClient.Receive(ref remote);
                 // log.Debug(String.Format("{0}: received {1} bytes from {2}", this, rc, remote));
                 NetPacketReceivedHandler h;
                 if (!handlers.TryGetValue(remote, out h) || h == null)
@@ -154,7 +148,7 @@ namespace GT.Net
                         log.Trace(String.Format("{0}: found handler: {1}", this, h));
                     }
                 }
-                h.Invoke(remote, new MemoryStream(buffer, 0, rc).ToArray());
+                h.Invoke(remote, new TransportPacket(buffer));
             }
         }
 
@@ -162,9 +156,16 @@ namespace GT.Net
         /// Send a packet on the UDP socket.
         /// </summary>
         /// <exception cref="SocketException">thrown if there is a socket error</exception>
-        public int Send(byte[] buffer, int offset, int length, EndPoint remote)
+        public int Send(TransportPacket packet, EndPoint remote)
         {
-            return udpClient.Client.SendTo(buffer, offset, length, SocketFlags.None, remote);
+            // Sadly SentTo does not support being provided a IList<ArraySegment<byte>>
+            IList<ArraySegment<byte>> bytes = packet;
+            if (bytes.Count == 1)
+            {
+                return udpClient.Client.SendTo(bytes[0].Array, bytes[0].Offset, bytes[0].Count,
+                    SocketFlags.None, remote);
+            }
+            return udpClient.Client.SendTo(packet.ToArray(), SocketFlags.None, remote);
         }
 
     }
@@ -174,16 +175,16 @@ namespace GT.Net
         protected EndPoint remote;
         protected UdpMultiplexer mux;
         protected Stopwatch lastMessage;
-        protected List<byte[]> messages;
+        protected Queue<TransportPacket> messages;
 
         public UdpHandle(EndPoint ep, UdpMultiplexer udpMux)
         {
             remote = ep;
             mux = udpMux;
             lastMessage = new Stopwatch();
-            messages = new List<byte[]>();
+            messages = new Queue<TransportPacket>();
 
-            mux.SetMessageHandler(ep, new NetPacketReceivedHandler(ReceivedMessage));
+            mux.SetMessageHandler(ep, ReceivedMessage);
         }
 
         override public string ToString()
@@ -207,28 +208,27 @@ namespace GT.Net
             messages = null;
         }
 
-        protected void ReceivedMessage(EndPoint ep, byte[] message)
+        protected void ReceivedMessage(EndPoint ep, TransportPacket packet)
         {
             lastMessage.Reset();
-            messages.Add(message);
+            lastMessage.Start();
+            messages.Enqueue(packet);
         }
 
         /// <summary>
         /// Send a packet on the UDP socket.
         /// </summary>
         /// <exception cref="SocketException">thrown if there is a socket error</exception>
-        public void Send(byte[] buffer, int offset, int length)
+        public void Send(TransportPacket packet)
         {
-            mux.Send(buffer, offset, length, remote);
+            mux.Send(packet, remote);
         }
 
         public int Available { get { return messages.Count; } }
 
-        public byte[] Receive()
+        public TransportPacket Receive()
         {
-            byte[] msg = messages[0];
-            messages.RemoveAt(0);
-            return msg;
+            return messages.Dequeue();
         }
 
     }

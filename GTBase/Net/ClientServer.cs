@@ -3,7 +3,6 @@ using System.Threading;
 using Common.Logging;
 using GT.Utils;
 using System;
-using System.IO;
 using System.Diagnostics;
 
 /// <summary>
@@ -11,6 +10,12 @@ using System.Diagnostics;
 /// </summary>
 namespace GT.Net 
 {
+    /// <summary>
+    /// Delegate specification for notification of some change in the lifecycle
+    /// of <c>conn</c>.
+    /// </summary>
+    /// <param name="c">the associated communicator instance</param>
+    /// <param name="conn">the actual connexion</param>
     public delegate void ConnexionLifecycleNotification(Communicator c, IConnexion conn);
 
     /// <summary>
@@ -685,7 +690,7 @@ namespace GT.Net
                     {
                         try
                         {
-                            SendMessage(t, new SystemMessage(SystemMessageType.ConnexionClosing));
+                            FastpathSendMessage(t, new SystemMessage(SystemMessageType.ConnexionClosing));
                          }
                         catch(CannotSendMessagesError)
                         {
@@ -992,7 +997,7 @@ namespace GT.Net
         /// </summary>
         /// <param name="transport">Where to send it</param>
         /// <param name="msg">What to send</param>
-        protected void SendMessage(ITransport transport, Message msg)
+        protected virtual void FastpathSendMessage(ITransport transport, Message msg)
         {
             //pack main message into a buffer and send it right away
             MarshalledResult result = Marshaller.Marshal(SendingIdentity, msg, transport);
@@ -1015,76 +1020,6 @@ namespace GT.Net
                 result.Dispose();
             }
             NotifyMessageSent(msg, transport);
-        }
-
-        protected void SendMessages(ITransport transport, IList<Message> messages)
-        {
-            //Console.WriteLine("{0}: Sending {1} messages to {2}", this, messages.Count, transport);
-            Dictionary<Message,MarshalledResult> marshalledResults = 
-                new Dictionary<Message,MarshalledResult>(messages.Count);
-
-            foreach(Message m in messages) {
-                try
-                {
-                    MarshalledResult mr = Marshaller.Marshal(SendingIdentity, m, transport);
-                    Debug.Assert(mr.HasPackets);
-                    marshalledResults[m] = mr;
-                }
-                catch(MarshallingException e)
-                {
-                    NotifyError(new ErrorSummary(e.Severity, SummaryErrorCode.MessagesCannotBeSent,
-                        e.Message, e));
-                }
-            }
-            if(marshalledResults.Count == 0) { return; }
-            TransportPacket packet = new TransportPacket(10);
-            List<Message> finished = new List<Message>(10);
-            do
-            {
-                for(int i = 0; i < messages.Count;) {
-                    TransportPacket other = marshalledResults[messages[i]].RemovePacket();
-                    if(packet.Length + other.Length > transport.MaximumPacketSize)
-                    {
-                        try
-                        {
-                            SendPacket(transport, packet);
-                        }
-                        catch(TransportError e)
-                        {
-                            finished.AddRange(messages);
-                            throw new CannotSendMessagesError(this, e, finished);
-                        }
-                        NotifyMessagesSent(finished, transport);
-                        finished.Clear();
-                        packet.Clear();
-                    }
-                    packet.Add(other);
-                    if (marshalledResults[messages[i]].HasPackets)
-                    {
-                        i++;
-                    }
-                    else
-                    {
-                        finished.Add(messages[i]);
-                        marshalledResults[messages[i]].Dispose();
-                        marshalledResults.Remove(messages[i]);
-                        messages.RemoveAt(i);
-                    }
-                }
-            }
-            if (packet.Count > 0)
-            {
-                try
-                {
-                    SendPacket(transport, packet);
-                }
-                catch(TransportError e)
-                {
-                    finished.AddRange(messages);
-                    throw new CannotSendMessagesError(this, e, finished);
-                }
-                NotifyMessagesSent(finished, transport);
-            }
         }
 
         protected void SendPacket(ITransport transport, TransportPacket packet)

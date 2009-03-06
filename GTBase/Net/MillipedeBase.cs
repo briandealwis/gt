@@ -561,10 +561,10 @@ namespace GT.Millipede
         /// components.
         /// </summary>
         /// <see cref="ITransport.PacketSentEvent"/>
-        private void UnderlyingTransports_PacketSentEvent(byte[] buffer, int offset, int count, ITransport transport)
+        private void UnderlyingTransports_PacketSentEvent(TransportPacket packet, ITransport transport)
         {
             if (PacketSentEvent == null) { return; }
-            PacketSentEvent(buffer, offset, count, this);
+            PacketSentEvent(packet, this);
         }
 
         /// <summary>
@@ -574,12 +574,12 @@ namespace GT.Millipede
         /// components.
         /// </summary>
         /// <see cref="ITransport.PacketReceivedEvent"/>
-        private void UnderlyingTransports_PacketReceivedEvent(byte[] buffer, int offset, int count, ITransport transport)
+        private void UnderlyingTransports_PacketReceivedEvent(TransportPacket packet, ITransport transport)
         {
             recorder.Record(new MillipedeEvent(milliDescriptor, MillipedeEventType.PacketReceived, 
-                buffer, offset, count));
+                packet.ToArray()));
             if (PacketReceivedEvent == null) { return; }
-            PacketReceivedEvent(buffer, offset, count, this);
+            PacketReceivedEvent(packet, this);
         }
 
         /// <summary>
@@ -652,24 +652,24 @@ namespace GT.Millipede
         /// Wraps ITransport.SendPacket(byte[],int,int). In addition, writes data to a sink if
         /// MillipedeTransport initialized with Mode.Record.
         /// </summary>
-        /// <see cref="ITransport.SendPacket(byte[],int,int)"/>
-        public void SendPacket(byte[] packet, int offset, int count)
+        /// <see cref="ITransport.SendPacket"/>
+        public void SendPacket(TransportPacket packet)
         {
             switch (recorder.Mode)
             {
             case MillipedeMode.Unconfigured:
             case MillipedeMode.PassThrough:
             default:
-                underlyingTransport.SendPacket(packet, 0, packet.Length);
+                underlyingTransport.SendPacket(packet);
                 return;
 
             case MillipedeMode.Record:
                 try
                 {
-                    underlyingTransport.SendPacket(packet, 0, packet.Length);
+                    underlyingTransport.SendPacket(packet);
                     recorder.Record(new MillipedeEvent(milliDescriptor,
                         MillipedeEventType.SentPacket,
-                        packet, offset, count));
+                        packet.ToArray()));
                 }
                 catch(GTException ex)
                 {
@@ -688,21 +688,6 @@ namespace GT.Millipede
                 }
                 return;
             }
-        }
-
-        /// <summary>
-        /// Wraps ITransport.SendPacket(Stream). In addition, it writes data to a sink if
-        /// MillipedeTransport initialized with Mode.Record.
-        /// </summary>
-        /// <see cref="ITransport.SendPacket(Stream)"/>
-        public void SendPacket(Stream packetStream)
-        {
-            byte[] buffer = new byte[packetStream.Length];
-            long position = packetStream.Position;
-            packetStream.Position = 0;
-            packetStream.Read(buffer, 0, (int)packetStream.Length);
-            packetStream.Position = position;   // restore
-            SendPacket(buffer, 0, buffer.Length);
         }
 
         /// <summary>
@@ -748,7 +733,7 @@ namespace GT.Millipede
                 {
                     if(PacketReceivedEvent != null)
                     {
-                        PacketReceivedEvent(e.Message, 0, e.Message.Length, this);
+                        PacketReceivedEvent(new TransportPacket(e.Message), this);
                     }
                 }
                 else if(e.Type == MillipedeEventType.Exception)
@@ -768,15 +753,6 @@ namespace GT.Millipede
             get { return underlyingTransport != null ? underlyingTransport.Capabilities : replayCapabilities; }
         }
         
-        /// <summary>
-        /// Wraps ITransport.GetPacketStream.
-        /// </summary>
-        /// <see cref="ITransport.GetPacketStream"/>
-        public Stream GetPacketStream()
-        {
-            return underlyingTransport != null ? underlyingTransport.GetPacketStream() : new MemoryStream();
-        }
-
         /// <summary>
         /// Wraps ITransport.Delay.
         /// </summary>

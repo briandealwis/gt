@@ -8,6 +8,10 @@ using System.IO;
 /// </summary>
 namespace GT.Utils
 {
+    // These exist in .NET 3.0 apparently///
+    public delegate void Action<T1,T2>(T1 arg1, T2 arg2);
+    public delegate void Action<T1, T2, T3>(T1 arg1, T2 arg2, T3 arg3);
+
     #region Queue Processing
     /// <summary>
     /// A simple interface, similar to <c>IEnumerator</c> for processing elements sequentially
@@ -431,6 +435,44 @@ namespace GT.Utils
         }
 
         /// <summary>
+        /// Encode a length as a byte array.
+        /// Top two bits are used to record the number of bytes necessary for encoding the length.
+        /// Assumes the length is &lt; 2^30 elements.  Lengths &lt; 64 elelements will fit in a single byte.
+        /// </summary>
+        /// <param name="length">the length to be encoded</param>
+        public static byte[] EncodeLength(int length)
+        {
+            // assumptions: a byte is 8 bites.  seems safe :)
+            if (length < 0) { throw new NotSupportedException("lengths must be positive"); }
+            if (length < (1 << 6))  // 2^6 = 64
+            {
+                return new[] { (byte)length };
+            }
+            else if (length < (1 << (6 + 8)))  // 2^(6+8) = 16384
+            {
+                return new[] { (byte)(64 | ((length >> 8) & 63)),
+                    (byte)(length & 255) };
+            }
+            else if (length < (1 << (6 + 8 + 8)))   // 2^(6+8+8) = 4194304
+            {
+                return new[] { (byte)(128 | ((length >> 16) & 63)),
+                    (byte)((length >> 8) & 255),
+                    (byte)(length & 255) };
+            }
+            else if (length < (1 << (6 + 8 + 8 + 8)))    // 2^(6+8+8+8) = 1073741824
+            {
+                return new[] { (byte)(192 | ((length >> 24) & 63)),
+                    (byte)((length >> 16) & 255),
+                    (byte)((length >> 8) & 255),
+                    (byte)(length & 255) };
+            }
+            else
+            {
+                throw new NotSupportedException("cannot encode lengths >= 2^30");
+            }
+        }
+
+        /// <summary>
         /// Decode a length from the stream as encoded by EncodeLength() above.
         /// Top two bits are used to record the number of bytes necessary for encoding the length.
         /// </summary>
@@ -458,6 +500,47 @@ namespace GT.Utils
             }
             if (numBytes > 3) { throw new InvalidDataException("encoding cannot have more than 3 bytes!"); }
             return result;
+        }
+
+        /// <summary>
+        /// Decode a length from the stream as encoded by EncodeLength() above.
+        /// Top two bits are used to record the number of bytes necessary for encoding the length.
+        /// </summary>
+        /// <param name="bytes">byte content containing the encoded length</param>
+        /// <param name="index">in: the index in which to decode the byte length, out: set to
+        /// the index of the first byte following the encoded length</param>
+        /// <returns>the decoded length</returns>
+        public static int DecodeLength(byte[] bytes, ref int index)
+        {
+            int numBytes = bytes[index] >> 6;
+            int result = bytes[index++] & 63;
+            if (numBytes >= 1)
+            {
+                result = (result << 8) | bytes[index++];
+            }
+            if (numBytes >= 2)
+            {
+                result = (result << 8) | bytes[index++];
+            }
+            if (numBytes >= 3)
+            {
+                result = (result << 8) | bytes[index++];
+            }
+            if (numBytes > 3) { throw new InvalidDataException("encoding cannot have more than 3 bytes!"); }
+            return result;
+        }
+
+                /// <summary>
+        /// Decode a length from the stream as encoded by EncodeLength() above.
+        /// Top two bits are used to record the number of bytes necessary for encoding the length.
+        /// </summary>
+        /// <param name="bytes">byte content containing the encoded length</param>
+        /// <returns>the decoded length</returns>
+        public static int DecodeLength(byte[] bytes)
+        {
+            int index = 0;
+            return DecodeLength(bytes, ref index);
+            // if(index != bytes.Length) { throw new InvalidSomethingOrAnother(); }
         }
 
         #endregion
