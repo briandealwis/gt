@@ -494,10 +494,25 @@ namespace GT.Net
             }
         }
 
+        public byte ByteAt(int offset)
+        {
+            int segmentOffset = 0;
+            if (offset < 0 || offset >= length) { throw new ArgumentOutOfRangeException("offset"); }
+            foreach (ArraySegment<byte> segment in list)
+            {
+                if (offset < segmentOffset + segment.Count)
+                {
+                    return segment.Array[segment.Offset + (offset - segmentOffset)];
+                }
+                segmentOffset += segment.Count;
+            }
+            throw new InvalidStateException("should never get here", this);
+        }
+
         public void BytesAt(int offset, int count, Action<byte[], int> block)
         {
             int segmentOffset = 0;
-            if (offset + count >= length)
+            if (offset < 0 || count < 0 || offset + count > length)
             {
                 throw new ArgumentOutOfRangeException();
             }
@@ -513,8 +528,9 @@ namespace GT.Net
                     block(ToArray(offset, count), 0);
                     return;
                 }
+                segmentOffset += segment.Count;
             }
-            Debug.Assert(false, "should never get here");
+            throw new InvalidStateException("should never get here", this);
         }
 
         public void Grow(int newLength)

@@ -77,14 +77,14 @@ namespace GT.UnitTests
             // We test for various subsets that overlap partially or fully with the different segments
             for (int sourceStart = 0; sourceStart < source.Length / 2; sourceStart++)
             {
-                for(int sourceEnd = source.Length - 1; sourceEnd - sourceStart > 0; sourceEnd--)
+                for (int sourceEnd = source.Length - 1; sourceEnd - sourceStart > 0; sourceEnd--)
                 {
                     int sourceCount = sourceEnd - sourceStart + 1;
                     TransportPacket p = new TransportPacket(source, sourceStart, sourceCount);
                     Assert.AreEqual(sourceCount, p.Length);
                     Assert.AreEqual(1, ((IList<ArraySegment<byte>>)p).Count);
 
-                    for(int i = 0; i < 10; i++)
+                    for (int i = 0; i < 10; i++)
                     {
                         p.Add(source, sourceStart, sourceCount);
                     }
@@ -97,9 +97,9 @@ namespace GT.UnitTests
                     Assert.AreEqual(subsetCount, subset.Length);
                     byte[] result = subset.ToArray();
                     Assert.AreEqual(subsetCount, result.Length);
-                    for(int i = 0; i < result.Length; i++)
+                    for (int i = 0; i < result.Length; i++)
                     {
-                        Assert.AreEqual(source[sourceStart + 
+                        Assert.AreEqual(source[sourceStart +
                             ((subsetStart + i) % sourceCount)], result[i]);
                     }
 
@@ -123,7 +123,7 @@ namespace GT.UnitTests
         [Test]
         public void TestReadStream()
         {
-            byte[] source = new byte[] {0, 1, 2, 3, 4, 5, 6, 7, 8, 9};
+            byte[] source = new byte[] { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9 };
             int sourceStart = 1;
             int sourceCount = 6;
             TransportPacket packet = new TransportPacket();
@@ -145,28 +145,146 @@ namespace GT.UnitTests
         }
 
         [Test]
-        public void TestToArray()
+        public void TestByteAt()
         {
             TransportPacket packet = new TransportPacket();
             packet.Add(new byte[] {0, 1, 2, 3});
             packet.Add(new byte[] {4, 5, 6, 7, 8});
             packet.Add(new byte[] {9});
 
-            byte[] original = new byte[] {0, 1, 2, 3, 4, 5, 6, 7, 8, 9};
+            for(int i = 0; i < 10; i++)
+            {
+                Assert.AreEqual(i, packet.ByteAt(i));
+                packet.BytesAt(i, 1, (b,offset) => Assert.AreEqual(i, b[offset]));
+            }
+
+            packet.BytesAt(0, 10, (bytes, offset) => {
+                for(int i = 0; i < 10; i++) { Assert.AreEqual(i, bytes[i]); }
+            });
+
+            try
+            {
+                packet.ByteAt(10);
+                Assert.Fail("Should have thrown ArgumentOutOfRange");
+            }
+            catch (ArgumentOutOfRangeException) { /*ignore*/ }
+
+            try
+            {
+                packet.BytesAt(10,1, (b,o) => Assert.Fail("should have thrown AOOR"));
+                Assert.Fail("Should have thrown ArgumentOutOfRange");
+            }
+            catch (ArgumentOutOfRangeException) { /*ignore*/ }
+
+            try
+            {
+                packet.BytesAt(8, 8, (b, o) => Assert.Fail("should have thrown AOOR"));
+                Assert.Fail("Should have thrown ArgumentOutOfRange");
+            }
+            catch (ArgumentOutOfRangeException) { /*ignore*/ }
+        }
+
+        [Test]
+        public void TestToArray()
+        {
+            TransportPacket packet = new TransportPacket();
+            packet.Add(new byte[] { 0, 1, 2, 3 });
+            packet.Add(new byte[] { 4, 5, 6, 7, 8 });
+            packet.Add(new byte[] { 9 });
+
+            byte[] original = new byte[] { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9 };
             Assert.AreEqual(original, packet.ToArray());
 
-            for(int i = 0; i < packet.Length; i++)
+            for (int i = 0; i < packet.Length; i++)
             {
-                for(int count = 0; count < packet.Length - i; count++)
+                for (int count = 0; count < packet.Length - i; count++)
                 {
                     byte[] sub = packet.ToArray(i, count);
-                    for(int j = 0; j < count; j++)
+                    for (int j = 0; j < count; j++)
                     {
                         Assert.AreEqual(original[i + j], sub[j]);
                     }
                 }
             }
 
+        }
+
+        [Test]
+        public void TestWriteStream()
+        {
+            byte[] bytes = new byte[255];
+            for (int i = 0; i < bytes.Length; i++) { bytes[i] = (byte)(i % 256); }
+
+            TransportPacket tp = new TransportPacket();
+            Stream stream = tp.AsWriteStream();
+            for (int i = 0; i < 255; i++)
+            {
+                stream.Write(bytes, i, bytes.Length - i);
+                stream.Write(bytes, 0, i);
+            }
+            stream.Flush();
+
+            Assert.AreEqual(bytes.Length * 255, tp.Length);
+            byte[] copy = tp.ToArray();
+            Assert.AreEqual(bytes.Length * 255, copy.Length);
+            for (int i = 0; i < 255; i++)
+            {
+                for (int j = 0; j < bytes.Length; j++)
+                {
+                    Assert.AreEqual(bytes[(i + j) % bytes.Length], copy[i * bytes.Length + j]);
+                }
+            }
+        }
+
+        [Test]
+        public void TestRemoveBytes() {
+            byte[] bytes = new byte[256];
+            for (int i = 0; i < bytes.Length; i++) { bytes[i] = (byte)(i % 256); }
+            byte[] reversed = new byte[bytes.Length];
+            Array.Copy(bytes, reversed, bytes.Length);
+            Array.Reverse(reversed);
+
+            TransportPacket tp = new TransportPacket();
+            Stream stream = tp.AsWriteStream();
+            // we'll make 256 copies of [0,1,...,254,255,255,254,...,1,0]
+            for (int i = 0; i < 256; i++)
+            {
+                stream.Write(bytes, 0, bytes.Length);
+                stream.Write(reversed, 0, reversed.Length);
+            }
+            stream.Flush();
+            Assert.AreEqual((bytes.Length + reversed.Length) * 256, tp.Length);
+
+            byte[] copy = tp.ToArray();
+            Assert.AreEqual((bytes.Length + reversed.Length) * 256, tp.Length);
+
+            // Now remove successively larger chunks from between the bytes/reversed 
+            // boundary points
+            int nextIndex = 0;  // the start into the next bytes/reverse pair
+            for (int i = 0; i < bytes.Length / 2; i++)
+            {
+                Assert.AreEqual(0, tp.ByteAt(nextIndex));
+                Assert.AreEqual(1, tp.ByteAt(nextIndex + 1));
+                Assert.AreEqual(bytes.Length - 2, tp.ByteAt(nextIndex + bytes.Length - 2));
+                Assert.AreEqual(bytes.Length - 1, tp.ByteAt(nextIndex + bytes.Length - 1));
+                Assert.AreEqual(bytes.Length - 1, tp.ByteAt(nextIndex + bytes.Length));
+                Assert.AreEqual(bytes.Length - 2, tp.ByteAt(nextIndex + bytes.Length +1));
+                Assert.AreEqual(1,
+                    tp.ByteAt(nextIndex + bytes.Length + reversed.Length - 2));
+                Assert.AreEqual(0,
+                    tp.ByteAt(nextIndex + bytes.Length + reversed.Length - 1));
+
+                // remove 2i bytes from the end of the bytes copy extending
+                tp.RemoveBytes(nextIndex + bytes.Length - i, 2 * i);
+                Assert.AreEqual((bytes.Length + reversed.Length) * 256 - 2 * i * (i+1) / 2, tp.Length);
+
+                Assert.AreEqual(0, tp.ByteAt(nextIndex));
+                Assert.AreEqual(bytes.Length - i - 1, tp.ByteAt(nextIndex + bytes.Length - i - 1));
+                Assert.AreEqual(bytes.Length - i - 1, tp.ByteAt(nextIndex + bytes.Length - i));
+                Assert.AreEqual(0, tp.ByteAt(nextIndex + bytes.Length + reversed.Length - 2*i - 1));
+
+                nextIndex += bytes.Length + reversed.Length - 2 * i;
+            }
         }
     }
 }
