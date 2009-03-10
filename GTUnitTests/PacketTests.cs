@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.IO;
 using NUnit.Framework;
@@ -121,6 +122,28 @@ namespace GT.UnitTests
         }
 
         [Test]
+        public void TestSplitAt()
+        {
+            byte[] source = new byte[256];
+            for (int i = 0; i < source.Length; i++) { source[i] = (byte)i; }
+            TransportPacket packet = new TransportPacket();
+            packet.Add(source);
+            Assert.AreEqual(source.Length, packet.Length);
+            TransportPacket end = packet.SplitAt(128);
+            Assert.AreEqual(128, packet.Length);
+            Assert.AreEqual(source.Length - 128, end.Length);
+            Assert.IsTrue(((IList<ArraySegment<byte>>)packet)[0].Array != ((IList<ArraySegment<byte>>)end)[0].Array);
+            for (int i = 0; i < packet.Length; i++)
+            {
+                Assert.AreEqual(source[i], packet.ByteAt(i));
+            }
+            for (int i = 0; i < end.Length; i++)
+            {
+                Assert.AreEqual(source[128 + i], end.ByteAt(i));
+            }
+        }
+
+        [Test]
         public void TestReadStream()
         {
             byte[] source = new byte[] { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9 };
@@ -212,6 +235,7 @@ namespace GT.UnitTests
         [Test]
         public void TestWriteStream()
         {
+            /// This tests ReplaceBytes too.
             byte[] bytes = new byte[255];
             for (int i = 0; i < bytes.Length; i++) { bytes[i] = (byte)(i % 256); }
 

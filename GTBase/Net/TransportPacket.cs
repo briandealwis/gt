@@ -16,6 +16,9 @@ namespace GT.Net
     /// added a direct reference, and any changes made to byte array
     /// will be reflected in this packet's contents; any change made to this
     /// packet will also be reflected in the byte array's contents.
+    /// Transport packets, once finished with, must be explicitly disposed of 
+    /// using <see cref="Dispose"/> to deal with cleaning up any possibly 
+    /// shared memory.
     /// </summary>
     public class TransportPacket : IList<ArraySegment<byte>>, IDisposable
     {
@@ -275,6 +278,10 @@ namespace GT.Net
             Add(new ArraySegment<byte>(source, offset, count));
         }
 
+        /// <summary>
+        /// Dispose of the contents of this packet, restoring the
+        /// packet to the same state as a newly-created instance.
+        /// </summary>
         public void Clear()
         {
             // FIXME: return the arrays to the pool
@@ -339,6 +346,11 @@ namespace GT.Net
             }
         }
 
+        /// <summary>
+        /// Piece together the contents of this byte array into a 
+        /// single contiguous byte array.
+        /// </summary>
+        /// <returns>the contents of this packet</returns>
         public byte[] ToArray()
         {
             byte[] result = new byte[length];
@@ -351,6 +363,11 @@ namespace GT.Net
             return result;
         }
 
+        /// <summary>
+        /// Piece together a portion of the contents of this byte array into a 
+        /// single contiguous byte array.
+        /// </summary>
+        /// <returns>the contents of this packet</returns>
         public byte[] ToArray(int offset, int count)
         {
             byte[] result = new byte[count];
@@ -365,8 +382,12 @@ namespace GT.Net
         /// the equivlent using <see cref="ToArray(int,int)"/> and
         /// <see cref="RemoveBytes"/>.
         /// </summary>
-        /// <param name="position"></param>
-        /// <returns></returns>
+        /// <param name="position">the position at which this instance 
+        /// should be split; this instance will have the contents from
+        /// [0,...,position-1] and the new instance returned will contain
+        /// the remaining bytes</param>
+        /// <returns>an instance containing the remaining bytes from 
+        /// <see cref="position"/> onwards</returns>
         public TransportPacket SplitAt(int position) 
         {
             // FIXME: optimize this
@@ -375,6 +396,15 @@ namespace GT.Net
             return remainder;
         }
 
+        /// <summary>
+        /// Replace the bytes from [sourceStart, sourceStart+count-1] with 
+        /// buffer[bufferStart, ..., bufferStart+count-1]
+        /// </summary>
+        /// <param name="sourceStart">the starting point in this packet</param>
+        /// <param name="count">the number of bytes to be replaced</param>
+        /// <param name="buffer">the source for the replacement bytes</param>
+        /// <param name="bufferStart">the starting point in <see cref="buffer"/>
+        /// for the replacement bytes</param>
         public void Replace(int sourceStart, int count, byte[] buffer, int bufferStart)
         {
             if (bufferStart + count > buffer.Length)
@@ -421,7 +451,7 @@ namespace GT.Net
         }
 
         /// <summary>
-        /// Remove the bytes from [offset, offset + count - 1]
+        /// Remove the bytes from [offset, ..., offset + count - 1]
         /// </summary>
         /// <param name="offset">starting point of bytes to remove</param>
         /// <param name="count">the number of bytes to remove from <see cref="offset"/></param>
@@ -494,6 +524,15 @@ namespace GT.Net
             }
         }
 
+        /// <summary>
+        /// Return the byte at the given offset.
+        /// Note that this is not, and is not intended to be, an efficient operation.
+        /// It's actually intended more for debugging.
+        /// </summary>
+        /// <param name="offset">the offset into this packet</param>
+        /// <returns>the byte at the provided offset</returns>
+        /// <exception cref="ArgumentOutOfRangeException">thrown if the offset is
+        /// out of the range of this object</exception>
         public byte ByteAt(int offset)
         {
             int segmentOffset = 0;
@@ -509,6 +548,17 @@ namespace GT.Net
             throw new InvalidStateException("should never get here", this);
         }
 
+        /// <summary>
+        /// Invoke the provided delegate for the <see cref="count"/> bytes
+        /// found at the <see cref="offset"/> in this packet.
+        /// Note that this is not, and is not intended to be, a terribly
+        /// efficient operation.
+        /// It's actually intended more for debugging.
+        /// </summary>
+        /// <param name="offset">the offset into this packet</param>
+        /// <returns>the byte at the provided offset</returns>
+        /// <exception cref="ArgumentOutOfRangeException">thrown if the offset is
+        /// out of the range of this object</exception>
         public void BytesAt(int offset, int count, Action<byte[], int> block)
         {
             int segmentOffset = 0;
@@ -520,6 +570,9 @@ namespace GT.Net
             {
                 if (offset < segmentOffset + segment.Count)
                 {
+                    // If the bytes are contiguous in one segment, call the block
+                    // on the segment directly.  Else we need to invoke the block on
+                    // a copy of the data
                     if (offset + count < segmentOffset + segment.Count)
                     {
                         block(segment.Array, segment.Offset + (offset - segmentOffset));
@@ -533,6 +586,12 @@ namespace GT.Net
             throw new InvalidStateException("should never get here", this);
         }
 
+        /// <summary>
+        /// Grow this packet to contain <see cref="newLength"/> bytes.
+        /// Callers should not assume that any new bytes are initialized to
+        /// some particular value.
+        /// </summary>
+        /// <param name="newLength"></param>
         public void Grow(int newLength)
         {
             int needed = newLength - length;
@@ -554,7 +613,7 @@ namespace GT.Net
         /// Open a *destructive* stream for reading from the contents of this
         /// packet.  This stream is destructive as the content retrieved
         /// through the stream is removed from the stream.
-        /// Note: should probably not modify the packet whilst this stream is in use.
+        /// Note: do not modify the packet whilst this stream is in use.
         /// </summary>
         /// <returns></returns>
         public Stream AsReadStream()
@@ -562,14 +621,22 @@ namespace GT.Net
             return new ReadStream(this);
         }
 
-        /// Note: should not modify the packet whilst this stream is in use
-        /// except via the stream.  Stream must be periodically flushed
-        /// to synchronize.
+        /// <summary>
+        /// Open a writeable stream on the contents of this packet.
+        /// The stream is initially positioned at the beginning of
+        /// the packet, thus data written will overwrite the contents
+        /// of the stream.  The stream must be flushed to ensure that
+        /// any new data is written out to the packet.
+        /// Note: do not modify of access the packet whilst this stream is in use
         public Stream AsWriteStream()
         {
             return new WriteStream(this);
         }
 
+        /// <summary>
+        /// Packets, once finished with, must be explicitly disposed of to
+        /// deal with cleaning up any possibly shared memory.
+        /// </summary>
         public void Dispose()
         {
             // FIXME: return memory to the pool
