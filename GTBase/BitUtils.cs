@@ -6,6 +6,111 @@ using System.Text;
 namespace GT.Utils
 {
     /// <summary>
+    /// A set of utility functions relating to bits.
+    /// </summary>
+    public class BitUtils
+    {
+        /// <summary>
+        /// A lookup table to return the position of the highest bit set
+        /// for numbers on [0,256].  Taken from  Sean Anderson's 
+        /// <a href="http://www-graphics.stanford.edu/~seander/bithacks.html">
+        /// BitWiddling Hacks</a>.
+        /// </summary>
+        protected static readonly short[] HighestBitLookupTable256 =
+        {
+             -1, 0, 1, 1, 2, 2, 2, 2, 3, 3, 3, 3, 3, 3, 3, 3,
+              4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4,
+              5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5,
+              5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5,
+              6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6,
+              6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6,
+              6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6,
+              6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6,
+              7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7,
+              7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7,
+              7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7,
+              7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7,
+              7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7,
+              7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7,
+              7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7,
+              7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7        
+        };
+
+        /// <summary>
+        /// Returns the position of the highest bit set in the provided value.
+        /// Taken from  Sean Anderson's 
+        /// <a href="http://www-graphics.stanford.edu/~seander/bithacks.html">
+        /// BitWiddling Hacks</a>.
+        /// </summary>
+        /// <param name="value"></param>
+        /// <returns></returns>
+        public static int HighestBitSet(byte value)
+        {
+            return HighestBitLookupTable256[value];
+        }
+
+        /// <summary>
+        /// Returns the position of the highest bit set in the provided value.
+        /// Taken from  Sean Anderson's 
+        /// <a href="http://www-graphics.stanford.edu/~seander/bithacks.html">
+        /// BitWiddling Hacks</a>.
+        /// </summary>
+        /// <param name="value"></param>
+        /// <returns></returns>
+        public static int HighestBitSet(uint value)
+        {
+            int r; // r will be lg(v)
+            uint t, tt; // temporaries
+
+            if((tt = value >> 16) != 0)
+            {
+                r = (t = tt >> 8) != 0
+                    ? 24 + HighestBitLookupTable256[t] 
+                    : 16 + HighestBitLookupTable256[tt];
+            }
+            else
+            {
+                r = (t = value >> 8) != 0 
+                    ? 8 + HighestBitLookupTable256[t] 
+                    : HighestBitLookupTable256[value];
+            }
+            return r;
+        }
+
+        /// <summary>
+        /// Verify whether the provided value is a power of 2.
+        /// Taken from  Sean Anderson's 
+        /// <a href="http://www-graphics.stanford.edu/~seander/bithacks.html">
+        /// BitWiddling Hacks</a>.
+        /// </summary>
+        /// <returns>true if the value is a power of 2, false otherwise.
+        /// Note that this implementation considers 0 to not be a power of 2.</returns>
+        public static bool IsPowerOf2(uint value)
+        {
+            return (value & (value - 1)) == 0 && value != 0;
+        }
+
+        /// <summary>
+        /// Round up the provided value to the nearest power of 2.
+        /// Taken from  Sean Anderson's 
+        /// <a href="http://www-graphics.stanford.edu/~seander/bithacks.html">
+        /// BitWiddling Hacks</a>.
+        /// </summary>
+        public static uint RoundUpToPowerOf2(uint v)
+        {
+            // compute the next highest power of 2 of 32-bit v
+            if (v == 0) { return 1; }   // otherwise 0 => 0
+            v--;    // 0 - 1 => 2^32
+            v |= v >> 1;
+            v |= v >> 2;
+            v |= v >> 4;
+            v |= v >> 8;
+            v |= v >> 16;
+            return v + 1;
+        }
+    }
+
+    /// <summary>
     /// A growable list of bits, intended to be compatible with BitArray.
     /// </summary>
     public class BitTuple
