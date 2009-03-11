@@ -8,8 +8,40 @@ using GT.Net;
 namespace GT.UnitTests
 {
     [TestFixture]
-    public class PacketTests
+    public class AZPacketTests
     {
+        private void CheckDisposed(params TransportPacket[] packets)
+        {
+            List<ArraySegment<byte>> segs = new List<ArraySegment<byte>>();
+            foreach (TransportPacket p in packets) { segs.AddRange(p); }
+            foreach (ArraySegment<byte> seg in segs)
+            {
+                Assert.IsTrue(TransportPacket.IsValidSegment(seg));
+            }
+            foreach (TransportPacket p in packets) { p.Dispose(); }
+            foreach (ArraySegment<byte> seg in segs)
+            {
+                Assert.IsFalse(TransportPacket.IsValidSegment(seg));
+            }
+        }
+
+        // This packet is a subset of another, and so none of the segments should be disposed
+        private void CheckNotDisposed(TransportPacket subset)
+        {
+            List<ArraySegment<byte>> segs = new List<ArraySegment<byte>>(subset);
+            foreach (ArraySegment<byte> seg in segs)
+            {
+                Assert.IsTrue(TransportPacket.IsValidSegment(seg));
+            }
+            subset.Dispose();
+            foreach (ArraySegment<byte> seg in segs)
+            {
+                Assert.IsTrue(TransportPacket.IsValidSegment(seg));
+            }
+        }
+
+
+
         [Test]
         public void TestBasics()
         {
@@ -17,8 +49,6 @@ namespace GT.UnitTests
             TransportPacket p = new TransportPacket(source, 1, 4);
             Assert.AreEqual(4, p.Length);
             Assert.AreEqual(1, ((IList<ArraySegment<byte>>)p).Count);
-            Assert.IsTrue(source == ((IList<ArraySegment<byte>>)p)[0].Array);
-            Assert.AreEqual(1, ((IList<ArraySegment<byte>>)p)[0].Offset);
             Assert.AreEqual(4, ((IList<ArraySegment<byte>>)p)[0].Count);
 
             byte[] result = p.ToArray();
@@ -28,13 +58,32 @@ namespace GT.UnitTests
                 Assert.AreEqual(source[1 + i], result[i]);
             }
 
-            TransportPacket p2 = p.SplitAt(2);
-            Assert.AreEqual(2, p.Length);
-            Assert.AreEqual(2, p2.Length);
-            Assert.IsTrue(source == ((IList<ArraySegment<byte>>)p)[0].Array);
-            Assert.IsTrue(source != ((IList<ArraySegment<byte>>)p2)[0].Array);
-            Assert.AreEqual(new byte[] { 1, 2 }, p.ToArray());
-            Assert.AreEqual(new byte[] { 3, 4 }, p2.ToArray());
+            CheckDisposed(p);
+        }
+
+        [Test]
+        public void TestToArray()
+        {
+            TransportPacket packet = new TransportPacket();
+            packet.Add(new byte[] { 0, 1, 2, 3 });
+            packet.Add(new byte[] { 4, 5, 6, 7, 8 });
+            packet.Add(new byte[] { 9 });
+
+            byte[] original = new byte[] { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9 };
+            Assert.AreEqual(original, packet.ToArray());
+
+            for (int i = 0; i < packet.Length; i++)
+            {
+                for (int count = 0; count < packet.Length - i; count++)
+                {
+                    byte[] sub = packet.ToArray(i, count);
+                    for (int j = 0; j < count; j++)
+                    {
+                        Assert.AreEqual(original[i + j], sub[j]);
+                    }
+                }
+            }
+            CheckDisposed(packet);
         }
 
         [Test]
@@ -54,8 +103,6 @@ namespace GT.UnitTests
 
             for (int i = 0; i < ((IList<ArraySegment<byte>>)p).Count; i++)
             {
-                Assert.IsTrue(source == ((IList<ArraySegment<byte>>)p)[i].Array);
-                Assert.AreEqual(1, ((IList<ArraySegment<byte>>)p)[i].Offset);
                 Assert.AreEqual(4, ((IList<ArraySegment<byte>>)p)[i].Count);
             }
 
@@ -68,6 +115,8 @@ namespace GT.UnitTests
                     Assert.AreEqual(source[1 + i], result[4 * j + i]);
                 }
             }
+
+            CheckDisposed(p);
         }
 
         [Test]
@@ -81,20 +130,21 @@ namespace GT.UnitTests
                 for (int sourceEnd = source.Length - 1; sourceEnd - sourceStart > 0; sourceEnd--)
                 {
                     int sourceCount = sourceEnd - sourceStart + 1;
-                    TransportPacket p = new TransportPacket(source, sourceStart, sourceCount);
-                    Assert.AreEqual(sourceCount, p.Length);
-                    Assert.AreEqual(1, ((IList<ArraySegment<byte>>)p).Count);
+                    TransportPacket packet = new TransportPacket(source, sourceStart, sourceCount);
+                    Assert.AreEqual(sourceCount, packet.Length);
+                    Assert.AreEqual(1, ((IList<ArraySegment<byte>>)packet).Count);
 
                     for (int i = 0; i < 10; i++)
                     {
-                        p.Add(source, sourceStart, sourceCount);
+                        packet.Add(source, sourceStart, sourceCount);
                     }
-                    Assert.AreEqual(11, ((IList<ArraySegment<byte>>)p).Count);
-                    Assert.AreEqual(sourceCount * 11, p.Length);
+                    Assert.AreEqual(11, ((IList<ArraySegment<byte>>)packet).Count);
+                    Assert.AreEqual(sourceCount * 11, packet.Length);
 
                     int subsetStart = 4;
-                    int subsetCount = Math.Min(17, p.Length - 2);
-                    TransportPacket subset = p.Subset(subsetStart, subsetCount);
+                    int subsetCount = Math.Min(17, packet.Length - 2);
+
+                    TransportPacket subset = packet.Subset(subsetStart, subsetCount);
                     Assert.AreEqual(subsetCount, subset.Length);
                     byte[] result = subset.ToArray();
                     Assert.AreEqual(subsetCount, result.Length);
@@ -102,21 +152,31 @@ namespace GT.UnitTests
                     {
                         Assert.AreEqual(source[sourceStart +
                             ((subsetStart + i) % sourceCount)], result[i]);
+                        Assert.AreEqual(source[sourceStart +
+                            ((subsetStart + i) % sourceCount)], subset.ByteAt(i));
+                        Assert.AreEqual(packet.ByteAt(subsetStart + i), subset.ByteAt(i));
                     }
 
-                    // And ensure the backing byte array is still referenced 
-                    byte index = (byte)(sourceStart + (subsetStart % sourceCount));
-                    Assert.AreEqual(index, source[index]);
-                    source[index] = 255;
-                    for (int j = 0; j < subset.Length; j += sourceCount)
+                    // And ensure the subset has the same backing byte array is still referenced 
+                    // sourceEquivIndex = the equivalent index in source to subset[0]
+                    int sourceEquivIndex = sourceStart + (subsetStart % sourceCount);
+                    Assert.AreEqual(source[sourceEquivIndex], packet.ByteAt(subsetStart));
+                    Assert.AreEqual(source[sourceEquivIndex], subset.ByteAt(0));
+                    packet.Replace(subsetStart, new byte[] { 255 }, 0, 1);
+                    Assert.AreEqual(255, packet.ByteAt(subsetStart));
+                    Assert.AreEqual(255, subset.ByteAt(0));
+                    packet.Replace(subsetStart, source, sourceEquivIndex, 1);
+                    Assert.AreEqual(source[sourceEquivIndex], packet.ByteAt(subsetStart));
+                    Assert.AreEqual(source[sourceEquivIndex], subset.ByteAt(0));
+
+                    CheckNotDisposed(subset);
+
+                    /// Ensure that disposing of the subset doesn't dispose the parent packet
+                    for (int i = 0; i < packet.Length; i++)
                     {
-                        Assert.AreEqual(source[index], subset.ToArray()[j]);
+                        Assert.AreEqual(source[sourceStart + (i % sourceCount)], packet.ByteAt(i));
                     }
-                    source[index] = index;
-                    for (int j = 0; j < subset.Length; j += sourceCount)
-                    {
-                        Assert.AreEqual(source[index], subset.ToArray()[j]);
-                    }
+                    CheckDisposed(packet);
                 }
             }
         }
@@ -124,23 +184,38 @@ namespace GT.UnitTests
         [Test]
         public void TestSplitAt()
         {
-            byte[] source = new byte[256];
-            for (int i = 0; i < source.Length; i++) { source[i] = (byte)i; }
             TransportPacket packet = new TransportPacket();
-            packet.Add(source);
-            Assert.AreEqual(source.Length, packet.Length);
-            TransportPacket end = packet.SplitAt(128);
-            Assert.AreEqual(128, packet.Length);
-            Assert.AreEqual(source.Length - 128, end.Length);
-            Assert.IsTrue(((IList<ArraySegment<byte>>)packet)[0].Array != ((IList<ArraySegment<byte>>)end)[0].Array);
-            for (int i = 0; i < packet.Length; i++)
-            {
-                Assert.AreEqual(source[i], packet.ByteAt(i));
+            for (int i = 0; i < 256;) { 
+                byte[] source = new byte[8];
+                for (int j = 0; j < source.Length; j++, i++)
+                {
+                    source[j] = (byte)i;
+                }
+                packet.Add(source);
             }
-            for (int i = 0; i < end.Length; i++)
+            Assert.AreEqual(256, packet.Length);
+            Assert.AreEqual(256 / 8, ((IList<ArraySegment<byte>>)packet).Count);
+
+            for (int splitPoint = 0; splitPoint < packet.Length; splitPoint++)
             {
-                Assert.AreEqual(source[128 + i], end.ByteAt(i));
+                TransportPacket front = packet.Copy();
+                TransportPacket back = front.SplitAt(splitPoint);
+                Assert.AreEqual(splitPoint, front.Length);
+                Assert.AreEqual(packet.Length - splitPoint, back.Length);
+
+                int index = 0;
+                for(; index < front.Length; index++)
+                {
+                    Assert.AreEqual((byte)index, front.ByteAt(index));
+                }
+                for(int i = 0; i < back.Length; i++)
+                {
+                    Assert.AreEqual((byte)(index + i), back.ByteAt(i));
+                }
+                CheckNotDisposed(front);
+                CheckNotDisposed(back);
             }
+            CheckDisposed(packet);
         }
 
         [Test]
@@ -165,6 +240,7 @@ namespace GT.UnitTests
                 Assert.AreEqual(packetLength - i - 1, packet.Length);
             }
             Assert.AreEqual(0, s.Length);
+            CheckDisposed(packet);
         }
 
         [Test]
@@ -205,31 +281,7 @@ namespace GT.UnitTests
                 Assert.Fail("Should have thrown ArgumentOutOfRange");
             }
             catch (ArgumentOutOfRangeException) { /*ignore*/ }
-        }
-
-        [Test]
-        public void TestToArray()
-        {
-            TransportPacket packet = new TransportPacket();
-            packet.Add(new byte[] { 0, 1, 2, 3 });
-            packet.Add(new byte[] { 4, 5, 6, 7, 8 });
-            packet.Add(new byte[] { 9 });
-
-            byte[] original = new byte[] { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9 };
-            Assert.AreEqual(original, packet.ToArray());
-
-            for (int i = 0; i < packet.Length; i++)
-            {
-                for (int count = 0; count < packet.Length - i; count++)
-                {
-                    byte[] sub = packet.ToArray(i, count);
-                    for (int j = 0; j < count; j++)
-                    {
-                        Assert.AreEqual(original[i + j], sub[j]);
-                    }
-                }
-            }
-
+            CheckDisposed(packet);
         }
 
         [Test]
@@ -258,6 +310,7 @@ namespace GT.UnitTests
                     Assert.AreEqual(bytes[(i + j) % bytes.Length], copy[i * bytes.Length + j]);
                 }
             }
+            CheckDisposed(tp);
         }
 
         [Test]
@@ -309,6 +362,8 @@ namespace GT.UnitTests
 
                 nextIndex += bytes.Length + reversed.Length - 2 * i;
             }
+
+            CheckDisposed(tp);
         }
     }
 }

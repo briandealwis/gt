@@ -325,7 +325,7 @@ namespace GT.UnitTests
                 sourceData[0] = (byte)i;
                 Debug("client: sending packet#" + i + ": "
                     + ByteUtils.DumpBytes(sourceData, 0, sourceData.Length));
-                client.SendPacket(TransportPacket.CopyOf(sourceData));
+                client.SendPacket(new TransportPacket(sourceData));
                 if (failure.Length != 0)
                 {
                     Assert.Fail(failure);
