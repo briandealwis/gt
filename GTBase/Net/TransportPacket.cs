@@ -69,7 +69,7 @@ namespace GT.Net
         public TransportPacket(TransportPacket source, int offset, int count)
         {
             list = new List<ArraySegment<byte>>();
-            ArraySegment<byte> segment = AllocateSegment(count);
+            ArraySegment<byte> segment = AllocateSegment((uint)count);
             source.CopyTo(offset, segment.Array, segment.Offset, count);
             AddSegment(segment);
         }
@@ -218,7 +218,7 @@ namespace GT.Net
         public void Prepend(byte[] source, int offset, int count)
         {
             // FIXME: could check if there was space on list[0]?
-            ArraySegment<byte> segment = AllocateSegment(count);
+            ArraySegment<byte> segment = AllocateSegment((uint)count);
             Array.Copy(source, offset, segment.Array, segment.Offset, count);
             PrependSegment(segment);
         }
@@ -643,14 +643,19 @@ namespace GT.Net
             if(list.Count > 0)
             {
                 ArraySegment<byte> last = list[list.Count - 1];
-                if (needed < last.Array.Length - last.Count - last.Offset)
+                lock (last.Array)
                 {
-                    list[list.Count - 1] = new ArraySegment<byte>(last.Array, last.Offset,
-                        last.Count + needed);
-                    return;
+                    // we can only resize this segment if we're the only ones using the segment
+                    if(GetRefCount(last) == 1 && needed < last.Array.Length - last.Count - last.Offset)
+                    {
+                        list[list.Count - 1] = new ArraySegment<byte>(last.Array, last.Offset,
+                            last.Count + needed);
+                        length += needed;
+                        return;
+                    }
                 }
             }
-            AddSegment(AllocateSegment(newLength - length));
+            AddSegment(AllocateSegment((uint)(newLength - length)));
         }
 
         /// <summary>
@@ -680,10 +685,19 @@ namespace GT.Net
         #region Segment Allocation and Deallocation
         // These methods act as a sort of malloc-like system.
 
-        protected const int MinSegmentSize = 1024;
-        protected const int MaxSegmentSize = 64 * 1024; // chosen as it's the max UDP packet
+        /// <summary>
+        /// The smallest length allocated for a segment (not including the
+        /// internal segment header).  This is expected to be a power of 2.
+        /// </summary>
+        public static uint MinSegmentSize = 1024;
 
-        protected static Pool<byte[]>[] memoryPools; // 2^6 = 64
+        /// <summary>
+        /// The maximum length allocated for a segment (not including the
+        /// internal segment header).  This is expected to be a power of 2.
+        /// </summary>
+        public static uint MaxSegmentSize = 64 * 1024; // chosen as it's the max UDP packet
+
+        protected static Pool<byte[]>[] memoryPools;
 
         /// <summary>
         /// Each segment has 4 bytes for recording the ref count of the segment.
@@ -692,43 +706,73 @@ namespace GT.Net
         /// segment overruns.  The 4th byte records the ref count.  Byte arrays
         /// can be reused when this goes to 0.
         /// </summary>
-        protected static readonly byte[] segmentHeader = { 0xC0, 0xFF, 0xEE };
-        protected static readonly byte[] deadbeef = { 0xDE, 0xAD, 0xBE, 0xEF };
-        protected const int HeaderSize = 4;
+        protected static readonly byte[] segmentHeader = { 0xC0, 0xFF, 0xEE };  // valid header
+        protected static readonly byte[] deadbeef = { 0xDE, 0xAD, 0xBE, 0xEF }; // dead segment
+        protected const int HeaderSize = 4; // # bytes in the internal segment header
         protected const int RefCountLocation = 3;
 
-        protected static ArraySegment<byte> AllocateSegment(int minimumLength) 
+        /// <summary>
+        /// Allocate a segment of at least minimumLength bytes.  This should be
+        /// less that MaxSegmentSize.  The actual byte array allocated may be
+        /// larger than the requested minimumLength.  This segment has a ref
+        /// count of 0 -- it must be retained such as through an
+        /// <see cref="AddSegment"/> or explicitly though <see cref="IncrementRefCount"/>.
+        /// </summary>
+        /// <param name="minimumLength">the minimum number of bytes required</param>
+        /// <returns>a suitable byte segment</returns>
+        protected static ArraySegment<byte> AllocateSegment(uint minimumLength) 
         {
             if (memoryPools == null) { InitMemoryPools(); }
-            byte[] allocd = new byte[minimumLength + HeaderSize];
+            Debug.Assert(minimumLength <= MaxSegmentSize);
+            //byte[] allocd = new byte[minimumLength + HeaderSize];
+            byte[] allocd = memoryPools[PoolIndex(minimumLength)].Obtain();
+            Debug.Assert(allocd.Length - HeaderSize >= minimumLength);
             Array.Copy(segmentHeader, 0, allocd, 0, segmentHeader.Length);
             allocd[RefCountLocation] = 0;
-            return new ArraySegment<byte>(allocd, HeaderSize, minimumLength);
+            return new ArraySegment<byte>(allocd, HeaderSize, (int)minimumLength);
         }
 
+        /// <summary>
+        /// Increment the reference count on the provided segment.
+        /// </summary>
+        /// <param name="segment"></param>
         protected static void IncrementRefCount(ArraySegment<byte> segment)
         {
-            Debug.Assert(segment.Offset >= HeaderSize);
-            for(int i = 0; i < segmentHeader.Length; i++) {
-                Debug.Assert(segment.Array[i] == segmentHeader[i]);
+            lock (segment.Array)
+            {
+                Debug.Assert(IsValidSegment(segment));
+                segment.Array[RefCountLocation]++;
             }
-            segment.Array[RefCountLocation]++;
+        }
+
+        protected static uint GetRefCount(ArraySegment<byte> segment)
+        {
+            lock (segment.Array)
+            {
+                Debug.Assert(IsValidSegment(segment));
+                return segment.Array[RefCountLocation];
+            }
         }
 
         protected static void DeallocateSegment(ArraySegment<byte> segment)
         {
-            Debug.Assert(IsValidSegment(segment));
-            if(segment.Array[RefCountLocation] > 0) {
-                segment.Array[RefCountLocation]--; ;
+            Debug.Assert(BitUtils.IsPowerOf2((uint)segment.Array.Length - HeaderSize));
+            lock (segment.Array)
+            {
+                Debug.Assert(IsValidSegment(segment));
+                if (segment.Array[RefCountLocation] > 0)
+                {
+                    segment.Array[RefCountLocation]--;
+                }
+                if(segment.Array[RefCountLocation] > 0)
+                {
+                    return;
+                }
+
+                Debug.Assert(segment.Array.Length - HeaderSize <= MaxSegmentSize);
+                //byte[] allocd = new byte[minimumLength + HeaderSize];
+                memoryPools[PoolIndex((uint)segment.Array.Length - HeaderSize)].Return(segment.Array);
             }
-            if(segment.Array[RefCountLocation] > 0) { return; }
-            deadbeef.CopyTo(segment.Array, 0);
-//FIXME: #if DEBUG
-            // Write over memory so that any bad users see problems
-            for(int i = 0; i < segment.Array.Length; i++) {
-                segment.Array[i] = deadbeef[i % deadbeef.Length];
-            }
-//#endif
         }
 
         /// <summary>
@@ -744,16 +788,52 @@ namespace GT.Net
             }
             return true;
         }
-
-
+        
         private static void InitMemoryPools()
         {
-            memoryPools = new Pool<byte[]>[6];
-            for (int i = 0; i < memoryPools.Length; i++)
+            // Number of bits required (ceil(lg(n)) = # highest bit + 1
+            int numSegs = 1 + PoolIndex(MaxSegmentSize);
+            memoryPools = new Pool<byte[]>[numSegs];
+            for (int i = 0; i < numSegs; i++)
             {
-                memoryPools[i] = new Pool<byte[]>(0, 5, 
-                    () => new byte[(1 << i) * 1024], null, null);
+                // Needed to push this to a new function to ensure the
+                // Pool's lambda's had the right variable in scope.
+                // Weirdness.
+                memoryPools[i] = CreatePool((1u << i) * MinSegmentSize);
             }
+        }
+
+        private static Pool<byte[]> CreatePool(uint segSize)
+        {
+            return new Pool<byte[]>(0, 5,
+                () => new byte[HeaderSize + segSize],
+                // RehabilitateSegment,
+                b =>
+                {
+                    Debug.Assert(b.Length == HeaderSize + segSize);
+                    RehabilitateSegment(b);
+                }, RehabilitateSegment);
+        }
+
+        private static int PoolIndex(uint segLength)
+        {
+            Debug.Assert(segLength <= MaxSegmentSize);
+            return BitUtils.HighestBitSet(
+                BitUtils.RoundUpToPowerOf2(Math.Min(segLength + MinSegmentSize - 1, MaxSegmentSize) / MinSegmentSize));
+        }
+
+
+        private static void RehabilitateSegment(byte[] seg)
+        {
+#if DEBUG
+            // Write over memory so that any bad users see problems
+            for (int i = 0; i < seg.Length; i++)
+            {
+                seg[i] = deadbeef[i % deadbeef.Length];
+            }
+#else
+            deadbeef.CopyTo(seg, 0);
+#endif
         }
 
         #endregion
@@ -1023,7 +1103,7 @@ namespace GT.Net
                     if (interim.Array == null)
                     {
                         // FIXME: should allocate from a pool
-                        interim = AllocateSegment(Math.Min(MaxSegmentSize, count));
+                        interim = AllocateSegment(Math.Min(MaxSegmentSize, (uint)count));
                         Debug.Assert(position == packet.Length);
                     }
                     // translate position into the interim buffer

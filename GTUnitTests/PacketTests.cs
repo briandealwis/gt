@@ -10,6 +10,24 @@ namespace GT.UnitTests
     [TestFixture]
     public class AZPacketTests
     {
+        uint _OriginalMinSegSize;
+
+        [SetUp]
+        public void SetUp()
+        {
+            // We need to set the min segment size as otherwise our tiny byte arrays
+            // are amalgamated into giant packets.
+            _OriginalMinSegSize = TransportPacket.MinSegmentSize;
+            TransportPacket.MinSegmentSize = 4;
+        }
+
+        [TearDown]
+        public void TearDown()
+        {
+            TransportPacket.MinSegmentSize = _OriginalMinSegSize;
+        }
+
+
         private void CheckDisposed(params TransportPacket[] packets)
         {
             List<ArraySegment<byte>> segs = new List<ArraySegment<byte>>();
@@ -98,13 +116,7 @@ namespace GT.UnitTests
             {
                 p.Add(source, 1, 4);
             }
-            Assert.AreEqual(11, ((IList<ArraySegment<byte>>)p).Count);
             Assert.AreEqual(4 * 11, p.Length);
-
-            for (int i = 0; i < ((IList<ArraySegment<byte>>)p).Count; i++)
-            {
-                Assert.AreEqual(4, ((IList<ArraySegment<byte>>)p)[i].Count);
-            }
 
             byte[] result = p.ToArray();
             Assert.AreEqual(4 * 11, result.Length);
@@ -138,10 +150,9 @@ namespace GT.UnitTests
                     {
                         packet.Add(source, sourceStart, sourceCount);
                     }
-                    Assert.AreEqual(11, ((IList<ArraySegment<byte>>)packet).Count);
                     Assert.AreEqual(sourceCount * 11, packet.Length);
 
-                    int subsetStart = 4;
+                    const int subsetStart = 4;
                     int subsetCount = Math.Min(17, packet.Length - 2);
 
                     TransportPacket subset = packet.Subset(subsetStart, subsetCount);
@@ -194,7 +205,7 @@ namespace GT.UnitTests
                 packet.Add(source);
             }
             Assert.AreEqual(256, packet.Length);
-            Assert.AreEqual(256 / 8, ((IList<ArraySegment<byte>>)packet).Count);
+            Assert.IsTrue(((IList<ArraySegment<byte>>)packet).Count > 1);
 
             for (int splitPoint = 0; splitPoint < packet.Length; splitPoint++)
             {
