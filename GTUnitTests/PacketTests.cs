@@ -441,6 +441,7 @@ namespace GT.UnitTests
 
             TransportPacket tp = new TransportPacket();
             Stream stream = tp.AsWriteStream();
+            long initialPosition = stream.Position;
             for (int i = 0; i < 255; i++)
             {
                 stream.Write(bytes, i, bytes.Length - i);
@@ -458,6 +459,9 @@ namespace GT.UnitTests
                     Assert.AreEqual(bytes[(i + j) % bytes.Length], copy[i * bytes.Length + j]);
                 }
             }
+
+            stream.Position = initialPosition;
+            stream.Position = stream.Length;
             CheckDisposed(tp);
             CheckForUndisposedSegments();
         }

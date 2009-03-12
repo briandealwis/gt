@@ -762,22 +762,29 @@ namespace GT.Net
         protected const int RefCountLocation = 3;
 
         /// <summary>
-        /// Allocate a segment of at least minimumLength bytes.  This should be
-        /// less that _maxSegmentSize.  The actual byte array allocated may be
-        /// larger than the requested minimumLength.  This segment has a ref
+        /// Allocate a segment of at least <see cref="minimumLength"/> bytes.  This must be
+        /// less than <see cref="MaxSegmentSize"/>.  The actual byte array allocated may be
+        /// larger than the requested length.  This segment has a ref
         /// count of 0 -- it must be retained such as through an
         /// <see cref="AddSegment"/> or explicitly though <see cref="IncrementRefCount"/>.
         /// </summary>
         /// <param name="minimumLength">the minimum number of bytes required</param>
         /// <returns>a suitable byte segment</returns>
+        /// <exception cref="ArgumentOutOfRangeException">thrown when requesting an
+        ///     invalid length</exception>
         protected static ArraySegment<byte> AllocateSegment(uint minimumLength) 
         {
             if (memoryPools == null) { InitMemoryPools(); }
-            Debug.Assert(minimumLength <= _maxSegmentSize);
-            //byte[] allocd = new byte[minimumLength + HeaderSize];
+            if (minimumLength == 0 || minimumLength > _maxSegmentSize)
+            {
+                throw new ArgumentOutOfRangeException("minimumLength");
+            }
             byte[] allocd = memoryPools[PoolIndex(minimumLength)].Obtain();
             Debug.Assert(allocd.Length - HeaderSize >= minimumLength);
+            // Copy over the segment header to indicate that it is a valid segment
             Array.Copy(segmentHeader, 0, allocd, 0, segmentHeader.Length);
+            // A new segment's ref count is 0; will be incremented when referenced
+            // such as by TransportPacket.AddSegment()
             allocd[RefCountLocation] = 0;
             return new ArraySegment<byte>(allocd, HeaderSize, (int)minimumLength);
         }
@@ -785,7 +792,7 @@ namespace GT.Net
         /// <summary>
         /// Increment the reference count on the provided segment.
         /// </summary>
-        /// <param name="segment"></param>
+        /// <param name="segment">the referenced segment</param>
         protected static void IncrementRefCount(ArraySegment<byte> segment)
         {
             lock (segment.Array)
@@ -1102,7 +1109,7 @@ namespace GT.Net
                         offset = Length - offset;
                         break;
                 }
-                if (offset < 0 || offset >= Length) { throw new ArgumentException("offset is out of range"); }
+                if (offset < 0 || offset > Length) { throw new ArgumentException("offset is out of range"); }
                 position = (int)offset;
                 return position;
             }
