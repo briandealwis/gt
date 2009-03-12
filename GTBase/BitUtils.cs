@@ -38,6 +38,7 @@ namespace GT.Utils
 
         /// <summary>
         /// Returns the position of the highest bit set in the provided value.
+        /// Note: number of bits required is this number + 1.
         /// Taken from  Sean Anderson's 
         /// <a href="http://www-graphics.stanford.edu/~seander/bithacks.html">
         /// BitWiddling Hacks</a>.
@@ -51,6 +52,7 @@ namespace GT.Utils
 
         /// <summary>
         /// Returns the position of the highest bit set in the provided value.
+        /// Note: number of bits required is this number + 1.
         /// Taken from  Sean Anderson's 
         /// <a href="http://www-graphics.stanford.edu/~seander/bithacks.html">
         /// BitWiddling Hacks</a>.
