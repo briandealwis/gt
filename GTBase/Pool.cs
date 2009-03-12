@@ -203,7 +203,15 @@ namespace GT.Utils
         {
             get { return allocated; }
         }
-        
+
+        /// <summary>
+        /// Return the number of outstanding elements managed by this pool.
+        /// </summary>
+        public virtual int Out
+        {
+            get { return allocated - (available == null ? 0 : available.Count); }
+        }
+
         protected T CreateElement()
         {
             allocated++;
