@@ -2,6 +2,7 @@
 using System.Collections;
 using System.Collections.Generic;
 using System.IO;
+using GT.Utils;
 using NUnit.Framework;
 using GT.Net;
 
@@ -11,6 +12,7 @@ namespace GT.UnitTests
     public class AZPacketTests
     {
         uint _OriginalMinSegSize;
+        uint _OriginalMaxSegSize;
 
         [SetUp]
         public void SetUp()
@@ -18,13 +20,30 @@ namespace GT.UnitTests
             // We need to set the min segment size as otherwise our tiny byte arrays
             // are amalgamated into giant packets.
             _OriginalMinSegSize = TransportPacket.MinSegmentSize;
+            _OriginalMaxSegSize = TransportPacket.MaxSegmentSize;
+            TransportPacket.TestingDiscardPools();
             TransportPacket.MinSegmentSize = 4;
         }
 
         [TearDown]
         public void TearDown()
         {
+            TransportPacket.TestingDiscardPools();
             TransportPacket.MinSegmentSize = _OriginalMinSegSize;
+            TransportPacket.MaxSegmentSize = _OriginalMaxSegSize;
+        }
+
+        private void CheckForUndisposedSegments()
+        {
+            Pool<byte[]>[] pools = TransportPacket.TestingDiscardPools();
+            if (pools != null)
+            {
+                foreach (Pool<byte[]> pool in pools)
+                {
+                    Assert.AreEqual(0, pool.Out,
+                        "there are non-disposed segments: some TransportPackets remain undisposed");
+                }
+            }
         }
 
 
@@ -58,7 +77,101 @@ namespace GT.UnitTests
             }
         }
 
+        [Test]
+        public void TestPoolIndexCalculations()
+        {
+            /// Ensure that the pool-figuring  code generates the right pools
+            /// for provided lengths.  We use a simple power-of-2 scheme where
+            /// we round lengths up to their nearest power of 2.
+            Assert.AreEqual(4, TransportPacket.MinSegmentSize, 
+                "This test is assuming a different value for the MinSegmentSize value provided in [SetUp]");
+            Assert.AreEqual(0, TransportPacket.TestingPoolIndex(1));
+            Assert.AreEqual(0, TransportPacket.TestingPoolIndex(2));
+            Assert.AreEqual(0, TransportPacket.TestingPoolIndex(3));
+            Assert.AreEqual(0, TransportPacket.TestingPoolIndex(4));
+            Assert.AreEqual(1, TransportPacket.TestingPoolIndex(5));
+            Assert.AreEqual(1, TransportPacket.TestingPoolIndex(6));
+            Assert.AreEqual(1, TransportPacket.TestingPoolIndex(7));
+            Assert.AreEqual(1, TransportPacket.TestingPoolIndex(8));
+            Assert.AreEqual(2, TransportPacket.TestingPoolIndex(9));
+            Assert.AreEqual(2, TransportPacket.TestingPoolIndex(16));
+            Assert.AreEqual(3, TransportPacket.TestingPoolIndex(17));
+            Assert.AreEqual(3, TransportPacket.TestingPoolIndex(32));
+            Assert.AreEqual(4, TransportPacket.TestingPoolIndex(33));
+            Assert.AreEqual(4, TransportPacket.TestingPoolIndex(64));
+            Assert.AreEqual(5, TransportPacket.TestingPoolIndex(65));
+            Assert.AreEqual(5, TransportPacket.TestingPoolIndex(128));
+            Assert.AreEqual(6, TransportPacket.TestingPoolIndex(129));
+            Assert.AreEqual(6, TransportPacket.TestingPoolIndex(256));
+            Assert.AreEqual(7, TransportPacket.TestingPoolIndex(257));
+            Assert.AreEqual(7, TransportPacket.TestingPoolIndex(512));
 
+            int numBits = BitUtils.HighestBitSet(TransportPacket.MaxSegmentSize) -
+                BitUtils.HighestBitSet(TransportPacket.MinSegmentSize);
+            for (int i = 0; i < numBits; i++)
+            {
+                uint start = TransportPacket.MinSegmentSize * (i == 0 ? 0 : 1u << (i-1)) + 1;
+                uint stop = TransportPacket.MinSegmentSize * (1u << i);
+                Assert.AreEqual(i, TransportPacket.TestingPoolIndex(start));
+                Assert.AreEqual(i, TransportPacket.TestingPoolIndex(stop));
+            }
+        }
+
+        [Test]
+        public void TestAllocation() {
+            /// This test is specific to the TransportPacket pool allocation scheme
+            /// We go up in power-of-2 checking that allocating just before and 
+            /// on the boundary return the proper size, and that allocating just
+            /// after the boundary allocates the next up.
+            int numBits = BitUtils.HighestBitSet(TransportPacket.MaxSegmentSize) -
+                BitUtils.HighestBitSet(TransportPacket.MinSegmentSize);
+            for (int i = 0; i <= numBits; i++)
+            {
+                uint size = TransportPacket.MinSegmentSize * (1u << i);
+                TransportPacket p;
+                ArraySegment<byte> segment;
+
+                p = new TransportPacket(size-1);
+                Assert.AreEqual(size-1, p.Length);
+                Assert.AreEqual(1, ((IList<ArraySegment<byte>>)p).Count);
+                segment = ((IList<ArraySegment<byte>>)p)[0];
+                Assert.AreEqual(size - 1, segment.Count);
+                Assert.AreEqual(size, segment.Array.Length - segment.Offset);
+                p.Dispose();
+
+
+                p = new TransportPacket(size);
+                Assert.AreEqual(size, p.Length);
+                Assert.AreEqual(1, ((IList<ArraySegment<byte>>)p).Count);
+                segment = ((IList<ArraySegment<byte>>)p)[0];
+                Assert.AreEqual(size, segment.Count);
+                Assert.AreEqual(size, segment.Array.Length - segment.Offset);
+                p.Dispose();
+
+                p = new TransportPacket(size+1);
+                Assert.AreEqual(size + 1, p.Length);
+                if (i < numBits)
+                {
+                    Assert.AreEqual(1, ((IList<ArraySegment<byte>>)p).Count);
+                    segment = ((IList<ArraySegment<byte>>)p)[0];
+                    Assert.AreEqual(size + 1, segment.Count);
+                    Assert.IsTrue(size < segment.Array.Length - segment.Offset,
+                        "Should have been in the next bin size");
+                }
+                else
+                {
+                    // we're outside of the maximum allocation size, and so 
+                    // the allocation should be split across multiple segments!
+                    Assert.AreEqual(2, ((IList<ArraySegment<byte>>)p).Count);
+                    segment = ((IList<ArraySegment<byte>>)p)[0];
+                    Assert.AreEqual(size, segment.Count, "Should have been this bin size");
+                    Assert.AreEqual(size, segment.Array.Length - segment.Offset,
+                        "Should have been in this last bin size");
+                }
+                p.Dispose();
+            }
+            CheckForUndisposedSegments();
+        }
 
         [Test]
         public void TestBasics()
@@ -77,6 +190,7 @@ namespace GT.UnitTests
             }
 
             CheckDisposed(p);
+            CheckForUndisposedSegments();
         }
 
         [Test]
@@ -102,6 +216,24 @@ namespace GT.UnitTests
                 }
             }
             CheckDisposed(packet);
+            CheckForUndisposedSegments();
+        }
+
+        [Test]
+        public void TestNewTransportPacket()
+        {
+            TransportPacket.MaxSegmentSize = TransportPacket.MinSegmentSize;
+
+            TransportPacket packet = new TransportPacket();
+            packet.Add(new byte[] { 0, 1, 2, 3 });
+            packet.Add(new byte[] { 4, 5, 6, 7, 8 });
+            packet.Add(new byte[] { 9 });
+
+            // Ensure that new TransportPacket() properly copies out
+            TransportPacket copy = new TransportPacket(packet, 1, 8);
+            Assert.AreEqual(packet.ToArray(1, 8), copy.ToArray());
+            CheckDisposed(packet, copy);
+            CheckForUndisposedSegments();
         }
 
         [Test]
@@ -129,6 +261,7 @@ namespace GT.UnitTests
             }
 
             CheckDisposed(p);
+            CheckForUndisposedSegments();
         }
 
         [Test]
@@ -190,6 +323,7 @@ namespace GT.UnitTests
                     CheckDisposed(packet);
                 }
             }
+            CheckForUndisposedSegments();
         }
 
         [Test]
@@ -227,6 +361,7 @@ namespace GT.UnitTests
                 CheckNotDisposed(back);
             }
             CheckDisposed(packet);
+            CheckForUndisposedSegments();
         }
 
         [Test]
@@ -252,6 +387,7 @@ namespace GT.UnitTests
             }
             Assert.AreEqual(0, s.Length);
             CheckDisposed(packet);
+            CheckForUndisposedSegments();
         }
 
         [Test]
@@ -293,6 +429,7 @@ namespace GT.UnitTests
             }
             catch (ArgumentOutOfRangeException) { /*ignore*/ }
             CheckDisposed(packet);
+            CheckForUndisposedSegments();
         }
 
         [Test]
@@ -322,6 +459,7 @@ namespace GT.UnitTests
                 }
             }
             CheckDisposed(tp);
+            CheckForUndisposedSegments();
         }
 
         [Test]
@@ -375,6 +513,23 @@ namespace GT.UnitTests
             }
 
             CheckDisposed(tp);
+            CheckForUndisposedSegments();
         }
+
+        [Test]
+        public void TestPrepending()
+        {
+            // Ensure small packets
+            TransportPacket.MaxSegmentSize = TransportPacket.MinSegmentSize;
+
+            TransportPacket packet = new TransportPacket(new byte[] { 9 });
+            packet.Prepend(new byte[] { 4, 5, 6, 7, 8 });
+            packet.Prepend(new byte[] { 0, 1, 2, 3 });
+
+            Assert.AreEqual(new byte[] { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9 }, packet.ToArray());
+            CheckDisposed(packet);
+            CheckForUndisposedSegments();
+        }
+
     }
 }
