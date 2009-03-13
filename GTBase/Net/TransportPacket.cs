@@ -269,7 +269,26 @@ namespace GT.Net
         /// <param name="source"></param>
         public void Prepend(byte[] source, int offset, int count)
         {
-            // FIXME: could check if there was space on list[0]?
+            if (list.Count > 0)
+            {
+                // Check to see if there is space available at the beginning of
+                // list[0]; can only do it if the segment isn't being shared with
+                // someone else (as they might be using that part of the segment)
+                ArraySegment<byte> segment = list[0];
+                lock(segment.Array)
+                {
+                    if(count <= segment.Offset - HeaderSize
+                        && IsManagedSegment(segment) && GetRefCount(segment) == 1)
+                    {
+                        segment = new ArraySegment<byte>(segment.Array, segment.Offset - count,
+                            segment.Count + count);
+                        Buffer.BlockCopy(source, offset, segment.Array, segment.Offset, count);
+                        list[0] = segment;
+                        length += count;
+                        return;
+                    }
+                }
+            }
             while (count > 0)
             {
                 int segSize = Math.Min(count, (int)_maxSegmentSize);
@@ -814,6 +833,12 @@ namespace GT.Net
         }
 
         /// <summary>
+        /// Reserve this many bytes at the beginning of each segment to
+        /// support prepending additional data headers in-place.
+        /// </summary>
+        public static uint ReservedInitialBytes = 16;
+
+        /// <summary>
         /// Although the memoryPools, once allocated, can be accessed in a thread-safe
         /// manner, there is a possibility of a race condition until they are initialized.
         /// This object is used to synchronize the initialization
@@ -851,14 +876,15 @@ namespace GT.Net
             {
                 throw new ArgumentOutOfRangeException("minimumLength");
             }
-            byte[] allocd = memoryPools[PoolIndex(minimumLength)].Obtain();
-            Debug.Assert(allocd.Length - HeaderSize >= minimumLength);
+            uint reservedInitialSpace = Math.Min(ReservedInitialBytes, MaxSegmentSize - minimumLength);
+            byte[] allocd = memoryPools[PoolIndex(reservedInitialSpace + minimumLength)].Obtain();
+            Debug.Assert(allocd.Length - HeaderSize - reservedInitialSpace >= minimumLength);
             // Copy over the segment header to indicate that it is a valid segment
             Buffer.BlockCopy(segmentHeader, 0, allocd, 0, segmentHeader.Length);
             // A new segment's ref count is 0; will be incremented when referenced
             // such as by TransportPacket.AddSegment()
             allocd[RefCountLocation] = 0;
-            return new ArraySegment<byte>(allocd, HeaderSize, (int)minimumLength);
+            return new ArraySegment<byte>(allocd, HeaderSize + (int)reservedInitialSpace, (int)minimumLength);
         }
 
         /// <summary>

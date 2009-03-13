@@ -13,7 +13,8 @@ namespace GT.UnitTests
     {
         uint _OriginalMinSegSize;
         uint _OriginalMaxSegSize;
-
+        uint _OriginalReservedInitialBytes;
+        
         [SetUp]
         public void SetUp()
         {
@@ -21,6 +22,7 @@ namespace GT.UnitTests
             // are amalgamated into giant packets.
             _OriginalMinSegSize = TransportPacket.MinSegmentSize;
             _OriginalMaxSegSize = TransportPacket.MaxSegmentSize;
+            _OriginalReservedInitialBytes = TransportPacket.ReservedInitialBytes;
             TransportPacket.TestingDiscardPools();
             TransportPacket.MinSegmentSize = 4;
         }
@@ -31,6 +33,7 @@ namespace GT.UnitTests
             TransportPacket.TestingDiscardPools();
             TransportPacket.MaxSegmentSize = _OriginalMaxSegSize;
             TransportPacket.MinSegmentSize = _OriginalMinSegSize;
+            TransportPacket.ReservedInitialBytes = _OriginalReservedInitialBytes;
         }
 
         private void CheckForUndisposedSegments()
@@ -123,6 +126,7 @@ namespace GT.UnitTests
             /// We go up in power-of-2 checking that allocating just before and 
             /// on the boundary return the proper size, and that allocating just
             /// after the boundary allocates the next up.
+            TransportPacket.ReservedInitialBytes = 0;
             int numBits = BitUtils.HighestBitSet(TransportPacket.MaxSegmentSize) -
                 BitUtils.HighestBitSet(TransportPacket.MinSegmentSize);
             for (int i = 0; i <= numBits; i++)
@@ -524,6 +528,7 @@ namespace GT.UnitTests
         public void TestPrepending()
         {
             // Ensure small packets
+            TransportPacket.ReservedInitialBytes = 0;
             TransportPacket.MaxSegmentSize = TransportPacket.MinSegmentSize;
 
             TransportPacket packet = new TransportPacket(new byte[] { 9 });
@@ -531,6 +536,21 @@ namespace GT.UnitTests
             packet.Prepend(new byte[] { 0, 1, 2, 3 });
 
             Assert.AreEqual(new byte[] { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9 }, packet.ToArray());
+            CheckDisposed(packet);
+            CheckForUndisposedSegments();
+        }
+
+        [Test]
+        public void TestInplacePrepending()
+        {
+            TransportPacket.ReservedInitialBytes = 10;
+
+            TransportPacket packet = new TransportPacket(new byte[] { 9 });
+            packet.Prepend(new byte[] { 4, 5, 6, 7, 8 });
+            packet.Prepend(new byte[] { 0, 1, 2, 3 });
+
+            Assert.AreEqual(new byte[] { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9 }, packet.ToArray());
+            Assert.AreEqual(1, ((IList<ArraySegment<byte>>)packet).Count);
             CheckDisposed(packet);
             CheckForUndisposedSegments();
         }
