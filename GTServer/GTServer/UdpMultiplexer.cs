@@ -120,7 +120,7 @@ namespace GT.Net
         /// <exception cref="SocketException">thrown if there is a socket error</exception>
         public void Update()
         {
-            while (udpClient.Available > 0)
+            while (Active && udpClient.Available > 0)
             {
                 IPEndPoint remote = new IPEndPoint(IPAddress.Any, 0);
                 // any SocketExceptions will be caught by callers
@@ -158,6 +158,8 @@ namespace GT.Net
         /// <exception cref="SocketException">thrown if there is a socket error</exception>
         public int Send(TransportPacket packet, EndPoint remote)
         {
+            // Is our throwing a SocketException considered out of line?
+            if (!Active) { throw new SocketException((int)SocketError.Shutdown); }
             // Sadly SentTo does not support being provided a IList<ArraySegment<byte>>
             IList<ArraySegment<byte>> bytes = packet;
             if (bytes.Count == 1)
