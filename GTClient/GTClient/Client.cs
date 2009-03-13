@@ -741,6 +741,8 @@ namespace GT.Net
                     {
                         SendPacket(transport, result.RemovePacket());
                     }
+                    queue.Remove();
+                    NotifyMessageSent(pm.Message, transport);
                 }
                 catch (TransportError e)
                 {
