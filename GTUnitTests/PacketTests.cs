@@ -53,12 +53,12 @@ namespace GT.UnitTests
             foreach (TransportPacket p in packets) { segs.AddRange(p); }
             foreach (ArraySegment<byte> seg in segs)
             {
-                Assert.IsTrue(TransportPacket.IsValidSegment(seg));
+                Assert.IsTrue(TransportPacket.IsManagedSegment(seg));
             }
             foreach (TransportPacket p in packets) { p.Dispose(); }
             foreach (ArraySegment<byte> seg in segs)
             {
-                Assert.IsFalse(TransportPacket.IsValidSegment(seg));
+                Assert.IsFalse(TransportPacket.IsManagedSegment(seg));
             }
         }
 
@@ -68,12 +68,12 @@ namespace GT.UnitTests
             List<ArraySegment<byte>> segs = new List<ArraySegment<byte>>(subset);
             foreach (ArraySegment<byte> seg in segs)
             {
-                Assert.IsTrue(TransportPacket.IsValidSegment(seg));
+                Assert.IsTrue(TransportPacket.IsManagedSegment(seg));
             }
             subset.Dispose();
             foreach (ArraySegment<byte> seg in segs)
             {
-                Assert.IsTrue(TransportPacket.IsValidSegment(seg));
+                Assert.IsTrue(TransportPacket.IsManagedSegment(seg));
             }
         }
 
