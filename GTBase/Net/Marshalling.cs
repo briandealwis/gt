@@ -214,7 +214,7 @@ namespace GT.Net
                 output.Write(new byte[4], 0, 4);
                 MarshalContents(msg, output, tdc);
                 long savedPosition = output.Position;
-                int payloadLength = (int)(output.Position - lengthPosition - 4);
+                uint payloadLength = (uint)(output.Position - lengthPosition - 4);
                 output.Position = lengthPosition;
                 output.Write(BitConverter.GetBytes(payloadLength), 0, 4);
                 output.Position = savedPosition;
@@ -274,7 +274,7 @@ namespace GT.Net
             // Could check the version or something here?
             MessageType type = (MessageType)input.ReadByte();
             byte channel = (byte)input.ReadByte();
-            int length = BitConverter.ToInt32(ReadBytes(input, 4), 0);
+            uint length = BitConverter.ToUInt32(ReadBytes(input, 4), 0);
             Message m = UnmarshalContent(channel, type, new WrappedStream(input, (uint)length), length);
             messageAvailable(this, new MessageEventArgs(tdc as ITransport, m)); // FIXME!!!
         }
@@ -289,7 +289,7 @@ namespace GT.Net
         /// <param name="input">the marshalled contents</param>
         /// <param name="length">the number of bytes available</param>
         /// <returns>the unmarshalled message</returns>
-        virtual protected Message UnmarshalContent(byte channel, MessageType type, Stream input, int length)
+        virtual protected Message UnmarshalContent(byte channel, MessageType type, Stream input, uint length)
         {
             switch (type)
             {
@@ -298,19 +298,19 @@ namespace GT.Net
             case MessageType.System:
                 return UnmarshalSystemMessage(channel, type, input, length);
             default:
-                byte[] data = new byte[length];
-                input.Read(data, 0, length);
-                return new RawMessage(channel, type, data);
+                return new RawMessage(channel, type, ReadBytes(input, length));
             }
         }
 
-        protected Message UnmarshalSystemMessage(byte channel, MessageType messageType, Stream input, int length)
+        protected Message UnmarshalSystemMessage(byte channel, MessageType messageType, 
+            Stream input, uint length)
         {
             // SystemMessageType is the channel
             return new SystemMessage((SystemMessageType)channel, ReadBytes(input, length));
         }
 
-        protected SessionMessage UnmarshalSessionAction(byte channel, MessageType type, Stream input, int length)
+        protected SessionMessage UnmarshalSessionAction(byte channel, MessageType type, 
+            Stream input, uint length)
         {
             Debug.Assert(length == 5);
             SessionAction ac = (SessionAction)input.ReadByte();
@@ -319,10 +319,10 @@ namespace GT.Net
 
         #endregion
 
-        protected byte[] ReadBytes(Stream input, int length)
+        protected byte[] ReadBytes(Stream input, uint length)
         {
             byte[] result = new byte[length];
-            input.Read(result, 0, length);
+            input.Read(result, 0, (int)length);
             return result;
         }
 
@@ -345,12 +345,6 @@ namespace GT.Net
             public override string ToString()
             {
                 return "Raw Message (uninterpreted bytes)";
-            }
-
-            public virtual void WriteTo(Stream output)
-            {
-                ByteUtils.EncodeLength(Bytes.Length, output);
-                output.Write(Bytes, 0, Bytes.Length);
             }
         }
     }
@@ -393,20 +387,15 @@ namespace GT.Net
             case MessageType.Tuple3D:
                 MarshalTupleMessage((TupleMessage)m, output);
                 break;
-            case MessageType.Session:
-                MarshalSessionAction((SessionMessage)m, output);
-                break;
-            case MessageType.System:
-                MarshalSystemMessage((SystemMessage)m, output);
-                break;
             default:
-                throw new InvalidOperationException("unknown message type: " + m.MessageType);
+                base.MarshalContents(m, output, tdc);
+                break;
             }
         }
 
         protected void MarshalString(string s, Stream output)
         {
-            StreamWriter w = new StreamWriter(output, UTF8Encoding.UTF8);
+            StreamWriter w = new StreamWriter(output, Encoding.UTF8);
             w.Write(s);
             w.Flush();
         }
@@ -434,7 +423,28 @@ namespace GT.Net
             byte[] result;
             switch (value.GetTypeCode())
             {
+            // the following encode directly on the stream
+            case TypeCode.Boolean: output.WriteByte((byte)((bool)value ? 1 : 0)); return;
             case TypeCode.Byte: output.WriteByte(value.ToByte(null)); return;
+            case TypeCode.SByte: output.WriteByte(value.ToByte(null)); return;
+            case TypeCode.Object:
+                formatter.Serialize(output, value);
+                return;
+            case TypeCode.String: {
+                long lengthPosition = output.Position;
+                output.Write(new byte[4], 0, 4);
+                StreamWriter w = new StreamWriter(output, Encoding.UTF8);
+                w.Write((string)value);
+                w.Flush();
+                long savedPosition = output.Position;
+                uint payloadLength = (uint)(output.Position - lengthPosition - 4);
+                output.Position = lengthPosition;
+                output.Write(BitConverter.GetBytes(payloadLength), 0, 4);
+                output.Position = savedPosition;
+                return;
+            }
+
+            // the following obtain byte arrays which are dumped below
             case TypeCode.Char: result = BitConverter.GetBytes(value.ToChar(null)); break;
             case TypeCode.Single: result = BitConverter.GetBytes(value.ToSingle(null)); break;
             case TypeCode.Double: result = BitConverter.GetBytes(value.ToDouble(null)); break;
@@ -444,6 +454,7 @@ namespace GT.Net
             case TypeCode.UInt16: result = BitConverter.GetBytes(value.ToUInt16(null)); break;
             case TypeCode.UInt32: result = BitConverter.GetBytes(value.ToUInt32(null)); break;
             case TypeCode.UInt64: result = BitConverter.GetBytes(value.ToUInt64(null)); break;
+            
             default: throw new MarshallingException("Unhandled form of IConvertible: " + value.GetTypeCode());
             }
             output.Write(result, 0, result.Length);
@@ -453,7 +464,8 @@ namespace GT.Net
 
         #region Unmarshalling
 
-        override protected Message UnmarshalContent(byte channel, MessageType type, Stream input, int length)
+        override protected Message UnmarshalContent(byte channel, MessageType type, 
+            Stream input, uint length)
         {
             switch (type)
             {
@@ -467,19 +479,14 @@ namespace GT.Net
             case MessageType.Tuple2D:
             case MessageType.Tuple3D:
                 return UnmarshalTuple(channel, type, input);
-            case MessageType.Session:
-                return UnmarshalSessionAction(channel, type, input, length);
-            case MessageType.System:
-                return UnmarshalSystemMessage(channel, type, input, length);
-
             default:
-                throw new InvalidOperationException("unknown message type: " + type);
+                return base.UnmarshalContent(channel, type, input, length);
             }
         }
 
         protected StringMessage UnmarshalString(byte channel, MessageType type, Stream input)
         {
-            StreamReader sr = new StreamReader(input, System.Text.UTF8Encoding.UTF8);
+            StreamReader sr = new StreamReader(input, Encoding.UTF8);
             return new StringMessage(channel, sr.ReadToEnd());
         }
 
@@ -517,6 +524,8 @@ namespace GT.Net
             TypeCode tc = (TypeCode)input.ReadByte();
             switch (tc)
             {
+            case TypeCode.Boolean: return input.ReadByte() == 0 ? false : true;
+            case TypeCode.SByte: return (sbyte)input.ReadByte();
             case TypeCode.Byte: return input.ReadByte();
             case TypeCode.Char: return BitConverter.ToChar(ReadBytes(input, 2), 0);
             case TypeCode.Single: return BitConverter.ToSingle(ReadBytes(input, 4), 0);
@@ -527,6 +536,12 @@ namespace GT.Net
             case TypeCode.UInt16: return BitConverter.ToUInt16(ReadBytes(input, 2), 0);
             case TypeCode.UInt32: return BitConverter.ToUInt32(ReadBytes(input, 4), 0);
             case TypeCode.UInt64: return BitConverter.ToUInt64(ReadBytes(input, 8), 0);
+            case TypeCode.Object: return (IConvertible)formatter.Deserialize(input);
+            case TypeCode.String: {
+                uint length = BitConverter.ToUInt32(ReadBytes(input, 4), 0);
+                StreamReader sr = new StreamReader(new WrappedStream(input, length), Encoding.UTF8);
+                return sr.ReadToEnd();
+            }
             default: throw new MarshallingException("Unknown IConvertible type: " + tc);
             }
         }
