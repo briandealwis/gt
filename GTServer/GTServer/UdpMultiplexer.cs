@@ -148,7 +148,7 @@ namespace GT.Net
                         log.Trace(String.Format("{0}: found handler: {1}", this, h));
                     }
                 }
-                h.Invoke(remote, new TransportPacket(buffer));
+                h.Invoke(remote, TransportPacket.On(buffer));
             }
         }
 
