@@ -11,18 +11,33 @@ namespace GT.Net
     /// Represents a byte-array with appropriately marshalled content ready to send
     /// across a particular transport.
     /// The purpse of this class is to provide efficient use of byte arrays.
-    /// Unless noted in the comments, any byte arrays or portions added to
-    /// a transport packet are assumed to belong to this packet instance
-    /// <em>and should not be used elsewhere</em>!  These byte arrays are
-    /// added a direct reference, and any changes made to byte array
-    /// will be reflected in this packet's contents; any change made to this
-    /// packet will also be reflected in the byte array's contents.
     /// Transport packets, once finished with, must be explicitly disposed of 
     /// using <see cref="Dispose"/> to deal with cleaning up any possibly 
     /// shared memory.
     /// </summary>
     public class TransportPacket : IList<ArraySegment<byte>>, IDisposable
     {
+        /// <summary>
+        /// Create a transport packet that uses <see cref="byteArrays"/>
+        /// as its backing store.  This approach should be compared to
+        /// the various constructors that copy the contents onto newly 
+        /// allocated memory (via a pool), increasing the chance that 
+        /// the byteArrays will be made contiguous (assuming byteArrays.Length > 1); 
+        /// contiguous memory may be advantageous for sending across 
+        /// some transports.
+        /// </summary>
+        /// <param name="byteArrays">the byte arrays to use as the backing store</param>
+        /// <returns>the packet</returns>
+        public static TransportPacket On(params byte[][] byteArrays)
+        {
+            TransportPacket packet = new TransportPacket();
+            foreach (byte[] byteArray in byteArrays)
+            {
+                packet.AddSegment(new ArraySegment<byte>(byteArray));
+            }
+            return packet;
+        }
+
         /// <summary>
         /// Create a new marshalled packet as a subset of another packet <see cref="source"/>
         /// Note: this method uses a *copy* of the appropriate portion of <see cref="source"/>.
@@ -32,10 +47,14 @@ namespace GT.Net
         /// <param name="count">the number of bytes of the subset to include</param>
         public static TransportPacket CopyOf(TransportPacket source, int offset, int count)
         {
-            // FIXME: should allocate this from a pool
+            if (count <= MaxSegmentSize) {
+                ArraySegment<byte> segment = AllocateSegment((uint)count);
+                source.CopyTo(offset, segment.Array, segment.Offset, count);
+                return new TransportPacket(segment);
+            }
             byte[] newContents = new byte[count];
             source.CopyTo(offset, newContents, 0, count);
-            return new TransportPacket(newContents, 0, count);
+            return On(newContents);
         }
 
         /// <summary>
@@ -82,13 +101,14 @@ namespace GT.Net
 
 
         /// <summary>
-        /// Create an instance with the capacity for <see cref="expectedSize"/> bytes.
+        /// Create an instance with <see cref="initialSize"/> bytes.
+        /// These bytes are uninitialized.
         /// </summary>
-        /// <param name="expectedSize">the expected number of bytes</param>
-        public TransportPacket(uint expectedSize)
+        /// <param name="initialSize">the initial size</param>
+        public TransportPacket(uint initialSize)
         {
             list = new List<ArraySegment<byte>>(1);
-            if (expectedSize > 0) { Grow((int)expectedSize); }
+            if (initialSize > 0) { Grow((int)initialSize); }
         }
 
         /// <summary>
@@ -96,7 +116,19 @@ namespace GT.Net
         /// </summary>
         /// <param name="segment"></param>
         public TransportPacket(ArraySegment<byte> segment)
-            : this(segment.Array, segment.Offset, segment.Count) {}
+        {
+            list = new List<ArraySegment<byte>>(1);
+            if(IsManagedSegment(segment))
+            {
+                AddSegment(segment);
+            }
+            else
+            {
+                Grow(segment.Count);
+                Replace(0, segment.Array, segment.Offset, segment.Count);
+            }
+        }
+
 
         /// <summary>
         /// Create a new transport packet from the provided byte array.
@@ -112,18 +144,32 @@ namespace GT.Net
         }
 
         /// <summary>
-        /// Create a new transport packet from the provided byte array.
-        /// </summary>
-        /// <param name="bytes"></param>
-        public TransportPacket(byte[] bytes)
-            : this(bytes, 0, bytes.Length) { }
-
-        /// <summary>
         /// Create a new transport packet from the provided stream contents.
         /// </summary>
         /// <param name="ms"></param>
         public TransportPacket(MemoryStream ms)
             : this(ms.GetBuffer(), 0, (int)ms.Length) { }
+
+        /// <summary>
+        /// Add the contents of the provided byte arrays.
+        /// </summary>
+        /// <param name="byteArrays">the set of byte arrays</param>
+        public TransportPacket(params byte[][] byteArrays)
+            : this()
+        {
+            int size = 0;
+            foreach (byte[] byteArray in byteArrays)
+            {
+                size += byteArray.Length;
+            }
+            Grow(size);
+            int offset = 0;
+            foreach (byte[] byteArray in byteArrays)
+            {
+                Replace(offset, byteArray, 0, byteArray.Length);
+                offset += byteArray.Length;
+            }
+        }
 
         /// <summary>
         /// Return the number of bytes in this packet.
@@ -148,24 +194,23 @@ namespace GT.Net
             TransportPacket subset = new TransportPacket();
             int subsetEnd = subsetStart + count - 1;    // index of last byte of interest
             int segmentStart = 0; // index of first byte of current <segment>
-            foreach(ArraySegment<byte> segment in list)
+            foreach (ArraySegment<byte> segment in list)
             {
                 int segmentEnd = segmentStart + segment.Count - 1; // index of last byte
-                
+
                 // This segment is of interest if 
                 // listStart <= segmentEnd && listEnd >= segmentStart
                 // IF: segmentEnd < subsetStart then we're too early
                 // IF: subsetEnd < segmentStart then we've gone past
                 if (segmentEnd >= subsetStart)
                 {
-
                     // if this segment appears after the area of interest then we're finished:
                     // none of the remaining segments can possibly be in our AOI
-                    if(segmentStart > subsetEnd)
+                    if (segmentStart > subsetEnd)
                     {
                         break;
                     }
-                    if(subsetStart <= segmentStart && segmentEnd <= subsetEnd)
+                    if (subsetStart <= segmentStart && segmentEnd <= subsetEnd)
                     {
                         subset.AddSegment(segment);  // not subset's responsibility
                     }
@@ -224,7 +269,6 @@ namespace GT.Net
         public void Prepend(byte[] source, int offset, int count)
         {
             // FIXME: could check if there was space on list[0]?
-
             while (count > 0)
             {
                 int segSize = Math.Min(count, (int)_maxSegmentSize);
@@ -360,7 +404,7 @@ namespace GT.Net
                 if (sourceStart <= segmentEnd)
                 {
                     int copyOffset = Math.Max(segmentStart, sourceStart) - segmentStart;
-                    int copyLen = Math.Min(segmentEnd, sourceEnd) - 
+                    int copyLen = Math.Min(segmentEnd, sourceEnd) -
                         Math.Max(segmentStart, sourceStart) + 1;
                     Array.Copy(segment.Array, segment.Offset + copyOffset, destination,
                         destIndex, copyLen);
@@ -414,14 +458,14 @@ namespace GT.Net
         /// the remaining bytes</param>
         /// <returns>an instance containing the remaining bytes from 
         /// <see cref="splitPosition"/> onwards</returns>
-        public TransportPacket SplitAt(int splitPosition) 
+        public TransportPacket SplitAt(int splitPosition)
         {
             if (splitPosition >= length) { throw new ArgumentOutOfRangeException("splitPosition"); }
-            
+
             int segmentOffset = 0;
             int segmentIndex = 0;
             // skip over those segments that remain in this instance
-            while(segmentIndex < list.Count && segmentOffset + list[segmentIndex].Count - 1 < splitPosition)
+            while (segmentIndex < list.Count && segmentOffset + list[segmentIndex].Count - 1 < splitPosition)
             {
                 segmentOffset += list[segmentIndex++].Count;
             }
@@ -440,7 +484,7 @@ namespace GT.Net
             }
 
             // Copy the remaining segments to remainder
-            for(int i = segmentIndex; i < list.Count; i++)
+            for (int i = segmentIndex; i < list.Count; i++)
             {
                 remainder.AddSegment(list[i]);
                 DeallocateSegment(list[i]);
@@ -558,8 +602,6 @@ namespace GT.Net
                 {
                     // We need to remove an interior part of this segment; we instead
                     // trim this segment, and add a new segment for the remainder
-                    // FIXME: this could be problematic... we'll have a double-reference
-                    // to the same array
                     list[index] = new ArraySegment<byte>(segment.Array, segment.Offset,
                         offset - segmentStart);
                     IncrementRefCount(segment);
@@ -653,14 +695,14 @@ namespace GT.Net
         public void Grow(int newLength)
         {
             int need = newLength - length;
-            if(list.Count > 0)
+            if (list.Count > 0)
             {
                 ArraySegment<byte> last = list[list.Count - 1];
                 lock (last.Array)
                 {
                     // we can only resize this segment if we're the only ones using the segment
                     int available = last.Array.Length - last.Offset - last.Count;
-                    if(GetRefCount(last) == 1 && available > 0)
+                    if (GetRefCount(last) == 1 && available > 0)
                     {
                         int taken = Math.Min(need, available);
                         list[list.Count - 1] = new ArraySegment<byte>(last.Array, last.Offset,
@@ -699,7 +741,7 @@ namespace GT.Net
             return new WriteStream(this);
         }
 
-        #region Segment Allocation and Deallocation
+        #region Managed Segment Allocation and Deallocation
         // These methods act as a sort of malloc-like system.
 
         private static uint _minSegmentSize = 1024;
@@ -714,13 +756,17 @@ namespace GT.Net
             get { return _minSegmentSize; }
             set
             {
-                if (!BitUtils.IsPowerOf2(value))
-                {
-                    throw new ArgumentException();
-                }
                 if (memoryPools != null)
                 {
                     throw new InvalidOperationException("cannot be set when pools are in use");
+                }
+                if (!BitUtils.IsPowerOf2(value))
+                {
+                    throw new ArgumentException("must be a power of 2");
+                }
+                if (value > _maxSegmentSize)
+                {
+                    throw new ArgumentException("cannot be greater than MaxSegmentSize");
                 }
                 _minSegmentSize = value;
             }
@@ -735,13 +781,17 @@ namespace GT.Net
             get { return _maxSegmentSize; }
             set
             {
-                if (!BitUtils.IsPowerOf2(value))
-                {
-                    throw new ArgumentException();
-                }
                 if (memoryPools != null)
                 {
                     throw new InvalidOperationException("cannot be set when pools are in use");
+                }
+                if (!BitUtils.IsPowerOf2(value))
+                {
+                    throw new ArgumentException("must be a power of 2");
+                }
+                if (value < _minSegmentSize)
+                {
+                    throw new ArgumentException("cannot be greater than MinSegmentSize");
                 }
                 _maxSegmentSize = value;
             }
@@ -772,7 +822,7 @@ namespace GT.Net
         /// <returns>a suitable byte segment</returns>
         /// <exception cref="ArgumentOutOfRangeException">thrown when requesting an
         ///     invalid length</exception>
-        protected static ArraySegment<byte> AllocateSegment(uint minimumLength) 
+        protected static ArraySegment<byte> AllocateSegment(uint minimumLength)
         {
             if (memoryPools == null) { InitMemoryPools(); }
             if (minimumLength == 0 || minimumLength > _maxSegmentSize)
@@ -795,9 +845,9 @@ namespace GT.Net
         /// <param name="segment">the referenced segment</param>
         protected static void IncrementRefCount(ArraySegment<byte> segment)
         {
+            if (!IsManagedSegment(segment)) { return; }
             lock (segment.Array)
             {
-                Debug.Assert(IsValidSegment(segment));
                 segment.Array[RefCountLocation]++;
             }
         }
@@ -806,22 +856,22 @@ namespace GT.Net
         {
             lock (segment.Array)
             {
-                Debug.Assert(IsValidSegment(segment));
+                Debug.Assert(IsManagedSegment(segment));
                 return segment.Array[RefCountLocation];
             }
         }
 
         protected static void DeallocateSegment(ArraySegment<byte> segment)
         {
+            if (!IsManagedSegment(segment)) { return; }
             Debug.Assert(BitUtils.IsPowerOf2((uint)segment.Array.Length - HeaderSize));
             lock (segment.Array)
             {
-                Debug.Assert(IsValidSegment(segment));
                 if (segment.Array[RefCountLocation] > 0)
                 {
                     segment.Array[RefCountLocation]--;
                 }
-                if(segment.Array[RefCountLocation] > 0)
+                if (segment.Array[RefCountLocation] > 0)
                 {
                     return;
                 }
@@ -837,15 +887,16 @@ namespace GT.Net
         /// </summary>
         /// <param name="segment">the segment</param>
         /// <returns>true if the segment is a valid packet segment</returns>
-        public static bool IsValidSegment(ArraySegment<byte> segment)
+        public static bool IsManagedSegment(ArraySegment<byte> segment)
         {
             if (segment.Offset < HeaderSize) { return false; }
-            for (int i = 0; i < segmentHeader.Length; i++) {
+            for (int i = 0; i < segmentHeader.Length; i++)
+            {
                 if (segment.Array[i] != segmentHeader[i]) { return false; }
             }
             return true;
         }
-        
+
         private static void InitMemoryPools()
         {
             // Number of bits required (ceil(lg(n)) = # highest bit + 1
@@ -883,16 +934,16 @@ namespace GT.Net
             return BitUtils.HighestBitSet((Math.Min(segLength, _maxSegmentSize) - 1) / _minSegmentSize) + 1;
         }
 
+#if DEBUG
         /// <summary>
         /// This is public for testing purposes only.
         /// </summary>
-        /// <param name="seg"></param>
+        /// <param name="segLength"></param>
         public static int TestingPoolIndex(uint segLength)
         {
             return PoolIndex(segLength);
         }
 
-#if DEBUG
         /// <summary>
         /// This is public for testing purposes only.
         /// </summary>
@@ -1072,12 +1123,10 @@ namespace GT.Net
             protected readonly TransportPacket packet;
             protected ArraySegment<byte> interim = default(ArraySegment<byte>);
             protected int position = 0;
-            protected int newLength = 0;
 
             protected internal WriteStream(TransportPacket p)
             {
                 packet = p;
-                newLength = p.Length;
             }
 
             public override bool CanRead { get { return false; } }
@@ -1088,12 +1137,7 @@ namespace GT.Net
 
             public override void Flush()
             {
-                if (interim.Array != null)
-                {
-                    packet.AddSegment(interim);
-                    interim = default(ArraySegment<byte>);
-                    newLength = packet.Length;
-                }
+                // nothing to do
             }
 
             public override long Seek(long offset, SeekOrigin origin)
@@ -1116,20 +1160,14 @@ namespace GT.Net
 
             public override void SetLength(long value)
             {
-                if (value >= newLength) { return; }
                 if (value > packet.Length)
                 {
-                    // if value < newLength but value > packet.Length then we have an 
-                    // interim buffer, so we simply trim the endpointer into the interim 
-                    // buffer appropriately.
-                    newLength = (int)value;
+                    packet.Grow((int)value);
                 }
                 else
                 {
                     // The new value requires trimming the packet.
-                    interim = default(ArraySegment<byte>); // Toss the interim buffer (if any)
                     packet.RemoveBytes((int)value, packet.Length - (int)value);
-                    newLength = (int)value;
                 }
             }
 
@@ -1137,69 +1175,27 @@ namespace GT.Net
             {
                 // Read out whatever we can from the packet itself, then whatever we need 
                 // to our interim buffer
-                int total = 0;
-                if (position < packet.Length)
-                {
-                    int numBytes = Math.Min(count, packet.Length - position);
-                    packet.CopyTo(position, buffer, offset, numBytes);
-                    position += numBytes;
-                    offset += numBytes;
-                    count -= numBytes;
-                    total += numBytes;
-                    Debug.Assert(count == 0 || position == packet.Length);
-                }
-                if (count > 0 && position < newLength)
-                {
-                    Debug.Assert(position >= packet.Length);
-                    // translate position into the interim buffer
-                    int interimIndex = position - packet.Length;
-                    int numBytes = Math.Min(interim.Count - interimIndex, count);
-                    Array.Copy(interim.Array, interimIndex, buffer, offset, numBytes);
-                    position += numBytes;
-                    offset += numBytes;
-                    count -= numBytes;
-                    total += numBytes;
-                }
-                return total;
+                int numBytes = Math.Min(count, packet.Length - position);
+                packet.CopyTo(position, buffer, offset, numBytes);
+                position += numBytes;
+                count -= numBytes;
+                Debug.Assert(count == 0 || position == packet.Length);
+                return numBytes;
             }
 
             public override void Write(byte[] buffer, int offset, int count)
             {
                 // Write out whatever we can to the packet, then whatever we need 
                 // to our interim buffer
-                if (position < packet.Length)
+                if (position + count > packet.Length)
                 {
-                    int numBytes = Math.Min(count, packet.Length - position);
-                    packet.Replace(position, buffer, offset, numBytes);
-                    position += numBytes;
-                    offset += numBytes;
-                    count -= numBytes;
-                    Debug.Assert(count == 0 || position == packet.Length);
+                    packet.Grow(position + count);
                 }
-                while (count > 0)
-                {
-                    Debug.Assert(position >= packet.Length);
-                    if (interim.Array == null)
-                    {
-                        // FIXME: should allocate from a pool
-                        interim = AllocateSegment(Math.Min(_maxSegmentSize, (uint)count));
-                        Debug.Assert(position == packet.Length);
-                    }
-                    // translate position into the interim buffer
-                    int interimIndex = position - packet.Length;
-                    int numBytes = Math.Min(interim.Count - interimIndex, count);
-                    Array.Copy(buffer, offset, interim.Array, interim.Offset + interimIndex, numBytes);
-                    position += numBytes;
-                    interimIndex += numBytes;
-                    offset += numBytes;
-                    count -= numBytes;
-                    newLength = Math.Max(newLength, position);
-                    // if we've reached the end of this interim buffer, then flush it
-                    if (interimIndex == interim.Count) { Flush(); }
-                }
+                packet.Replace(position, buffer, offset, count);
+                position += count;
             }
 
-            public override long Length { get { return newLength; } }
+            public override long Length { get { return packet.Length; } }
 
             public override long Position
             {
@@ -1208,5 +1204,4 @@ namespace GT.Net
             }
         }
     }
-
 }
