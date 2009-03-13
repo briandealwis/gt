@@ -29,8 +29,8 @@ namespace GT.UnitTests
         public void TearDown()
         {
             TransportPacket.TestingDiscardPools();
-            TransportPacket.MinSegmentSize = _OriginalMinSegSize;
             TransportPacket.MaxSegmentSize = _OriginalMaxSegSize;
+            TransportPacket.MinSegmentSize = _OriginalMinSegSize;
         }
 
         private void CheckForUndisposedSegments()
