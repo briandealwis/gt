@@ -382,10 +382,10 @@ namespace GT.UnitTests
             {
                 Assert.AreEqual(source[sourceStart + (i % sourceCount)], packet.ToArray()[0]);
                 Assert.AreEqual(source[sourceStart + (i % sourceCount)], s.ReadByte());
-                Assert.AreEqual(packetLength - i - 1, s.Length);
+                Assert.AreEqual(packetLength - i - 1, s.Length - s.Position);
                 Assert.AreEqual(packetLength - i - 1, packet.Length);
             }
-            Assert.AreEqual(0, s.Length);
+            Assert.AreEqual(s.Length, s.Position);
             CheckDisposed(packet);
             CheckForUndisposedSegments();
         }

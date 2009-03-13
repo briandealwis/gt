@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
+using System.Text;
 using System.Threading;
 using GT.Utils;
 
@@ -717,6 +718,21 @@ namespace GT.Net
             }
         }
 
+        public override string ToString()
+        {
+            StringBuilder result = new StringBuilder();
+            result.Append(length);
+            result.Append(" bytes; ");
+            result.Append(list.Count);
+            result.Append(" segments (");
+            uint managed = 0;
+            foreach (ArraySegment<byte> seg in list) { if(IsManagedSegment(seg)) { managed++; } }
+            result.Append(managed);
+            result.Append(" managed): ");
+            result.Append(ByteUtils.HexDump(ToArray(0, Math.Min(length, 128))));
+            return result.ToString();
+        }
+
         /// <summary>
         /// Open a *destructive* stream for reading from the contents of this
         /// packet.  This stream is destructive as the content retrieved
@@ -797,6 +813,12 @@ namespace GT.Net
             }
         }
 
+        /// <summary>
+        /// Although the memoryPools, once allocated, can be accessed in a thread-safe
+        /// manner, there is a possibility of a race condition until they are initialized.
+        /// This object is used to synchronize the initialization
+        /// </summary>
+        protected static object staticLockObject = new object();
         protected static Pool<byte[]>[] memoryPools;
 
         /// <summary>
@@ -899,15 +921,19 @@ namespace GT.Net
 
         private static void InitMemoryPools()
         {
-            // Number of bits required (ceil(lg(n)) = # highest bit + 1
-            int numSegs = 1 + PoolIndex(_maxSegmentSize);
-            memoryPools = new Pool<byte[]>[numSegs];
-            for (int i = 0; i < numSegs; i++)
+            lock (staticLockObject)
             {
-                // Needed to push this to a new function to ensure the
-                // Pool's lambda's had the right variable in scope.
-                // Weirdness.
-                memoryPools[i] = CreatePool((1u << i) * _minSegmentSize);
+                if(memoryPools != null) { return; }
+                // Number of bits required (ceil(lg(n)) = # highest bit + 1
+                int numSegs = 1 + PoolIndex(_maxSegmentSize);
+                memoryPools = new Pool<byte[]>[numSegs];
+                for(int i = 0; i < numSegs; i++)
+                {
+                    // Needed to push this to a new function to ensure the
+                    // Pool's lambda's had the right variable in scope.
+                    // Weirdness.
+                    memoryPools[i] = CreatePool((1u << i) * _minSegmentSize);
+                }
             }
         }
 
@@ -1040,10 +1066,13 @@ namespace GT.Net
         protected class ReadStream : Stream
         {
             protected readonly TransportPacket packet;
+            protected int position = 0;
+            protected int originalLength;
 
             protected internal ReadStream(TransportPacket p)
             {
                 packet = p;
+                originalLength = p.Length;
             }
 
             public override bool CanRead { get { return true; } }
@@ -1078,7 +1107,7 @@ namespace GT.Net
 
             public override void SetLength(long value)
             {
-                packet.RemoveBytes((int)value, packet.Length - (int)value);
+                // packet.RemoveBytes((int)value, packet.Length - (int)value);
                 throw new NotImplementedException();
             }
 
@@ -1092,6 +1121,7 @@ namespace GT.Net
                 count = Math.Min(count, packet.Length);
                 packet.CopyTo(0, buffer, offset, count);
                 packet.RemoveBytes(0, count);
+                position += count;
                 return count;
             }
 
@@ -1100,11 +1130,11 @@ namespace GT.Net
                 throw new NotImplementedException();
             }
 
-            public override long Length { get { return packet.Length; } }
+            public override long Length { get { return originalLength; } }
 
             public override long Position
             {
-                get { return 0; }
+                get { return position; }
                 set { Seek(value, SeekOrigin.Current); }
             }
 
