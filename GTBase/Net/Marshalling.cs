@@ -68,7 +68,12 @@ namespace GT.Net
         public IList<TransportPacket> Packets { get { return packets; } }
         public IList<TransportPacket> ProcessedPackets { get { return removed; } }
 
-        public bool HasPackets { get { return Packets.Count > 0; } }
+        public bool HasPackets { get { return packets.Count > 0; } }
+
+        public void AddPacket(TransportPacket packet)
+        {
+            packets.Add(packet);
+        }
 
         public TransportPacket RemovePacket()
         {
@@ -77,11 +82,6 @@ namespace GT.Net
             packets.RemoveAt(0);
             removed.Add(p);
             return p;
-        }
-
-        public void AddPacket(TransportPacket packet)
-        {
-            packets.Add(packet);
         }
 
         public void SetDisposeCallback(Action<MarshalledResult> callback)
@@ -101,6 +101,8 @@ namespace GT.Net
             {
                 disposeCallback(this);
             }
+            foreach (TransportPacket tp in packets) { tp.Dispose(); }
+            foreach (TransportPacket tp in removed) { tp.Dispose(); }
         }
     }
 
