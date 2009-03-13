@@ -93,18 +93,15 @@ namespace GT.Net
         public virtual void Stop()
         {
             // Should we call ConnexionRemoved on stop?
-            if(connexions != null) 
+            foreach(IConnexion cnx in connexions)
             {
-                foreach(IConnexion cnx in connexions)
+                try { cnx.ShutDown(); }
+                catch (Exception e)
                 {
-                    try { cnx.ShutDown(); }
-                    catch (Exception e)
-                    {
-                        log.Info("exception thrown when shutting down " + cnx, e);
-                    }
+                    log.Info("exception thrown when shutting down " + cnx, e);
                 }
-                connexions = null;
             }
+            connexions.Clear();
         }
 
         /// <summary>
