@@ -122,7 +122,6 @@ namespace GT.GMC
 
         public MarshalledResult Marshal(int senderIdentity, Message message, ITransportDeliveryCharacteristics tdc)
         {
-            MemoryStream bytes = new MemoryStream();
             // FIXME: should pass in a transport-wrapper that reduces the 
             // max packet size by N bytes
             MarshalledResult mr = subMarshaller.Marshal(senderIdentity, message, tdc);
@@ -131,23 +130,28 @@ namespace GT.GMC
             {
                 TransportPacket packet = mr.RemovePacket();
                 byte[] encoded = Encode(packet.ToArray());
-                TransportPacket newPacket = new TransportPacket(3);
-                newPacket.Add(BitConverter.GetBytes(senderIdentity));
-                newPacket.Add(ByteUtils.EncodeLength(encoded.Length));
-                newPacket.Add(encoded);
+                // FIXME: this is a bit awkward: if encoded is small, then
+                // we're likely better off copying these into a contiguous
+                // block of memory.  But if big, then we're probably better
+                // off using these byte arrays as the backing store.
+                TransportPacket newPacket = new TransportPacket(
+                    BitConverter.GetBytes(senderIdentity),
+                    ByteUtils.EncodeLength(encoded.Length),
+                    encoded);
                 result.AddPacket(newPacket);
             }
+            mr.Dispose();
             return result;
         }
 
         public void Unmarshal(TransportPacket packet, ITransportDeliveryCharacteristics tdc, EventHandler<MessageEventArgs> messageAvailable)
         {
-            Debug.Assert(messageAvailable != null, "callers must provide a messageAvailale handler");
+            Debug.Assert(messageAvailable != null, "callers must provide a messageAvailable handler");
             Stream input = packet.AsReadStream();
             int encoderId = BitConverter.ToInt32(ByteUtils.Read(input, 4), 0);
             int length = ByteUtils.DecodeLength(input);
             byte[] decoded = Decode(encoderId, ByteUtils.Read(input, length));
-            TransportPacket subPacket = new TransportPacket(decoded);
+            TransportPacket subPacket = TransportPacket.On(decoded);
             input.Close();
             subMarshaller.Unmarshal(subPacket, tdc,
                 (sender, mea) => messageAvailable(this, mea));
