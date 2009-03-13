@@ -231,16 +231,18 @@ namespace GT.UnitTests
 
         virtual public void Stop()
         {
+            running = false;
             foreach (Thread t in threads)
             {
                 t.Abort();
             }
-
+            threads.Clear();
+            client.Stop();
         }
 
         virtual public void Dispose()
         {
-            client.Stop();
+            Stop();
         }
 
         private void client_StartThread(object obj)
@@ -271,6 +273,7 @@ namespace GT.UnitTests
                 }
             }
             catch (ThreadAbortException) { }
+
         }
 
         private void client_ReceivedBinaryMessage(IBinaryStream stream)
