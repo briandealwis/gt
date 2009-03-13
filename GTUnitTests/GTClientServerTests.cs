@@ -748,7 +748,7 @@ namespace GT.UnitTests
             {
                 Debug("Client: sending greeting: " + EXPECTED_GREETING);
                 IStringStream strStream = client.GetStringStream("127.0.0.1", "9999", 0,
-                    new TestChannelDeliveryRequirements(typeof(BaseUdpTransport))); //connect here
+                    new TestChannelDeliveryRequirements(typeof(LocalTransport))); //connect here
                 strStream.MessagesReceived += ClientStringMessageReceivedEvent;
                 Assert.IsTrue(connexionAdded, "should have connected");
 
