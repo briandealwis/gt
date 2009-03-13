@@ -206,7 +206,7 @@ namespace GT.Net
                         {
                             // we keep reading until we have an encoded length
                             byte[] newData = new byte[data.Length + 1];
-                            Array.Copy(data, newData, data.Length);
+                            Buffer.BlockCopy(data, 0, newData, 0, data.Length);
                             data = newData;
                             // and get that next byte!
                         }

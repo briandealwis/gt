@@ -274,7 +274,7 @@ namespace GT.Net
             {
                 int segSize = Math.Min(count, (int)_maxSegmentSize);
                 ArraySegment<byte> segment = AllocateSegment((uint)segSize);
-                Array.Copy(source, offset + count - segSize, segment.Array, segment.Offset, segSize);
+                Buffer.BlockCopy(source, offset + count - segSize, segment.Array, segment.Offset, segSize);
                 PrependSegment(segment);
                 count -= segSize;
             }
@@ -407,7 +407,7 @@ namespace GT.Net
                     int copyOffset = Math.Max(segmentStart, sourceStart) - segmentStart;
                     int copyLen = Math.Min(segmentEnd, sourceEnd) -
                         Math.Max(segmentStart, sourceStart) + 1;
-                    Array.Copy(segment.Array, segment.Offset + copyOffset, destination,
+                    Buffer.BlockCopy(segment.Array, segment.Offset + copyOffset, destination,
                         destIndex, copyLen);
                     destIndex += copyLen;
                     count -= copyLen;
@@ -428,7 +428,7 @@ namespace GT.Net
             int offset = 0;
             foreach (ArraySegment<byte> segment in list)
             {
-                Array.Copy(segment.Array, segment.Offset, result, offset, segment.Count);
+                Buffer.BlockCopy(segment.Array, segment.Offset, result, offset, segment.Count);
                 offset += segment.Count;
             }
             return result;
@@ -540,7 +540,7 @@ namespace GT.Net
                     int copyOffset = Math.Max(segmentStart, sourceStart) - segmentStart;
                     int copyLen = Math.Min(segmentEnd, sourceEnd) -
                         Math.Max(segmentStart, sourceStart) + 1;
-                    Array.Copy(buffer, bufferStart, segment.Array, segment.Offset + copyOffset, copyLen);
+                    Buffer.BlockCopy(buffer, bufferStart, segment.Array, segment.Offset + copyOffset, copyLen);
                     bufferStart += copyLen;
                     count -= copyLen;
                     Debug.Assert(count >= 0);
@@ -854,7 +854,7 @@ namespace GT.Net
             byte[] allocd = memoryPools[PoolIndex(minimumLength)].Obtain();
             Debug.Assert(allocd.Length - HeaderSize >= minimumLength);
             // Copy over the segment header to indicate that it is a valid segment
-            Array.Copy(segmentHeader, 0, allocd, 0, segmentHeader.Length);
+            Buffer.BlockCopy(segmentHeader, 0, allocd, 0, segmentHeader.Length);
             // A new segment's ref count is 0; will be incremented when referenced
             // such as by TransportPacket.AddSegment()
             allocd[RefCountLocation] = 0;

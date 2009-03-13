@@ -471,7 +471,7 @@ namespace GT.UnitTests
             byte[] bytes = new byte[256];
             for (int i = 0; i < bytes.Length; i++) { bytes[i] = (byte)(i % 256); }
             byte[] reversed = new byte[bytes.Length];
-            Array.Copy(bytes, reversed, bytes.Length);
+            Buffer.BlockCopy(bytes, 0, reversed, 0, bytes.Length);
             Array.Reverse(reversed);
 
             TransportPacket tp = new TransportPacket();

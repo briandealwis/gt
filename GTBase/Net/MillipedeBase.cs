@@ -928,7 +928,7 @@ namespace GT.Millipede
             else
             {
                 Message = new byte[count];
-                Array.Copy(message, offset, Message, 0, count);
+                Buffer.BlockCopy(message, offset, Message, 0, count);
             }
         }
 
