@@ -199,7 +199,7 @@ namespace GT.Net
                     if (incomingInProgress == null)
                     {
                         //restart the counters to listen for a new packet.
-                        incomingInProgress = new TransportPacket(4);
+                        incomingInProgress = new TransportPacket(PacketHeaderSize);
                         incomingReadingHeader = true;
                         incomingOffset = 0;
                         incomingRemaining = PacketHeaderSize;
