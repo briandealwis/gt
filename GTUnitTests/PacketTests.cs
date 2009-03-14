@@ -609,6 +609,49 @@ namespace GT.UnitTests
             CheckForUndisposedSegments();
         }
 
-
+        [Test]
+        public void TestDisposal()
+        {
+            TransportPacket packet = new TransportPacket(10);
+            packet.Dispose();
+            try
+            {
+                packet.Grow(20);
+                Assert.Fail("should have thrown ObjectDisposedException");
+            } catch(ObjectDisposedException) { /* expected */ }
+            try
+            {
+                packet.RemoveBytes(0,2);
+                Assert.Fail("should have thrown ObjectDisposedException");
+            } catch(ObjectDisposedException) { /* expected */ }
+            try
+            {
+                packet.ByteAt(0);
+                Assert.Fail("should have thrown ObjectDisposedException");
+            } catch(ObjectDisposedException) { /* expected */ }
+            try
+            {
+                packet.Consolidate();
+                Assert.Fail("should have thrown ObjectDisposedException");
+            } catch(ObjectDisposedException) { /* expected */ }
+            try
+            {
+                packet.Prepend(new byte[0]);
+                Assert.Fail("should have thrown ObjectDisposedException");
+            }
+            catch (ObjectDisposedException) { /* expected */ }
+            try
+            {
+                packet.Add(new byte[0]);
+                Assert.Fail("should have thrown ObjectDisposedException");
+            }
+            catch (ObjectDisposedException) { /* expected */ }
+            try
+            {
+                Console.WriteLine(packet.Length);
+                Assert.Fail("should have thrown ObjectDisposedException");
+            }
+            catch (ObjectDisposedException) { /* expected */ }
+        }
     }
 }
