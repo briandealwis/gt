@@ -408,6 +408,7 @@ namespace GT.Net
         public void Dispose()
         {
             Clear();
+            list = null;
         }
 
         /// <summary>
@@ -779,6 +780,7 @@ namespace GT.Net
 
         public override string ToString()
         {
+            if (list == null) { return "<<disposed>>"; }
             StringBuilder result = new StringBuilder();
             if (activeStream != null) { result.Append("stream may have changes"); }
             result.Append(length);
@@ -791,6 +793,43 @@ namespace GT.Net
             result.Append(" managed): ");
             //result.Append(ByteUtils.HexDump(ToArray(0, Math.Min(length, 128))));
             return result.ToString();
+        }
+
+        /// <summary>
+        /// Attempt to consolidate this instance to a single segment.
+        /// </summary>
+        public void Consolidate() {
+            ValidateAndSync();
+            if (list.Count <= 1) { return; }    // already consolidated
+            List<ArraySegment<byte>> newSegments = new List<ArraySegment<byte>>(1);
+            ArraySegment<byte> consolidated;
+            int offset = 0;         // how far we are through the byte of this instance
+            int segmentIndex = 0;   // segment under consideration
+            int segmentOffset = 0;  // offset into segment under consideration
+            do
+            {
+                consolidated = AllocateSegment((uint)Math.Min(MaxSegmentSize, length - offset));
+                int consolidatedOffset = 0;
+                while (segmentIndex < list.Count && consolidatedOffset < consolidated.Count)
+                {
+                    int numBytes = Math.Min(list[segmentIndex].Count - segmentOffset,
+                        consolidated.Count - consolidatedOffset);
+                    Buffer.BlockCopy(list[segmentIndex].Array, list[segmentIndex].Offset + segmentOffset, 
+                        consolidated.Array, consolidated.Offset + consolidatedOffset, numBytes);
+                    offset += numBytes;
+                    consolidatedOffset += numBytes;
+                    segmentOffset += numBytes;
+                    if (segmentOffset == list[segmentIndex].Count)
+                    {
+                        segmentIndex++;
+                        segmentOffset = 0;
+                    }
+                }
+                newSegments.Add(consolidated);
+            } while(offset < length);
+
+            Clear();    // release all current segments and then add their replacements
+            foreach (ArraySegment<byte> seg in newSegments) { AddSegment(seg); }
         }
 
         /// <summary>

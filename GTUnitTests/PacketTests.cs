@@ -591,5 +591,24 @@ namespace GT.UnitTests
             CheckForUndisposedSegments();
         }
 
+        [Test]
+        public void TestConsolidate()
+        {
+            // Ensure result wilbe distributed across multiple packets
+            TransportPacket.ReservedInitialBytes = 0;
+
+            TransportPacket packet = new TransportPacket(new byte[] { 9 });
+            packet.Prepend(new byte[] { 4, 5, 6, 7, 8 });
+            packet.Prepend(new byte[] { 0, 1, 2, 3 });
+            Assert.IsTrue(((IList<ArraySegment<byte>>)packet).Count > 1);
+
+            packet.Consolidate();
+            Assert.AreEqual(1, ((IList<ArraySegment<byte>>)packet).Count);
+            Assert.AreEqual(new byte[] { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9 }, packet.ToArray());
+            CheckDisposed(packet);
+            CheckForUndisposedSegments();
+        }
+
+
     }
 }
