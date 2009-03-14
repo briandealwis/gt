@@ -384,16 +384,49 @@ namespace GT.UnitTests
             Assert.AreEqual(3 * sourceCount, packetLength);
             for (int i = 0; i < packetLength; i++)
             {
-                Assert.AreEqual(source[sourceStart + (i % sourceCount)], packet.ToArray()[0]);
                 Assert.AreEqual(source[sourceStart + (i % sourceCount)], s.ReadByte());
                 Assert.AreEqual(packetLength - i - 1, s.Length - s.Position);
-                Assert.AreEqual(packetLength - i - 1, packet.Length);
             }
             Assert.AreEqual(s.Length, s.Position);
             CheckDisposed(packet);
             CheckForUndisposedSegments();
         }
 
+        [Test]
+        public void TestStreams()
+        {
+            byte[] source = new byte[] { 0, 1, 2, 3, 4, 5, 6, 7 };
+            TransportPacket packet = new TransportPacket(source);
+            Stream rs = packet.AsReadStream();
+            Assert.AreEqual(source[0], rs.ReadByte());
+            Assert.AreEqual(source[1], rs.ReadByte());
+            Assert.AreEqual(source.Length - 2, rs.Length - rs.Position);
+            Assert.AreEqual(source.Length - 2, packet.Length);	// causes stream changes to be committed
+            Assert.AreEqual(0, rs.Position);
+            Assert.AreEqual(packet.Length, rs.Length);
+
+            Assert.AreEqual(source[2], rs.ReadByte());
+            Assert.AreEqual(source[3], rs.ReadByte());
+            Assert.IsTrue(rs == packet.AsReadStream());
+
+            Stream ws = packet.AsWriteStream();
+            try
+            {
+                rs.ReadByte();
+                Assert.Fail("read stream should have been automatically closed");
+            }
+            catch (ObjectDisposedException) { /* expected */ }
+
+            rs = packet.AsReadStream();
+            try
+            {
+                ws.ReadByte();
+                Assert.Fail("read stream should have been automatically closed");
+            }
+            catch (ObjectDisposedException) { /* expected */ }
+
+        }
+        
         [Test]
         public void TestByteAt()
         {
@@ -446,6 +479,7 @@ namespace GT.UnitTests
             TransportPacket tp = new TransportPacket();
             Stream stream = tp.AsWriteStream();
             long initialPosition = stream.Position;
+            Assert.AreEqual(0, initialPosition);
             for (int i = 0; i < 255; i++)
             {
                 stream.Write(bytes, i, bytes.Length - i);
@@ -456,14 +490,16 @@ namespace GT.UnitTests
             Assert.AreEqual(bytes.Length * 255, tp.Length);
             byte[] copy = tp.ToArray();
             Assert.AreEqual(bytes.Length * 255, copy.Length);
+            stream.Position = initialPosition;
             for (int i = 0; i < 255; i++)
             {
                 for (int j = 0; j < bytes.Length; j++)
                 {
                     Assert.AreEqual(bytes[(i + j) % bytes.Length], copy[i * bytes.Length + j]);
+                    Assert.AreEqual(bytes[(i + j) % bytes.Length], stream.ReadByte());
                 }
             }
-
+            Assert.AreEqual(stream.Length, stream.Position);
             stream.Position = initialPosition;
             stream.Position = stream.Length;
             CheckDisposed(tp);

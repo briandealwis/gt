@@ -72,6 +72,12 @@ namespace GT.Net
         protected int length = 0;
 
         /// <summary>
+        /// Try to re-use streams if possible, and also to commit any
+        /// pending changes in a stream.
+        /// </summary>
+        protected Stream activeStream;
+
+        /// <summary>
         /// Create a new 0-byte transport packet.
         /// </summary>
         public TransportPacket()
@@ -175,7 +181,14 @@ namespace GT.Net
         /// <summary>
         /// Return the number of bytes in this packet.
         /// </summary>
-        public int Length { get { return length; } }
+        public int Length
+        {
+            get
+            {
+                ValidateAndSync();
+                return length;
+            }
+        }
 
         /// <summary>
         /// Return a subset of this marshalled packet; this subset is 
@@ -187,6 +200,7 @@ namespace GT.Net
         /// <returns></returns>
         public TransportPacket Subset(int subsetStart, int count)
         {
+            ValidateAndSync();
             if (subsetStart == 0 && count == length)
             {
                 return this;
@@ -235,6 +249,7 @@ namespace GT.Net
         /// <returns>a copy of the contents of this packet</returns>
         public TransportPacket Copy()
         {
+            ValidateAndSync();
             TransportPacket copy = new TransportPacket();
             foreach (ArraySegment<byte> segment in list)
             {
@@ -269,6 +284,7 @@ namespace GT.Net
         /// <param name="source"></param>
         public void Prepend(byte[] source, int offset, int count)
         {
+            ValidateAndSync();
             if (list.Count > 0)
             {
                 // Check to see if there is space available at the beginning of
@@ -327,6 +343,7 @@ namespace GT.Net
         ///     at <see cref="offset"/></param>
         public void Add(byte[] source, int offset, int count)
         {
+            ValidateAndSync();
             if (count < 0 || offset < 0 || offset + count > source.Length) { throw new ArgumentOutOfRangeException(); }
             int l = length;
             Grow(length + count);
@@ -342,6 +359,19 @@ namespace GT.Net
             IncrementRefCount(segment);
             list.Insert(0, segment);
             length += segment.Count;
+        }
+
+        /// <summary>
+        /// Transfer responsibility for our first segment to the caller.
+        /// This means that we remove it from our consideration, but don't 
+        /// decrement its reference count.  Used by <see cref="ReadStream"/>.
+        /// </summary>
+        internal ArraySegment<byte> TransferFirstSegment()
+        {
+            ArraySegment<byte> segment = list[0];
+            list.RemoveAt(0);
+            length -= segment.Count;
+            return segment;
         }
 
         /// <summary>
@@ -361,6 +391,7 @@ namespace GT.Net
         /// </summary>
         public void Clear()
         {
+            ValidateAndSync();
             // return the arrays to the pool
             foreach (ArraySegment<byte> segment in list)
             {
@@ -389,6 +420,7 @@ namespace GT.Net
         /// <param name="count">the number of bytes to copy</param>
         public void CopyTo(int sourceStart, byte[] destination, int destIndex, int count)
         {
+            ValidateAndSync();
             if (destIndex + count > destination.Length)
             {
                 throw new ArgumentOutOfRangeException("destIndex",
@@ -443,6 +475,7 @@ namespace GT.Net
         /// <returns>the contents of this packet</returns>
         public byte[] ToArray()
         {
+            ValidateAndSync();
             byte[] result = new byte[length];
             int offset = 0;
             foreach (ArraySegment<byte> segment in list)
@@ -460,6 +493,7 @@ namespace GT.Net
         /// <returns>the contents of this packet</returns>
         public byte[] ToArray(int offset, int count)
         {
+            ValidateAndSync();
             byte[] result = new byte[count];
             CopyTo(offset, result, 0, count);
             return result;
@@ -480,6 +514,7 @@ namespace GT.Net
         /// <see cref="splitPosition"/> onwards</returns>
         public TransportPacket SplitAt(int splitPosition)
         {
+            ValidateAndSync();
             if (splitPosition >= length) { throw new ArgumentOutOfRangeException("splitPosition"); }
 
             int segmentOffset = 0;
@@ -525,6 +560,7 @@ namespace GT.Net
         /// for the replacement bytes</param>
         public void Replace(int sourceStart, byte[] buffer, int bufferStart, int count)
         {
+            ValidateAndSync();
             if (bufferStart + count > buffer.Length)
             {
                 throw new ArgumentOutOfRangeException("bufferStart",
@@ -578,6 +614,7 @@ namespace GT.Net
         /// invalid</exception>
         public void RemoveBytes(int offset, int count)
         {
+            ValidateAndSync();
             int segmentStart = 0;
             if (offset < 0 || count < 0 || offset + count > length) { throw new ArgumentOutOfRangeException(); }
             // Basically we find the segment containing offset.
@@ -655,6 +692,7 @@ namespace GT.Net
         /// out of the range of this object</exception>
         public byte ByteAt(int offset)
         {
+            ValidateAndSync();
             int segmentOffset = 0;
             if (offset < 0 || offset >= length) { throw new ArgumentOutOfRangeException("offset"); }
             foreach (ArraySegment<byte> segment in list)
@@ -681,6 +719,7 @@ namespace GT.Net
         /// out of the range of this object</exception>
         public void BytesAt(int offset, int count, Action<byte[], int> block)
         {
+            ValidateAndSync();
             int segmentOffset = 0;
             if (offset < 0 || count < 0 || offset + count > length)
             {
@@ -714,6 +753,7 @@ namespace GT.Net
         /// <param name="newLength"></param>
         public void Grow(int newLength)
         {
+            ValidateAndSync();
             int need = newLength - length;
             if (list.Count > 0)
             {
@@ -740,6 +780,7 @@ namespace GT.Net
         public override string ToString()
         {
             StringBuilder result = new StringBuilder();
+            if (activeStream != null) { result.Append("stream may have changes"); }
             result.Append(length);
             result.Append(" bytes; ");
             result.Append(list.Count);
@@ -748,7 +789,7 @@ namespace GT.Net
             foreach (ArraySegment<byte> seg in list) { if(IsManagedSegment(seg)) { managed++; } }
             result.Append(managed);
             result.Append(" managed): ");
-            result.Append(ByteUtils.HexDump(ToArray(0, Math.Min(length, 128))));
+            //result.Append(ByteUtils.HexDump(ToArray(0, Math.Min(length, 128))));
             return result.ToString();
         }
 
@@ -756,24 +797,48 @@ namespace GT.Net
         /// Open a *destructive* stream for reading from the contents of this
         /// packet.  This stream is destructive as the content retrieved
         /// through the stream is removed from the stream.
-        /// Note: do not modify the packet whilst this stream is in use.
+        /// The stream can be flushed to commit any changes to the packet.  
+        /// The stream is automatically flushed upon any access to the packet.
+        /// The stream is automatically closed if a write stream is opened
+        /// upon this instance.
         /// </summary>
+        /// <seealso cref="ReadStream"/>
         /// <returns></returns>
         public Stream AsReadStream()
         {
-            return new ReadStream(this);
+            if (activeStream != null)
+            {
+                if(activeStream is ReadStream) { return activeStream; }
+                activeStream.Close();
+            }
+            return activeStream = new ReadStream(this);
         }
 
         /// <summary>
         /// Open a writeable stream on the contents of this packet.
         /// The stream is initially positioned at the beginning of
         /// the packet, thus data written will overwrite the contents
-        /// of the stream.  The stream must be flushed to ensure that
-        /// any new data is written out to the packet.
-        /// Note: do not modify of access the packet whilst this stream is in use
+        /// of the stream.  
+        /// The stream can be flushed to commit any changes to the packet.  
+        /// The stream is automatically flushed upon any access to the packet.
+        /// The stream is automatically closed if a read stream is opened
+        /// upon this instance.
+        /// </summary>
         public Stream AsWriteStream()
         {
-            return new WriteStream(this);
+            if (activeStream != null)
+            {
+                if (activeStream is WriteStream) { return activeStream; }
+                activeStream.Close();
+            }
+            return activeStream = new WriteStream(this);
+        }
+
+        protected void ValidateAndSync()
+        {
+            if (list == null) { throw new ObjectDisposedException("packet has been disposed"); }
+            if (activeStream == null) { return; }
+            activeStream.Flush();
         }
 
         #region Managed Segment Allocation and Deallocation
@@ -886,7 +951,6 @@ namespace GT.Net
             allocd[RefCountLocation] = 0;
             return new ArraySegment<byte>(allocd, HeaderSize + (int)reservedInitialSpace, (int)minimumLength);
         }
-
         /// <summary>
         /// Increment the reference count on the provided segment.
         /// </summary>
@@ -897,6 +961,19 @@ namespace GT.Net
             lock (segment.Array)
             {
                 segment.Array[RefCountLocation]++;
+            }
+        }
+        
+        /// <summary>
+        /// Decrement the reference count on the provided segment.
+        /// </summary>
+        /// <param name="segment">the referenced segment</param>
+        protected static void DecrementRefCount(ArraySegment<byte> segment)
+        {
+            if (!IsManagedSegment(segment)) { return; }
+            lock (segment.Array)
+            {
+                segment.Array[RefCountLocation]--;
             }
         }
 
@@ -1024,26 +1101,33 @@ namespace GT.Net
 
         int IList<ArraySegment<byte>>.IndexOf(ArraySegment<byte> item)
         {
+            ValidateAndSync();
             return list.IndexOf(item);
         }
 
         void IList<ArraySegment<byte>>.Insert(int index, ArraySegment<byte> item)
         {
+            ValidateAndSync();
             list.Insert(index, item);
             length += item.Count;
         }
 
         void IList<ArraySegment<byte>>.RemoveAt(int index)
         {
+            ValidateAndSync();
             length -= list[index].Count;
             list.RemoveAt(index);
         }
 
         ArraySegment<byte> IList<ArraySegment<byte>>.this[int index]
         {
-            get { return list[index]; }
+            get {
+                ValidateAndSync();
+                return list[index];
+            }
             set
             {
+                ValidateAndSync();
                 length -= list[index].Count;
                 list[index] = value;
                 length += value.Count;
@@ -1052,16 +1136,19 @@ namespace GT.Net
 
         bool ICollection<ArraySegment<byte>>.Contains(ArraySegment<byte> item)
         {
+            ValidateAndSync();
             return list.Contains(item);
         }
 
         void ICollection<ArraySegment<byte>>.CopyTo(ArraySegment<byte>[] array, int arrayIndex)
         {
+            ValidateAndSync();
             list.CopyTo(array, arrayIndex);
         }
 
         bool ICollection<ArraySegment<byte>>.Remove(ArraySegment<byte> item)
         {
+            ValidateAndSync();
             if (!list.Remove(item)) { return false; }
             length -= item.Count;
             return true;
@@ -1069,7 +1156,10 @@ namespace GT.Net
 
         int ICollection<ArraySegment<byte>>.Count
         {
-            get { return list.Count; }
+            get {
+                ValidateAndSync();
+                return list.Count;
+            }
         }
 
         bool ICollection<ArraySegment<byte>>.IsReadOnly
@@ -1079,26 +1169,49 @@ namespace GT.Net
 
         IEnumerator<ArraySegment<byte>> IEnumerable<ArraySegment<byte>>.GetEnumerator()
         {
+            ValidateAndSync();
             return list.GetEnumerator();
         }
 
         System.Collections.IEnumerator System.Collections.IEnumerable.GetEnumerator()
         {
+            ValidateAndSync();
             return list.GetEnumerator();
         }
 
         #endregion
 
+        /// <summary>
+        /// A destructive read stream on a packet. This stream is not seekable,
+        /// and as such, Length and Position don't actually have to work as
+        /// might be expected (i.e., Position records the number of bytes retrieved
+        /// from the stream, and length is the total number of bytes available since
+        /// the stream was created).  For this stream, Length and Position are
+        /// *relatively* correct, but not absolutely correct.  That is,
+        /// Length - Position will return the correct number of bytes available,
+        /// but Length will not necessarily be the packet's *original* length,
+        /// nor Position the number of bytes retrieved from this stream.
+        /// </summary>
         protected class ReadStream : Stream
         {
-            protected readonly TransportPacket packet;
-            protected int position = 0;
-            protected int originalLength;
+            protected TransportPacket packet;
+
+            /// <summary>
+            /// An index into <see cref="activeSegment"/>, relative to 
+            /// <see cref="activeSegment"/>'s <see cref="ArraySegment{T}.Offset"/>.
+            /// If &gt;= 0, then we are currently processing a segment.  If &lt; 0, then
+            /// we are not currently processing a segment.
+            /// </summary>
+            protected int activeOffset = -1;
+
+            /// <summary>
+            /// The segment being actively processed.
+            /// </summary>
+            protected ArraySegment<byte> activeSegment;
 
             protected internal ReadStream(TransportPacket p)
             {
                 packet = p;
-                originalLength = p.Length;
             }
 
             public override bool CanRead { get { return true; } }
@@ -1108,11 +1221,90 @@ namespace GT.Net
 
             public override bool CanWrite { get { return false; } }
 
+            public override long Length
+            {
+                get
+                {
+                    if (packet == null) { throw new ObjectDisposedException("stream was closed"); }
+                    // must use packet.length: calling the property will otherwise call commit.
+                    return packet.length + (activeOffset < 0 ? 0 : activeSegment.Count);
+                }
+            }
+
+            public override long Position
+            {
+                get
+                {
+                    if (packet == null) { throw new ObjectDisposedException("stream was closed"); }
+                    return activeOffset < 0 ? 0 : activeOffset;
+                }
+                set { Seek(value, SeekOrigin.Current); }
+            }
+
+            public override int Read(byte[] buffer, int offset, int count)
+            {
+                if (packet == null) { throw new ObjectDisposedException("stream was closed"); }
+                int bytesRead = 0;
+                while (count > 0 && Length > 0)
+                {
+                    if (activeOffset < 0)
+                    {
+                        activeSegment = packet.TransferFirstSegment();
+                        activeOffset = 0;
+                    }
+
+                    int available = Math.Min(count, activeSegment.Count - activeOffset);
+                    Debug.Assert(available > 0);
+                    //if (buffer.Length < offset + count)
+                    //{
+                    //    throw new ArgumentException("buffer does not have sufficient capacity", "buffer");
+                    //}
+                    Buffer.BlockCopy(activeSegment.Array, activeSegment.Offset + activeOffset, 
+                        buffer, offset, available);
+                    offset += available;
+                    count -= available;
+                    bytesRead += available;
+                    activeOffset += available;
+                    Debug.Assert(activeOffset <= activeSegment.Count);
+                    if(activeOffset == activeSegment.Count)
+                    {
+                        DeallocateSegment(activeSegment);
+                        activeOffset = -1;
+                    }
+                }
+                return bytesRead;
+            }
+
+            public override void Flush()
+            {
+                if(packet == null || activeOffset < 0) { return; }
+                Debug.Assert(activeOffset < activeSegment.Count);
+                if (IsManagedSegment(activeSegment))
+                {
+                    DecrementRefCount(activeSegment);
+                    Debug.Assert(GetRefCount(activeSegment) == 0);
+                }
+                packet.PrependSegment(new ArraySegment<byte>(activeSegment.Array,
+                    activeSegment.Offset + activeOffset, activeSegment.Count - activeOffset));
+                activeOffset = -1;
+            }
+
+            public override void Close()
+            {
+                Flush();
+                packet = null;
+            }
+
+            public override void Write(byte[] buffer, int offset, int count)
+            {
+                throw new NotImplementedException();
+            }
+
             public override long Seek(long offset, SeekOrigin origin)
             {
-                // We could support forward movements?
                 throw new NotSupportedException();
 
+                // We could support forward movements?
                 //switch (origin)
                 //{
                 //case SeekOrigin.Begin:
@@ -1137,36 +1329,7 @@ namespace GT.Net
                 throw new NotImplementedException();
             }
 
-            public override int Read(byte[] buffer, int offset, int count)
-            {
-                count = Math.Min(count, buffer.Length - offset);
-                //if (buffer.Length < offset + count)
-                //{
-                //    throw new ArgumentException("buffer does not have sufficient capacity", "buffer");
-                //}
-                count = Math.Min(count, packet.Length);
-                packet.CopyTo(0, buffer, offset, count);
-                packet.RemoveBytes(0, count);
-                position += count;
-                return count;
-            }
 
-            public override void Write(byte[] buffer, int offset, int count)
-            {
-                throw new NotImplementedException();
-            }
-
-            public override long Length { get { return originalLength; } }
-
-            public override long Position
-            {
-                get { return position; }
-                set { Seek(value, SeekOrigin.Current); }
-            }
-
-            public override void Flush()
-            {
-            }
         }
 
         /// <summary>
@@ -1176,9 +1339,10 @@ namespace GT.Net
         /// </summary>
         protected class WriteStream : Stream
         {
-            protected readonly TransportPacket packet;
+            protected TransportPacket packet;
             protected ArraySegment<byte> interim = default(ArraySegment<byte>);
             protected int position = 0;
+            protected int newLength = -1;
 
             protected internal WriteStream(TransportPacket p)
             {
@@ -1193,11 +1357,24 @@ namespace GT.Net
 
             public override void Flush()
             {
-                // nothing to do
+                if(packet == null || newLength < 0) { return; }
+                Debug.Assert(newLength >= packet.length);
+                if (newLength > packet.length)
+                {
+                    packet.AddSegment(new ArraySegment<byte>(interim.Array, interim.Offset,
+                        newLength - packet.length));
+                    newLength = -1;
+                }
             }
 
+            public override void Close()
+            {
+                Flush();
+                packet = null;
+            }
             public override long Seek(long offset, SeekOrigin origin)
             {
+                if (packet == null) { throw new ObjectDisposedException("stream was closed"); }
                 switch (origin)
                 {
                     case SeekOrigin.Begin:
@@ -1216,22 +1393,43 @@ namespace GT.Net
 
             public override void SetLength(long value)
             {
-                if (value > packet.Length)
+                if (packet == null) { throw new ObjectDisposedException("stream was closed"); }
+                if (value >= packet.length)
                 {
-                    packet.Grow((int)value);
+                    // if it's within our interim buffer, then just trim or grow as apporpriate.
+                    // otherwise flush and allocate whatever new stuff is needed
+                    if (value < newLength)  // if newLength < 0 then value > newLength
+                    {
+                        newLength = (int)value; // and will be trimmed appropriately in Flush()
+                    }
+                    else if(newLength >= 0 && 
+                        (int)value - packet.length <= interim.Array.Length - interim.Offset)
+                    {
+                        // value fits within the capacity of the interim buffer
+                        newLength = (int)value;
+                    } 
+                    else
+                    {
+                        // Flush out any interim buffers and grow as necessary
+                        Flush();
+                        packet.Grow((int)value);
+                    }
                 }
                 else
                 {
+                    Flush();    // could be cleverer and deallocate interim if necessary
                     // The new value requires trimming the packet.
-                    packet.RemoveBytes((int)value, packet.Length - (int)value);
+                    packet.RemoveBytes((int)value, packet.length - (int)value);
+                    position = Math.Min((int)value, packet.length);
+                    Debug.Assert(newLength < 0);
                 }
             }
 
             public override int Read(byte[] buffer, int offset, int count)
             {
-                // Read out whatever we can from the packet itself, then whatever we need 
-                // to our interim buffer
-                int numBytes = Math.Min(count, packet.Length - position);
+                if (packet == null) { throw new ObjectDisposedException("stream was closed"); }
+                Flush();
+                int numBytes = Math.Min(count, (int)Length - position);
                 packet.CopyTo(position, buffer, offset, numBytes);
                 position += numBytes;
                 count -= numBytes;
@@ -1241,21 +1439,73 @@ namespace GT.Net
 
             public override void Write(byte[] buffer, int offset, int count)
             {
+                if (packet == null) { throw new ObjectDisposedException("stream was closed"); }
+                Debug.Assert(position <= Length);
                 // Write out whatever we can to the packet, then whatever we need 
                 // to our interim buffer
-                if (position + count > packet.Length)
-                {
-                    packet.Grow(position + count);
+                if (position < packet.length) {
+                    int numBytes = Math.Min(count, packet.length - position);
+                    packet.Replace(position, buffer, offset, numBytes);
+                    count -= numBytes;
+                    offset += numBytes;
+                    position += numBytes;
                 }
-                packet.Replace(position, buffer, offset, count);
-                position += count;
+                Debug.Assert(position <= Length);
+                Debug.Assert(count == 0 || packet.length == 0 || position >= packet.length);
+                while (count > 0)
+                {
+                    // if position < packet.length then a Flush() has happened out of turn
+                    Debug.Assert(position >= packet.length && position <= Length);
+                    if (newLength < 0)
+                    {
+                        interim = AllocateSegment((uint)count);
+                        newLength = packet.length + interim.Count;
+                    }
+                    Debug.Assert(newLength >= 0);
+                    int interimPosition = position - packet.length;
+                    Debug.Assert(interimPosition >= 0);
+                    int interimAvailable = interim.Array.Length - interim.Offset - interimPosition;
+                    Debug.Assert(interimAvailable > 0); 
+                    // There must be space available: if there was no space, then end of loop 
+                    // causes a Flush, meaning that new space is allocated at the top of the loop.
+
+                    // if necessary, add whatever extra space is available
+                    // (since this is our own private segment, we don't have to worry like Grow()
+                    // about clashes with other packets attached to this segment)
+                    if (position + count > newLength)
+                    {
+                        newLength += Math.Min(count, interimAvailable);
+                    }
+                    int numBytes = Math.Min(count, newLength - position);
+                    Buffer.BlockCopy(buffer, offset, interim.Array,
+                        interim.Offset + interimPosition, numBytes);
+                    position += numBytes;
+                    offset += numBytes;
+                    count -= numBytes;
+                    interimPosition += numBytes;
+                    // if no more available space, then flush the interim buffer so
+                    // that a new interim buffer will be allocated at the top of the loop
+                    if (interim.Array.Length == interim.Offset + interimPosition) { Flush(); }
+                }
+                Debug.Assert(count == 0 && position <= Length);
             }
 
-            public override long Length { get { return packet.Length; } }
+            public override long Length
+            {
+                get
+                {
+                    if (packet == null) { throw new ObjectDisposedException("stream was closed"); }
+                    return newLength < 0 ? packet.Length : newLength;
+                }
+            }
 
             public override long Position
             {
-                get { return position; }
+                get
+                {
+                    if(packet == null) { throw new ObjectDisposedException("stream was closed"); }
+                    return position;
+                }
                 set { Seek(value, SeekOrigin.Begin); }
             }
         }
