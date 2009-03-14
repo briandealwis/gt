@@ -395,7 +395,7 @@ namespace GT.Net
             // return the arrays to the pool
             foreach (ArraySegment<byte> segment in list)
             {
-                DeallocateSegment(segment);
+                ReleaseSegment(segment);
             }
             list.Clear();
             length = 0;
@@ -542,7 +542,7 @@ namespace GT.Net
             for (int i = segmentIndex; i < list.Count; i++)
             {
                 remainder.AddSegment(list[i]);
-                DeallocateSegment(list[i]);
+                ReleaseSegment(list[i]);
             }
             list.RemoveRange(segmentIndex, list.Count - segmentIndex);
             length = splitPosition;
@@ -645,7 +645,7 @@ namespace GT.Net
                         // Note: we don't increment index
                         count -= segment.Count;
                         list.RemoveAt(index);
-                        DeallocateSegment(segment);
+                        ReleaseSegment(segment);
                     }
                     else
                     {
@@ -842,7 +842,16 @@ namespace GT.Net
         }
 
         #region Managed Segment Allocation and Deallocation
-        // These methods act as a sort of malloc-like system.
+        /// These methods act as a sort of malloc-like system.
+        /// Segments may be shared between multiple packets; the segments use
+        /// a fixed number of bytes at the beginning to record a header.
+        /// This header records a reference count.  As segments are added
+        /// to a packet, it should increment the ref count.  As segments
+        /// are removed or the packet is disposed, the segments should be
+        /// released.  When a segment has refcount == 1, then only one
+        /// user is using the segment, and the segment may be resized with 
+        /// impunity.  Such resizing should only be done by acquiring the
+        /// segment array's lock.
 
         private static uint _minSegmentSize = 1024;
         private static uint _maxSegmentSize = 64 * 1024; // chosen as it's the max UDP packet
@@ -951,6 +960,7 @@ namespace GT.Net
             allocd[RefCountLocation] = 0;
             return new ArraySegment<byte>(allocd, HeaderSize + (int)reservedInitialSpace, (int)minimumLength);
         }
+
         /// <summary>
         /// Increment the reference count on the provided segment.
         /// </summary>
@@ -986,7 +996,7 @@ namespace GT.Net
             }
         }
 
-        protected static void DeallocateSegment(ArraySegment<byte> segment)
+        protected static void ReleaseSegment(ArraySegment<byte> segment)
         {
             if (!IsManagedSegment(segment)) { return; }
             Debug.Assert(BitUtils.IsPowerOf2((uint)segment.Array.Length - HeaderSize));
@@ -1002,7 +1012,6 @@ namespace GT.Net
                 }
 
                 Debug.Assert(segment.Array.Length - HeaderSize <= _maxSegmentSize);
-                //byte[] allocd = new byte[minimumLength + HeaderSize];
                 memoryPools[PoolIndex((uint)segment.Array.Length - HeaderSize)].Return(segment.Array);
             }
         }
@@ -1110,13 +1119,16 @@ namespace GT.Net
             ValidateAndSync();
             list.Insert(index, item);
             length += item.Count;
+            IncrementRefCount(item);
         }
 
         void IList<ArraySegment<byte>>.RemoveAt(int index)
         {
             ValidateAndSync();
+            ArraySegment<byte> segment = list[index];
             length -= list[index].Count;
             list.RemoveAt(index);
+            ReleaseSegment(segment);
         }
 
         ArraySegment<byte> IList<ArraySegment<byte>>.this[int index]
@@ -1128,6 +1140,8 @@ namespace GT.Net
             set
             {
                 ValidateAndSync();
+                IncrementRefCount(value);
+                ReleaseSegment(list[index]);
                 length -= list[index].Count;
                 list[index] = value;
                 length += value.Count;
@@ -1150,6 +1164,7 @@ namespace GT.Net
         {
             ValidateAndSync();
             if (!list.Remove(item)) { return false; }
+            DecrementRefCount(item);
             length -= item.Count;
             return true;
         }
@@ -1268,7 +1283,7 @@ namespace GT.Net
                     Debug.Assert(activeOffset <= activeSegment.Count);
                     if(activeOffset == activeSegment.Count)
                     {
-                        DeallocateSegment(activeSegment);
+                        ReleaseSegment(activeSegment);
                         activeOffset = -1;
                     }
                 }
