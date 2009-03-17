@@ -906,7 +906,10 @@ namespace GT.Net
 
         virtual protected void HandleNewPacket(TransportPacket packet, ITransport transport)
         {
-            Marshaller.Unmarshal(packet, transport, _marshaller_MessageAvailable);
+            while (packet.Length > 0)
+            {
+                Marshaller.Unmarshal(packet, transport, _marshaller_MessageAvailable);
+            }
             //DebugUtils.DumpMessage("ClientConnexionConnexion.PostNewlyReceivedMessage", m);
         }
 
