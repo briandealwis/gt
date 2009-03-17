@@ -78,6 +78,11 @@ namespace GT.Net
         protected Stream activeStream;
 
         /// <summary>
+        /// TransportPackets maintain a reference count.  
+        /// </summary>
+        protected int referenceCount = 1;
+
+        /// <summary>
         /// Create a new 0-byte transport packet.
         /// </summary>
         public TransportPacket()
@@ -402,13 +407,38 @@ namespace GT.Net
         }
 
         /// <summary>
+        /// Retain a hold on this packet beyond its normal lifetime.
+        /// This adds to the packet's reference count.  The return value
+        /// must be checked as it may be too late to be retained.
+        /// </summary>
+        /// <returns>true if the object was successfully retained</returns>
+        public bool Retain()
+        {
+            if (list == null) { return false; } // too late
+            return Interlocked.Increment(ref referenceCount) > 0;
+        }
+
+        /// <summary>
         /// Packets, once finished with, must be explicitly disposed of to
         /// deal with cleaning up any possibly shared memory.
         /// </summary>
         public void Dispose()
         {
-            Clear();
+            if (Interlocked.Decrement(ref referenceCount) > 0) { return; }
+            if (list != null) { Clear(); }
             list = null;
+
+            // tell the GC not to bother finalizing
+            GC.SuppressFinalize(this);
+        }
+
+        // FIXME: need to extract the segment-management stuff to a separate
+        // class, as otherwise we have packets that are being finalized (during
+        // testing) that are trying to return segments to a trashed segment-managemnt.
+        ~TransportPacket()
+        {
+            referenceCount = 0;
+            Dispose();
         }
 
         /// <summary>
@@ -1126,6 +1156,8 @@ namespace GT.Net
         /// </summary>
         public static Pool<byte[]>[] TestingDiscardPools()
         {
+            GC.Collect();
+            GC.WaitForPendingFinalizers();
             return Interlocked.Exchange(ref memoryPools, null);
         }
 #endif

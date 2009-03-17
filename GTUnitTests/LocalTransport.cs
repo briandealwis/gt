@@ -209,7 +209,6 @@ namespace GT.Net.Local
                 String.Format("packet exceeds maximum packet size: {0} > {1}", packet.Length, MaximumPacketSize));
             handle.Put(packet.ToArray());
             NotifyPacketSent(packet);
-            packet.Dispose();
         }
 
         public override void Update()

@@ -25,6 +25,10 @@ namespace GT.Net
 
         /// <summary>
         /// Marshal the provided message in an appropriate form for the provided transport.
+        /// Returns the results as a list of <see cref="TransportPacket"/> instances.
+        /// Although it is the callers responsibility to dispose of these packets
+        /// (through <see cref="TransportPacket.Dispose"/>), typically this responsibility
+        /// is transferred when these packets are sent across a transport.
         /// </summary>
         /// <param name="senderIdentity">the server-unique id of the sender of this message
         /// (i.e., the local client or server's server-unique identifier).  This
@@ -43,9 +47,9 @@ namespace GT.Net
         /// form from <see cref="input"/>.   Messages are notified using the provided 
         /// <see cref="messageAvailable"/> delegate; a message may not be immediately 
         /// available, for example, if decoding their byte-content depends on information 
-        /// carried in a not-yet-seen message.  The marshaller <b>must</b> not access
-        /// <see cref="input"/> once this call has returned: any required information 
-        /// must be retrieved from the stream during this call and cached.
+        /// carried in a not-yet-seen message.  This marshaller <b>must</b> call
+        /// <see cref="TransportPacket.Retain"/> should it require access to
+        /// <see cref="input"/> after this call has returned.
         /// </summary>
         /// <param name="input">the stream with the packet content</param>
         /// <param name="tdc">the characteristics of transport from which the packet was 
@@ -57,16 +61,15 @@ namespace GT.Net
     }
 
     /// <summary>
-    /// A representation of a marshalled message
+    /// A representation of a marshalled message.  The instance should
+    /// have its <see cref="Dispose"/> called when finished with.
     /// </summary>
     public class MarshalledResult : IDisposable
     {
         protected Action<MarshalledResult> disposeCallback;
         protected IList<TransportPacket> packets = new List<TransportPacket>(2);
-        protected IList<TransportPacket> removed = new List<TransportPacket>(2);
 
         public IList<TransportPacket> Packets { get { return packets; } }
-        public IList<TransportPacket> ProcessedPackets { get { return removed; } }
 
         public bool HasPackets { get { return packets.Count > 0; } }
 
@@ -80,7 +83,6 @@ namespace GT.Net
             if (!HasPackets) { return null; }
             TransportPacket p = packets[0];
             packets.RemoveAt(0);
-            removed.Add(p);
             return p;
         }
 
@@ -92,7 +94,6 @@ namespace GT.Net
         public void Reset()
         {
             packets.Clear();
-            removed.Clear();
         }
 
         public void Dispose()
@@ -101,8 +102,6 @@ namespace GT.Net
             {
                 disposeCallback(this);
             }
-            foreach (TransportPacket tp in packets) { tp.Dispose(); }
-            foreach (TransportPacket tp in removed) { tp.Dispose(); }
         }
     }
 
@@ -192,34 +191,29 @@ namespace GT.Net
             // This marshaller doesn't use <see cref="senderIdentity"/>.
             MarshalledResult mr = new MarshalledResult();
             TransportPacket tp = new TransportPacket();
-            Stream output = tp.AsWriteStream();
-            Debug.Assert(output.CanSeek);   // should add support for non-seekable streams?
 
-            output.WriteByte((byte)msg.MessageType);
-            output.WriteByte(msg.Channel);    // NB: SystemMessages use Channel to encode the sysmsg descriptor
-            long startPosition = output.Position;
+            //  We use TransportPacket.Prepend to add the marshalling header in-place
+            // after the marshalling.
+            // NB: SystemMessages use Channel to encode the sysmsg descriptor
+            byte[] header = new byte[6] { (byte)msg.MessageType, msg.Channel, 0, 0, 0, 0 }; 
+            uint length;
+
             if (msg is RawMessage)
             {
                 RawMessage rm = (RawMessage)msg;
-                output.Write(BitConverter.GetBytes(rm.Bytes.Length), 0, 4);
-                output.Write(rm.Bytes, 0, rm.Bytes.Length);
+                length = (uint)rm.Bytes.Length;
+                tp.Add(rm.Bytes);
             }
             else
             {
-                /// This method is responsible for putting on the message payload length 
-                /// (4 bytes in the <see cref="BitConverter"/> format).  So reserve the
-                /// 4 bytes, then marshal the payload, and then return to fix the
-                /// the message payload length.
-                long lengthPosition = output.Position;
-                output.Write(new byte[4], 0, 4);
+                Stream output = tp.AsWriteStream();
+                Debug.Assert(output.CanSeek);
                 MarshalContents(msg, output, tdc);
-                long savedPosition = output.Position;
-                uint payloadLength = (uint)(output.Position - lengthPosition - 4);
-                output.Position = lengthPosition;
-                output.Write(BitConverter.GetBytes(payloadLength), 0, 4);
-                output.Position = savedPosition;
+                output.Flush();
+                length = (uint)output.Position;
             }
-            output.Flush();
+            BitConverter.GetBytes(length).CopyTo(header, 2);
+            tp.Prepend(header);
             mr.AddPacket(tp);
             return mr;
         }
@@ -426,10 +420,12 @@ namespace GT.Net
             // the following encode directly on the stream
             case TypeCode.Boolean: output.WriteByte((byte)((bool)value ? 1 : 0)); return;
             case TypeCode.Byte: output.WriteByte(value.ToByte(null)); return;
-            case TypeCode.SByte: output.WriteByte(value.ToByte(null)); return;
+            case TypeCode.SByte: output.WriteByte((byte)(value.ToSByte(null) + 128)); return;
+
             case TypeCode.Object:
                 formatter.Serialize(output, value);
                 return;
+
             case TypeCode.String: {
                 long lengthPosition = output.Position;
                 output.Write(new byte[4], 0, 4);
@@ -454,7 +450,8 @@ namespace GT.Net
             case TypeCode.UInt16: result = BitConverter.GetBytes(value.ToUInt16(null)); break;
             case TypeCode.UInt32: result = BitConverter.GetBytes(value.ToUInt32(null)); break;
             case TypeCode.UInt64: result = BitConverter.GetBytes(value.ToUInt64(null)); break;
-            
+            case TypeCode.DateTime: result = BitConverter.GetBytes(((DateTime)value).ToBinary()); break;
+
             default: throw new MarshallingException("Unhandled form of IConvertible: " + value.GetTypeCode());
             }
             output.Write(result, 0, result.Length);
@@ -525,7 +522,7 @@ namespace GT.Net
             switch (tc)
             {
             case TypeCode.Boolean: return input.ReadByte() == 0 ? false : true;
-            case TypeCode.SByte: return (sbyte)input.ReadByte();
+            case TypeCode.SByte: return (sbyte)(input.ReadByte() - 128);
             case TypeCode.Byte: return input.ReadByte();
             case TypeCode.Char: return BitConverter.ToChar(ReadBytes(input, 2), 0);
             case TypeCode.Single: return BitConverter.ToSingle(ReadBytes(input, 4), 0);
@@ -536,6 +533,8 @@ namespace GT.Net
             case TypeCode.UInt16: return BitConverter.ToUInt16(ReadBytes(input, 2), 0);
             case TypeCode.UInt32: return BitConverter.ToUInt32(ReadBytes(input, 4), 0);
             case TypeCode.UInt64: return BitConverter.ToUInt64(ReadBytes(input, 8), 0);
+            case TypeCode.DateTime: return DateTime.FromBinary(BitConverter.ToInt64(ReadBytes(input, 8), 0));
+
             case TypeCode.Object: return (IConvertible)formatter.Deserialize(input);
             case TypeCode.String: {
                 uint length = BitConverter.ToUInt32(ReadBytes(input, 4), 0);

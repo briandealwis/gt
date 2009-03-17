@@ -424,7 +424,8 @@ namespace GT.UnitTests
                 Assert.Fail("read stream should have been automatically closed");
             }
             catch (ObjectDisposedException) { /* expected */ }
-
+            CheckDisposed(packet);
+            CheckForUndisposedSegments();
         }
         
         [Test]
@@ -502,6 +503,7 @@ namespace GT.UnitTests
             Assert.AreEqual(stream.Length, stream.Position);
             stream.Position = initialPosition;
             stream.Position = stream.Length;
+
             CheckDisposed(tp);
             CheckForUndisposedSegments();
         }

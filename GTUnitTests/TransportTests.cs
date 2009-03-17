@@ -219,6 +219,7 @@ namespace GT.UnitTests
             }
             CheckPacket(received, "server");
             Debug("==> server: replying with byte array");
+            packet.Retain();    // must retain since SendPacket() will dispose
             server.SendPacket(packet);
             serverPacketCount++;
         }

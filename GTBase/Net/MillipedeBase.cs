@@ -661,15 +661,18 @@ namespace GT.Millipede
             case MillipedeMode.PassThrough:
             default:
                 underlyingTransport.SendPacket(packet);
+                // underlyingTransport is responsible for disposing of packet
                 return;
 
             case MillipedeMode.Record:
                 try
                 {
+                    packet.Retain();  // underlyingTransport will dispose of packet
                     underlyingTransport.SendPacket(packet);
                     recorder.Record(new MillipedeEvent(milliDescriptor,
                         MillipedeEventType.SentPacket,
                         packet.ToArray()));
+                    packet.Dispose();
                 }
                 catch(GTException ex)
                 {
@@ -733,7 +736,9 @@ namespace GT.Millipede
                 {
                     if(PacketReceivedEvent != null)
                     {
-                        PacketReceivedEvent(new TransportPacket(e.Message), this);
+                        TransportPacket tp = new TransportPacket(e.Message);
+                        PacketReceivedEvent(tp, this);
+                        tp.Dispose();
                     }
                 }
                 else if(e.Type == MillipedeEventType.Exception)

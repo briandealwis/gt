@@ -18,6 +18,11 @@ namespace GT.Net
     /// Errors should be notified by throwing an instanceof TransportError.
     /// Should the transport have been cleanly shutdown by the remote side, then
     /// throw a TransportDecomissionedException.
+    /// Transports are responsible for disposing of any <see cref="TransportPacket"/>
+    /// instances provided to <see cref="SendPacket"/>.
+    /// <see cref="TransportPacket"/> instances provided through the <see cref="PacketSentEvent"/>
+    /// and <see cref="PacketReceivedEvent"/> generally only have a lifetime of the callback
+    /// unless they are first attached to using <see cref="TransportPacket.Retain"/>.
     /// </remarks>
     public interface ITransport : ITransportDeliveryCharacteristics, IDisposable
     {
@@ -39,11 +44,17 @@ namespace GT.Net
 
         /// <summary>
         /// An event triggered on receiving an incoming packet.
+        /// The <see cref="TransportPacket"/> instance generally only has a 
+        /// lifetime of the callback; be sure to first call <see cref="TransportPacket.Retain"/>
+        /// to reference the packet beyond the callback.
         /// </summary>
         event PacketHandler PacketReceivedEvent;
         
         /// <summary>
         /// An event triggered having sent a packet.
+        /// The <see cref="TransportPacket"/> instance generally only has a 
+        /// lifetime of the callback; be sure to first call <see cref="TransportPacket.Retain"/>
+        /// to reference the packet beyond the callback.
         /// </summary>
         event PacketHandler PacketSentEvent;
 
@@ -54,7 +65,8 @@ namespace GT.Net
         IDictionary<string,string> Capabilities { get; }
 
         /// <summary>
-        /// Send the given packet to the server.
+        /// Send the given packet to the server.  This transport will call
+        /// <see cref="TransportPacket.Dispose"/> once completed.
         /// </summary>
         /// <param name="packet">the packet to send</param>
         /// <exception cref="TransportError">thrown on a fatal transport error.</exception>
@@ -76,6 +88,15 @@ namespace GT.Net
         uint MaximumPacketSize { get; set; }
     }
 
+    /// <summary>
+    /// 
+    /// </summary>
+    /// <remarks>
+    /// <see cref="NotifyPacketSent"/> and <see cref="NotifyPacketReceived"/> 
+    /// will ensure that the packet is disposed after the callbacks have been
+    /// issued.  Listeners wishing to hold onto the packet should call
+    /// <see cref="TransportPacket.Retain"/>.
+    /// </remarks>
     public abstract class BaseTransport : ITransport
     {
         protected ILog log;
@@ -141,6 +162,9 @@ namespace GT.Net
                 return;
             }
             PacketReceivedEvent(packet, this);
+            // event listeners are responsible for calling Retain() if they
+            // want to use it for longer.
+            packet.Dispose();   
         }
 
         protected virtual void NotifyPacketSent(TransportPacket packet)

@@ -181,6 +181,7 @@ namespace GT.Net
             TransportPacket packet;
             while ((packet = FetchIncomingPacket()) != null)
             {
+                // NotifyPacketReceived will ensure the packet is disposed of
                 NotifyPacketReceived(packet);
             }
         }

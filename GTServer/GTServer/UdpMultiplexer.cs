@@ -161,12 +161,14 @@ namespace GT.Net
             // Is our throwing a SocketException considered out of line?
             if (!Active) { throw new SocketException((int)SocketError.Shutdown); }
             // Sadly SentTo does not support being provided a IList<ArraySegment<byte>>
+            packet.Consolidate();   // try to reduce to a single segment
             IList<ArraySegment<byte>> bytes = packet;
             if (bytes.Count == 1)
             {
                 return udpClient.Client.SendTo(bytes[0].Array, bytes[0].Offset, bytes[0].Count,
                     SocketFlags.None, remote);
             }
+            // hopefully this won't happen often; we could maintain our own bytearray pool
             return udpClient.Client.SendTo(packet.ToArray(), SocketFlags.None, remote);
         }
 
