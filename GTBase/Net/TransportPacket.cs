@@ -212,39 +212,7 @@ namespace GT.Net
             }
 
             TransportPacket subset = new TransportPacket();
-            int subsetEnd = subsetStart + count - 1;    // index of last byte of interest
-            int segmentStart = 0; // index of first byte of current <segment>
-            foreach (ArraySegment<byte> segment in list)
-            {
-                int segmentEnd = segmentStart + segment.Count - 1; // index of last byte
-
-                // This segment is of interest if 
-                // listStart <= segmentEnd && listEnd >= segmentStart
-                // IF: segmentEnd < subsetStart then we're too early
-                // IF: subsetEnd < segmentStart then we've gone past
-                if (segmentEnd >= subsetStart)
-                {
-                    // if this segment appears after the area of interest then we're finished:
-                    // none of the remaining segments can possibly be in our AOI
-                    if (segmentStart > subsetEnd)
-                    {
-                        break;
-                    }
-                    if (subsetStart <= segmentStart && segmentEnd <= subsetEnd)
-                    {
-                        subset.AddSegment(segment);  // not subset's responsibility
-                    }
-                    else
-                    {
-                        int aoiStart = Math.Max(subsetStart, segmentStart);
-                        int aoiEnd = Math.Min(subsetEnd, segmentEnd);
-                        subset.AddSegment(new ArraySegment<byte>(segment.Array,
-                            segment.Offset + (int)(aoiStart - segmentStart),
-                            (int)(aoiEnd - aoiStart + 1)));  // not subset's responsibility
-                    }
-                }
-                segmentStart += segment.Count;
-            }
+            subset.Add(this, subsetStart, count);
             return subset;
         }
 
@@ -317,6 +285,48 @@ namespace GT.Net
                 Buffer.BlockCopy(source, offset + count - segSize, segment.Array, segment.Offset, segSize);
                 PrependSegment(segment);
                 count -= segSize;
+            }
+        }
+
+        /// <summary>
+        /// Add the appropriate segments of <see cref="packet"/> to this instance.
+        /// </summary>
+        /// <param name="source"></param>
+        /// <param name="offset"></param>
+        /// <param name="count"></param>
+        public void Add(TransportPacket source, int offset, int count) {
+            int subsetEnd = offset + count - 1;    // index of last byte of interest
+            int segmentStart = 0; // index of first byte of current <segment>
+            foreach (ArraySegment<byte> segment in source.list)
+            {
+                int segmentEnd = segmentStart + segment.Count - 1; // index of last byte
+
+                // This segment is of interest if 
+                // listStart <= segmentEnd && listEnd >= segmentStart
+                // IF: segmentEnd < subsetStart then we're too early
+                // IF: subsetEnd < segmentStart then we've gone past
+                if (segmentEnd >= offset)
+                {
+                    // if this segment appears after the area of interest then we're finished:
+                    // none of the remaining segments can possibly be in our AOI
+                    if (segmentStart > subsetEnd)
+                    {
+                        break;
+                    }
+                    if (offset <= segmentStart && segmentEnd <= subsetEnd)
+                    {
+                        AddSegment(segment);  // not subset's responsibility
+                    }
+                    else
+                    {
+                        int aoiStart = Math.Max(offset, segmentStart);
+                        int aoiEnd = Math.Min(subsetEnd, segmentEnd);
+                        AddSegment(new ArraySegment<byte>(segment.Array,
+                            segment.Offset + (int)(aoiStart - segmentStart),
+                            (int)(aoiEnd - aoiStart + 1)));  // not subset's responsibility
+                    }
+                }
+                segmentStart += segment.Count;
             }
         }
 
