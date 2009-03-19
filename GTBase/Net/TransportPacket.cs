@@ -41,7 +41,12 @@ namespace GT.Net
 
         /// <summary>
         /// Create a new marshalled packet as a subset of another packet <see cref="source"/>
-        /// Note: this method uses a *copy* of the appropriate portion of <see cref="source"/>.
+        /// Note: this method makes an independent *copy* of the appropriate 
+        /// portion of <see cref="source"/>; this behaviour should be compared
+        /// to <see cref="Subset"/> which uses <see cref="source"/> as a backing
+        /// store.
+        /// The caller is responsible for the disposal of this instance
+        /// through <see cref="Dispose"/>.
         /// </summary>
         /// <param name="source">the provided marshalled packet</param>
         /// <param name="offset">the start position of the subset to include</param>
@@ -197,27 +202,28 @@ namespace GT.Net
 
         /// <summary>
         /// Return a subset of this marshalled packet; this subset is 
-        /// backed by this instance, such that any changes to the subset 
-        /// are reflected in this instance too.
+        /// backed by this instance, such that any changes to the contents
+        /// of the subset are reflected in this instance too.
+        /// The caller is responsible for the disposal of the subset
+        /// through <see cref="Dispose"/>.
         /// </summary>
         /// <param name="subsetStart">the start position of the subset</param>
         /// <param name="count">the number of bytes in the subset</param>
-        /// <returns></returns>
+        /// <returns>a new packet representing the requested subset</returns>
         public TransportPacket Subset(int subsetStart, int count)
         {
             ValidateAndSync();
-            if (subsetStart == 0 && count == length)
-            {
-                return this;
-            }
-
             TransportPacket subset = new TransportPacket();
             subset.Add(this, subsetStart, count);
             return subset;
         }
 
         /// <summary>
-        /// Make a copy of the contents of this packet.
+        /// Make a copy of the contents of this packet; this copy is 
+        /// backed by this instance, such that any changes to the contents
+        /// of the copy are reflected in this instance too.
+        /// The caller is responsible for the disposal of the copy
+        /// through <see cref="Dispose"/>.
         /// </summary>
         /// <returns>a copy of the contents of this packet</returns>
         public TransportPacket Copy()
@@ -289,7 +295,7 @@ namespace GT.Net
         }
 
         /// <summary>
-        /// Add the appropriate segments of <see cref="packet"/> to this instance.
+        /// Add the appropriate segments of <see cref="source"/> to this instance.
         /// </summary>
         /// <param name="source"></param>
         /// <param name="offset"></param>
@@ -401,7 +407,7 @@ namespace GT.Net
         }
 
         /// <summary>
-        /// Dispose of the contents of this packet, restoring the
+        /// Clear out the contents of this packet, restoring the
         /// packet to the same state as a newly-created instance.
         /// </summary>
         public void Clear()
@@ -546,6 +552,8 @@ namespace GT.Net
         /// contain the remainder.  This is more efficient than
         /// the equivlent using <see cref="ToArray(int,int)"/> and
         /// <see cref="RemoveBytes"/>.
+        /// The caller is responsible for the disposal of the new instance
+        /// through <see cref="Dispose"/>.
         /// </summary>
         /// <param name="splitPosition">the position at which this instance 
         /// should be split; this instance will have the contents from
@@ -573,10 +581,10 @@ namespace GT.Net
             {
                 // split list[segmentIndex] appropriately
                 ArraySegment<byte> segment = list[segmentIndex];
-                int segSplit = splitPosition - segmentOffset;
-                list[segmentIndex++] = new ArraySegment<byte>(segment.Array, segment.Offset, segSplit);
-                remainder.AddSegment(new ArraySegment<byte>(segment.Array, segment.Offset + segSplit,
-                    segment.Count - segSplit));
+                int segCount = splitPosition - segmentOffset;
+                list[segmentIndex++] = new ArraySegment<byte>(segment.Array, segment.Offset, segCount);
+                remainder.AddSegment(new ArraySegment<byte>(segment.Array, segment.Offset + segCount,
+                    segment.Count - segCount));
             }
 
             // Copy the remaining segments to remainder
@@ -588,6 +596,56 @@ namespace GT.Net
             list.RemoveRange(segmentIndex, list.Count - segmentIndex);
             length = splitPosition;
             return remainder;
+        }
+
+        /// <summary>
+        /// Split the first <see cref="count"/> bytes of this instance
+        /// into a new packet, and remove the bytes from this instance.
+        /// This can be seen as the opposite of <see cref="SplitAt"/>.
+        /// This is more efficient than the equivlent using 
+        /// <see cref="ToArray(int,int)"/> and <see cref="RemoveBytes"/>.
+        /// The caller is responsible for the disposal of the new instance
+        /// through <see cref="Dispose"/>.
+        /// </summary>
+        /// <param name="count">the number of bytes that should be
+        /// split out from this instance.  The new instance returned will 
+        /// contain the contents from [0,...,<see cref="count"/> - 1] and 
+        /// this instance will have the remaining bytes.</param>
+        /// <returns>an instance containing the bytes from 
+        /// [0,...,<see cref="count"/> - 1]</returns>
+        public TransportPacket SplitOut(int count)
+        {
+            ValidateAndSync();
+            if (count < 0 || count >= length) { throw new ArgumentOutOfRangeException("count"); }
+
+            int segmentOffset = 0;
+            int segmentIndex = 0;
+            TransportPacket initial = new TransportPacket();
+
+            // Copy the remaining segments to remainder
+            while(segmentIndex < list.Count && segmentOffset + list[segmentIndex].Count < count)
+            {
+                initial.AddSegment(list[segmentIndex]);
+                ReleaseSegment(list[segmentIndex]);
+                segmentOffset += list[segmentIndex++].Count;
+            }
+
+            // So: segmentOffset <= count < segmentOffset + list[segmentIndex].Count
+            // If count <= segmentOffset then list[segmentIndex] belongs in remainder
+            // Else gotta split list[segmentIndex] between the two
+            if (count > segmentOffset)
+            {
+                // split list[segmentIndex] appropriately
+                ArraySegment<byte> segment = list[segmentIndex];
+                int segCount = count - segmentOffset;
+                initial.AddSegment(new ArraySegment<byte>(segment.Array, segment.Offset, segCount));
+                list[segmentIndex] = new ArraySegment<byte>(segment.Array, 
+                    segment.Offset + segCount, segment.Count - segCount);
+            }
+
+            list.RemoveRange(0, segmentIndex);
+            length -= count;
+            return initial;
         }
 
         /// <summary>

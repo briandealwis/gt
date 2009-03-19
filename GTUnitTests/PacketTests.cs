@@ -369,6 +369,45 @@ namespace GT.UnitTests
         }
 
         [Test]
+        public void TestSplitOut()
+        {
+            TransportPacket packet = new TransportPacket();
+            for (int i = 0; i < 256; )
+            {
+                byte[] source = new byte[8];
+                for (int j = 0; j < source.Length; j++, i++)
+                {
+                    source[j] = (byte)i;
+                }
+                packet.Add(source);
+            }
+            Assert.AreEqual(256, packet.Length);
+            Assert.IsTrue(((IList<ArraySegment<byte>>)packet).Count > 1);
+
+            for (int splitCount = 0; splitCount < packet.Length; splitCount++)
+            {
+                TransportPacket back = packet.Copy();
+                TransportPacket front = back.SplitOut(splitCount);
+                Assert.AreEqual(splitCount, front.Length);
+                Assert.AreEqual(packet.Length - splitCount, back.Length);
+
+                int index = 0;
+                for (; index < front.Length; index++)
+                {
+                    Assert.AreEqual((byte)index, front.ByteAt(index));
+                }
+                for (int i = 0; i < back.Length; i++)
+                {
+                    Assert.AreEqual((byte)(index + i), back.ByteAt(i));
+                }
+                CheckNotDisposed(back);
+                CheckNotDisposed(front);
+            }
+            CheckDisposed(packet);
+            CheckForUndisposedSegments();
+        }
+
+        [Test]
         public void TestReadStream()
         {
             byte[] source = new byte[] { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9 };
