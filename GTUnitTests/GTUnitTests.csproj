@@ -58,6 +58,7 @@
     <Compile Include="BaseTests.cs" />
     <Compile Include="GMCTests.cs" />
     <Compile Include="GTClientServerTests.cs" />
+    <Compile Include="LargeObjectMarshallerTests.cs" />
     <Compile Include="Lifecycle.cs" />
     <Compile Include="LocalTransport.cs" />
     <Compile Include="MillipedeTests.cs" />

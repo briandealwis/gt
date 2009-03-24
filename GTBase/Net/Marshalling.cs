@@ -14,6 +14,9 @@ namespace GT.Net
     /// A marshaller is responsible for transforming an object to a sequence of bytes,
     /// and later restoring an equivalent object from that sequence of bytes.
     /// GT marshallers must handle strings, session objects, byte arrays, and tuples.
+    /// Marshaller implementations have special responsibilities with regards to
+    /// handling the <see cref="TransportPacket"/> instances used for storing the
+    /// marshalling results, which are documented in the method comments.
     /// </remarks>
     public interface IMarshaller : IDisposable
     {
@@ -25,10 +28,18 @@ namespace GT.Net
 
         /// <summary>
         /// Marshal the provided message in an appropriate form for the provided transport.
-        /// Returns the results as a list of <see cref="TransportPacket"/> instances.
-        /// Although it is the callers responsibility to dispose of these packets
-        /// (through <see cref="TransportPacket.Dispose"/>), typically this responsibility
-        /// is transferred when these packets are sent across a transport.
+        /// Returns the results as a list of <see cref="TransportPacket"/> instances,
+        /// as encoded in a <see cref="MarshalledResult"/>.  It is the caller's
+        /// responsibility to ensure the <see cref="MarshalledResult"/> is properly
+        /// disposed of using <see cref="MarshalledResult.Dispose"/>.
+        /// Although it is also the caller's responsibility to separately dispose of 
+        /// these packets (through <see cref="TransportPacket.Dispose"/>), this 
+        /// responsibility is typically transferred once these packets are sent 
+        /// across an <see cref="ITransport"/>. 
+        /// Unless the marshaller has support for fragmenting a message across
+        /// multiple packets, the marshaller should not perform any checks
+        /// that the resulting packet fits within the 
+        /// <see cref="ITransportDeliveryCharacteristics.MaximumPacketSize"/>.
         /// </summary>
         /// <param name="senderIdentity">the server-unique id of the sender of this message
         /// (i.e., the local client or server's server-unique identifier).  This
@@ -37,7 +48,8 @@ namespace GT.Net
         /// <param name="tdc">the characteristics of the transport on which the packet 
         ///     will be sent; this may be the actual transport</param>
         /// <returns>the marshalled result, containing a set of transport packets;
-        ///     this result <b>must</b> be disposed of when finished with</returns>
+        ///     this result <b>must</b> be disposed of with <see cref="MarshalledResult.Dispose"/>
+        ///     once finished with</returns>
         /// <exception cref="MarshallingException">on a marshalling error, or if the
         /// message cannot be encoded within the transport's packet capacity</exception>
         MarshalledResult Marshal(int senderIdentity, Message message, ITransportDeliveryCharacteristics tdc);
@@ -47,9 +59,13 @@ namespace GT.Net
         /// form from <see cref="input"/>.   Messages are notified using the provided 
         /// <see cref="messageAvailable"/> delegate; a message may not be immediately 
         /// available, for example, if decoding their byte-content depends on information 
-        /// carried in a not-yet-seen message.  This marshaller <b>must</b> call
-        /// <see cref="TransportPacket.Retain"/> should it require access to
-        /// <see cref="input"/> after this call has returned.
+        /// carried in a not-yet-seen message.  The marshaller <b>must</b> destructively 
+        /// modify the packet to remove the bytes consituting the message; this it typically 
+        /// done using either <see cref="TransportPacket.RemoveBytes"/> or 
+        /// <see cref="TransportPacket.AsReadStream"/>.  Should the marshaller require 
+        /// access to the contents of <see cref="input"/> after this call has returned
+        /// then the marshaller should request for a subset of the packet using
+        /// <see cref="TransportPacket.Subset"/>.
         /// </summary>
         /// <param name="input">the stream with the packet content</param>
         /// <param name="tdc">the characteristics of transport from which the packet was 

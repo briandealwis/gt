@@ -116,15 +116,15 @@ namespace GT.Utils
         /// for any newly-expired frames.
         /// </summary>
         /// <param name="frame">the frame seen</param>
-        /// <returns>true if some frames were expired as a result, false otherwise</returns>
+        /// <returns>true if the frame is within the (possibly advanced) window, false otherwise</returns>
         /// <exception cref="ArgumentOutOfRangeException">thrown if <see cref="frame"/>
         /// is out side of the range of the window</exception>
         public bool Seen(uint frame) 
         {
             if(frame >= Capacity) { throw new ArgumentOutOfRangeException("frame"); }
             Debug.Assert(allocated <= WindowSize);
-            if(!IsExpectedFrame(frame)) { return false; }
-            Debug.Assert(!IsActive(frame));
+            if (IsActive(frame)) { return true; }
+            if (!IsExpectedFrame(frame)) { return false; }
 
             // If we haven't seen any frame previously (allocated == 0), then 
             // there is no old FirstOutstandingFrame, and we don't have to shift much
@@ -141,7 +141,7 @@ namespace GT.Utils
                     oldFirstFrame = (oldFirstFrame + 1) % Capacity;
                 }
             }
-            return expired > 0;
+            return true;
         }
 
     }
