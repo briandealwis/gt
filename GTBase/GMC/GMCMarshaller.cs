@@ -122,8 +122,6 @@ namespace GT.GMC
 
         public MarshalledResult Marshal(int senderIdentity, Message message, ITransportDeliveryCharacteristics tdc)
         {
-            // FIXME: should pass in a transport-wrapper that reduces the 
-            // max packet size by N bytes
             MarshalledResult mr = subMarshaller.Marshal(senderIdentity, message, tdc);
             MarshalledResult result = new MarshalledResult();
             while (mr.HasPackets)
