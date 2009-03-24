@@ -384,7 +384,7 @@ namespace GT.UnitTests
             Assert.AreEqual(256, packet.Length);
             Assert.IsTrue(((IList<ArraySegment<byte>>)packet).Count > 1);
 
-            for (int splitCount = 0; splitCount < packet.Length; splitCount++)
+            for (int splitCount = 0; splitCount <= packet.Length; splitCount++)
             {
                 TransportPacket back = packet.Copy();
                 TransportPacket front = back.SplitOut(splitCount);

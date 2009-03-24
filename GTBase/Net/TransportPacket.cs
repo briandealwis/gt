@@ -301,6 +301,7 @@ namespace GT.Net
         /// <param name="offset"></param>
         /// <param name="count"></param>
         public void Add(TransportPacket source, int offset, int count) {
+            ValidateAndSync();
             int subsetEnd = offset + count - 1;    // index of last byte of interest
             int segmentStart = 0; // index of first byte of current <segment>
             foreach (ArraySegment<byte> segment in source.list)
@@ -616,7 +617,7 @@ namespace GT.Net
         public TransportPacket SplitOut(int count)
         {
             ValidateAndSync();
-            if (count < 0 || count >= length) { throw new ArgumentOutOfRangeException("count"); }
+            if (count < 0 || count > length) { throw new ArgumentOutOfRangeException("count"); }
 
             int segmentOffset = 0;
             int segmentIndex = 0;
