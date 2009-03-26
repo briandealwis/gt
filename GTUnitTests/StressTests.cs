@@ -273,6 +273,11 @@ namespace GT.UnitTests
                 }
             }
             catch (ThreadAbortException) { }
+            catch (GTException e)
+            {
+                // rethrow unless we're stopped
+                if(running) { throw; }
+            }
 
         }
 
@@ -373,16 +378,6 @@ namespace GT.UnitTests
         [TearDown]
         public void TearDown()
         {
-            if (server != null)
-            {
-                try
-                {
-                    server.Stop();
-                    server.Dispose();
-                }
-                catch (Exception) { }
-            }
-
             if (clients != null)
             {
                 foreach (StressingClient client in clients)
@@ -395,6 +390,17 @@ namespace GT.UnitTests
                     catch (Exception) {}
                 }
             }
+
+            if (server != null)
+            {
+                try
+                {
+                    server.Stop();
+                    server.Dispose();
+                }
+                catch (Exception) { }
+            }
+
         }
 
     }
