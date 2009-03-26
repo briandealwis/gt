@@ -96,7 +96,11 @@ namespace GT.Net
                             break;
                         case SocketError.WouldBlock:
                             // FIXME: Does UDP ever cause a WouldBlock?
-                            throw new TransportBackloggedWarning(this);
+                            NotifyError(new ErrorSummary(Severity.Information,
+                                SummaryErrorCode.TransportBacklogged,
+                                "Transport backlogged", this, null));
+                            return;
+
                         default:
                             //something terrible happened, but this is only UDP, so stick around.
                             throw new TransportError(this, "Error sending UDP packet", error);

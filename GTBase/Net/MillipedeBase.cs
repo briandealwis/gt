@@ -504,6 +504,7 @@ namespace GT.Millipede
 
         public event PacketHandler PacketReceivedEvent;
         public event PacketHandler PacketSentEvent;
+        public event ErrorEventNotication ErrorEvent;
 
         /// <summary>
         /// Creates a recording wrapper for any given ITransport
@@ -518,8 +519,9 @@ namespace GT.Millipede
             this.underlyingTransport = underlyingTransport;
             this.recorder = recorder;
             milliDescriptor = milliTransportDescriptor;
-            this.underlyingTransport.PacketReceivedEvent += UnderlyingTransports_PacketReceivedEvent;
-            this.underlyingTransport.PacketSentEvent += UnderlyingTransports_PacketSentEvent;
+            this.underlyingTransport.PacketReceivedEvent += _underlyingTransports_PacketReceivedEvent;
+            this.underlyingTransport.PacketSentEvent += _underlyingTransports_PacketSentEvent;
+            this.underlyingTransport.ErrorEvent += _underlyingTransport_ErrorEvent;
             running = true;
         }
 
@@ -561,7 +563,7 @@ namespace GT.Millipede
         /// components.
         /// </summary>
         /// <see cref="ITransport.PacketSentEvent"/>
-        private void UnderlyingTransports_PacketSentEvent(TransportPacket packet, ITransport transport)
+        private void _underlyingTransports_PacketSentEvent(TransportPacket packet, ITransport transport)
         {
             if (PacketSentEvent == null) { return; }
             PacketSentEvent(packet, this);
@@ -574,12 +576,21 @@ namespace GT.Millipede
         /// components.
         /// </summary>
         /// <see cref="ITransport.PacketReceivedEvent"/>
-        private void UnderlyingTransports_PacketReceivedEvent(TransportPacket packet, ITransport transport)
+        private void _underlyingTransports_PacketReceivedEvent(TransportPacket packet, ITransport transport)
         {
             recorder.Record(new MillipedeEvent(milliDescriptor, MillipedeEventType.PacketReceived, 
                 packet.ToArray()));
             if (PacketReceivedEvent == null) { return; }
             PacketReceivedEvent(packet, this);
+        }
+
+        private void _underlyingTransport_ErrorEvent(ErrorSummary es)
+        {
+            recorder.Record(new MillipedeEvent(milliDescriptor, MillipedeEventType.Error, es));
+            if (ErrorEvent != null)
+            {
+                ErrorEvent(es);
+            }
         }
 
         /// <summary>
@@ -667,7 +678,7 @@ namespace GT.Millipede
             case MillipedeMode.Record:
                 try
                 {
-                    packet.Retain();  // underlyingTransport will dispose of packet
+                    packet.Retain();  // since underlyingTransport will dispose of packet
                     underlyingTransport.SendPacket(packet);
                     recorder.Record(new MillipedeEvent(milliDescriptor,
                         MillipedeEventType.SentPacket,
@@ -684,10 +695,15 @@ namespace GT.Millipede
 
             case MillipedeMode.Playback:
                 MillipedeEvent e = recorder.WaitForReplayEvent(milliDescriptor,
-                    MillipedeEventType.Exception, MillipedeEventType.SentPacket);
+                    MillipedeEventType.Exception, MillipedeEventType.SentPacket,
+                    MillipedeEventType.Error);
                 if(e.Type == MillipedeEventType.Exception)
                 {
                     throw (Exception)e.Context;
+                }
+                if (e.Type == MillipedeEventType.Error && ErrorEvent != null)
+                {
+                    ErrorEvent((ErrorSummary)e.Context);
                 }
                 return;
             }
@@ -723,7 +739,7 @@ namespace GT.Millipede
             case MillipedeMode.Playback:
                 MillipedeEvent e = recorder.CheckReplayEvent(milliDescriptor,
                     MillipedeEventType.PacketReceived, MillipedeEventType.Exception,
-                    MillipedeEventType.Disposed);
+                    MillipedeEventType.Disposed, MillipedeEventType.Error);
                 if(e == null)
                 {
                     return;
@@ -732,16 +748,18 @@ namespace GT.Millipede
                 {
                     running = false;
                 }
-                else if(e.Type == MillipedeEventType.PacketReceived)
+                else if(e.Type == MillipedeEventType.PacketReceived
+                    && PacketReceivedEvent != null)
                 {
-                    if(PacketReceivedEvent != null)
-                    {
-                        TransportPacket tp = new TransportPacket(e.Message);
-                        PacketReceivedEvent(tp, this);
-                        tp.Dispose();
-                    }
+                    TransportPacket tp = new TransportPacket(e.Message);
+                    PacketReceivedEvent(tp, this);
+                    tp.Dispose();
                 }
-                else if(e.Type == MillipedeEventType.Exception)
+                else if (e.Type == MillipedeEventType.Error && ErrorEvent != null)
+                {
+                    ErrorEvent((ErrorSummary)e.Context);
+                }
+                else if (e.Type == MillipedeEventType.Exception)
                 {
                     throw (Exception)e.Context;
                 }
@@ -843,6 +861,12 @@ namespace GT.Millipede
         /// The event's Context object should record the necessary details.
         /// </summary>
         NotedDetails,
+
+        /// <summary>
+        /// An error was detected; the Context is generally expected to be an
+        /// <see cref="ErrorSummary"/>.
+        /// </summary>
+        Error
     }
 
     /// <summary>

@@ -33,6 +33,7 @@ namespace GT.UnitTests
 
         public event PacketHandler PacketReceivedEvent;
         public event PacketHandler PacketSentEvent;
+        public event ErrorEventNotication ErrorEvent;
 
         public NullTransport()
         {
@@ -537,47 +538,58 @@ namespace GT.UnitTests
             // 384 bytes (or 3 packets of 128 bytes)
             LeakyBucketTransport lbt = new LeakyBucketTransport(nt, 128, 
                 TimeSpan.FromMilliseconds(10), 384);
+            bool backlogged = false;
+            lbt.ErrorEvent += delegate(ErrorSummary es)
+            {
+                if (es.ErrorCode == SummaryErrorCode.TransportBacklogged)
+                {
+                    backlogged = true;
+                }
+            };
 
             for(int i = 0; i < 5; i++)
             {
+                Assert.IsFalse(backlogged);
                 uint startBytesSent = nt.BytesSent;
                 Assert.AreEqual(128, lbt.AvailableCapacity);
                 Assert.AreEqual(384, lbt.RemainingBucketCapacity);
+                Assert.IsFalse(backlogged);
                 
                 lbt.SendPacket(new TransportPacket(new byte[128]));  // should send
                 Assert.AreEqual(0, lbt.AvailableCapacity);
                 Assert.AreEqual(384, lbt.RemainingBucketCapacity);
+                Assert.IsFalse(backlogged);
 
                 lbt.SendPacket(new TransportPacket(new byte[128]));  // should be buffered
                 Assert.AreEqual(0, lbt.AvailableCapacity);
                 Assert.AreEqual(256, lbt.RemainingBucketCapacity);
+                Assert.IsFalse(backlogged);
 
                 lbt.SendPacket(new TransportPacket(new byte[128]));  // should be buffered
                 Assert.AreEqual(0, lbt.AvailableCapacity);
                 Assert.AreEqual(128, lbt.RemainingBucketCapacity);
+                Assert.IsFalse(backlogged);
 
                 lbt.SendPacket(new TransportPacket(new byte[128]));  // should be buffered
                 Assert.AreEqual(0, lbt.AvailableCapacity);
                 Assert.AreEqual(0, lbt.RemainingBucketCapacity);
-                try
-                {
-                    lbt.SendPacket(new TransportPacket(new byte[128]));  // should exceed bucket capacity
-                    Assert.Fail("should have thrown a backlogged exception");
-                }
-                catch(TransportBackloggedWarning)
-                {
-                    // this was expected
-                }
+                Assert.IsFalse(backlogged);
+                    
+                lbt.SendPacket(new TransportPacket(new byte[128]));  // should exceed bucket capacity
+                Assert.IsTrue(backlogged);
+                backlogged = false;
+
                 Assert.AreEqual(128, nt.BytesSent - startBytesSent);
 
                 // Drain the bucket
-                while (lbt.RemainingBucketCapacity < lbt.MaximumCapacity)
+                do
                 {
-                    lbt.Update();
                     Thread.Sleep(20);
+                    lbt.Update();
+                    Assert.IsFalse(backlogged);
                 }
-                Assert.AreEqual(128, lbt.AvailableCapacity);
-
+                while (lbt.RemainingBucketCapacity < lbt.MaximumCapacity 
+                    || lbt.AvailableCapacity != 128);
             }
         }
 
@@ -586,60 +598,77 @@ namespace GT.UnitTests
         {
             NullTransport nt = new NullTransport();
             TokenBucketTransport tbt = new TokenBucketTransport(nt, 512, 1024);
+            bool backlogged = false;
+            tbt.ErrorEvent += delegate(ErrorSummary es)
+            {
+                if (es.ErrorCode == SummaryErrorCode.TransportBacklogged)
+                {
+                    backlogged = true;
+                }
+            };
             Assert.IsTrue(tbt.AvailableCapacity == 1024, "starting capacity is the maximum capacity");
             for (int i = 0; i < 5; i++)
             {
                 uint startBytesSent = nt.BytesSent;
+                Assert.IsFalse(backlogged);
+                Assert.IsTrue(tbt.AvailableCapacity >= tbt.MaximumCapacity);
                 tbt.SendPacket(new TransportPacket(new byte[128]));
+                Assert.IsFalse(backlogged);
                 tbt.SendPacket(new TransportPacket(new byte[128]));
+                Assert.IsFalse(backlogged);
                 tbt.SendPacket(new TransportPacket(new byte[128]));
+                Assert.IsFalse(backlogged);
                 tbt.SendPacket(new TransportPacket(new byte[128]));
+                Assert.IsFalse(backlogged);
                 tbt.SendPacket(new TransportPacket(new byte[128]));
+                Assert.IsFalse(backlogged);
                 tbt.SendPacket(new TransportPacket(new byte[128]));
+                Assert.IsFalse(backlogged);
                 tbt.SendPacket(new TransportPacket(new byte[128]));
+                Assert.IsFalse(backlogged);
                 tbt.SendPacket(new TransportPacket(new byte[128]));
+                Assert.IsFalse(backlogged);
                 Assert.AreEqual(1024, nt.BytesSent - startBytesSent);
-                try
-                {
-                    // this packet will not be sent though
-                    tbt.SendPacket(new TransportPacket(new byte[128]));
-                    Assert.Fail("should have thrown a backlogged exception");
-                }
-                catch (TransportBackloggedWarning)
-                {
-                    // this was expected
-                }
+
+                // this packet will not be sent though
+                tbt.SendPacket(new TransportPacket(new byte[128]));
+                Assert.IsTrue(backlogged);
+                backlogged = false;
+
                 Assert.AreEqual(1024, nt.BytesSent - startBytesSent);
 
                 // Build up some capacity
-                while(tbt.AvailableCapacity < 256)
-                {
-                    Thread.Sleep(200);
-                }
-                //Console.WriteLine("Test: slept {0}ms", timer.ElapsedMilliseconds);
-                // plus the outstanding packet
-                tbt.SendPacket(new TransportPacket(new byte[128]));
-                Assert.AreEqual(1024 + 2 * 128, nt.BytesSent - startBytesSent);
-
-                // we should now have little capacity again, so sending another packet will backlog
-                Assert.IsTrue(tbt.AvailableCapacity < 128);
-                try
-                {
-                    // this packet will not be sent next though
-                    tbt.SendPacket(new TransportPacket(new byte[128]));
-                    Assert.Fail("should have thrown a backlogged exception");
-                }
-                catch (TransportBackloggedWarning)
-                {
-                    // this was expected
-                }
-
-                // Sleep until there is plenty of capacity
-                while(tbt.AvailableCapacity < tbt.MaximumCapacity)
+                while(tbt.AvailableCapacity < 128)
                 {
                     Thread.Sleep(200);
                     tbt.Update();
                 }
+                //Console.WriteLine("Test: slept {0}ms", timer.ElapsedMilliseconds);
+                // plus the outstanding packet
+                while (tbt.AvailableCapacity > 128)
+                {
+                    Assert.IsFalse(backlogged);
+                    tbt.SendPacket(new TransportPacket(new byte[128]));
+                    Assert.IsFalse(backlogged);
+                }
+
+                // we should now have little capacity again, so sending another packet will backlog
+                Assert.IsTrue(tbt.AvailableCapacity < 128);
+
+                // this packet will not be sent next though
+                Assert.IsFalse(backlogged);
+                tbt.SendPacket(new TransportPacket(new byte[128]));
+                Assert.IsTrue(backlogged);
+
+                backlogged = false;
+                // Sleep until there is plenty of capacity
+                do
+                {
+                    Thread.Sleep(200);
+                    tbt.Update();
+                    Assert.IsFalse(backlogged);
+                }
+                while (tbt.AvailableCapacity < tbt.MaximumCapacity);
             }
         }
     }

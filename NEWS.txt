@@ -7,11 +7,6 @@ GT NEWS
 
 New Functionality:
 
-  * The ClientConfiguration and ServerConfiguration classes are now
-    afforded the opportunity to configure (or even wrap or replace)
-    new transport instances through a ConfigureTransport() method.
-    (see BaseConfiguration.ConfigureTransport()).
-
   * Millipede-style packet recording and replay: Thanks to a code
     contribution from Adrian Reetz, GT now has a packet recording/replay
     framework inspired by the Millipede sequential debugging module.
@@ -77,6 +72,10 @@ New Functionality:
     As a result of this change, GT is now much quieter with respect
     to messages written to the system console.
 
+  * The ClientConfiguration and ServerConfiguration classes are now
+    afforded the opportunity to configure (or even wrap or replace)
+    new transport instances through a ConfigureTransport() method.
+    (see BaseConfiguration.ConfigureTransport()).
 
 Interoperability changes:
 =========================
@@ -148,6 +147,9 @@ GT 3.0.
 	this value at some transport-specific maximum.  TcpTransport
 	and BaseUdpTransport's CappedPacketSize have been renamed to
 	DefaultMaximumPacketSize.
+
+      * ITransports no longer throw TransportBackloggedWarning, and
+        instead provide such warnings through a new ErrorEvent event.
 
   * IMarshaller changes:
 

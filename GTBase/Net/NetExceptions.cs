@@ -200,41 +200,4 @@ namespace GT.Net
 
     }
 
-    /// <summary>
-    /// Notification that a particular transport is unable to send a packet
-    /// immediately as the underlying network transport is busy.
-    /// </summary>
-    /// <remarks>
-    /// This class is serializable to support GT-Millipede,
-    /// though the deserialized form may not correspond directly
-    /// if some of the relevant objects are not themselves serializable.
-    /// </remarks>
-    [Serializable]
-    public class TransportBackloggedWarning : GTException, ISerializable
-    {
-        public TransportBackloggedWarning(ITransport t) 
-            : this(Severity.Information, t)
-        {}
-
-        public TransportBackloggedWarning(Severity sev, ITransport t)
-            : base(sev)
-        {
-            SourceComponent = t;
-        }
-
-        protected TransportBackloggedWarning(SerializationInfo info, StreamingContext context)
-            : this((Severity)info.GetInt32("severity"), null)
-        {
-            Source = info.GetString("source");
-        }
-
-        [SecurityPermissionAttribute(SecurityAction.Demand, SerializationFormatter = true)]
-        public virtual void GetObjectData(SerializationInfo info, StreamingContext context)
-        {
-            info.AddValue("source", Source);
-            info.AddValue("severity", Severity);
-        }
-}
-
-
 }

@@ -15,13 +15,13 @@ namespace GT.Net
 
     /// <remarks>
     /// Represents a connection to either a server or a client.
-    /// Errors should be notified by throwing an instanceof TransportError.
-    /// Should the transport have been cleanly shutdown by the remote side, then
-    /// throw a TransportDecomissionedException.
+    /// Errors should be notified by throwing a <see cref="TransportError"/>;
+    /// warnings and recovered errors are notified through the <see cref="ErrorEvent"/>.
     /// Transports are responsible for disposing of any <see cref="TransportPacket"/>
     /// instances provided to <see cref="SendPacket"/>.
     /// <see cref="TransportPacket"/> instances provided through the <see cref="PacketSentEvent"/>
-    /// and <see cref="PacketReceivedEvent"/> generally only have a lifetime of the callback
+    /// and <see cref="PacketReceivedEvent"/> are disposed of upon the completion of the
+    /// callback, and thus only have a lifetime of the callback
     /// unless they are first attached to using <see cref="TransportPacket.Retain"/>.
     /// </remarks>
     public interface ITransport : ITransportDeliveryCharacteristics, IDisposable
@@ -59,6 +59,18 @@ namespace GT.Net
         event PacketHandler PacketSentEvent;
 
         /// <summary>
+        /// Raised to notify of warnings or recovered errors arising from the use of
+        /// this transport.  Unrecoverable errors are indicated by <see cref="TransportError"/>.
+        /// Primarily used for indicating that the instance has become backlogged.
+        /// different transports handle backlog differently; reports with
+        /// <see cref="Severity.Information"/> generally indicates that the packet was
+        /// be queued or buffered to be resent on subsequent calls to <see cref="SendPacket"/>
+        /// and <see cref="Update"/>;  <see cref="Severity.Warning"/> generally indicates that 
+        /// the packet has been discarded.
+        /// </summary>
+        event ErrorEventNotication ErrorEvent;
+
+        /// <summary>
         /// A set of tags describing the capabilities of the transport and of expectations/capabilities
         /// of the users of this transport.
         /// </summary>
@@ -70,8 +82,6 @@ namespace GT.Net
         /// </summary>
         /// <param name="packet">the packet to send</param>
         /// <exception cref="TransportError">thrown on a fatal transport error.</exception>
-        /// <exception cref="TransportBackloggedWarning">thrown if this packet cannot
-        ///     be sent at the moment</exception>
         void SendPacket(TransportPacket packet);
 
         /// <summary>
@@ -104,6 +114,7 @@ namespace GT.Net
         private Dictionary<string, string> capabilities = new Dictionary<string, string>();
         public event PacketHandler PacketReceivedEvent;
         public event PacketHandler PacketSentEvent;
+        public event ErrorEventNotication ErrorEvent;
         public abstract string Name { get; }
         public abstract uint Backlog { get; }
         public abstract bool Active { get; }
@@ -158,10 +169,13 @@ namespace GT.Net
             // DebugUtils.DumpMessage(this.ToString() + " notifying of received message", buffer, offset, count);
             if (PacketReceivedEvent == null)
             {
-                log.Error("transport has no listeners for receiving incoming messages!");
-                return;
+                NotifyError(new ErrorSummary(Severity.Warning, SummaryErrorCode.Configuration,
+                    "transport has no listeners for receiving incoming messages!", this, null));
+            } 
+            else
+            {
+                PacketReceivedEvent(packet, this);
             }
-            PacketReceivedEvent(packet, this);
             // event listeners are responsible for calling Retain() if they
             // want to use it for longer.
             packet.Dispose();   
@@ -172,6 +186,15 @@ namespace GT.Net
             if (PacketSentEvent != null) { PacketSentEvent(packet, this); }
             packet.Dispose();
         }
+
+        protected virtual void NotifyError(ErrorSummary es)
+        {
+            es.LogTo(log);
+            if(ErrorEvent != null)
+            {
+                ErrorEvent(es);
+            }
+        }
     }
 
     /// <summary>
@@ -181,6 +204,7 @@ namespace GT.Net
     {
         public event PacketHandler PacketReceivedEvent;
         public event PacketHandler PacketSentEvent;
+        public event ErrorEventNotication ErrorEvent;
 
         protected ILog log;
 
@@ -201,6 +225,7 @@ namespace GT.Net
 
             Wrapped.PacketReceivedEvent += _wrapped_PacketReceivedEvent;
             Wrapped.PacketSentEvent += _wrapped_PacketSentEvent;
+            Wrapped.ErrorEvent += NotifyError;
         }
 
         virtual public Reliability Reliability
@@ -272,10 +297,24 @@ namespace GT.Net
         {
             if (PacketReceivedEvent == null)
             {
-                log.Error("transport has no listeners for receiving incoming messages!");
+                NotifyError(new ErrorSummary(Severity.Warning, SummaryErrorCode.Configuration,
+                    "transport has no listeners for receiving incoming messages!", this, null));
             }
-            PacketReceivedEvent(packet, this);
+            else
+            {
+                PacketReceivedEvent(packet, this);
+            }
         }
+
+        virtual protected void NotifyError(ErrorSummary summary)
+        {
+            summary.LogTo(log);
+            if (ErrorEvent != null)
+            {
+                ErrorEvent(summary);
+            }
+        }
+
     }
 
     /// <summary>
@@ -423,7 +462,10 @@ namespace GT.Net
         {
             if (contentsSize + packet.Length > MaximumCapacity)
             {
-                throw new TransportBackloggedWarning(this);
+                NotifyError(new ErrorSummary(Severity.Warning,
+                    SummaryErrorCode.TransportBacklogged,
+                    "Capacity exceeded: packet discarded", this, null));
+                return;
             }
 
             bucketContents.Enqueue(packet);
@@ -555,7 +597,10 @@ namespace GT.Net
             QueuePacket(packet);
             if (!TrySending())
             {
-                throw new TransportBackloggedWarning(this);
+                NotifyError(new ErrorSummary(Severity.Information,
+                    SummaryErrorCode.TransportBacklogged,
+                    "Capacity exceeded: packet queued", this, null));
+                return;
             }
         }
 
@@ -567,7 +612,8 @@ namespace GT.Net
         /// <summary>
         /// Could throw an exception.
         /// </summary>
-        /// <returns></returns>
+        /// <returns>true if all packets were sent, false if there are still some
+        ///     packets queued</returns>
         protected bool TrySending()
         {
             // add to capacity to the maximum

@@ -60,7 +60,6 @@ namespace GT.UnitTests
         {
             TryMillipedeException(new CannotConnectException("test"));
             TryMillipedeException(new TransportError("this", "foo", "this"));
-            TryMillipedeException(new TransportBackloggedWarning(null));
         }
 
         protected void TryMillipedeException(Exception exception)
@@ -424,6 +423,7 @@ namespace GT.UnitTests
 
         public event PacketHandler PacketReceivedEvent;
         public event PacketHandler PacketSentEvent;
+        public event ErrorEventNotication ErrorEvent;
 
         public IDictionary<string, string> Capabilities { get; set; }
 

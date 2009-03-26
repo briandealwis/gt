@@ -157,7 +157,11 @@ namespace GT.Net
                         break;
 
                     case SocketError.WouldBlock:
-                        throw new TransportBackloggedWarning(this);
+                        NotifyError(new ErrorSummary(Severity.Information,
+                            SummaryErrorCode.TransportBacklogged, 
+                            "Transport backlogged: too much data",
+                            this, null));
+                        return;
 
                     default:
                         //die, because something terrible happened

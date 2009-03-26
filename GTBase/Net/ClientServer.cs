@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Text;
 using System.Threading;
 using Common.Logging;
 using GT.Utils;
@@ -318,13 +319,7 @@ namespace GT.Net
 
         protected void NotifyError(ErrorSummary es)
         {
-            switch (es.Severity)
-            {
-                case Severity.Fatal: log.Fatal(es); break;
-                case Severity.Error: log.Error(es); break;
-                case Severity.Warning: log.Warn(es); break;
-                case Severity.Information: log.Info(es); break;
-            }
+            es.LogTo(log);
             if (ErrorEvent == null) {
                 if (!nullWarningIssued)
                 {
@@ -391,14 +386,36 @@ namespace GT.Net
     }
 
     /// <summary>
-    /// A code describing the summary.
+    /// An actionable code describing the error.
     /// </summary>
     public enum SummaryErrorCode {
+        /// <summary>
+        /// An exception was raised in an user-provided event handler
+        /// </summary>
         UserException,
+        /// <summary>
+        /// A remote side could not be communicated with.
+        /// </summary>
         RemoteUnavailable,
+        /// <summary>
+        /// A collection of messages could not be sent to the remote;
+        /// these messages will not be resent.
+        /// </summary>
         MessagesCannotBeSent,
+        /// <summary>
+        /// An incoming message was in an invalid format and could not be
+        /// decoded.
+        /// </summary>
         InvalidIncomingMessage,
+        /// <summary>
+        /// A transport cannot cope with the traffic being directed to
+        /// it and any pending traffic is being backed up.
+        /// </summary>
         TransportBacklogged,
+        /// <summary>
+        /// There was a configuration problem in a component.
+        /// </summary>
+        Configuration
     }
 
     /// <summary>
@@ -408,10 +425,14 @@ namespace GT.Net
     public struct ErrorSummary
     {
         public ErrorSummary(Severity sev, SummaryErrorCode sec, string msg, Exception ctxt)
+            : this(sev, sec, msg, null, ctxt) {}
+
+        public ErrorSummary(Severity sev, SummaryErrorCode sec, string msg, object subj, Exception ctxt)
         {
             Severity = sev;
             ErrorCode = sec;
             Message = msg;
+            Subject = subj;
             Context = ctxt;
         }
 
@@ -419,15 +440,43 @@ namespace GT.Net
         public SummaryErrorCode ErrorCode;
         public string Message;
         public Exception Context;
+        public object Subject;
 
         public override string ToString()
         {
-            if (Context == null)
+            StringBuilder results = new StringBuilder();
+            results.Append(Severity);
+            results.Append('[');
+            results.Append(ErrorCode);
+            results.Append("]: ");
+            results.Append(Message);
+            if (Subject != null)
             {
-                return String.Format("{0}[{1}]: {2}", Severity, ErrorCode, Message);
+                results.Append(" {");
+                results.Append(Subject);
+                results.Append('}');
             }
-            return String.Format("{0}[{1}]: {2}: {3} {4}", Severity, ErrorCode,
-                Message, Context.GetType(), Context.Message);
+            if (Context != null)
+            {
+                results.Append(Context.GetType());
+                results.Append(Context.Message);
+            }
+            return results.ToString();
+        }
+
+        /// <summary>
+        /// Log this instance to the provided logger.
+        /// </summary>
+        /// <param name="log"></param>
+        public void LogTo(ILog log)
+        {
+            switch (Severity)
+            {
+                case Severity.Fatal: log.Fatal(this); break;
+                case Severity.Error: log.Error(this); break;
+                case Severity.Warning: log.Warn(this); break;
+                default: log.Info(this); break;
+            }
         }
     }
 
@@ -778,13 +827,6 @@ namespace GT.Net
                         if (toRemove == null) { toRemove = new Dictionary<ITransport,GTException>(); }
                         toRemove[t] = e;
                     }
-                    catch (TransportBackloggedWarning e)
-                    {
-                        // The packet is still outstanding; just warn the user 
-                        NotifyError(new ErrorSummary(Severity.Information,
-                            SummaryErrorCode.TransportBacklogged,
-                            "Transport backlogged: " + t, e));
-                    }
                 }
                 if (toRemove == null) { return; }
                 foreach (ITransport t in toRemove.Keys)
@@ -1025,13 +1067,6 @@ namespace GT.Net
         protected void SendPacket(ITransport transport, TransportPacket packet)
         {
             try { transport.SendPacket(packet); }
-            catch (TransportBackloggedWarning e)
-            {
-                NotifyError(new ErrorSummary(e.Severity, SummaryErrorCode.TransportBacklogged,
-                    "Transport is backlogged: there are too many messages being sent", e));
-                // rethrow the error if it's not for information purposes
-                if (e.Severity != Severity.Information) { throw; }
-            }
             catch (TransportError e)
             {
                 HandleTransportDisconnect(transport);
