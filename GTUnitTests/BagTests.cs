@@ -167,11 +167,52 @@ namespace GT.UnitTests
             Assert.AreEqual(1, b.Count);
             Assert.IsTrue(b.Contains("foo"));
             Assert.IsFalse(b.Contains("bar"));
+
+            Assert.IsFalse(b.Remove("bar"));
+            Assert.AreEqual(1, b.Count);
+
+            try
+            {
+                b.Add("bar");
+                Assert.Fail("SingleItem can only hold a single item");
+            }
+            catch (NotSupportedException)
+            {
+            }
+
             try
             {
                 b.Remove("foo");
-                Assert.Fail("SingleItem does not allow the item to be removed");
-            } catch (NotSupportedException) { /* expected result */ }
+            }
+            catch(NotSupportedException)
+            {
+                Assert.Fail("SingleItem should allow the item to be removed");
+            }
+            Assert.AreEqual(0, b.Count);
+            try
+            {
+                string foo = b[0];
+                Assert.Fail("SingleItem no longer has anything");
+            }
+            catch (ArgumentOutOfRangeException) { /* expected */ }
+            try
+            {
+                b.Add("bar");
+            }
+            catch (NotSupportedException)
+            {
+                Assert.Fail("SingleItem should be able to add to an empty list");
+            }
+            Assert.AreEqual(1, b.Count);
+            Assert.IsFalse(b.Contains("foo"));
+            Assert.IsTrue(b.Contains("bar"));
+        }
+
+        [Test]
+        public void TestCopyToZeroLengthArray()
+        {
+            SingleItem<string> b = new SingleItem<string>("foo");
+
             try
             {
                 b.CopyTo(new string[0], 0);

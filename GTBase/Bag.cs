@@ -150,57 +150,76 @@ namespace GT.Utils
     public class SingleItem<T> : IList<T>
     {
         protected T item;
+        protected bool hasItem;
 
-        public SingleItem(T item) {
+        public SingleItem()
+        {
+            item = default(T);
+            hasItem = false;
+        }
+
+        public SingleItem(T item) 
+        {
             this.item = item;
+            hasItem = true;
         }
 
         public int IndexOf(T i)
         {
+            if (!hasItem) { return -1; }
             return item.Equals(i) ? 0 : -1;
         }
 
         public void Insert(int index, T i)
         {
-            throw new NotSupportedException("SingleItem cannot grow or shrink");
+            if (hasItem) { throw new NotSupportedException("SingleItem cannot grow or shrink"); }
+            if (index != 0) { throw new ArgumentOutOfRangeException(); }
+            item = i;
+            hasItem = true;
         }
 
         public void RemoveAt(int index)
         {
-            throw new NotSupportedException("SingleItem cannot grow or shrink");
+            if (!hasItem) { throw new NotSupportedException("SingleItem cannot grow or shrink"); }
+            if (index != 0) { throw new ArgumentOutOfRangeException(); }
+            Clear();
         }
 
         public T this[int index]
         {
             get
             {
-                if(index == 0) { return item; }
+                if (hasItem && index == 0) { return item; }
                 throw new ArgumentOutOfRangeException("index");
             }
             set
             {
-                if(index == 0) { item = value; }
-                throw new ArgumentOutOfRangeException("index");
+                if (index == 0) { hasItem = true;  item = value; }
+                else { throw new ArgumentOutOfRangeException("index"); }
             }
         }
 
         public void Add(T i)
         {
-            throw new NotSupportedException("SingleItem cannot grow or shrink");
+            if (hasItem) { throw new NotSupportedException("SingleItem cannot grow or shrink"); }
+            item = i;
+            hasItem = true;
         }
 
         public void Clear()
         {
-            throw new NotSupportedException("SingleItem cannot grow or shrink");
+            item = default(T);
+            hasItem = false;
         }
 
         public bool Contains(T i)
         {
-            return item.Equals(i);
+            return hasItem && item.Equals(i);
         }
 
         public void CopyTo(T[] array, int arrayIndex)
         {
+            if (!hasItem) { return; }
             if (array == null) { throw new ArgumentNullException("array"); }
             if (arrayIndex < 0) { throw new ArgumentOutOfRangeException("arrayIndex"); }
             if (arrayIndex >= array.Length)
@@ -213,7 +232,7 @@ namespace GT.Utils
 
         public int Count
         {
-            get { return 1; }
+            get { return hasItem ? 1 : 0; }
         }
 
         public bool IsReadOnly
@@ -223,7 +242,9 @@ namespace GT.Utils
 
         public bool Remove(T i)
         {
-            throw new NotSupportedException("SingleItem cannot grow or shrink");
+            if (!hasItem || !i.Equals(item)) { return false; }
+            Clear();
+            return true;
         }
 
         public IEnumerator<T> GetEnumerator()
@@ -244,6 +265,7 @@ namespace GT.Utils
             internal SingleItemEnumerator(SingleItem<T> si)
             {
                 this.si = si;
+                Reset();
             }
 
             public void Dispose()
@@ -253,7 +275,7 @@ namespace GT.Utils
 
             public bool MoveNext()
             {
-                // there is only one element, so once seen, we can't do more
+                // there is at most one element, so once seen, we can't do more
                 if (seen) { return false; }
                 seen = true;
                 return true;   
@@ -261,7 +283,7 @@ namespace GT.Utils
 
             public void Reset()
             {
-                seen = false;
+                seen = si.Count == 0;
             }
 
             public T Current
