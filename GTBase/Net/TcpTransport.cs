@@ -213,7 +213,8 @@ namespace GT.Net
 
                     SocketError error;
                     int bytesReceived = handle.Client.Receive(
-                        incomingInProgress.Subset((int)incomingOffset, (int)incomingRemaining),
+                        incomingOffset == 0 ? incomingInProgress
+                            : incomingInProgress.Subset((int)incomingOffset, (int)incomingRemaining),
                         SocketFlags.None, out error);
                     switch (error)
                     {
