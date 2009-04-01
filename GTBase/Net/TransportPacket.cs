@@ -1434,13 +1434,15 @@ namespace GT.Net
             {
                 if(packet == null || activeOffset < 0) { return; }
                 Debug.Assert(activeOffset < activeSegment.Count);
+                packet.PrependSegment(new ArraySegment<byte>(activeSegment.Array,
+                    activeSegment.Offset + activeOffset, activeSegment.Count - activeOffset));
+                // PrependSegment increments the ref count, so we need to reduce it
+                // since we had the retain count transferred by TransferFirstPacket
                 if (IsManagedSegment(activeSegment))
                 {
                     DecrementRefCount(activeSegment);
-                    Debug.Assert(GetRefCount(activeSegment) == 0);
+                    Debug.Assert(GetRefCount(activeSegment) != 0);
                 }
-                packet.PrependSegment(new ArraySegment<byte>(activeSegment.Array,
-                    activeSegment.Offset + activeOffset, activeSegment.Count - activeOffset));
                 activeOffset = -1;
             }
 
