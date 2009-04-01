@@ -558,8 +558,6 @@ namespace GT.Net
 
         // public StatisticalMoments DelayStatistics { get; }
 
-        IMarshaller Marshaller { get; }
-
         /// <summary>
         /// The list of currently-connected transports.  Transports are ordered as
         /// determined by this connexion's owner (see <c>BaseConfguration</c>).
@@ -618,6 +616,39 @@ namespace GT.Net
         /// <param name="mdr">Requirements for this particular message; may be null.</param>
         /// <param name="cdr">Requirements for the message's channel.</param>
         void Send(object o, byte channel, MessageDeliveryRequirements mdr, ChannelDeliveryRequirements cdr);
+
+        #region Internal Use Only
+
+        /// <summary>
+        /// A supplementary interface to be implemented by all <see cref="IConnexion"/>,
+        /// used by packet schedulers to marshal
+        /// </summary>
+        MarshalledResult Marshal(Message m, ITransportDeliveryCharacteristics tdc);
+
+        /// <summary>
+        /// A supplementary interface for use by <see cref="IPacketScheduler"/>.
+        /// Sends a packet on the provided transport.
+        /// </summary>
+        /// <param name="transport">the transport to be sent</param>
+        /// <param name="packet">the packet to be sent</param>
+        /// <returns>true if successfully sent, false otherwise</returns>
+        /// <exception cref="TransportError">thrown on send error; such errors are
+        ///     fatal and indicate the transport can no longer be used</exception>
+        void SendPacket(ITransport transport, TransportPacket packet);
+
+        /// <summary>
+        /// Find a transport that meets the requirements specified by
+        /// <see cref="mdr"/> or <see cref="cdr"/>.
+        /// </summary>
+        /// <param name="mdr">the requirements specific with the message; this overrides
+        ///     the channel requirements</param>
+        /// <param name="cdr">the requirements associated with the channel</param>
+        /// <returns>a transport that meets these requirements</returns>
+        /// <exception cref="NoMatchingTransport">thrown if there is no matching transport</exception>
+        ITransport FindTransport(MessageDeliveryRequirements mdr, ChannelDeliveryRequirements cdr);
+
+        #endregion
+
     }
 
     public abstract class BaseConnexion : IConnexion, IComparer<ITransport>
@@ -648,6 +679,7 @@ namespace GT.Net
         protected bool active = false;
         protected List<ITransport> transports = new List<ITransport>();
         protected uint pingSequence = 0;
+        protected IPacketScheduler scheduler;
 
         /// <summary>
         /// The server's unique identifier for this connexion; this
@@ -659,11 +691,14 @@ namespace GT.Net
         public BaseConnexion()
         {
             log = LogManager.GetLogger(GetType());
+            scheduler = CreatePacketScheduler();
+            scheduler.ErrorEvent += NotifyError;
+            scheduler.MessagesSent += NotifyMessagesSent;
         }
 
         /// <summary>
 	    /// Return the appropriate marshaller for this connexion.
-	/// </summary>
+	    /// </summary>
         abstract public IMarshaller Marshaller { get; }
 
 	    /// <summary>
@@ -761,8 +796,6 @@ namespace GT.Net
         /// <summary>Occurs when there is an error.</summary>
         protected internal void NotifyError(ErrorSummary summary)
         {
-            // FIXME: This should be logging
-            // Console.WriteLine(summary.ToString());
             if (ErrorEvents != null)
             {
                 try { ErrorEvents(summary); }
@@ -840,6 +873,8 @@ namespace GT.Net
             }
         }
 
+        protected abstract IPacketScheduler CreatePacketScheduler();
+ 
         /// <summary>
         /// Add the provided transport to this connexion.
         /// </summary>
@@ -975,7 +1010,11 @@ namespace GT.Net
             }
         }
         
-        protected virtual ITransport FindTransport(MessageDeliveryRequirements mdr, ChannelDeliveryRequirements cdr)
+        /// <remarks>
+        /// This implementation effectively delegates the resolving to the MDR and
+        /// CDR instances.
+        /// </remarks>
+        public virtual ITransport FindTransport(MessageDeliveryRequirements mdr, ChannelDeliveryRequirements cdr)
         {
             ITransport t = null;
             if (mdr != null) { t = mdr.SelectTransport(transports); }
@@ -1017,21 +1056,32 @@ namespace GT.Net
             Send(new ObjectMessage(channel, o), mdr, cdr);
         }
 
+        public virtual MarshalledResult Marshal(Message m, ITransportDeliveryCharacteristics tdc)
+        {
+            return Marshaller.Marshal(SendingIdentity, m, tdc);
+        }
+
         /// <summary>Send a message.</summary>
         /// <param name="message">The message to send.</param>
         /// <param name="mdr">Requirements for this particular message; may be null.</param>
         /// <param name="cdr">Requirements for the message's channel.</param>
         public virtual void Send(Message message, MessageDeliveryRequirements mdr, ChannelDeliveryRequirements cdr)
         {
-            Send(new SingleItem<Message>(message), mdr, cdr);
+            scheduler.Schedule(message, mdr, cdr);
         }
 
         /// <summary>Send a set of messages.</summary>
         /// <param name="messages">The messages to send.</param>
         /// <param name="mdr">Requirements for this particular message; may be null.</param>
         /// <param name="cdr">Requirements for the message's channel.</param>
-        abstract public void Send(IList<Message> messages, MessageDeliveryRequirements mdr,
-            ChannelDeliveryRequirements cdr);
+        public virtual void Send(IList<Message> messages, MessageDeliveryRequirements mdr,
+            ChannelDeliveryRequirements cdr)
+        {
+            foreach(Message m in messages)
+            {
+                scheduler.Schedule(m, mdr, cdr);
+            }
+        }
 
         /// <summary>
         /// Short-circuit operation to send a message with no fuss, no muss, and no waiting.
@@ -1042,7 +1092,8 @@ namespace GT.Net
         protected virtual void FastpathSendMessage(ITransport transport, Message msg)
         {
             //pack main message into a buffer and send it right away
-            MarshalledResult result = Marshaller.Marshal(SendingIdentity, msg, transport);
+            // assumes this is not an infinite message!
+            MarshalledResult result = Marshal(msg, transport);
             try
             {
                 while (result.HasPackets)
@@ -1064,17 +1115,22 @@ namespace GT.Net
             NotifyMessageSent(msg, transport);
         }
 
-        protected void SendPacket(ITransport transport, TransportPacket packet)
+        public virtual void SendPacket(ITransport transport, TransportPacket packet)
         {
-            try { transport.SendPacket(packet); }
+            try
+            {
+                transport.SendPacket(packet);
+            }
             catch (TransportError e)
             {
+                NotifyError(new ErrorSummary(Severity.Warning, SummaryErrorCode.RemoteUnavailable,
+                    e.Message, e));
                 HandleTransportDisconnect(transport);
                 throw;
             }
         }
 
-        protected void NotifyMessagesSent(ICollection<Message> messages, ITransport t)
+        public void NotifyMessagesSent(ICollection<Message> messages, ITransport t)
         {
             if(MessageSent == null) return;
             try
@@ -1104,25 +1160,6 @@ namespace GT.Net
                     "An exception occurred when notifying MessageSent", e));
             }
         }
-
-        protected void NotifyMessagesSent(ICollection<PendingMessage> pending, ITransport t)
-        {
-            if (MessageSent == null) return;
-            try
-            {
-                foreach (PendingMessage pm in pending) { MessageSent(pm.Message, this, t); }
-            }
-            catch (Exception e)
-            {
-                log.Info("An exception occurred when notifying MessageSent", e);
-                NotifyError(new ErrorSummary(Severity.Information,
-                    SummaryErrorCode.UserException,
-                    "An exception occurred when notifying MessageSent", e));
-            }
-
-        }
-
-
 
         #endregion
 

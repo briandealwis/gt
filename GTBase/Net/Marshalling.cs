@@ -89,6 +89,8 @@ namespace GT.Net
 
         public bool HasPackets { get { return packets.Count > 0; } }
 
+        public bool Finished { get { return packets.Count == 0; } }
+
         public void AddPacket(TransportPacket packet)
         {
             packets.Add(packet);

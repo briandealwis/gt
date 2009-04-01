@@ -10,6 +10,14 @@ namespace GT.Net
     {
         protected IDictionary<Exception, IList<PendingMessage>> messages;
 
+        /// <summary>
+        /// Return true if this exception has had errors associated with it.
+        /// </summary>
+        public bool IsApplicable
+        {
+            get { return messages != null && messages.Count > 0; }
+        }
+
         public CannotSendMessagesError(IConnexion source)
             : base(Severity.Warning)
         {
@@ -79,7 +87,7 @@ namespace GT.Net
 
         public void ThrowIfApplicable()
         {
-            if (messages != null && messages.Count > 0)
+            if (IsApplicable)
             {
                 throw this;
             }

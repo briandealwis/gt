@@ -10,7 +10,8 @@ namespace GT.Net
     public enum SystemMessageType
     {
         IdentityRequest = 1,
-        // ids 2 and 3 are reserved (they have been deprecated and removed)
+        IdentityResponse = 2,
+        // id 3 is reserved (deprecated and removed)
         PingRequest = 4,
         PingResponse = 5,
 
@@ -28,7 +29,7 @@ namespace GT.Net
         /// <summary>
         /// The remote speaks an incompatible dialect.
         /// </summary>
-        IncompatibleVersion = 8
+        IncompatibleVersion = 8,
     }
 
     /// <summary>Possible message types for Messages to have.</summary>

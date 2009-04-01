@@ -177,21 +177,24 @@ namespace GT.Net
 
     #endregion
 
-    public class PendingMessage
+    public struct PendingMessage
     {
-        protected Message message;
-        protected MessageDeliveryRequirements mdr;
-        protected ChannelDeliveryRequirements cdr;
-
         public PendingMessage(Message m, MessageDeliveryRequirements mdr, ChannelDeliveryRequirements cdr)
         {
-            this.message = m;
-            this.mdr = mdr;
-            this.cdr = cdr;
+            Message = m;
+            MDR = mdr;
+            CDR = cdr;
         }
 
-        public Message Message { get { return message; } }
-        public MessageDeliveryRequirements MDR { get { return mdr; } }
-        public ChannelDeliveryRequirements CDR { get { return cdr; } }
+        public Message Message;
+        public MessageDeliveryRequirements MDR;
+        public ChannelDeliveryRequirements CDR;
+
+        public void Clear()
+        {
+            Message = null;
+            MDR = null;
+            CDR = null;
+        }
     }
 }

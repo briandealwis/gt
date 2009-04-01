@@ -60,6 +60,7 @@
     <Compile Include="HPTimer.cs" />
     <Compile Include="Net\ClientServer.cs" />
     <Compile Include="Net\LargeObjectMarshaller.cs" />
+    <Compile Include="Net\PacketScheduling.cs" />
     <Compile Include="Net\Stats.cs" />
     <Compile Include="Net\MillipedeBase.cs" />
     <Compile Include="Net\TransportPacket.cs" />
