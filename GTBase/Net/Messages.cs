@@ -177,8 +177,10 @@ namespace GT.Net
 
     #endregion
 
-    public struct PendingMessage
+    public class PendingMessage
     {
+        public PendingMessage() {}
+
         public PendingMessage(Message m, MessageDeliveryRequirements mdr, ChannelDeliveryRequirements cdr)
         {
             Message = m;
@@ -186,9 +188,9 @@ namespace GT.Net
             CDR = cdr;
         }
 
-        public Message Message;
-        public MessageDeliveryRequirements MDR;
-        public ChannelDeliveryRequirements CDR;
+        public Message Message { get; set; }
+        public MessageDeliveryRequirements MDR { get; set; }
+        public ChannelDeliveryRequirements CDR { get; set; }
 
         public void Clear()
         {

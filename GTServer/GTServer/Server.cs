@@ -707,7 +707,7 @@ namespace GT.Net
 
         protected override IPacketScheduler CreatePacketScheduler()
         {
-            return new FIFOPacketScheduler(this);
+            return new ImmediatePacketScheduler(this);
         }
 
         public override void AddTransport(ITransport t)

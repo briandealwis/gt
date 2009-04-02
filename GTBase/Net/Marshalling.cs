@@ -50,8 +50,7 @@ namespace GT.Net
         /// <returns>the marshalled result, containing a set of transport packets;
         ///     this result <b>must</b> be disposed of with <see cref="MarshalledResult.Dispose"/>
         ///     once finished with</returns>
-        /// <exception cref="MarshallingException">on a marshalling error, or if the
-        /// message cannot be encoded within the transport's packet capacity</exception>
+        /// <exception cref="MarshallingException">on a marshalling error</exception>
         MarshalledResult Marshal(int senderIdentity, Message message, ITransportDeliveryCharacteristics tdc);
 
         /// <summary>

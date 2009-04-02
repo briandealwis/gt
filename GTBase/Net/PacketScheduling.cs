@@ -129,11 +129,11 @@ namespace GT.Net
 
 
     /// <summary>
-    /// A FIFO scheduler: each message is shipped out as it is received
+    /// A FIFO scheduler where each message is shipped out as it is received
     /// </summary>
-    public class FIFOPacketScheduler : AbstractPacketScheduler
+    public class ImmediatePacketScheduler : AbstractPacketScheduler
     {
-        public FIFOPacketScheduler(IConnexion cnx) : base(cnx) { }
+        public ImmediatePacketScheduler(IConnexion cnx) : base(cnx) { }
 
         public override void Schedule(Message m, MessageDeliveryRequirements mdr,
             ChannelDeliveryRequirements cdr)
@@ -168,11 +168,8 @@ namespace GT.Net
     /// </summary>
     public class RoundRobinPacketScheduler : AbstractPacketScheduler
     {
-        static protected Pool<PendingMessage> _pendingMessages = new Pool<PendingMessage>(1, 5,
-            () => new PendingMessage(), (m) => m.Clear(), null);
-        static protected Pool<IList<Message>> _messages = new Pool<IList<Message>>(1, 5,
-            () => new List<Message>(), (m) => m.Clear(), null);
-
+        protected Pool<PendingMessage> pmPool = new Pool<PendingMessage>(1, 5,
+            () => new PendingMessage(), m => m.Clear(), null);
 
         protected List<PendingMessage> pending = new List<PendingMessage>();
 
@@ -182,7 +179,7 @@ namespace GT.Net
             new Dictionary<byte, int>();
 
 
-        protected IDictionary<byte, MessageSendingState> messageSendingStates = new Dictionary<byte, MessageSendingState>();
+        protected IDictionary<byte, ChannelSendingState> channelSendingStates = new Dictionary<byte, ChannelSendingState>();
         IDictionary<ITransport, TransportPacket> packetsInProgress = new Dictionary<ITransport, TransportPacket>();
         IDictionary<ITransport, IList<Message>> messagesInProgress =
             new Dictionary<ITransport, IList<Message>>();
@@ -237,7 +234,7 @@ namespace GT.Net
                 channels.Add(newMsg.Channel);
             }
 
-            PendingMessage pm = _pendingMessages.Obtain();
+            PendingMessage pm = pmPool.Obtain();
             pm.Message = newMsg;
             pm.MDR = mdr;
             pm.CDR = cdr;
@@ -301,9 +298,9 @@ namespace GT.Net
 
         protected virtual bool ProcessNextPacket(byte channel, CannotSendMessagesError csme)
         {
-            MessageSendingState cs = default(MessageSendingState);
+            ChannelSendingState cs = default(ChannelSendingState);
             if (!FindNextPacket(channel, csme, ref cs)) { return false; }
-            Debug.Assert(cs.MarshalledForm.HasPackets);
+            Debug.Assert(cs.MarshalledForm != null && cs.MarshalledForm.HasPackets);
             TransportPacket tp;
             if(!packetsInProgress.TryGetValue(cs.Transport, out tp) || tp == null)
             {
@@ -318,9 +315,6 @@ namespace GT.Net
                 try 
                 {
                     cnx.SendPacket(cs.Transport, tp);
-                    NotifyMessagesSent(sentMessages[cs.Transport], cs.Transport);
-                    sentMessages[cs.Transport].Clear();
-                    packetsInProgress[cs.Transport] = tp = next;
                 }
                 catch(TransportError e)
                 {
@@ -329,16 +323,29 @@ namespace GT.Net
                     sentMessages[cs.Transport].Clear();
                     messagesInProgress[cs.Transport].Clear();
                     packetsInProgress.Remove(cs.Transport);
+                    return true;
                 }
+                NotifyMessagesSent(sentMessages[cs.Transport], cs.Transport);
+                sentMessages[cs.Transport].Clear();
+                packetsInProgress[cs.Transport] = tp = next;
             }
             else
             {
-                if (cs.MarshalledForm.Finished)
-                {
-                    sentMessages[cs.Transport].Add(cs.PendingMessage.Message);
-                }
                 tp.Add(next, 0, next.Length);
                 next.Dispose();
+            }
+            if (cs.MarshalledForm.Finished)
+            {
+                messagesInProgress[cs.Transport].Remove(cs.PendingMessage.Message);
+                sentMessages[cs.Transport].Add(cs.PendingMessage.Message);
+                pmPool.Return(cs.PendingMessage);
+                cs.MarshalledForm.Dispose();
+                cs.PendingMessage = null;
+                cs.MarshalledForm = null;
+            }
+            else
+            {
+                messagesInProgress[cs.Transport].Add(cs.PendingMessage.Message);
             }
             return true;
         }
@@ -365,15 +372,22 @@ namespace GT.Net
                     csme.AddAll(e, sentMessages[t]);
                     csme.AddAll(e, messagesInProgress[t]);
                 }
-
             }
             packetsInProgress.Clear();
         }
 
-        protected virtual bool FindNextPacket(byte channel, CannotSendMessagesError csme, ref MessageSendingState cs)
+        protected virtual bool FindNextPacket(byte channel, CannotSendMessagesError csme, 
+            ref ChannelSendingState cs)
         {
-            if (messageSendingStates.TryGetValue(channel, out cs)) {
-                if (cs.MarshalledForm != null && !cs.MarshalledForm.Finished) { return true;  }
+            if (channelSendingStates.TryGetValue(channel, out cs)) {
+                if (cs.MarshalledForm != null)
+                {
+                    if(!cs.MarshalledForm.Finished) { return true; }
+                    pmPool.Return(cs.PendingMessage);
+                    cs.PendingMessage = null;
+                    cs.MarshalledForm.Dispose();
+                    cs.MarshalledForm = null;
+                }
             }
             PendingMessage pm;
             while (DetermineNextPendingMessage(channel, out pm))
@@ -382,7 +396,13 @@ namespace GT.Net
                 {
                     ITransport transport = cnx.FindTransport(pm.MDR, pm.CDR);
                     MarshalledResult mr = cnx.Marshal(pm.Message, transport);
-                    if (mr.Finished) { continue; }
+                    if (mr.Finished)
+                    {
+                        // this shouldn't happen
+                        mr.Dispose();
+                        pmPool.Return(pm);
+                        continue;
+                    }
                     cs.MarshalledForm = mr;
                     cs.PendingMessage = pm;
                     cs.Transport = transport;
@@ -401,7 +421,7 @@ namespace GT.Net
             }
             channels.Remove(channel);
             channelIndices.Remove(channel);
-            messageSendingStates.Remove(channel);
+            channelSendingStates.Remove(channel);
             return false;
         }
 
@@ -420,9 +440,33 @@ namespace GT.Net
             return false;
         }
 
+        public override void Dispose()
+        {
+            foreach(ChannelSendingState cs in channelSendingStates.Values) {
+                if (cs.PendingMessage != null)
+                {
+                    pmPool.Return(cs.PendingMessage);
+                }
+                if (cs.MarshalledForm != null)
+                {
+                    cs.MarshalledForm.Dispose();
+                }
+            }
+            Debug.Assert(pmPool.Out == 0);
+            foreach (TransportPacket tp in packetsInProgress.Values)
+            {
+                tp.Dispose();
+            }
+            packetsInProgress.Clear();
+            channelSendingStates.Clear();
+            pending.Clear();
+            channels.Clear();
+            channelIndices.Clear();
+            nextChannelIndex = 0;
+        }
     }
 
-    public struct MessageSendingState {
+    public struct ChannelSendingState {
         public MarshalledResult MarshalledForm;
         public PendingMessage PendingMessage;
         public ITransport Transport;

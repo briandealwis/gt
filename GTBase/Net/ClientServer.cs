@@ -791,6 +791,8 @@ namespace GT.Net
             {
                 foreach (ITransport t in transports) { t.Dispose(); }
             }
+            if (scheduler != null) { scheduler.Dispose(); }
+            scheduler = null;
         }
 
         /// <summary>Occurs when there is an error.</summary>
@@ -1067,7 +1069,11 @@ namespace GT.Net
         /// <param name="cdr">Requirements for the message's channel.</param>
         public virtual void Send(Message message, MessageDeliveryRequirements mdr, ChannelDeliveryRequirements cdr)
         {
-            scheduler.Schedule(message, mdr, cdr);
+            // must be locked as is called by AbstractStream implementations
+            lock(this)
+            {
+                scheduler.Schedule(message, mdr, cdr);
+            }
         }
 
         /// <summary>Send a set of messages.</summary>
@@ -1077,9 +1083,13 @@ namespace GT.Net
         public virtual void Send(IList<Message> messages, MessageDeliveryRequirements mdr,
             ChannelDeliveryRequirements cdr)
         {
-            foreach(Message m in messages)
+            // must be locked as is called by AbstractStream implementations
+            lock (this)
             {
-                scheduler.Schedule(m, mdr, cdr);
+                foreach(Message m in messages)
+                {
+                    scheduler.Schedule(m, mdr, cdr);
+                }
             }
         }
 
