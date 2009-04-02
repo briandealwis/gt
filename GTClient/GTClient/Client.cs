@@ -536,15 +536,22 @@ namespace GT.Net
         {
             ShutDown();
             transports = null;
+            scheduler.Reset();
         }
 
         #endregion
 
+        /// <summary>
+        /// Return the address component used in creating this connexion
+        /// </summary>
         public virtual string Address
         {
             get { return address; }
         }
 
+        /// <summary>
+        /// Return the port component used in creating this connexion
+        /// </summary>
         public virtual string Port
         {
             get { return port; }

@@ -42,6 +42,11 @@ namespace GT.Net
         /// Flush all remaining messages for the specific channel.
         /// </summary>
         void FlushChannelMessages(byte channel);
+
+        /// <summary>
+        /// Reset the instance; throw away all data.
+        /// </summary>
+        void Reset();
     }
 
     /// <summary>
@@ -121,6 +126,11 @@ namespace GT.Net
             if(ErrorEvent != null) { ErrorEvent(es); }
         }
 
+        public virtual void Reset()
+        {
+            // nothing to dipose of here
+        }
+
         public virtual void Dispose()
         {
             // nothing to dipose of here
@@ -178,13 +188,13 @@ namespace GT.Net
         protected IDictionary<byte,int> channelIndices = 
             new Dictionary<byte, int>();
 
-
         protected IDictionary<byte, ChannelSendingState> channelSendingStates = new Dictionary<byte, ChannelSendingState>();
-        IDictionary<ITransport, TransportPacket> packetsInProgress = new Dictionary<ITransport, TransportPacket>();
-        IDictionary<ITransport, IList<Message>> messagesInProgress =
-            new Dictionary<ITransport, IList<Message>>();
-        IDictionary<ITransport, IList<Message>> sentMessages =
-            new Dictionary<ITransport, IList<Message>>();
+        WeakKeyDictionary<ITransport, TransportPacket> packetsInProgress = 
+            new WeakKeyDictionary<ITransport, TransportPacket>();
+        WeakKeyDictionary<ITransport, IList<Message>> messagesInProgress =
+            new WeakKeyDictionary<ITransport, IList<Message>>();
+        WeakKeyDictionary<ITransport, IList<Message>> sentMessages =
+            new WeakKeyDictionary<ITransport, IList<Message>>();
 
         public RoundRobinPacketScheduler(IConnexion cnx) : base(cnx) {}
 
@@ -442,7 +452,13 @@ namespace GT.Net
 
         public override void Dispose()
         {
-            foreach(ChannelSendingState cs in channelSendingStates.Values) {
+            Reset();
+        }
+
+        public override void Reset()
+        {
+            foreach (ChannelSendingState cs in channelSendingStates.Values)
+            {
                 if (cs.PendingMessage != null)
                 {
                     pmPool.Return(cs.PendingMessage);
