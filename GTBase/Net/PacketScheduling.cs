@@ -181,18 +181,54 @@ namespace GT.Net
         protected Pool<PendingMessage> pmPool = new Pool<PendingMessage>(1, 5,
             () => new PendingMessage(), m => m.Clear(), null);
 
+        // Could make this a LinkedList and avoid array copies; then again,
+        // we're not expecting the backlog to get very high.
         protected List<PendingMessage> pending = new List<PendingMessage>();
 
-        protected int nextChannelIndex = 0;     // where we start from
+        /// <summary>
+        /// These values hold metadata for the round-robin.  
+        /// </summary>
+        /// <remarks>
+        /// nextChannelIndex is an index
+        /// into channels, indicating the channel from which to take the next message.  
+        /// </remarks>
+        protected int nextChannelIndex = 0;
+        /// <remarks>
+        /// channels is a list of channel ids in first-come-first-served order;
+        /// note that SystemMessages encode the system request as the channel id,
+        /// and so will be inserted as if from a particular channel.  Finally,
+        /// </remarks>
         protected IList<byte> channels = new List<byte>();
-        protected IDictionary<byte,int> channelIndices = 
+        /// <remarks>
+        /// channelIndices is a reversee mapping of channel id to index within
+        /// channels; it acts as a fast-lookup.
+        /// </remarks>
+        protected IDictionary<byte, int> channelIndices = 
             new Dictionary<byte, int>();
 
-        protected IDictionary<byte, ChannelSendingState> channelSendingStates = new Dictionary<byte, ChannelSendingState>();
+        /// <summary></summary>
+        /// These dictionaries record the current sending state during the
+        /// execution of Schedule() and Flush*().  They should otherwise be empty.
+        /// </summary>
+        /// <remarks>
+        /// records the current message, its marshalled form, and the transport
+        /// selected as per its MDR/CDR.
+        /// </remarks>
+        protected IDictionary<byte, ChannelSendingState> channelSendingStates = 
+            new Dictionary<byte, ChannelSendingState>();
+        /// <remarks>
+        /// the accumulated packet for sending on a transport
+        /// </remarks>
         WeakKeyDictionary<ITransport, TransportPacket> packetsInProgress = 
             new WeakKeyDictionary<ITransport, TransportPacket>();
+        /// <remarks>
+        /// Records messages that span multiple packets
+        /// </remarks>
         WeakKeyDictionary<ITransport, IList<Message>> messagesInProgress =
             new WeakKeyDictionary<ITransport, IList<Message>>();
+        /// <remarks>
+        /// Records messages where all packets are in the process of being sent
+        /// </remarks>
         WeakKeyDictionary<ITransport, IList<Message>> sentMessages =
             new WeakKeyDictionary<ITransport, IList<Message>>();
 
