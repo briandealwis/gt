@@ -478,10 +478,11 @@ namespace GT.Net
             {
                 TransportPacket packet = bucketContents.Peek();
                 if (packet.Length > availableCapacity) { return; }
-                base.SendPacket(packet);
+                int packetLength = packet.Length;   // must stash as packet is disposed in SendPacket
                 bucketContents.Dequeue();
-                contentsSize -= (uint)packet.Length;
-                availableCapacity -= (uint)packet.Length;
+                base.SendPacket(packet);
+                contentsSize -= (uint)packetLength;
+                availableCapacity -= (uint)packetLength;
             }
         }
 
