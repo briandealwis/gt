@@ -565,6 +565,13 @@ namespace GT.Net
         IList<ITransport> Transports { get; }
 
         /// <summary>
+        /// Run a cycle to process any pending events for the transports and
+        /// other related objects for this instance.  This method is <strong>not</strong> 
+        /// re-entrant and should not be called from GT callbacks.
+        /// </summary>
+        void Update();
+
+        /// <summary>
         /// Close this connexion, while telling the other side.
         /// </summary>
         void ShutDown();
@@ -851,7 +858,7 @@ namespace GT.Net
             {
                 if (!Active) { return; }
                 // must track transports to be removed separately to avoid concurrent
-                // modification problems.  Create list lazily to minimize creating garbage.
+                // modification problems.  Create list lazily to minimize garbage creation.
                 IDictionary<ITransport,GTException> toRemove = null;
                 foreach (ITransport t in transports)
                 {
@@ -861,9 +868,7 @@ namespace GT.Net
                         toRemove[t] = null; 
                         continue;
                     }
-                    // Note: we only catch our GT transport exceptions and leave all others
-                    // to be percolated upward -- we should avoid swallowing exceptions
-                    // FIXME: we really should provide the user some notification
+
                     try { t.Update(); }
                     catch (TransportError e)
                     {
@@ -874,15 +879,22 @@ namespace GT.Net
                         toRemove[t] = e;
                     }
                 }
-                if (toRemove == null) { return; }
-                foreach (ITransport t in toRemove.Keys)
+                if (toRemove != null)
                 {
-                    HandleTransportDisconnect(t);
-                    if(toRemove[t] != null) {
-                        NotifyError(new ErrorSummary(Severity.Warning, SummaryErrorCode.RemoteUnavailable,
-                            "Transport failed", toRemove[t]));
+                    foreach(ITransport t in toRemove.Keys)
+                    {
+                        HandleTransportDisconnect(t);
+                        if(toRemove[t] != null)
+                        {
+                            NotifyError(new ErrorSummary(Severity.Warning,
+                                SummaryErrorCode.RemoteUnavailable,
+                                "Transport failed", toRemove[t]));
+                        }
                     }
                 }
+
+                /// And give the scheduler an opportunity to do something too
+                if (scheduler != null) { scheduler.Update(); }
             }
         }
 

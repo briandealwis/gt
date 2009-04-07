@@ -34,6 +34,11 @@ namespace GT.Net
             ChannelDeliveryRequirements cdr);
 
         /// <summary>
+        /// 
+        /// </summary>
+        void Update();
+
+        /// <summary>
         /// Flush all remaining messages.
         /// </summary>
         void Flush();
@@ -73,7 +78,7 @@ namespace GT.Net
 
         public abstract void Schedule(Message m, MessageDeliveryRequirements mdr,
             ChannelDeliveryRequirements cdr);
-
+        public abstract void Update();
         public abstract void Flush();
         public abstract void FlushChannelMessages(byte channel);
 
@@ -158,6 +163,11 @@ namespace GT.Net
                 NotifyError(new ErrorSummary(Severity.Warning, SummaryErrorCode.MessagesCannotBeSent,
                     e.Message, new PendingMessage(m, mdr, cdr), e));
             }
+        }
+
+        public override void Update()
+        {
+            /// In a FIFO, we send 'em as they are scheduled.
         }
 
         public override void Flush()
@@ -258,6 +268,12 @@ namespace GT.Net
                 // bundle <c>msg</c> first and then cram on whatever other messages are waiting.
                 Flush();
             }
+        }
+
+        public override void Update()
+        {
+            // we could check whether there are too many messages pending and
+            // call an interim flush, I suppose?
         }
 
         /// <summary>Adds the message to a list, waiting to be sent out.</summary>

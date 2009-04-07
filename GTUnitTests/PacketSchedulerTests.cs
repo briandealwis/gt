@@ -35,12 +35,17 @@ namespace GT.UnitTests
             Transports = new List<ITransport>();
         }
 
+        public void Update()
+        {
+            // do nothing
+        }
+
         public void Dispose()
         {
             if (Scheduler != null) { Scheduler.Dispose(); }
             Scheduler = null;
         }
-
+        
         public void ShutDown()
         {
             Active = false;

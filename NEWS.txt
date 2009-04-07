@@ -30,25 +30,6 @@ New Functionality:
     See <https://papyrus.usask.ca/trac/gt/ticket/45> for details
     and pointers for other work.
 
-  * New traffic shaping transport wrappers, LeakyBucketTransport and
-    TokenBucketTransport, respectively implementing the leaky bucket
-    and token bucket traffic shaping algorithms. 
-
-      * LeakyBucketTransport wraps a provided transport and restricts
-	the transport to sending a certain amount of data per time
-	unit; the LBT will buffer up to a specified number of bytes,
-	and any bytes in excess are discarded (and raising a
-	TransportBackloggedWarning).
-
-      * TokenBucketTransport also wraps a provided transport, but
-        allows the transport to accumulate unused send capacity.
-	This better supports bursty traffic.  In the TBT, all data
-	is queued, and released as capacity becomes available.
-
-    These wrappers are easily configured by overriding the new
-    ConfigureTransport() method on the ClientConfiguration and
-    ServerConfiguration (see BaseConfiguration).
-
   * Support for a large-object sending marshaller.  This functionality
     has necessitated some changes to the marshaller APIs; see below
     for details.
@@ -76,6 +57,26 @@ New Functionality:
     afforded the opportunity to configure (or even wrap or replace)
     new transport instances through a ConfigureTransport() method.
     (see BaseConfiguration.ConfigureTransport()).
+
+  * New traffic shaping transport wrappers, LeakyBucketTransport and
+    TokenBucketTransport, respectively implementing the leaky bucket
+    and token bucket traffic shaping algorithms. 
+
+      * LeakyBucketTransport wraps a provided transport and restricts
+	the transport to sending a certain amount of data per time
+	unit; the LBT will buffer up to a specified number of bytes,
+	and any bytes in excess are discarded (and raising a
+	TransportBackloggedWarning).
+
+      * TokenBucketTransport also wraps a provided transport, but
+        allows the transport to accumulate unused send capacity.
+	This better supports bursty traffic.  In the TBT, all data
+	is queued, and released as capacity becomes available.
+
+    These wrappers are easily configured by overriding the new
+    ConfigureTransport() method on the ClientConfiguration and
+    ServerConfiguration (see BaseConfiguration).
+
 
 Interoperability changes:
 =========================
@@ -138,9 +139,9 @@ GT 3.0.
 
       * The ITransport.SendPacket() methods have been consolidated
 	into a single method taking a TransportPacket.  This is a
-	generalized class for representing growable byte arrays,
-	intended to support more memory-conscious operation and
-	avoid generating garbage.
+	generalized class for representing growable and splittable
+	byte arrays, intended to support more memory-conscious
+	operation and avoid generating garbage.
 
       * ITransport.MaximumPacketSize is now a uint and each transport must
 	support setting this value.  The transport may silently cap
@@ -153,23 +154,25 @@ GT 3.0.
 
   * IMarshaller changes:
 
-      * IMarshaller.Marshal() now return an instance of IMarshalledResult,
+      * IMarshaller.Marshal() now returns an instance of IMarshalledResult,
         and should allocate instances of TransportPacket to record the
-	marshalled values.  This is to add support for marshalling
-	messages that are too large to fit into a single transport-level
-	packet, or for marshallers that wish to stream objects.
-	TransportPacket.AsWriteStream() will result in a writeable
-	stream; be sure to call Flush() on this stream at the end.
+	marshalled values.  This new class is to add support for
+	marshalling messages that are too large to fit into a single
+	transport-level packet, or for marshallers that wish to
+	stream objects.  TransportPacket.AsWriteStream() will produce
+	a writeable, resizable stream.
+
+      * IMarshaller's Unmarshal() method has been changed to use an
+	delegate to notify of a message having become available.
+	This change was necessary to support marshallers that may
+	buffer incoming packets before reassembling messages, such
+	as the LargeObjectMarshaller (if packets are received out
+	of order).
 
       * IMarshaller.Marshal() and Unmarshal() now are now provided an
         ITransportDeliveryCharacteristics rather than an ITransport.
 	The instance may be the actual transport, but this is not
 	guaranteed.
-
-      * IMarshaller's Unmarshal() method has been changed to use an
-        event to notify of a message having become available.  This
-	was necessary to support marshallers that have dependencies
-	on receiving previous messages.
 
       * Marshallers that cannot deal with splitting their result into
         multiple packets should not check their resulting packet
@@ -177,6 +180,14 @@ GT 3.0.
 	now provide a LargeObjectMarshaller that wraps another
 	marshaller and performs the appropriate splitting to and
 	reassembling from multiple packets.
+
+  * The scheduling of messages into packets to be sent has been
+    extracted from the connexion implementations into a new type called
+    IPacketScheduler.  Two implementations are currently provided:
+    RoundRobinPacketScheduler processes the channels in  a round-robin
+    order, whereas ImmediatePacketScheduler processing messages
+    on a first-come, first-served basis.  Packet schedulers are
+    created by connexion instances.
 
   * There have been some major renames:
 
