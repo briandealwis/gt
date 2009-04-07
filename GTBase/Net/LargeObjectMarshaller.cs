@@ -114,9 +114,9 @@ namespace GT.Net
             }
         }
 
-        public MarshalledResult Marshal(int senderIdentity, Message message, ITransportDeliveryCharacteristics tdc)
+        public IMarshalledResult Marshal(int senderIdentity, Message message, ITransportDeliveryCharacteristics tdc)
         {
-            MarshalledResult submr = subMarshaller.Marshal(senderIdentity, message, tdc);
+            IMarshalledResult submr = subMarshaller.Marshal(senderIdentity, message, tdc);
             MarshalledResult mr = new MarshalledResult();
             while (submr.HasPackets)
             {

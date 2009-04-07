@@ -19,7 +19,7 @@ namespace GT.UnitTests
 
             Assert.AreEqual(0, discarded, "should have not discarded");
 
-            MarshalledResult mr = m.Marshal(0, new BinaryMessage(0, new byte[0]), 
+            MarshalledResult mr = (MarshalledResult)m.Marshal(0, new BinaryMessage(0, new byte[0]), 
                 new DummyTransportChar(6000));
             Assert.AreEqual(1, mr.Packets.Count);
             Assert.AreEqual(255, mr.Packets[0].ByteAt(0));
@@ -50,7 +50,7 @@ namespace GT.UnitTests
 
             Assert.AreEqual(0, discarded, "should have not discarded");
 
-            MarshalledResult mr = m.Marshal(0, new BinaryMessage(0, sourceData),
+            MarshalledResult mr = (MarshalledResult)m.Marshal(0, new BinaryMessage(0, sourceData),
                 tdc);
             Assert.AreEqual(10, mr.Packets.Count);
             Assert.AreEqual(0, mr.Packets[0].ByteAt(0));
@@ -90,7 +90,7 @@ namespace GT.UnitTests
 
             Assert.AreEqual(0, discarded, "should have not discarded");
 
-            MarshalledResult mr = m.Marshal(0, new BinaryMessage(0, sourceData),
+            MarshalledResult mr = (MarshalledResult)m.Marshal(0, new BinaryMessage(0, sourceData),
                 tdc);
             Assert.AreEqual(10, mr.Packets.Count);
             Assert.AreEqual(0, mr.Packets[0].ByteAt(0));

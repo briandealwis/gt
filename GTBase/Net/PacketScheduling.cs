@@ -105,7 +105,7 @@ namespace GT.Net
 
         protected virtual void FastpathSendMessage(ITransport t, Message m)
         {
-            MarshalledResult mr = cnx.Marshal(m, t);
+            IMarshalledResult mr = cnx.Marshal(m, t);
             try
             {
                 TransportPacket tp;
@@ -442,7 +442,7 @@ namespace GT.Net
                 try
                 {
                     ITransport transport = cnx.FindTransport(pm.MDR, pm.CDR);
-                    MarshalledResult mr = cnx.Marshal(pm.Message, transport);
+                    IMarshalledResult mr = cnx.Marshal(pm.Message, transport);
                     if (mr.Finished)
                     {
                         // this shouldn't happen
@@ -521,7 +521,7 @@ namespace GT.Net
     }
 
     public struct ChannelSendingState {
-        public MarshalledResult MarshalledForm;
+        public IMarshalledResult MarshalledForm;
         public PendingMessage PendingMessage;
         public ITransport Transport;
     }

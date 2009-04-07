@@ -137,7 +137,7 @@ namespace GT.Net
         /// <summary>Flush all pending messages on this stream.</summary>
         public virtual void Flush()
         {
-            connexion.FlushChannelMessages(this.channel);
+            connexion.FlushChannel(this.channel);
         }
 
         /// <summary>

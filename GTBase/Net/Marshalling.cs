@@ -29,9 +29,9 @@ namespace GT.Net
         /// <summary>
         /// Marshal the provided message in an appropriate form for the provided transport.
         /// Returns the results as a list of <see cref="TransportPacket"/> instances,
-        /// as encoded in a <see cref="MarshalledResult"/>.  It is the caller's
-        /// responsibility to ensure the <see cref="MarshalledResult"/> is properly
-        /// disposed of using <see cref="MarshalledResult.Dispose"/>.
+        /// as encoded in a <see cref="IMarshalledResult"/>.  It is the caller's
+        /// responsibility to ensure the <see cref="IMarshalledResult"/> is properly
+        /// disposed of using <see cref="IMarshalledResult.Dispose"/>.
         /// Although it is also the caller's responsibility to separately dispose of 
         /// these packets (through <see cref="TransportPacket.Dispose"/>), this 
         /// responsibility is typically transferred once these packets are sent 
@@ -48,10 +48,10 @@ namespace GT.Net
         /// <param name="tdc">the characteristics of the transport on which the packet 
         ///     will be sent; this may be the actual transport</param>
         /// <returns>the marshalled result, containing a set of transport packets;
-        ///     this result <b>must</b> be disposed of with <see cref="MarshalledResult.Dispose"/>
+        ///     this result <b>must</b> be disposed of with <see cref="IMarshalledResult.Dispose"/>
         ///     once finished with</returns>
         /// <exception cref="MarshallingException">on a marshalling error</exception>
-        MarshalledResult Marshal(int senderIdentity, Message message, ITransportDeliveryCharacteristics tdc);
+        IMarshalledResult Marshal(int senderIdentity, Message message, ITransportDeliveryCharacteristics tdc);
 
         /// <summary>
         /// Unmarshal one message (or possibly more) as encoded in the transport-specific 
@@ -79,11 +79,58 @@ namespace GT.Net
     /// A representation of a marshalled message.  The instance should
     /// have its <see cref="Dispose"/> called when finished with.
     /// </summary>
-    public class MarshalledResult : IDisposable
+    /// <summary>
+    /// A representation of a marshalled message.  The instance should
+    /// have its <see cref="Dispose"/> called when finished with.
+    /// </summary>
+    public interface IMarshalledResult : IDisposable
     {
-        protected Action<MarshalledResult> disposeCallback;
+        /// <summary>
+        /// Triggered when the marshalled result instance has been instructed
+        /// to be disposed.
+        /// </summary>
+        event Action<IMarshalledResult> Disposed;
+
+        /// <summary>
+        /// Does this instance have packets *at this moment*?
+        /// This is different from having exhausted all available packets.
+        /// </summary>
+        /// <seealso cref="Finished"/>
+        bool HasPackets { get; }
+
+        /// <summary>
+        /// Are there any packets remaining from this instance?
+        /// </summary>
+        bool Finished { get; }
+
+        /// <summary>
+        /// Remove the next packet.  Return null if there is no packet available;
+        /// this does not necessarily entail that there are no more packets
+        /// (i.e., that this instance is <see cref="Finished"/>).
+        /// </summary>
+        /// <returns></returns>
+        TransportPacket RemovePacket();
+
+        /// <summary>
+        /// Dispose of this instance.
+        /// </summary>
+        void Dispose();
+    }
+
+    /// <summary>
+    /// A simple <see cref="IMarshalledResult"/> implementation for
+    /// marshallers returning a fixed-number of packets.  Not intended
+    /// for marshallers that may produce very long sequences of packets,
+    /// such as something that is streaming out a large number of bytes.
+    /// </summary>
+    public class MarshalledResult : IMarshalledResult
+    {
+        public event Action<IMarshalledResult> Disposed;
         protected IList<TransportPacket> packets = new List<TransportPacket>(2);
 
+        /// <summary>
+        /// Return the list of remaining packets
+        /// </summary>
         public IList<TransportPacket> Packets { get { return packets; } }
 
         public bool HasPackets { get { return packets.Count > 0; } }
@@ -103,22 +150,11 @@ namespace GT.Net
             return p;
         }
 
-        public void SetDisposeCallback(Action<MarshalledResult> callback)
-        {
-            disposeCallback = callback;
-        }
-
-        public void Reset()
-        {
-            packets.Clear();
-        }
-
         public void Dispose()
         {
-            if (disposeCallback != null)
-            {
-                disposeCallback(this);
-            }
+            if (Disposed != null) { Disposed(this); }
+            // this instance doesn't actually do anything
+            packets.Clear();
         }
     }
 
@@ -203,7 +239,7 @@ namespace GT.Net
         /// <param name="msg">the message being sent, that is to be marshalled</param>
         /// <param name="tdc">the characteristics of the transport that will send the marshalled form</param>
         /// <returns>the marshalled representation</returns>
-        virtual public MarshalledResult Marshal(int senderIdentity, Message msg, ITransportDeliveryCharacteristics tdc)
+        virtual public IMarshalledResult Marshal(int senderIdentity, Message msg, ITransportDeliveryCharacteristics tdc)
         {
             // This marshaller doesn't use <see cref="senderIdentity"/>.
             MarshalledResult mr = new MarshalledResult();

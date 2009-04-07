@@ -79,12 +79,12 @@ namespace GT.UnitTests
             Scheduler.Flush();
         }
 
-        public void FlushChannelMessages(byte channel)
+        public void FlushChannel(byte channel)
         {
             Scheduler.FlushChannelMessages(channel);
         }
 
-        public MarshalledResult Marshal(Message m, ITransportDeliveryCharacteristics tdc)
+        public IMarshalledResult Marshal(Message m, ITransportDeliveryCharacteristics tdc)
         {
             return Marshaller.Marshal(0, m, tdc);
         }

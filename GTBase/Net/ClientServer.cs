@@ -626,7 +626,7 @@ namespace GT.Net
         /// Flush all pending messages for the specified channel on this connexion.
         /// </summary>
         /// <param name="channel">the channel for flushing</param>
-        void FlushChannelMessages(byte channel);
+        void FlushChannel(byte channel);
 
         #region Internal Use Only
 
@@ -634,7 +634,7 @@ namespace GT.Net
         /// A supplementary interface to be implemented by all <see cref="IConnexion"/>,
         /// used by packet schedulers to marshal
         /// </summary>
-        MarshalledResult Marshal(Message m, ITransportDeliveryCharacteristics tdc);
+        IMarshalledResult Marshal(Message m, ITransportDeliveryCharacteristics tdc);
 
         /// <summary>
         /// A supplementary interface for use by <see cref="IPacketScheduler"/>.
@@ -895,7 +895,7 @@ namespace GT.Net
             }
         }
 
-        public void FlushChannelMessages(byte channel)
+        public void FlushChannel(byte channel)
         {
             // must be locked as is called by AbstractStream implementations
             lock (this)
@@ -1088,7 +1088,7 @@ namespace GT.Net
             Send(new ObjectMessage(channel, o), mdr, cdr);
         }
 
-        public virtual MarshalledResult Marshal(Message m, ITransportDeliveryCharacteristics tdc)
+        public virtual IMarshalledResult Marshal(Message m, ITransportDeliveryCharacteristics tdc)
         {
             return Marshaller.Marshal(SendingIdentity, m, tdc);
         }
@@ -1133,7 +1133,7 @@ namespace GT.Net
         {
             //pack main message into a buffer and send it right away
             // assumes this is not an infinite message!
-            MarshalledResult result = Marshal(msg, transport);
+            IMarshalledResult result = Marshal(msg, transport);
             try
             {
                 while (result.HasPackets)

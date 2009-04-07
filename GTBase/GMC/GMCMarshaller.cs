@@ -120,9 +120,9 @@ namespace GT.GMC
             }
         }
 
-        public MarshalledResult Marshal(int senderIdentity, Message message, ITransportDeliveryCharacteristics tdc)
+        public IMarshalledResult Marshal(int senderIdentity, Message message, ITransportDeliveryCharacteristics tdc)
         {
-            MarshalledResult mr = subMarshaller.Marshal(senderIdentity, message, tdc);
+            IMarshalledResult mr = subMarshaller.Marshal(senderIdentity, message, tdc);
             MarshalledResult result = new MarshalledResult();
             while (mr.HasPackets)
             {
