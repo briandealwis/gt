@@ -289,6 +289,7 @@ namespace GT.Net
             if (aggr == MessageAggregation.Immediate)
             {
                 pending.Insert(0, pm);
+                nextChannelIndex = channelIndices[newMsg.Channel];
             }
             else
             {
@@ -468,6 +469,7 @@ namespace GT.Net
             channels.Remove(channel);
             channelIndices.Remove(channel);
             channelSendingStates.Remove(channel);
+            if (nextChannelIndex >= channels.Count) { nextChannelIndex = 0; }
             return false;
         }
 

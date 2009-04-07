@@ -617,6 +617,17 @@ namespace GT.Net
         /// <param name="cdr">Requirements for the message's channel.</param>
         void Send(object o, byte channel, MessageDeliveryRequirements mdr, ChannelDeliveryRequirements cdr);
 
+        /// <summary>
+        /// Flush all pending messages on this connexion.
+        /// </summary>
+        void Flush();
+
+        /// <summary>
+        /// Flush all pending messages for the specified channel on this connexion.
+        /// </summary>
+        /// <param name="channel">the channel for flushing</param>
+        void FlushChannelMessages(byte channel);
+
         #region Internal Use Only
 
         /// <summary>
@@ -874,6 +885,25 @@ namespace GT.Net
                 }
             }
         }
+
+        public void Flush()
+        {
+            // must be locked as is called by AbstractStream implementations
+            lock (this)
+            {
+                scheduler.Flush();
+            }
+        }
+
+        public void FlushChannelMessages(byte channel)
+        {
+            // must be locked as is called by AbstractStream implementations
+            lock (this)
+            {
+                scheduler.FlushChannelMessages(channel);
+            }
+        }
+
 
         protected abstract IPacketScheduler CreatePacketScheduler();
  
