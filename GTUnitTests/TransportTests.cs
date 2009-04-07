@@ -57,6 +57,8 @@ namespace GT.UnitTests
         public void SendPacket(TransportPacket packet)
         {
             bytesSent += (uint)packet.Length;
+            if (PacketSentEvent != null) { PacketSentEvent(packet, this); }
+            packet.Dispose();
         }
 
         public void Update()
