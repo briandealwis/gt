@@ -33,6 +33,7 @@ namespace GT.UnitTests
 
         public event PacketHandler PacketReceivedEvent;
         public event PacketHandler PacketSentEvent;
+        public event ErrorEventNotication ErrorEvent;
 
         public NullTransport()
         {
@@ -53,19 +54,11 @@ namespace GT.UnitTests
             get { return new Dictionary<string, string>(); }
         }
 
-        public void SendPacket(byte[] packet, int offset, int count)
+        public void SendPacket(TransportPacket packet)
         {
-            bytesSent += (uint)count;
-        }
-
-        public void SendPacket(Stream stream)
-        {
-            bytesSent += (uint)stream.Length;
-        }
-
-        public Stream GetPacketStream()
-        {
-            return new MemoryStream();
+            bytesSent += (uint)packet.Length;
+            if (PacketSentEvent != null) { PacketSentEvent(packet, this); }
+            packet.Dispose();
         }
 
         public void Update()
@@ -206,7 +199,7 @@ namespace GT.UnitTests
 
         protected void RunServer()
         {
-            server.PacketReceivedEvent += new PacketHandler(ServerReceivedPacket);
+            server.PacketReceivedEvent += ServerReceivedPacket;
             while (server.Active)
             {
                 server.Update();
@@ -214,14 +207,13 @@ namespace GT.UnitTests
             }
         }
 
-        protected void ServerReceivedPacket(byte[] buffer, int offset, int count, ITransport transport)
+        protected void ServerReceivedPacket(TransportPacket packet, ITransport transport)
         {
-            byte[] received = new byte[count];
-            Array.Copy(buffer, offset, received, 0, count);
-            if (buffer[offset] != (byte)(serverPacketCount + serverMissedOffset))
+            byte[] received = packet.ToArray();
+            if (received[0] != (byte)(serverPacketCount + serverMissedOffset))
             {
                 Console.WriteLine("server: ERROR: expected packet#" + (serverPacketCount + serverMissedOffset)
-                    + " but received packet #" + buffer[offset]);
+                    + " but received packet #" + received[0]);
             }
             else
             {
@@ -229,18 +221,9 @@ namespace GT.UnitTests
                     (byte)(serverPacketCount + serverMissedOffset));
             }
             CheckPacket(received, "server");
-            if (serverPacketCount % 2 == 0)
-            {
-                Debug("==> server: replying with byte array");
-                server.SendPacket(buffer, offset, count);
-            }
-            else
-            {
-                Debug("==> server: replying with stream");
-                Stream ms = server.GetPacketStream();
-                ms.Write(buffer, offset, count);
-                server.SendPacket(ms);
-            }
+            Debug("==> server: replying with byte array");
+            packet.Retain();    // must retain since SendPacket() will dispose
+            server.SendPacket(packet);
             serverPacketCount++;
         }
 
@@ -285,14 +268,14 @@ namespace GT.UnitTests
             return !failed;
         }
 
-        protected void ClientReceivedPacket(byte[] buffer, int offset, int count, ITransport transport)
+        protected void ClientReceivedPacket(TransportPacket packet, ITransport transport)
         {
-            byte[] received = new byte[count];
+            byte[] received = packet.ToArray();
             bool ok = true;
-            if (buffer[offset] != (byte)(clientPacketCount + clientMissedOffset))
+            if (received[0] != (byte)(clientPacketCount + clientMissedOffset))
             {
                 Console.WriteLine("client: ERROR: expected packet#" + (clientPacketCount + clientMissedOffset)
-                    + " but received packet #" + buffer[offset]);
+                    + " but received packet #" + received[0]);
                 ok = false;
             }
             else
@@ -300,7 +283,6 @@ namespace GT.UnitTests
                 Debug("client: received expected packet#{0}",
                     (byte)(clientPacketCount + clientMissedOffset));
             }
-            Array.Copy(buffer, offset, received, 0, count);
             if (!CheckPacket(received, "client")) { ok = false; }
             Console.Write(ok ? '+' : '!');
             clientPacketCount++;
@@ -347,7 +329,7 @@ namespace GT.UnitTests
                 sourceData[0] = (byte)i;
                 Debug("client: sending packet#" + i + ": "
                     + ByteUtils.DumpBytes(sourceData, 0, sourceData.Length));
-                client.SendPacket(sourceData, 0, sourceData.Length);
+                client.SendPacket(new TransportPacket(sourceData));
                 if (failure.Length != 0)
                 {
                     Assert.Fail(failure);
@@ -360,8 +342,7 @@ namespace GT.UnitTests
 
             try
             {
-                client.SendPacket(new byte[client.MaximumPacketSize * 2], 0, 
-                    (int)client.MaximumPacketSize * 2);
+                client.SendPacket(new TransportPacket(new byte[client.MaximumPacketSize * 2]));
                 Assert.Fail("Transport allowed sending packets exceeding its capacity");
             }
             catch (ContractViolation) { /* expected */ }
@@ -455,34 +436,32 @@ namespace GT.UnitTests
         public void TestClientTransport()
         {
             bool packetReceived = false;
-            clientTransport.PacketReceivedEvent += delegate(byte[] buffer, int offset, int count, ITransport transport) { 
-                packetReceived = true;
-            };
+            clientTransport.PacketReceivedEvent += delegate { packetReceived = true; };
 
-            clientTransport.Inject(0, new byte[0]);
+            clientTransport.Inject(0, new TransportPacket());
             Assert.IsTrue(packetReceived);
 
             packetReceived = false;
-            clientTransport.Inject(0, new byte[0]);
+            clientTransport.Inject(0, new TransportPacket());
             Assert.IsFalse(packetReceived);
 
             packetReceived = false;
-            clientTransport.Inject(1, new byte[0]);
+            clientTransport.Inject(1, new TransportPacket());
             Assert.IsTrue(packetReceived);
 
             packetReceived = false;
-            clientTransport.Inject(0, new byte[0]);
+            clientTransport.Inject(0, new TransportPacket());
             Assert.IsFalse(packetReceived);
-            clientTransport.Inject(1, new byte[0]);
+            clientTransport.Inject(1, new TransportPacket());
             Assert.IsFalse(packetReceived);
-            clientTransport.Inject(2, new byte[0]);
+            clientTransport.Inject(2, new TransportPacket());
             Assert.IsTrue(packetReceived);
 
             // now test wrap-around
             packetReceived = false;
-            clientTransport.Inject(UInt32.MaxValue, new byte[0]);
+            clientTransport.Inject(UInt32.MaxValue, new TransportPacket());
             Assert.IsTrue(packetReceived);
-            clientTransport.Inject(0, new byte[0]);
+            clientTransport.Inject(0, new TransportPacket());
             Assert.IsTrue(packetReceived);
         }
 
@@ -490,35 +469,32 @@ namespace GT.UnitTests
         public void TestServerTransport()
         {
             bool packetReceived = false;
-            serverTransport.PacketReceivedEvent += delegate(byte[] buffer, int offset, int count, ITransport transport)
-            {
-                packetReceived = true;
-            };
+            serverTransport.PacketReceivedEvent += delegate { packetReceived = true; };
 
-            serverTransport.Inject(0, new byte[0]);
+            serverTransport.Inject(0, new TransportPacket());
             Assert.IsTrue(packetReceived);
 
             packetReceived = false;
-            serverTransport.Inject(0, new byte[0]);
+            serverTransport.Inject(0, new TransportPacket());
             Assert.IsFalse(packetReceived);
 
             packetReceived = false;
-            serverTransport.Inject(1, new byte[0]);
+            serverTransport.Inject(1, new TransportPacket());
             Assert.IsTrue(packetReceived);
 
             packetReceived = false;
-            serverTransport.Inject(0, new byte[0]);
+            serverTransport.Inject(0, new TransportPacket());
             Assert.IsFalse(packetReceived);
-            serverTransport.Inject(1, new byte[0]);
+            serverTransport.Inject(1, new TransportPacket());
             Assert.IsFalse(packetReceived);
-            serverTransport.Inject(2, new byte[0]);
+            serverTransport.Inject(2, new TransportPacket());
             Assert.IsTrue(packetReceived);
 
             // now test wrap-around
             packetReceived = false;
-            serverTransport.Inject(UInt32.MaxValue, new byte[0]);
+            serverTransport.Inject(UInt32.MaxValue, new TransportPacket());
             Assert.IsTrue(packetReceived);
-            serverTransport.Inject(0, new byte[0]);
+            serverTransport.Inject(0, new TransportPacket());
             Assert.IsTrue(packetReceived);
         }
 
@@ -528,13 +504,11 @@ namespace GT.UnitTests
             {
             }
 
-            public void Inject(uint seqNo, byte[] payload)
+            public void Inject(uint seqNo, TransportPacket payload)
             {
                 Debug.Assert(PacketHeaderSize == 4);
-                byte[] datagram = new byte[PacketHeaderSize + payload.Length];
-                BitConverter.GetBytes(seqNo).CopyTo(datagram, 0);
-                payload.CopyTo(datagram, PacketHeaderSize);
-                NotifyPacketReceived(datagram, (int)PacketHeaderSize, payload.Length);
+                payload.Prepend(BitConverter.GetBytes(seqNo));
+                NotifyPacketReceived(payload);
             }
         }
 
@@ -545,13 +519,11 @@ namespace GT.UnitTests
             {
             }
 
-            public void Inject(uint seqNo, byte[] payload)
+            public void Inject(uint seqNo, TransportPacket payload)
             {
                 Debug.Assert(PacketHeaderSize == 4);
-                byte[] datagram = new byte[PacketHeaderSize + payload.Length];
-                BitConverter.GetBytes(seqNo).CopyTo(datagram, 0);
-                payload.CopyTo(datagram, PacketHeaderSize);
-                NotifyPacketReceived(datagram, (int)PacketHeaderSize, payload.Length);
+                payload.Prepend(BitConverter.GetBytes(seqNo));
+                NotifyPacketReceived(payload);
             }
         }
 
@@ -568,47 +540,58 @@ namespace GT.UnitTests
             // 384 bytes (or 3 packets of 128 bytes)
             LeakyBucketTransport lbt = new LeakyBucketTransport(nt, 128, 
                 TimeSpan.FromMilliseconds(10), 384);
+            bool backlogged = false;
+            lbt.ErrorEvent += delegate(ErrorSummary es)
+            {
+                if (es.ErrorCode == SummaryErrorCode.TransportBacklogged)
+                {
+                    backlogged = true;
+                }
+            };
 
             for(int i = 0; i < 5; i++)
             {
+                Assert.IsFalse(backlogged);
                 uint startBytesSent = nt.BytesSent;
                 Assert.AreEqual(128, lbt.AvailableCapacity);
                 Assert.AreEqual(384, lbt.RemainingBucketCapacity);
+                Assert.IsFalse(backlogged);
                 
-                lbt.SendPacket(new byte[128], 0, 128);  // should send
+                lbt.SendPacket(new TransportPacket(new byte[128]));  // should send
                 Assert.AreEqual(0, lbt.AvailableCapacity);
                 Assert.AreEqual(384, lbt.RemainingBucketCapacity);
+                Assert.IsFalse(backlogged);
 
-                lbt.SendPacket(new byte[128], 0, 128);  // should be buffered
+                lbt.SendPacket(new TransportPacket(new byte[128]));  // should be buffered
                 Assert.AreEqual(0, lbt.AvailableCapacity);
                 Assert.AreEqual(256, lbt.RemainingBucketCapacity);
+                Assert.IsFalse(backlogged);
 
-                lbt.SendPacket(new byte[128], 0, 128);  // should be buffered
+                lbt.SendPacket(new TransportPacket(new byte[128]));  // should be buffered
                 Assert.AreEqual(0, lbt.AvailableCapacity);
                 Assert.AreEqual(128, lbt.RemainingBucketCapacity);
+                Assert.IsFalse(backlogged);
 
-                lbt.SendPacket(new byte[128], 0, 128);  // should be buffered
+                lbt.SendPacket(new TransportPacket(new byte[128]));  // should be buffered
                 Assert.AreEqual(0, lbt.AvailableCapacity);
                 Assert.AreEqual(0, lbt.RemainingBucketCapacity);
-                try
-                {
-                    lbt.SendPacket(new byte[128], 0, 128);  // should exceed bucket capacity
-                    Assert.Fail("should have thrown a backlogged exception");
-                }
-                catch(TransportBackloggedWarning)
-                {
-                    // this was expected
-                }
+                Assert.IsFalse(backlogged);
+                    
+                lbt.SendPacket(new TransportPacket(new byte[128]));  // should exceed bucket capacity
+                Assert.IsTrue(backlogged);
+                backlogged = false;
+
                 Assert.AreEqual(128, nt.BytesSent - startBytesSent);
 
                 // Drain the bucket
-                while (lbt.RemainingBucketCapacity < lbt.MaximumCapacity)
+                do
                 {
-                    lbt.Update();
                     Thread.Sleep(20);
+                    lbt.Update();
+                    Assert.IsFalse(backlogged);
                 }
-                Assert.AreEqual(128, lbt.AvailableCapacity);
-
+                while (lbt.RemainingBucketCapacity < lbt.MaximumCapacity 
+                    || lbt.AvailableCapacity != 128);
             }
         }
 
@@ -617,57 +600,77 @@ namespace GT.UnitTests
         {
             NullTransport nt = new NullTransport();
             TokenBucketTransport tbt = new TokenBucketTransport(nt, 512, 1024);
+            bool backlogged = false;
+            tbt.ErrorEvent += delegate(ErrorSummary es)
+            {
+                if (es.ErrorCode == SummaryErrorCode.TransportBacklogged)
+                {
+                    backlogged = true;
+                }
+            };
             Assert.IsTrue(tbt.AvailableCapacity == 1024, "starting capacity is the maximum capacity");
             for (int i = 0; i < 5; i++)
             {
                 uint startBytesSent = nt.BytesSent;
-                tbt.SendPacket(new byte[128], 0, 128);
-                tbt.SendPacket(new byte[128], 0, 128);
-                tbt.SendPacket(new byte[128], 0, 128);
-                tbt.SendPacket(new byte[128], 0, 128);
-                tbt.SendPacket(new byte[128], 0, 128);
-                tbt.SendPacket(new byte[128], 0, 128);
-                tbt.SendPacket(new byte[128], 0, 128);
-                tbt.SendPacket(new byte[128], 0, 128);
+                Assert.IsFalse(backlogged);
+                Assert.IsTrue(tbt.AvailableCapacity >= tbt.MaximumCapacity);
+                tbt.SendPacket(new TransportPacket(new byte[128]));
+                Assert.IsFalse(backlogged);
+                tbt.SendPacket(new TransportPacket(new byte[128]));
+                Assert.IsFalse(backlogged);
+                tbt.SendPacket(new TransportPacket(new byte[128]));
+                Assert.IsFalse(backlogged);
+                tbt.SendPacket(new TransportPacket(new byte[128]));
+                Assert.IsFalse(backlogged);
+                tbt.SendPacket(new TransportPacket(new byte[128]));
+                Assert.IsFalse(backlogged);
+                tbt.SendPacket(new TransportPacket(new byte[128]));
+                Assert.IsFalse(backlogged);
+                tbt.SendPacket(new TransportPacket(new byte[128]));
+                Assert.IsFalse(backlogged);
+                tbt.SendPacket(new TransportPacket(new byte[128]));
+                Assert.IsFalse(backlogged);
                 Assert.AreEqual(1024, nt.BytesSent - startBytesSent);
-                try
-                {
-                    tbt.SendPacket(new byte[128], 0, 128); // this packet will be sent though
-                    Assert.Fail("should have thrown a backlogged exception");
-                }
-                catch (TransportBackloggedWarning)
-                {
-                    // this was expected
-                }
+
+                // this packet will not be sent though
+                tbt.SendPacket(new TransportPacket(new byte[128]));
+                Assert.IsTrue(backlogged);
+                backlogged = false;
+
                 Assert.AreEqual(1024, nt.BytesSent - startBytesSent);
 
                 // Build up some capacity
-                while(tbt.AvailableCapacity < 256)
-                {
-                    Thread.Sleep(200);
-                }
-                //Console.WriteLine("Test: slept {0}ms", timer.ElapsedMilliseconds);
-                tbt.SendPacket(new byte[128], 0, 128);  // plus the outstanding packet
-                Assert.AreEqual(1024 + 2 * 128, nt.BytesSent - startBytesSent);
-
-                // we should now have little capacity again, so sending another packet will backlog
-                Assert.IsTrue(tbt.AvailableCapacity < 128);
-                try
-                {
-                    tbt.SendPacket(new byte[128], 0, 128); // this packet will be sent next though
-                    Assert.Fail("should have thrown a backlogged exception");
-                }
-                catch (TransportBackloggedWarning)
-                {
-                    // this was expected
-                }
-
-                // Sleep until there is plenty of capacity
-                while(tbt.AvailableCapacity < tbt.MaximumCapacity)
+                while(tbt.AvailableCapacity < 128)
                 {
                     Thread.Sleep(200);
                     tbt.Update();
                 }
+                //Console.WriteLine("Test: slept {0}ms", timer.ElapsedMilliseconds);
+                // plus the outstanding packet
+                while (tbt.AvailableCapacity > 128)
+                {
+                    Assert.IsFalse(backlogged);
+                    tbt.SendPacket(new TransportPacket(new byte[128]));
+                    Assert.IsFalse(backlogged);
+                }
+
+                // we should now have little capacity again, so sending another packet will backlog
+                Assert.IsTrue(tbt.AvailableCapacity < 128);
+
+                // this packet will not be sent next though
+                Assert.IsFalse(backlogged);
+                tbt.SendPacket(new TransportPacket(new byte[128]));
+                Assert.IsTrue(backlogged);
+
+                backlogged = false;
+                // Sleep until there is plenty of capacity
+                do
+                {
+                    Thread.Sleep(200);
+                    tbt.Update();
+                    Assert.IsFalse(backlogged);
+                }
+                while (tbt.AvailableCapacity < tbt.MaximumCapacity);
             }
         }
     }

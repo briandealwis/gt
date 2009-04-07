@@ -279,13 +279,25 @@ namespace GT.UnitTests
     {
         Client client;
         Server server;
+        bool errorOccurred = false;
 
         [SetUp]
         public void SetUp() {
+            errorOccurred = false;
             client = new LocalClientConfiguration().BuildClient();
             client.Start();
+            client.ErrorEvent += delegate(ErrorSummary es)
+            {
+                Console.WriteLine("CLIENT ERROR: " + es);
+                errorOccurred = true;
+            };
             server = new LocalServerConfiguration(9999).BuildServer();
             server.StartSeparateListeningThread();
+            server.ErrorEvent += delegate(ErrorSummary es)
+            {
+                Console.WriteLine("SERVER ERROR: " + es);
+                errorOccurred = true;
+            };
         }
 
         [TearDown]
@@ -303,12 +315,20 @@ namespace GT.UnitTests
             Assert.AreEqual(1, server.Connexions.Count);
             bool received = false;
             objStream.MessagesReceived += delegate { received = true; };
+            bool somethingReceived = false;
+            foreach (IConnexion c in client.Connexions)
+            {
+                c.MessageReceived += delegate { somethingReceived = true; };
+            }
+            Assert.IsFalse(somethingReceived);
             Assert.IsFalse(received);
 
             foreach (IConnexion c in server.Connexions)
             {
                 c.Send("this is a test", 0, null, ChannelDeliveryRequirements.LeastStrict);
             }
+            UpdateClient(() => received);
+            Assert.IsTrue(somethingReceived); somethingReceived = false;
             Assert.IsFalse(received);
             Assert.IsTrue(objStream.Count == 0);
 
@@ -316,7 +336,8 @@ namespace GT.UnitTests
             {
                 c.Send(new object(), 0, null, ChannelDeliveryRequirements.LeastStrict);
             }
-            for (int i = 0; !received && i < 10; i++) { client.Update(); Thread.Sleep(20); }
+            UpdateClient(() => received);
+            Assert.IsTrue(somethingReceived); somethingReceived = false;
             Assert.IsTrue(received);
             Assert.IsTrue(objStream.Count > 0);
             Assert.IsNotNull(objStream.DequeueMessage(0));
@@ -331,12 +352,20 @@ namespace GT.UnitTests
             Assert.AreEqual(1, server.Connexions.Count);
             bool received = false;
             strStream.MessagesReceived += delegate { received = true; };
+            bool somethingReceived = false;
+            foreach (IConnexion c in client.Connexions)
+            {
+                c.MessageReceived += delegate { somethingReceived = true; };
+            }
+            Assert.IsFalse(somethingReceived);
             Assert.IsFalse(received);
 
             foreach (IConnexion c in server.Connexions)
             {
                 c.Send(new byte[1], 0, null, ChannelDeliveryRequirements.LeastStrict);
             }
+            UpdateClient(() => received);
+            Assert.IsTrue(somethingReceived); somethingReceived = false;
             Assert.IsFalse(received);
             Assert.IsTrue(strStream.Count == 0);
 
@@ -344,7 +373,8 @@ namespace GT.UnitTests
             {
                 c.Send("this is a test", 0, null, ChannelDeliveryRequirements.LeastStrict);
             }
-            for (int i = 0; !received && i < 10; i++) { client.Update(); Thread.Sleep(20); }
+            UpdateClient(() => received);
+            Assert.IsTrue(somethingReceived); somethingReceived = false;
             Assert.IsTrue(received);
             Assert.IsTrue(strStream.Count > 0);
             Assert.IsNotNull(strStream.DequeueMessage(0));
@@ -359,12 +389,20 @@ namespace GT.UnitTests
             Assert.AreEqual(1, server.Connexions.Count);
             bool received = false;
             binStream.MessagesReceived += delegate { received = true; };
+            bool somethingReceived = false;
+            foreach (IConnexion c in client.Connexions)
+            {
+                c.MessageReceived += delegate { somethingReceived = true; };
+            }
+            Assert.IsFalse(somethingReceived);
             Assert.IsFalse(received);
 
             foreach (IConnexion c in server.Connexions)
             {
                 c.Send("this is a test", 0, null, ChannelDeliveryRequirements.LeastStrict);
             }
+            UpdateClient(() => received);
+            Assert.IsTrue(somethingReceived); somethingReceived = false;
             Assert.IsFalse(received);
             Assert.IsTrue(binStream.Count == 0);
 
@@ -372,7 +410,8 @@ namespace GT.UnitTests
             {
                 c.Send(new byte[1], 0, null, ChannelDeliveryRequirements.LeastStrict);
             }
-            for (int i = 0; !received && i < 10; i++) { client.Update(); Thread.Sleep(20); }
+            UpdateClient(() => received);
+            Assert.IsTrue(somethingReceived); somethingReceived = false;
             Assert.IsTrue(received);
             Assert.IsTrue(binStream.Count > 0);
             Assert.IsNotNull(binStream.DequeueMessage(0));
@@ -387,12 +426,20 @@ namespace GT.UnitTests
             Assert.AreEqual(1, server.Connexions.Count);
             bool received = false;
             sessStream.MessagesReceived += delegate { received = true; };
+            bool somethingReceived = false;
+            foreach (IConnexion c in client.Connexions)
+            {
+                c.MessageReceived += delegate { somethingReceived = true; };
+            }
+            Assert.IsFalse(somethingReceived);
             Assert.IsFalse(received);
 
             foreach (IConnexion c in server.Connexions)
             {
                 c.Send("this is a test", 0, null, ChannelDeliveryRequirements.LeastStrict);
             }
+            UpdateClient(() => received);
+            Assert.IsTrue(somethingReceived); somethingReceived = false;
             Assert.IsFalse(received);
             Assert.IsTrue(sessStream.Count == 0);
 
@@ -400,7 +447,7 @@ namespace GT.UnitTests
             {
                 c.Send(new SessionMessage(0, 0, SessionAction.Left), null, ChannelDeliveryRequirements.LeastStrict);
             }
-            for (int i = 0; !received && i < 10; i++) { client.Update(); Thread.Sleep(20); }
+            UpdateClient(() => received);
             Assert.IsTrue(received);
             Assert.IsTrue(sessStream.Count > 0);
             Assert.IsNotNull(sessStream.DequeueMessage(0));
@@ -416,26 +463,35 @@ namespace GT.UnitTests
             Assert.AreEqual(1, server.Connexions.Count);
             bool received = false;
             st.StreamedTupleReceived += delegate { received = true; };
+            bool somethingReceived = false;
+            foreach (IConnexion c in client.Connexions)
+            {
+                c.MessageReceived += delegate { somethingReceived = true; };
+            }
+            Assert.IsFalse(somethingReceived);
             Assert.IsFalse(received);
 
             foreach (IConnexion c in server.Connexions)
             {
                 c.Send(new byte[1], 0, null, ChannelDeliveryRequirements.LeastStrict);
             }
+            UpdateClient(() => received);
             Assert.IsFalse(received);
 
             foreach (IConnexion c in server.Connexions)
             {
                 c.Send(new TupleMessage(0, 0, "foo"), null, ChannelDeliveryRequirements.LeastStrict);
             }
-            for (int i = 0; !received && i < 10; i++) { client.Update(); Thread.Sleep(20); }
+            UpdateClient(() => received);
+            Assert.IsTrue(somethingReceived); somethingReceived = false;
             Assert.IsFalse(received);
 
             foreach (IConnexion c in server.Connexions)
             {
                 c.Send(new TupleMessage(0, 0, 1), null, ChannelDeliveryRequirements.LeastStrict);
             }
-            for (int i = 0; !received && i < 10; i++) { client.Update(); Thread.Sleep(20); }
+            UpdateClient(() => received);
+            Assert.IsTrue(somethingReceived); somethingReceived = false;
             Assert.IsTrue(received);
         }
 
@@ -449,26 +505,36 @@ namespace GT.UnitTests
             Assert.AreEqual(1, server.Connexions.Count);
             bool received = false;
             st.StreamedTupleReceived += delegate { received = true; };
+            bool somethingReceived = false;
+            foreach (IConnexion c in client.Connexions)
+            {
+                c.MessageReceived += delegate { somethingReceived = true; };
+            }
+            Assert.IsFalse(somethingReceived);
             Assert.IsFalse(received);
 
             foreach (IConnexion c in server.Connexions)
             {
                 c.Send(new byte[1], 0, null, ChannelDeliveryRequirements.LeastStrict);
             }
+            UpdateClient(() => received);
+            Assert.IsTrue(somethingReceived); somethingReceived = false;
             Assert.IsFalse(received);
 
             foreach (IConnexion c in server.Connexions)
             {
                 c.Send(new TupleMessage(0, 0, "foo", "bar"), null, ChannelDeliveryRequirements.LeastStrict);
             }
-            for (int i = 0; !received && i < 10; i++) { client.Update(); Thread.Sleep(20); }
+            UpdateClient(() => received);
+            Assert.IsTrue(somethingReceived); somethingReceived = false;
             Assert.IsFalse(received);
 
             foreach (IConnexion c in server.Connexions)
             {
                 c.Send(new TupleMessage(0, 0, 1, 1), null, ChannelDeliveryRequirements.LeastStrict);
             }
-            for (int i = 0; !received && i < 10; i++) { client.Update(); Thread.Sleep(20); }
+            UpdateClient(() => received);
+            Assert.IsTrue(somethingReceived); somethingReceived = false;
             Assert.IsTrue(received);
         }
 
@@ -482,27 +548,47 @@ namespace GT.UnitTests
             Assert.AreEqual(1, server.Connexions.Count);
             bool received = false;
             st.StreamedTupleReceived += delegate { received = true; };
+            bool somethingReceived = false;
+            foreach (IConnexion c in client.Connexions)
+            {
+                c.MessageReceived += delegate { somethingReceived = true; };
+            }
+            Assert.IsFalse(somethingReceived);
             Assert.IsFalse(received);
 
             foreach (IConnexion c in server.Connexions)
             {
                 c.Send(new byte[1], 0, null, ChannelDeliveryRequirements.LeastStrict);
             }
+            UpdateClient(() => received);
+            Assert.IsTrue(somethingReceived); somethingReceived = false;
             Assert.IsFalse(received);
 
             foreach (IConnexion c in server.Connexions)
             {
                 c.Send(new TupleMessage(0, 0, "foo", "bar", "baz"), null, ChannelDeliveryRequirements.LeastStrict);
             }
-            for (int i = 0; !received && i < 10; i++) { client.Update(); Thread.Sleep(20); }
+            UpdateClient(() => received);
+            Assert.IsTrue(somethingReceived); somethingReceived = false;
             Assert.IsFalse(received);
 
             foreach (IConnexion c in server.Connexions)
             {
                 c.Send(new TupleMessage(0, 0, 1, 1, 1), null, ChannelDeliveryRequirements.LeastStrict);
             }
-            for (int i = 0; !received && i < 10; i++) { client.Update(); Thread.Sleep(20); }
+            UpdateClient(() => received);
+            Assert.IsTrue(somethingReceived); somethingReceived = false;
             Assert.IsTrue(received);
+        }
+
+        private void UpdateClient(Returning<bool> condition)
+        {
+            for (int i = 0; !condition() && i < 10; i++)
+            {
+                Assert.IsFalse(errorOccurred, "some error occurred; see console");
+                client.Update();
+                Thread.Sleep(20);
+            }
         }
 
     }
@@ -748,7 +834,7 @@ namespace GT.UnitTests
             {
                 Debug("Client: sending greeting: " + EXPECTED_GREETING);
                 IStringStream strStream = client.GetStringStream("127.0.0.1", "9999", 0,
-                    new TestChannelDeliveryRequirements(typeof(BaseUdpTransport))); //connect here
+                    new TestChannelDeliveryRequirements(typeof(LocalTransport))); //connect here
                 strStream.MessagesReceived += ClientStringMessageReceivedEvent;
                 Assert.IsTrue(connexionAdded, "should have connected");
 

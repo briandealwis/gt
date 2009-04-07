@@ -10,12 +10,13 @@ namespace GT.Utils
     {
         protected Stream wrapped;
         protected long startPosition;
+        protected long position = 0;
         protected long capacity;
 
         public WrappedStream(Stream s, uint cap)
         {
             wrapped = s;
-            startPosition = s.Position;
+            startPosition = wrapped.CanSeek ? s.Position : 0;
             capacity = cap;
         }
 
@@ -46,22 +47,29 @@ namespace GT.Utils
 
         public override long Position
         {
-            get { return wrapped.Position - startPosition; }
+            get { return position; }
             set
             {
+                if (!wrapped.CanSeek)
+                {
+                    throw new NotSupportedException("underlying stream cannot seek");
+                }
                 if (value < 0 || value > capacity)
                 {
                     throw new ArgumentException("position exceeds stream capacity");
                 }
                 wrapped.Position = startPosition + value;
+                position = value;
             }
         }
 
         public override int Read(byte[] buffer, int offset, int count)
         {
             if (offset < 0 || count < 0) { throw new ArgumentOutOfRangeException(); }
-            int actual = Math.Max(0, Math.Min(count, (int)(capacity - Position)));
+            count = Math.Min(count, buffer.Length - offset);    // just in case
+            int actual = Math.Max(0, Math.Min(count, (int)(capacity - position)));
             if (actual == 0) { return 0; }
+            position += actual;
             return wrapped.Read(buffer, offset, actual);
         }
 
@@ -80,10 +88,6 @@ namespace GT.Utils
                 newPosition = capacity + offset;
                 break;
             }
-            if (newPosition < 0 || newPosition > capacity)
-            {
-                throw new ArgumentException("position exceeds stream capacity");
-            }
             Position = newPosition;
             return newPosition;
         }
@@ -95,11 +99,15 @@ namespace GT.Utils
 
         public override void Write(byte[] buffer, int offset, int count)
         {
-            if (offset < 0 || count < 0) { throw new ArgumentOutOfRangeException(); }
+            if (offset < 0 || count < 0 || offset + count > buffer.Length)
+            {
+                throw new ArgumentOutOfRangeException();
+            }
             if (Position + count > capacity)
             {
                 throw new ArgumentException("exceeds stream capacity");
             }
+            position += count;
             wrapped.Write(buffer, offset, count);
         }
     }

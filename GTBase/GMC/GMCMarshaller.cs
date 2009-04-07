@@ -120,23 +120,38 @@ namespace GT.GMC
             }
         }
 
-        public void Marshal(int senderIdentity, Message message, Stream output, ITransport t)
+        public IMarshalledResult Marshal(int senderIdentity, Message message, ITransportDeliveryCharacteristics tdc)
         {
-            MemoryStream bytes = new MemoryStream();
-            subMarshaller.Marshal(senderIdentity, message, bytes, t);
-            byte[] encoded = Encode(bytes.ToArray());
-            ByteUtils.Write(BitConverter.GetBytes(senderIdentity), output);
-            ByteUtils.EncodeLength(encoded.Length, output);
-            ByteUtils.Write(encoded, output);
+            IMarshalledResult mr = subMarshaller.Marshal(senderIdentity, message, tdc);
+            MarshalledResult result = new MarshalledResult();
+            while (mr.HasPackets)
+            {
+                TransportPacket packet = mr.RemovePacket();
+                byte[] encoded = Encode(packet.ToArray());
+                // FIXME: this is a bit awkward: if encoded is small, then
+                // we're likely better off copying these into a contiguous
+                // block of memory.  But if big, then we're probably better
+                // off using these byte arrays as the backing store.
+                TransportPacket newPacket = new TransportPacket(
+                    BitConverter.GetBytes(senderIdentity),
+                    ByteUtils.EncodeLength(encoded.Length),
+                    encoded);
+                result.AddPacket(newPacket);
+            }
+            mr.Dispose();
+            return result;
         }
 
-        public void Unmarshal(Stream input, ITransport t, EventHandler<MessageEventArgs> messageAvailable)
+        public void Unmarshal(TransportPacket packet, ITransportDeliveryCharacteristics tdc, EventHandler<MessageEventArgs> messageAvailable)
         {
-            Debug.Assert(messageAvailable != null, "callers must provide a messageAvailale handler");
+            Debug.Assert(messageAvailable != null, "callers must provide a messageAvailable handler");
+            Stream input = packet.AsReadStream();
             int encoderId = BitConverter.ToInt32(ByteUtils.Read(input, 4), 0);
             int length = ByteUtils.DecodeLength(input);
             byte[] decoded = Decode(encoderId, ByteUtils.Read(input, length));
-            subMarshaller.Unmarshal(new MemoryStream(decoded), t,
+            TransportPacket subPacket = TransportPacket.On(decoded);
+            input.Close();
+            subMarshaller.Unmarshal(subPacket, tdc,
                 (sender, mea) => messageAvailable(this, mea));
         }
 

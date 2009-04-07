@@ -202,30 +202,13 @@ namespace GT.Net.Local
             get { return handle != null; }
         }
 
-        public override void SendPacket(byte[] message, int offset, int count)
+        public override void SendPacket(TransportPacket packet)
         {
-            ContractViolation.Assert(count > 0, "cannot send 0-byte packets");
-            ContractViolation.Assert(count <= MaximumPacketSize, 
-                String.Format("packet exceeds maximum packet size: {0} > {1}", count, MaximumPacketSize));
-            byte[] data = new byte[count];
-            Array.Copy(message, offset, data, 0, count);
-            handle.Put(data);
-            NotifyPacketSent(data, 0, data.Length);
-        }
-
-        public override void SendPacket(Stream stream)
-        {
-            ContractViolation.Assert(stream.Length > 0, "Cannot send 0-byte messages!");
-            ContractViolation.Assert(stream.Length - PacketHeaderSize <= MaximumPacketSize, 
-                String.Format("Packet exceeds transport capacity: {0} > {1}", 
-                    stream.Length - PacketHeaderSize, MaximumPacketSize));
-            CheckValidPacketStream(stream);
-
-            // we inherit GetPacketStream() which uses a MemoryStream, and the typing
-            // is checked by CheckValidStream()
-            byte[] data = ((MemoryStream)stream).ToArray();
-            handle.Put(data);
-            NotifyPacketSent(data, 0, data.Length);
+            ContractViolation.Assert(packet.Length > 0, "cannot send 0-byte packets");
+            ContractViolation.Assert(packet.Length <= MaximumPacketSize,
+                String.Format("packet exceeds maximum packet size: {0} > {1}", packet.Length, MaximumPacketSize));
+            handle.Put(packet.ToArray());
+            NotifyPacketSent(packet);
         }
 
         public override void Update()
@@ -233,7 +216,7 @@ namespace GT.Net.Local
             byte[] packet;
             while ((packet = handle.Check()) != null)
             {
-                NotifyPacketReceived(packet, 0, packet.Length);
+                NotifyPacketReceived(new TransportPacket(packet));
             }
         }
 

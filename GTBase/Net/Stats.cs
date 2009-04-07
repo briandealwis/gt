@@ -111,14 +111,14 @@ namespace GT.Net
             newTransport.PacketReceivedEvent += transport_PacketReceived;
         }
 
-        private void transport_PacketReceived(byte[] buffer, int offset, int count, ITransport transport)
+        private void transport_PacketReceived(TransportPacket packet, ITransport transport)
         {
-            snapshot.NotifyPacketReceived(count, transport);
+            snapshot.NotifyPacketReceived(packet.Length, transport);
         }
 
-        private void transport_PacketSent(byte[] buffer, int offset, int count, ITransport transport)
+        private void transport_PacketSent(TransportPacket packet, ITransport transport)
         {
-            snapshot.NotifyPacketSent(count, transport);
+            snapshot.NotifyPacketSent(packet.Length, transport);
         }
 
         private void connexion_MessageReceived(Message m, IConnexion source, ITransport transport)

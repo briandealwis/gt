@@ -60,7 +60,6 @@ namespace GT.UnitTests
         {
             TryMillipedeException(new CannotConnectException("test"));
             TryMillipedeException(new TransportError("this", "foo", "this"));
-            TryMillipedeException(new TransportBackloggedWarning(null));
         }
 
         protected void TryMillipedeException(Exception exception)
@@ -131,7 +130,7 @@ namespace GT.UnitTests
             ITransport transport = connector.Connect("localhost", "9999", new Dictionary<string, string>());
             Assert.IsInstanceOfType(typeof(MillipedeTransport), transport);
             Assert.AreEqual(1, recorder.NumberEvents);
-            transport.SendPacket(new byte[10], 0, 10);
+            transport.SendPacket(new TransportPacket(new byte[10]));
             Assert.AreEqual(2, recorder.NumberEvents);
             Assert.AreEqual(1, packetsSent, "millipede didn't pass down packet-send in record");
             Thread.Sleep(50);  // give a good amount of time for the test below
@@ -149,15 +148,15 @@ namespace GT.UnitTests
             connector = (MillipedeConnector)MillipedeConnector.Wrap(mockConnector = new MockConnector(),
                 recorder);
             transport = connector.Connect("localhost", "9999", new Dictionary<string, string>());
-            transport.PacketReceivedEvent += ((packet, offset, count, t) =>
+            transport.PacketReceivedEvent += (packet, t) =>
             {
-                Assert.AreEqual(new byte[5], packet);
+                Assert.AreEqual(new byte[5], packet.ToArray());
                 Assert.AreEqual(3, recorder.NumberEvents);
-            });
+            };
 
             Assert.IsInstanceOfType(typeof(MillipedeTransport), transport);
             Assert.AreEqual(1, recorder.NumberEvents);
-            transport.SendPacket(new byte[10], 0, 10);
+            transport.SendPacket(new TransportPacket(new byte[10]));
             Assert.AreEqual(2, recorder.NumberEvents);
             transport.Update();
             for (int i = 0; i < 5 && recorder.NumberEvents == 2; i++)
@@ -199,7 +198,7 @@ namespace GT.UnitTests
             Assert.IsInstanceOfType(typeof(MillipedeTransport), transport);
             Assert.AreEqual(1, recorder.NumberEvents);
 
-            transport.SendPacket(new byte[10], 0, 10);
+            transport.SendPacket(new TransportPacket(new byte[10]));
             Assert.AreEqual(2, recorder.NumberEvents);
             Assert.AreEqual(1, packetsSent, "millipede didn't pass down packet-send in record");
             Thread.Sleep(50);  // give a good amount of time for the test below
@@ -229,7 +228,7 @@ namespace GT.UnitTests
             Assert.IsInstanceOfType(typeof(MillipedeTransport), transport);
             Assert.AreEqual(1, recorder.NumberEvents);
 
-            transport.SendPacket(new byte[10], 0, 10);
+            transport.SendPacket(new TransportPacket(new byte[10]));
             Assert.AreEqual(2, recorder.NumberEvents);
             transport.Update();
             for (int i = 0; i < 5 && recorder.NumberEvents == 2; i++)
@@ -424,29 +423,16 @@ namespace GT.UnitTests
 
         public event PacketHandler PacketReceivedEvent;
         public event PacketHandler PacketSentEvent;
+        public event ErrorEventNotication ErrorEvent;
 
         public IDictionary<string, string> Capabilities { get; set; }
 
-        public void SendPacket(byte[] packet, int offset, int count)
+        public void SendPacket(TransportPacket packet)
         {
             if (PacketSentEvent != null)
             {
-                PacketSentEvent(packet, 0, count, this);
+                PacketSentEvent(packet, this);
             }
-        }
-
-        public void SendPacket(Stream stream)
-        {
-            if (PacketSentEvent != null)
-            {
-                byte[] packet = ((MemoryStream)stream).ToArray();
-                PacketSentEvent(packet, 0, packet.Length, this);
-            }
-        }
-
-        public Stream GetPacketStream()
-        {
-            return new MemoryStream();
         }
 
         public void Update()
@@ -460,7 +446,7 @@ namespace GT.UnitTests
         {
             if (PacketReceivedEvent != null)
             {
-                PacketReceivedEvent(bytes, 0, bytes.Length, this);
+                PacketReceivedEvent(new TransportPacket(bytes), this);
             }
         }
     }

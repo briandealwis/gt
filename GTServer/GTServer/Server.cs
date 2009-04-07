@@ -1,13 +1,8 @@
 using System;
 using System.Net;
 using System.Collections.Generic;
-using System.IO;
-using System.Text;
-using System.Threading;
 using System.Diagnostics;
 using Common.Logging;
-using GT;
-using System.Net.Sockets;
 using GT.Millipede;
 using GT.Utils;
 
@@ -710,11 +705,16 @@ namespace GT.Net
             return owner.Configuration.Compare(a,b);
         }
 
+        protected override IPacketScheduler CreatePacketScheduler()
+        {
+            return new ImmediatePacketScheduler(this);
+        }
+
         public override void AddTransport(ITransport t)
         {
             base.AddTransport(t);
             // Send their identity right away
-            Send(new SystemMessage(SystemMessageType.IdentityRequest,
+            Send(new SystemMessage(SystemMessageType.IdentityResponse,
                     BitConverter.GetBytes(Identity)),
                 new SpecificTransportRequirement(t), null);
         }
@@ -731,25 +731,6 @@ namespace GT.Net
             Send(new SessionMessage(channel, clientId, e), mdr, cdr);
         }
 
-        public override void Send(IList<Message> messages, MessageDeliveryRequirements mdr,
-            ChannelDeliveryRequirements cdr)
-        {
-            if (!Active)
-            {
-                throw new InvalidStateException("cannot send on a disposed client!", this);
-            }
-            try
-            {
-                ITransport t = FindTransport(mdr, cdr);
-                SendMessages(t, messages);
-            }
-            catch (GTException e)
-            {
-                NotifyError(new ErrorSummary(e.Severity, SummaryErrorCode.MessagesCannotBeSent,
-                    e.Message, e));
-            }
-        }
-
         /// <summary>Handles a system message in that it takes the information and does something with it.</summary>
 	    /// <param name="message">The message received.</param>
 	    /// <param name="transport">The transport the message was received on.</param>
@@ -760,7 +741,7 @@ namespace GT.Net
             case SystemMessageType.IdentityRequest:
                 //they want to know their own id?  They should have received it already...
                 // (see above in AddTransport())
-                Send(new SystemMessage(SystemMessageType.IdentityRequest,
+                Send(new SystemMessage(SystemMessageType.IdentityResponse,
                         BitConverter.GetBytes(Identity)),
                     new SpecificTransportRequirement(transport), null);
                 break;

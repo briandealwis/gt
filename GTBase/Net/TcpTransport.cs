@@ -21,10 +21,14 @@ namespace GT.Net
         private TcpClient handle;
         private readonly EndPoint remoteEndPoint;
         private uint maximumPacketSize = DefaultMaximumMessageSize;
-        private Queue<byte[]> outstanding = new Queue<byte[]>();
+        private Queue<TransportPacket> outstanding = new Queue<TransportPacket>();
 
-        private PacketInProgress incomingInProgress;
-        private PacketInProgress outgoingInProgress;
+        private TransportPacket incomingInProgress;
+        private bool incomingReadingHeader;
+        private uint incomingOffset;
+        private uint incomingRemaining;
+
+        private TransportPacket outgoingInProgress;
 
         public TcpTransport(TcpClient h)
             : base(4)   // GT TCP 1.0 protocol has 4 bytes for packet length
@@ -98,62 +102,29 @@ namespace GT.Net
             handle = null;
         }
 
-        /// <summary>Send a message to server.</summary>
-        /// <param name="buffer">The message to send.</param>
-        public override void SendPacket(byte[] buffer, int offset, int length)
+        /// <summary>Send a packet to server.</summary>
+        /// <param name="packet">The packet to send.</param>
+        public override void SendPacket(TransportPacket packet)
         {
             InvalidStateException.Assert(Active, "Cannot send on disposed transport", this);
-            ContractViolation.Assert(length > 0, "Cannot send 0-byte messages!");
-            ContractViolation.Assert(length - PacketHeaderSize <= MaximumPacketSize, 
-                String.Format("Packet exceeds transport capacity: {0} > {1}; try increasing transport's MaximumPacketSize", 
-                    length - PacketHeaderSize, MaximumPacketSize));
+            ContractViolation.Assert(packet.Length > 0, "Cannot send 0-byte messages!");
+            ContractViolation.Assert(packet.Length - PacketHeaderSize <= MaximumPacketSize, 
+                String.Format("Packet exceeds transport capacity: {0} > {1}; try increasing transport's MaximumPacketSize",
+                    packet.Length - PacketHeaderSize, MaximumPacketSize));
 
             //DebugUtils.DumpMessage(this + "SendPacket", buffer, offset, length);
             Debug.Assert(PacketHeaderSize > 0);
-            byte[] wireFormat = new byte[length + PacketHeaderSize];
-            BitConverter.GetBytes((uint)length).CopyTo(wireFormat, 0);
-            Array.Copy(buffer, offset, wireFormat, PacketHeaderSize, length);
+            packet.Prepend(BitConverter.GetBytes((uint)packet.Length));
 
             lock (this)
             {
-                outstanding.Enqueue(wireFormat);
-            }
-            FlushOutstandingPackets();
-        }
-
-        /// <summary>Send a message to server.</summary>
-        /// <param name="output">The message to send.</param>
-        public override void SendPacket(Stream output)
-        {
-            InvalidStateException.Assert(Active, "Cannot send on disposed transport", this);
-            Debug.Assert(PacketHeaderSize > 0, "TcpTransport always has a non-zero sized header");
-            ContractViolation.Assert(output.Length > 0, "Cannot send 0-byte messages!");
-            ContractViolation.Assert(output.Length - PacketHeaderSize <= MaximumPacketSize, 
-                String.Format("Packet exceeds transport capacity: {0} > {1}", 
-                    output.Length - PacketHeaderSize, MaximumPacketSize));
-            CheckValidPacketStream(output);
-
-            // we inherit GetPacketStream() which uses a MemoryStream, and the typing
-            // is checked by CheckValidStream()
-            MemoryStream ms = (MemoryStream)output;
-            //DebugUtils.DumpMessage(this + ": SendPacket(stream)", ms.ToArray(), PacketHeaderSize,
-            //    (int)(ms.Length - PacketHeaderSize));
-            ms.Position = 0;
-            byte[] lb = BitConverter.GetBytes((uint)(ms.Length - PacketHeaderSize));
-            Debug.Assert(lb.Length == 4);
-            ms.Write(lb, 0, lb.Length);
-
-            //FIXME: should use a PacketInProgress with the stream length
-            lock (this)
-            {
-                outstanding.Enqueue(ms.ToArray());
+                outstanding.Enqueue(packet);
             }
             FlushOutstandingPackets();
         }
 
         virtual protected void FlushOutstandingPackets()
         {
-            SocketError error = SocketError.Success;
             lock (this)
             {
                 while (outstanding.Count > 0)
@@ -161,32 +132,36 @@ namespace GT.Net
                     if (outgoingInProgress == null)
                     {
                         //DebugUtils.WriteLine(this + ": Flush: " + outstanding.Peek().Length + " bytes");
-                        outgoingInProgress = new PacketInProgress(outstanding.Peek());
+                        outgoingInProgress = outstanding.Peek();
                         Debug.Assert(outgoingInProgress.Length > 0);
                     }
-                    int bytesSent = handle.Client.Send(outgoingInProgress.data,
-                        (int)outgoingInProgress.position,
-                        (int)outgoingInProgress.bytesRemaining, SocketFlags.None, out error);
+
+                    SocketError error;
+                    int bytesSent = handle.Client.Send(outgoingInProgress, SocketFlags.None, out error);
                     //DebugUtils.WriteLine("{0}: position={1} bR={2}: sent {3}", Name, 
                     //    outgoingInProgress.position, outgoingInProgress.bytesRemaining, bytesSent);
 
                     switch (error)
                     {
                     case SocketError.Success:
-                        outgoingInProgress.Advance((uint)bytesSent);
-                        if (outgoingInProgress.bytesRemaining <= 0)
+                        outgoingInProgress.RemoveBytes(0, bytesSent);
+                        if (outgoingInProgress.Length == 0)
                         {
                             outstanding.Dequeue();
-                            PacketInProgress oip = outgoingInProgress;
+                            TransportPacket oip = outgoingInProgress;
                             outgoingInProgress = null;
                             // ok, strictly speaking this won't be right if we've sent a
                             // subsequence of the oip's data array
-                            NotifyPacketSent(oip.data, 0, oip.data.Length);
+                            NotifyPacketSent(oip);
                         }
                         break;
 
                     case SocketError.WouldBlock:
-                        throw new TransportBackloggedWarning(this);
+                        NotifyError(new ErrorSummary(Severity.Information,
+                            SummaryErrorCode.TransportBacklogged, 
+                            "Transport backlogged: too much data",
+                            this, null));
+                        return;
 
                     default:
                         //die, because something terrible happened
@@ -207,18 +182,18 @@ namespace GT.Net
 
         virtual protected void CheckIncomingPackets()
         {
-            byte[] packet;
+            TransportPacket packet;
             while ((packet = FetchIncomingPacket()) != null)
             {
-                NotifyPacketReceived(packet, 0, packet.Length);
+                // NotifyPacketReceived will ensure the packet is disposed of
+                NotifyPacketReceived(packet);
             }
         }
 
-        virtual protected byte[] FetchIncomingPacket()
+        virtual protected TransportPacket FetchIncomingPacket()
         {
             lock (this)
             {
-                SocketError error = SocketError.Success;
                 while (handle.Available > 0)
                 {
                     // This is a simple state machine: we're either:
@@ -229,13 +204,18 @@ namespace GT.Net
                     if (incomingInProgress == null)
                     {
                         //restart the counters to listen for a new packet.
-                        incomingInProgress = new PacketInProgress(PacketHeaderSize, true);
+                        incomingInProgress = new TransportPacket(PacketHeaderSize);
+                        incomingReadingHeader = true;
+                        incomingOffset = 0;
+                        incomingRemaining = PacketHeaderSize;
                         // assert incomingInProgress.IsMessageHeader();
                     }
 
-                    int bytesReceived = handle.Client.Receive(incomingInProgress.data,
-                        (int)incomingInProgress.position,
-                        (int)incomingInProgress.bytesRemaining, SocketFlags.None, out error);
+                    SocketError error;
+                    int bytesReceived = handle.Client.Receive(
+                        incomingOffset == 0 ? incomingInProgress
+                            : incomingInProgress.Subset((int)incomingOffset, (int)incomingRemaining),
+                        SocketFlags.None, out error);
                     switch (error)
                     {
                     case SocketError.Success:
@@ -256,25 +236,28 @@ namespace GT.Net
                             SocketError.Disconnecting);
                     }
 
-                    incomingInProgress.Advance((uint)bytesReceived);
-                    if (incomingInProgress.bytesRemaining == 0)
+                    incomingOffset += (uint)bytesReceived;
+                    incomingRemaining -= (uint)bytesReceived;
+                    if (incomingRemaining == 0)
                     {
-                        if (incomingInProgress.IsMessageHeader())
+                        if (incomingReadingHeader)
                         {
-                            uint payloadLength = BitConverter.ToUInt32(incomingInProgress.data, 0);
-                            if (payloadLength <= 0)
+                            incomingRemaining = ProcessHeader(incomingInProgress);
+                            if (incomingRemaining == 0)
                             {
                                 log.Warn("received packet with 0-byte payload!");
                                 incomingInProgress = null;
                             }
                             else
                             {
-                                incomingInProgress = new PacketInProgress(payloadLength, false);
+                                incomingReadingHeader = false;
+                                incomingOffset = 0;
+                                incomingInProgress.Grow((int)incomingRemaining);
                             }
                         }
                         else
                         {
-                            byte[] packet = incomingInProgress.data;
+                            TransportPacket packet = incomingInProgress;
                             incomingInProgress = null;
                             return packet;
                         }
@@ -282,6 +265,14 @@ namespace GT.Net
                 }
             }
             return null;
+        }
+
+        protected virtual uint ProcessHeader(TransportPacket header)
+        {
+            uint headerLength = 0;
+            header.BytesAt(0, 4,
+                (b, offset) => headerLength = BitConverter.ToUInt32(b, offset));
+            return headerLength;
         }
 
         public override string ToString()

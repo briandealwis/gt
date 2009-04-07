@@ -53,8 +53,10 @@ namespace GT.Net
 
     /// <summary>
     /// Should receiving clients receive all messages sent on a channel or
-    /// do they represent intermediate values only?  (Only has an effect with
-    /// <c>MessageAggregation.Immediate</c>.)
+    /// do they represent intermediate values only?  (This is only applicable with
+    /// <see cref="MessageAggregation.Immediate"/>, since the other values of
+    /// <see cref="MessageAggregation"/> cause the channels to be flushed upon send, 
+    /// and thus there should be nothing in the channels.)
     /// </summary>
     public enum Freshness
     {
@@ -404,6 +406,9 @@ namespace GT.Net
         }
     }
 
+    /// <summary>
+    /// An interface describing the delivery characteristics of a transport.
+    /// </summary>
     public interface ITransportDeliveryCharacteristics
     {
         /// <summary>
@@ -421,8 +426,12 @@ namespace GT.Net
         /// </summary>
         float Delay { get; set; }
 
-        // loss?
-        // jitter?
+        /// <summary>
+        /// The maximum packet size supported by this transport instance (in bytes).
+        /// </summary>
+        uint MaximumPacketSize { get; }
 
+        // loss?  would this be a percentage?
+        // jitter?  in milliseconds?
     }
 }

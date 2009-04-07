@@ -1,9 +1,6 @@
 using System;
 using System.Collections.Generic;
-using System.IO;
-using System.Diagnostics;
 using System.Text;
-using GT.Utils;
 
 namespace GT.Net
 {
@@ -29,7 +26,7 @@ namespace GT.Net
 
         //If bits can't be written to the network now, try later
         //We use this so that we don't have to block on the writing to the network
-        protected Queue<byte[]> outstanding;
+        protected Queue<TransportPacket> outstanding;
 
         public override Reliability Reliability { get { return Reliability.Unreliable; } }
         public override Ordering Ordering { get { return Ordering.Unordered; } }
@@ -39,7 +36,7 @@ namespace GT.Net
         public BaseUdpTransport(uint packetHeaderSize) 
             : base(packetHeaderSize)
         {
-            outstanding = new Queue<byte[]>();
+            outstanding = new Queue<TransportPacket>();
         }
 
         public override string Name { get { return "UDP"; } }
@@ -74,59 +71,28 @@ namespace GT.Net
 
         protected abstract void CheckIncomingPackets();
 
-        public override void SendPacket(byte[] buffer, int offset, int length)
+        public override void SendPacket(TransportPacket packet)
         {
             InvalidStateException.Assert(Active, "Cannot send on disposed transport", this);
-            ContractViolation.Assert(length > 0, "Cannot send 0-byte messages!");
-            ContractViolation.Assert(length - PacketHeaderSize <= MaximumPacketSize,
+            ContractViolation.Assert(packet.Length > 0, "Cannot send 0-byte messages!");
+            ContractViolation.Assert(packet.Length - PacketHeaderSize <= MaximumPacketSize,
                 String.Format("Packet exceeds transport capacity: {0} > {1}",
-                    length - PacketHeaderSize, MaximumPacketSize));
+                    packet.Length - PacketHeaderSize, MaximumPacketSize));
 
-            if (PacketHeaderSize > 0 || offset != 0 || length != buffer.Length)
-            {
-                // FIXME: should encode an object rather than copying
-                byte[] newBuffer = new byte[PacketHeaderSize + length];
-                Array.Copy(buffer, offset, newBuffer, PacketHeaderSize, length);
-                buffer = newBuffer;
-            }
-            WritePacketHeader(buffer, (uint)length);
+            WritePacketHeader(packet);
             lock (this)
             {
-                outstanding.Enqueue(buffer);
+                outstanding.Enqueue(packet);
             }
             FlushOutstandingPackets();
         }
 
-
-        /// <summary>Send a message to server.</summary>
-        /// <param name="ms">The message to send.</param>
-        public override void SendPacket(Stream ms)
-        {
-            InvalidStateException.Assert(Active, "Cannot send on disposed transport", this);
-            ContractViolation.Assert(ms.Length > 0, "Cannot send 0-byte messages!");
-            ContractViolation.Assert(ms.Length - PacketHeaderSize <= MaximumPacketSize, 
-                String.Format("Packet exceeds transport capacity: {0} > {1}", 
-                    ms.Length - PacketHeaderSize, MaximumPacketSize));
-            CheckValidPacketStream(ms);
-
-            // we inherit GetPacketStream() which uses a MemoryStream, and the typing
-            // is checked by CheckValidStream()
-            MemoryStream output = (MemoryStream)ms;
-            byte[] buffer = output.ToArray();
-            WritePacketHeader(buffer, (uint)(ms.Length - PacketHeaderSize));
-            lock (this)
-            {
-                outstanding.Enqueue(buffer);
-            }
-            FlushOutstandingPackets();
-        }
 
         /// <summary>
         /// Provide an opportunity to subclasses to write out the packet header
         /// </summary>
-        /// <param name="buffer"></param>
-        /// <param name="packetLength"></param>
-        protected virtual void WritePacketHeader(byte[] buffer, uint packetLength)
+        /// <param name="packet"></param>
+        protected virtual void WritePacketHeader(TransportPacket packet)
         {
             // do nothing
         }

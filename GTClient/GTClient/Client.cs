@@ -1,15 +1,9 @@
 using System;
 using System.Collections.Generic;
-using System.Threading;
 using System.IO;
-using System.Net;
-using System.Net.Sockets;
 using System.Text;
-using System.Runtime.Serialization;
-using System.Runtime.Serialization.Formatters.Binary;
 using System.Diagnostics;
 using GT.Millipede;
-using GT.Net;
 using GT.Utils;
 
 namespace GT.Net
@@ -143,7 +137,7 @@ namespace GT.Net
         /// <summary>Flush all pending messages on this stream.</summary>
         public virtual void Flush()
         {
-            connexion.FlushChannelMessages(this.channel, deliveryOptions);
+            connexion.FlushChannel(this.channel);
         }
 
         /// <summary>
@@ -451,8 +445,6 @@ namespace GT.Net
         /// We separate these two steps to isolate potential problems.</summary>
         protected Queue<Message> receivedMessages;
 
-        private Dictionary<byte, Queue<PendingMessage>> messageQueues;
-
         /// <summary>
         /// Return the marshaller configured for this stream's client.
         /// </summary>
@@ -490,6 +482,11 @@ namespace GT.Net
             this.MessageReceived += HandleIncomingMessage;
         }
 
+        protected override IPacketScheduler CreatePacketScheduler()
+        {
+            return new RoundRobinPacketScheduler(this);
+        }
+
         /// <summary>
         /// Start this instance.
         /// </summary>
@@ -499,7 +496,6 @@ namespace GT.Net
         {
             if (Active) { return; }
 
-            messageQueues = new Dictionary<byte, Queue<PendingMessage>>();
             receivedMessages = new Queue<Message>();
 
             if (owner.Connectors.Count == 0)
@@ -540,15 +536,22 @@ namespace GT.Net
         {
             ShutDown();
             transports = null;
+            scheduler.Reset();
         }
 
         #endregion
 
+        /// <summary>
+        /// Return the address component used in creating this connexion
+        /// </summary>
         public virtual string Address
         {
             get { return address; }
         }
 
+        /// <summary>
+        /// Return the port component used in creating this connexion
+        /// </summary>
         public virtual string Port
         {
             get { return port; }
@@ -597,236 +600,6 @@ namespace GT.Net
             }
         }
 
-
-        /// <summary>Adds the message to a list, waiting to be sent out.</summary>
-        /// <param name="msg">The message to be aggregated</param>
-        /// <param name="mdr">How it should be sent out (potentially null)</param>
-        /// <param name="cdr">General delivery instructions for this message's channel.</param>
-        private void Aggregate(Message msg, MessageDeliveryRequirements mdr, ChannelDeliveryRequirements cdr)
-        {
-            Queue<PendingMessage> mp;
-            if (!messageQueues.TryGetValue(msg.Channel, out mp))
-            {
-                mp = messageQueues[msg.Channel] = new Queue<PendingMessage>();
-            }
-            else if (cdr != null && cdr.Freshness == Freshness.IncludeLatestOnly)
-            {
-                mp.Clear();
-            }
-            mp.Enqueue(new PendingMessage(msg, mdr, cdr));
-        }
-
-        /// <summary>Send a message using these parameters.</summary>
-        /// <param name="msg">The message to send.</param>
-        /// <param name="mdr">Particular instructions for this message.</param>
-        /// <param name="cdr">Requirements for the message's channel.</param>
-        override public void Send(Message msg, MessageDeliveryRequirements mdr,
-            ChannelDeliveryRequirements cdr)
-        {
-            lock (this)
-            {
-                if (!Active) {
-                    throw new InvalidStateException("Cannot send on a stopped client", this); 
-                }
-
-                try
-                {
-                    MessageAggregation aggr = mdr == null ? cdr.Aggregation : mdr.Aggregation;
-                    if (aggr == MessageAggregation.Aggregatable)
-                    {
-                        // Wait to send this message, hopefully to pack it with later messages.
-                        Aggregate(msg, mdr, cdr);
-                        return;
-                    }
-
-                    if (messageQueues == null || messageQueues.Count == 0)
-                    {
-                        // Short circuit since there are no other messages waiting
-                        SendMessage(FindTransport(mdr, cdr), msg);
-                        return;
-                    }
-
-                    switch (aggr)
-                    {
-                    case MessageAggregation.Aggregatable:
-                        // already handled
-                        log.Error("MessageAggregation.Aggregatable should have alread been handled");
-                        return;
-
-                    case MessageAggregation.FlushChannel:
-                        // make sure ALL other messages on this CHANNEL are sent, and then send <c>msg</c>.
-                        FlushMessages(new ProcessorChain<PendingMessage>(
-                            new SameChannelProcessor(msg.Channel, messageQueues),
-                            new SingleElementProcessor<PendingMessage>(new PendingMessage(msg, mdr, cdr))));
-                        return;
-
-                    case MessageAggregation.FlushAll:
-                        // make sure ALL messages are sent, then send <c>msg</c>.
-                        // FIXME: channels should be prioritized?  So shouldn't be round robin.
-                        FlushMessages(new ProcessorChain<PendingMessage>(
-                            new RoundRobinProcessor<byte, PendingMessage>(messageQueues),
-                            new SingleElementProcessor<PendingMessage>(new PendingMessage(msg, mdr, cdr))));
-                        return;
-
-                    case MessageAggregation.Immediate:
-                        // bundle <c>msg</c> first and then cram on whatever other messages are waiting.
-                        // FIXME: channels should be prioritized?  So shouldn't be round robin.
-                        FlushMessages(new ProcessorChain<PendingMessage>(
-                            new SingleElementProcessor<PendingMessage>(new PendingMessage(msg, mdr, cdr)),
-                            new RoundRobinProcessor<byte, PendingMessage>(messageQueues)));
-                        return;
-
-                    default:
-                        throw new ArgumentException("Unhandled aggregation type: " + aggr);
-                    }
-                }
-                catch (GTException e)
-                {
-                    NotifyError(new ErrorSummary(e.Severity, SummaryErrorCode.MessagesCannotBeSent,
-                        e.Message, e));
-                }
-            }
-        }
-
-        /// <summary>Send a message using these parameters.</summary>
-        /// <param name="msgs">The messages to send.</param>
-        /// <param name="mdr">Particular instructions for this message.</param>
-        /// <param name="cdr">Requirements for the message's channel.</param>
-        override public void Send(IList<Message> msgs, MessageDeliveryRequirements mdr,
-            ChannelDeliveryRequirements cdr)
-        {
-            // GTExceptions caught by Send()
-            foreach (Message m in msgs) { Send(m, mdr, cdr); }
-        }
-
-        internal void FlushChannelMessages(byte channel, ChannelDeliveryRequirements cdr)
-        {
-            // must be locked as is called by AbstractStream implementations
-            lock(this)
-            {
-                try
-                {
-                    FlushMessages(new SameChannelProcessor(channel, messageQueues));
-                }
-                catch (CannotSendMessagesError e)
-                {
-                    NotifyError(new ErrorSummary(Severity.Warning,
-                        SummaryErrorCode.MessagesCannotBeSent,
-                        String.Format("Unable to flush channel {0}", channel), e));
-                }
-            }
-        }
-
-        protected void FlushMessages(IProcessingQueue<PendingMessage> queue)
-        {
-            // FIXME: this method is too long
-            Dictionary<ITransport, Stream> inProgress = new Dictionary<ITransport, Stream>();
-            Dictionary<ITransport, IList<PendingMessage>> dequeuedMessages = 
-                new Dictionary<ITransport, IList<PendingMessage>>();
-            PendingMessage pm;
-            CannotSendMessagesError csme = new CannotSendMessagesError(this);
-
-            while ((pm = queue.Current) != null)
-            {
-                ITransport transport;
-                try
-                {
-                    transport = FindTransport(pm.MDR, pm.CDR);
-                }
-                catch (NoMatchingTransport e)
-                {
-                    csme.Add(e, pm);
-                    queue.Remove();
-                    continue;
-                }
-                Stream stream;
-                IList<PendingMessage> pending;
-                if (!inProgress.TryGetValue(transport, out stream) || stream == null)
-                {
-                    stream = inProgress[transport] = transport.GetPacketStream();
-                }
-                if (!dequeuedMessages.TryGetValue(transport, out pending) || pending == null)
-                {
-                    pending = dequeuedMessages[transport] = new List<PendingMessage>();
-                }
-
-                /// Attempt to marshal pm onto the transport stream.  Should the stream 
-                /// exceed the maximum packet size as defined by <c>t</c>, back off the 
-                /// message, send the stream contents, and obtain a new stream.
-                long previousLength = stream.Length;
-                try
-                {
-                    Marshaller.Marshal(SendingIdentity, pm.Message, stream, transport);
-                }
-                catch (MarshallingException e)
-                {
-                    csme.Add(e, pm.Message);
-                    queue.Remove();
-                    stream.SetLength(previousLength);
-                    continue;
-                }
-                if (stream.Length < transport.MaximumPacketSize)
-                {
-                    queue.Remove(); // remove current message
-                    pending.Add(pm);
-                }
-                else
-                {
-                    // resulting packet is too big: go back to previous length, send what we had
-                    stream.SetLength(previousLength);
-                    try { 
-                        SendPacket(transport, stream);
-                        NotifyMessagesSent(pending, transport);
-                    }
-                    catch (TransportError e)
-                    {
-                        // requeue these messages to try them again on a different transport
-                        // FIXME: some of the messages might have actually been sent!
-                        csme.AddAll(e, pending);
-                        pending.Clear();
-                        HandleTransportDisconnect(transport);
-                        continue;
-                    }
-                    catch (TransportBackloggedWarning e)
-                    {
-                        // The packet is still outstanding; just warn the user 
-                        NotifyError(new ErrorSummary(Severity.Information,
-                            SummaryErrorCode.TransportBacklogged,
-                            "Transport backlogged: " + transport, e));
-                    }
-                    inProgress[transport] = stream = transport.GetPacketStream();
-                    pending.Clear();
-                }
-            }
-
-            // send everything in progress
-            foreach (ITransport t in inProgress.Keys)
-            {
-                Stream stream = inProgress[t];
-                try { 
-                    t.SendPacket(stream);
-                    if (dequeuedMessages.ContainsKey(t) && dequeuedMessages[t].Count > 0)
-                    {
-                        NotifyMessagesSent(dequeuedMessages[t], t);
-                    }
-                }
-                catch (TransportError e)
-                {
-                    csme.AddAll(e, dequeuedMessages[t]);
-                    HandleTransportDisconnect(t);
-                }
-                catch (TransportBackloggedWarning e)
-                {
-                    // The packet is still outstanding; just warn the user 
-                    NotifyError(new ErrorSummary(Severity.Information,
-                        SummaryErrorCode.TransportBacklogged,
-                        "Transport backlogged: " + t, e));
-                }
-            }
-            // No point re-queuing the messages since there's no available transport
-            csme.ThrowIfApplicable();
-        }
-
         /// <summary>Deal with a system message in whatever way we need to.</summary>
         /// <param name="message">The incoming message.</param>
         /// <param name="transport">The transport from which the message
@@ -835,7 +608,7 @@ namespace GT.Net
         {
             switch (message.Descriptor)
             {
-            case SystemMessageType.IdentityRequest:
+            case SystemMessageType.IdentityResponse:
                 identity = BitConverter.ToInt32(message.data, 0);
                 break;
 
@@ -1721,55 +1494,4 @@ namespace GT.Net
             return b.ToString();
         }
     }
-
-    /// <summary>Selected messages for a particular channel only.</summary>
-    internal class SameChannelProcessor : IProcessingQueue<PendingMessage>
-    {
-        // invariant: queue == null || queue.Count > 0
-        protected byte channel;
-        protected IDictionary<byte, Queue<PendingMessage>> pendingMessages;
-        protected Queue<PendingMessage> queue;
-
-        internal SameChannelProcessor(byte channel, IDictionary<byte, Queue<PendingMessage>> pm)
-        {
-            this.channel = channel;
-            pendingMessages = pm;
-
-            if (!pendingMessages.TryGetValue(this.channel, out queue)) { queue = null; }
-            else if (queue.Count == 0)
-            {
-                queue = null;
-                pendingMessages.Remove(this.channel);
-            }
-        }
-
-        public PendingMessage Current
-        {
-            get {
-                if (queue == null) { return null; }
-                return queue.Peek();
-            }
-        }
-
-        public void Remove()
-        {
-            if (queue == null) { return; }
-            queue.Dequeue();
-            if (queue.Count == 0)
-            {
-                queue = null;
-                pendingMessages.Remove(channel);
-            }
-        }
-
-        public bool Empty
-        {
-            get {
-                if (queue == null) { return true; }
-                return queue.Count > 0;
-            }
-        }
-
-    }
-
 }

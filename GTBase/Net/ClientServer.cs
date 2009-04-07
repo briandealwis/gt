@@ -1,9 +1,9 @@
 using System.Collections.Generic;
+using System.Text;
 using System.Threading;
 using Common.Logging;
 using GT.Utils;
 using System;
-using System.IO;
 using System.Diagnostics;
 
 /// <summary>
@@ -11,6 +11,12 @@ using System.Diagnostics;
 /// </summary>
 namespace GT.Net 
 {
+    /// <summary>
+    /// Delegate specification for notification of some change in the lifecycle
+    /// of <c>conn</c>.
+    /// </summary>
+    /// <param name="c">the associated communicator instance</param>
+    /// <param name="conn">the actual connexion</param>
     public delegate void ConnexionLifecycleNotification(Communicator c, IConnexion conn);
 
     /// <summary>
@@ -88,18 +94,15 @@ namespace GT.Net
         public virtual void Stop()
         {
             // Should we call ConnexionRemoved on stop?
-            if(connexions != null) 
+            foreach(IConnexion cnx in connexions)
             {
-                foreach(IConnexion cnx in connexions)
+                try { cnx.ShutDown(); }
+                catch (Exception e)
                 {
-                    try { cnx.ShutDown(); }
-                    catch (Exception e)
-                    {
-                        log.Info("exception thrown when shutting down " + cnx, e);
-                    }
+                    log.Info("exception thrown when shutting down " + cnx, e);
                 }
-                connexions = null;
             }
+            connexions.Clear();
         }
 
         /// <summary>
@@ -316,13 +319,7 @@ namespace GT.Net
 
         protected void NotifyError(ErrorSummary es)
         {
-            switch (es.Severity)
-            {
-                case Severity.Fatal: log.Fatal(es); break;
-                case Severity.Error: log.Error(es); break;
-                case Severity.Warning: log.Warn(es); break;
-                case Severity.Information: log.Info(es); break;
-            }
+            es.LogTo(log);
             if (ErrorEvent == null) {
                 if (!nullWarningIssued)
                 {
@@ -389,14 +386,36 @@ namespace GT.Net
     }
 
     /// <summary>
-    /// A code describing the summary.
+    /// An actionable code describing the error.
     /// </summary>
     public enum SummaryErrorCode {
+        /// <summary>
+        /// An exception was raised in an user-provided event handler
+        /// </summary>
         UserException,
+        /// <summary>
+        /// A remote side could not be communicated with.
+        /// </summary>
         RemoteUnavailable,
+        /// <summary>
+        /// A collection of messages could not be sent to the remote;
+        /// these messages will not be resent.
+        /// </summary>
         MessagesCannotBeSent,
+        /// <summary>
+        /// An incoming message was in an invalid format and could not be
+        /// decoded.
+        /// </summary>
         InvalidIncomingMessage,
+        /// <summary>
+        /// A transport cannot cope with the traffic being directed to
+        /// it and any pending traffic is being backed up.
+        /// </summary>
         TransportBacklogged,
+        /// <summary>
+        /// There was a configuration problem in a component.
+        /// </summary>
+        Configuration
     }
 
     /// <summary>
@@ -406,10 +425,14 @@ namespace GT.Net
     public struct ErrorSummary
     {
         public ErrorSummary(Severity sev, SummaryErrorCode sec, string msg, Exception ctxt)
+            : this(sev, sec, msg, null, ctxt) {}
+
+        public ErrorSummary(Severity sev, SummaryErrorCode sec, string msg, object subj, Exception ctxt)
         {
             Severity = sev;
             ErrorCode = sec;
             Message = msg;
+            Subject = subj;
             Context = ctxt;
         }
 
@@ -417,15 +440,43 @@ namespace GT.Net
         public SummaryErrorCode ErrorCode;
         public string Message;
         public Exception Context;
+        public object Subject;
 
         public override string ToString()
         {
-            if (Context == null)
+            StringBuilder results = new StringBuilder();
+            results.Append(Severity);
+            results.Append('[');
+            results.Append(ErrorCode);
+            results.Append("]: ");
+            results.Append(Message);
+            if (Subject != null)
             {
-                return String.Format("{0}[{1}]: {2}", Severity, ErrorCode, Message);
+                results.Append(" {");
+                results.Append(Subject);
+                results.Append('}');
             }
-            return String.Format("{0}[{1}]: {2}: {3} {4}", Severity, ErrorCode,
-                Message, Context.GetType(), Context.Message);
+            if (Context != null)
+            {
+                results.Append(Context.GetType());
+                results.Append(Context.Message);
+            }
+            return results.ToString();
+        }
+
+        /// <summary>
+        /// Log this instance to the provided logger.
+        /// </summary>
+        /// <param name="log"></param>
+        public void LogTo(ILog log)
+        {
+            switch (Severity)
+            {
+                case Severity.Fatal: log.Fatal(this); break;
+                case Severity.Error: log.Error(this); break;
+                case Severity.Warning: log.Warn(this); break;
+                default: log.Info(this); break;
+            }
         }
     }
 
@@ -507,13 +558,18 @@ namespace GT.Net
 
         // public StatisticalMoments DelayStatistics { get; }
 
-        IMarshaller Marshaller { get; }
-
         /// <summary>
         /// The list of currently-connected transports.  Transports are ordered as
         /// determined by this connexion's owner (see <c>BaseConfguration</c>).
         /// </summary>
         IList<ITransport> Transports { get; }
+
+        /// <summary>
+        /// Run a cycle to process any pending events for the transports and
+        /// other related objects for this instance.  This method is <strong>not</strong> 
+        /// re-entrant and should not be called from GT callbacks.
+        /// </summary>
+        void Update();
 
         /// <summary>
         /// Close this connexion, while telling the other side.
@@ -567,6 +623,50 @@ namespace GT.Net
         /// <param name="mdr">Requirements for this particular message; may be null.</param>
         /// <param name="cdr">Requirements for the message's channel.</param>
         void Send(object o, byte channel, MessageDeliveryRequirements mdr, ChannelDeliveryRequirements cdr);
+
+        /// <summary>
+        /// Flush all pending messages on this connexion.
+        /// </summary>
+        void Flush();
+
+        /// <summary>
+        /// Flush all pending messages for the specified channel on this connexion.
+        /// </summary>
+        /// <param name="channel">the channel for flushing</param>
+        void FlushChannel(byte channel);
+
+        #region Internal Use Only
+
+        /// <summary>
+        /// A supplementary interface to be implemented by all <see cref="IConnexion"/>,
+        /// used by packet schedulers to marshal
+        /// </summary>
+        IMarshalledResult Marshal(Message m, ITransportDeliveryCharacteristics tdc);
+
+        /// <summary>
+        /// A supplementary interface for use by <see cref="IPacketScheduler"/>.
+        /// Sends a packet on the provided transport.
+        /// </summary>
+        /// <param name="transport">the transport to be sent</param>
+        /// <param name="packet">the packet to be sent</param>
+        /// <returns>true if successfully sent, false otherwise</returns>
+        /// <exception cref="TransportError">thrown on send error; such errors are
+        ///     fatal and indicate the transport can no longer be used</exception>
+        void SendPacket(ITransport transport, TransportPacket packet);
+
+        /// <summary>
+        /// Find a transport that meets the requirements specified by
+        /// <see cref="mdr"/> or <see cref="cdr"/>.
+        /// </summary>
+        /// <param name="mdr">the requirements specific with the message; this overrides
+        ///     the channel requirements</param>
+        /// <param name="cdr">the requirements associated with the channel</param>
+        /// <returns>a transport that meets these requirements</returns>
+        /// <exception cref="NoMatchingTransport">thrown if there is no matching transport</exception>
+        ITransport FindTransport(MessageDeliveryRequirements mdr, ChannelDeliveryRequirements cdr);
+
+        #endregion
+
     }
 
     public abstract class BaseConnexion : IConnexion, IComparer<ITransport>
@@ -597,6 +697,7 @@ namespace GT.Net
         protected bool active = false;
         protected List<ITransport> transports = new List<ITransport>();
         protected uint pingSequence = 0;
+        protected IPacketScheduler scheduler;
 
         /// <summary>
         /// The server's unique identifier for this connexion; this
@@ -608,11 +709,14 @@ namespace GT.Net
         public BaseConnexion()
         {
             log = LogManager.GetLogger(GetType());
+            scheduler = CreatePacketScheduler();
+            scheduler.ErrorEvent += NotifyError;
+            scheduler.MessagesSent += NotifyMessagesSent;
         }
 
         /// <summary>
 	    /// Return the appropriate marshaller for this connexion.
-	/// </summary>
+	    /// </summary>
         abstract public IMarshaller Marshaller { get; }
 
 	    /// <summary>
@@ -685,7 +789,7 @@ namespace GT.Net
                     {
                         try
                         {
-                            SendMessage(t, new SystemMessage(SystemMessageType.ConnexionClosing));
+                            FastpathSendMessage(t, new SystemMessage(SystemMessageType.ConnexionClosing));
                          }
                         catch(CannotSendMessagesError)
                         {
@@ -705,13 +809,13 @@ namespace GT.Net
             {
                 foreach (ITransport t in transports) { t.Dispose(); }
             }
+            if (scheduler != null) { scheduler.Dispose(); }
+            scheduler = null;
         }
 
         /// <summary>Occurs when there is an error.</summary>
         protected internal void NotifyError(ErrorSummary summary)
         {
-            // FIXME: This should be logging
-            // Console.WriteLine(summary.ToString());
             if (ErrorEvents != null)
             {
                 try { ErrorEvents(summary); }
@@ -754,7 +858,7 @@ namespace GT.Net
             {
                 if (!Active) { return; }
                 // must track transports to be removed separately to avoid concurrent
-                // modification problems.  Create list lazily to minimize creating garbage.
+                // modification problems.  Create list lazily to minimize garbage creation.
                 IDictionary<ITransport,GTException> toRemove = null;
                 foreach (ITransport t in transports)
                 {
@@ -764,9 +868,7 @@ namespace GT.Net
                         toRemove[t] = null; 
                         continue;
                     }
-                    // Note: we only catch our GT transport exceptions and leave all others
-                    // to be percolated upward -- we should avoid swallowing exceptions
-                    // FIXME: we really should provide the user some notification
+
                     try { t.Update(); }
                     catch (TransportError e)
                     {
@@ -776,26 +878,47 @@ namespace GT.Net
                         if (toRemove == null) { toRemove = new Dictionary<ITransport,GTException>(); }
                         toRemove[t] = e;
                     }
-                    catch (TransportBackloggedWarning e)
-                    {
-                        // The packet is still outstanding; just warn the user 
-                        NotifyError(new ErrorSummary(Severity.Information,
-                            SummaryErrorCode.TransportBacklogged,
-                            "Transport backlogged: " + t, e));
-                    }
                 }
-                if (toRemove == null) { return; }
-                foreach (ITransport t in toRemove.Keys)
+                if (toRemove != null)
                 {
-                    HandleTransportDisconnect(t);
-                    if(toRemove[t] != null) {
-                        NotifyError(new ErrorSummary(Severity.Warning, SummaryErrorCode.RemoteUnavailable,
-                            "Transport failed", toRemove[t]));
+                    foreach(ITransport t in toRemove.Keys)
+                    {
+                        HandleTransportDisconnect(t);
+                        if(toRemove[t] != null)
+                        {
+                            NotifyError(new ErrorSummary(Severity.Warning,
+                                SummaryErrorCode.RemoteUnavailable,
+                                "Transport failed", toRemove[t]));
+                        }
                     }
                 }
+
+                /// And give the scheduler an opportunity to do something too
+                if (scheduler != null) { scheduler.Update(); }
             }
         }
 
+        public void Flush()
+        {
+            // must be locked as is called by AbstractStream implementations
+            lock (this)
+            {
+                scheduler.Flush();
+            }
+        }
+
+        public void FlushChannel(byte channel)
+        {
+            // must be locked as is called by AbstractStream implementations
+            lock (this)
+            {
+                scheduler.FlushChannelMessages(channel);
+            }
+        }
+
+
+        protected abstract IPacketScheduler CreatePacketScheduler();
+ 
         /// <summary>
         /// Add the provided transport to this connexion.
         /// </summary>
@@ -902,14 +1025,13 @@ namespace GT.Net
         }
 
 
-        virtual protected void HandleNewPacket(byte[] buffer, int offset, int count, ITransport transport)
+        virtual protected void HandleNewPacket(TransportPacket packet, ITransport transport)
         {
-            Stream stream = new MemoryStream(buffer, offset, count, false);
-            while (stream.Position < stream.Length)
+            while (packet.Length > 0)
             {
-                Marshaller.Unmarshal(stream, transport, _marshaller_MessageAvailable);
-                //DebugUtils.DumpMessage("ClientConnexionConnexion.PostNewlyReceivedMessage", m);
+                Marshaller.Unmarshal(packet, transport, _marshaller_MessageAvailable);
             }
+            //DebugUtils.DumpMessage("ClientConnexionConnexion.PostNewlyReceivedMessage", m);
         }
 
         virtual protected void _marshaller_MessageAvailable(object marshaller, MessageEventArgs mea)
@@ -932,7 +1054,11 @@ namespace GT.Net
             }
         }
         
-        protected virtual ITransport FindTransport(MessageDeliveryRequirements mdr, ChannelDeliveryRequirements cdr)
+        /// <remarks>
+        /// This implementation effectively delegates the resolving to the MDR and
+        /// CDR instances.
+        /// </remarks>
+        public virtual ITransport FindTransport(MessageDeliveryRequirements mdr, ChannelDeliveryRequirements cdr)
         {
             ITransport t = null;
             if (mdr != null) { t = mdr.SelectTransport(transports); }
@@ -974,23 +1100,40 @@ namespace GT.Net
             Send(new ObjectMessage(channel, o), mdr, cdr);
         }
 
+        public virtual IMarshalledResult Marshal(Message m, ITransportDeliveryCharacteristics tdc)
+        {
+            return Marshaller.Marshal(SendingIdentity, m, tdc);
+        }
+
         /// <summary>Send a message.</summary>
         /// <param name="message">The message to send.</param>
         /// <param name="mdr">Requirements for this particular message; may be null.</param>
         /// <param name="cdr">Requirements for the message's channel.</param>
         public virtual void Send(Message message, MessageDeliveryRequirements mdr, ChannelDeliveryRequirements cdr)
         {
-            IList<Message> messages = new List<Message>(1);
-            messages.Add(message);
-            Send(messages, mdr, cdr);
+            // must be locked as is called by AbstractStream implementations
+            lock(this)
+            {
+                scheduler.Schedule(message, mdr, cdr);
+            }
         }
 
         /// <summary>Send a set of messages.</summary>
         /// <param name="messages">The messages to send.</param>
         /// <param name="mdr">Requirements for this particular message; may be null.</param>
         /// <param name="cdr">Requirements for the message's channel.</param>
-        abstract public void Send(IList<Message> messages, MessageDeliveryRequirements mdr,
-            ChannelDeliveryRequirements cdr);
+        public virtual void Send(IList<Message> messages, MessageDeliveryRequirements mdr,
+            ChannelDeliveryRequirements cdr)
+        {
+            // must be locked as is called by AbstractStream implementations
+            lock (this)
+            {
+                foreach(Message m in messages)
+                {
+                    scheduler.Schedule(m, mdr, cdr);
+                }
+            }
+        }
 
         /// <summary>
         /// Short-circuit operation to send a message with no fuss, no muss, and no waiting.
@@ -998,76 +1141,48 @@ namespace GT.Net
         /// </summary>
         /// <param name="transport">Where to send it</param>
         /// <param name="msg">What to send</param>
-        protected void SendMessage(ITransport transport, Message msg)
+        protected virtual void FastpathSendMessage(ITransport transport, Message msg)
         {
             //pack main message into a buffer and send it right away
-            Stream packet = transport.GetPacketStream();
-            Marshaller.Marshal(SendingIdentity, msg, packet, transport);
-            try { SendPacket(transport, packet); }
-            catch (TransportError e) { throw new CannotSendMessagesError(this, e, msg); }
+            // assumes this is not an infinite message!
+            IMarshalledResult result = Marshal(msg, transport);
+            try
+            {
+                while (result.HasPackets)
+                {
+                    try
+                    {
+                        SendPacket(transport, result.RemovePacket());
+                    }
+                    catch (TransportError e)
+                    {
+                        throw new CannotSendMessagesError(this, e, msg);
+                    }
+                }
+            }
+            finally
+            {
+                result.Dispose();
+            }
             NotifyMessageSent(msg, transport);
         }
 
-        protected void SendMessages(ITransport transport, IList<Message> messages)
+        public virtual void SendPacket(ITransport transport, TransportPacket packet)
         {
-            //Console.WriteLine("{0}: Sending {1} messages to {2}", this, messages.Count, transport);
-            Stream ms = transport.GetPacketStream();
-            int packetStart = (int)ms.Position;
-            int index = 0;
-            while (index < messages.Count)
+            try
             {
-                Message m = messages[index];
-                int packetEnd = (int)ms.Position;
-                Marshaller.Marshal(SendingIdentity, m, ms, transport);
-                if (ms.Position - packetStart > transport.MaximumPacketSize) // uh oh, rewind and redo
-                {
-                    ms.SetLength(packetEnd);
-                    ms.Position = packetStart;
-                    try { SendPacket(transport, ms); }
-                    catch (TransportError e)
-                    {
-                        throw new CannotSendMessagesError(this, e, messages);
-                    }
-                    NotifyMessagesSent(messages, transport);
-
-                    ms = transport.GetPacketStream();
-                    packetStart = (int)ms.Position;
-                }
-                else { index++; }
-            }
-            if (ms.Position - packetStart != 0)
-            {
-                ms.Position = packetStart;
-                try
-                {
-                    SendPacket(transport, ms);
-                }
-                catch (TransportError e)
-                {
-                    throw new CannotSendMessagesError(this, e, messages);
-                }
-                NotifyMessagesSent(messages, transport);
-            }
-        }
-
-        protected void SendPacket(ITransport transport, Stream stream)
-        {
-            try { transport.SendPacket(stream); }
-            catch (TransportBackloggedWarning e)
-            {
-                NotifyError(new ErrorSummary(e.Severity, SummaryErrorCode.TransportBacklogged,
-                    "Transport is backlogged: there are too many messages being sent", e));
-                // rethrow the error if it's not for information purposes
-                if (e.Severity != Severity.Information) { throw e; }
+                transport.SendPacket(packet);
             }
             catch (TransportError e)
             {
+                NotifyError(new ErrorSummary(Severity.Warning, SummaryErrorCode.RemoteUnavailable,
+                    e.Message, e));
                 HandleTransportDisconnect(transport);
-                throw e;
+                throw;
             }
         }
 
-        protected void NotifyMessagesSent(ICollection<Message> messages, ITransport t)
+        public void NotifyMessagesSent(ICollection<Message> messages, ITransport t)
         {
             if(MessageSent == null) return;
             try
@@ -1098,66 +1213,11 @@ namespace GT.Net
             }
         }
 
-        protected void NotifyMessagesSent(ICollection<PendingMessage> pending, ITransport t)
-        {
-            if (MessageSent == null) return;
-            try
-            {
-                foreach (PendingMessage pm in pending) { MessageSent(pm.Message, this, t); }
-            }
-            catch (Exception e)
-            {
-                log.Info("An exception occurred when notifying MessageSent", e);
-                NotifyError(new ErrorSummary(Severity.Information,
-                    SummaryErrorCode.UserException,
-                    "An exception occurred when notifying MessageSent", e));
-            }
-
-        }
-
-
-
         #endregion
 
         override public string ToString()
         {
             return GetType().Name + "(" + identity + ")";
-        }
-
-        /// <summary>
-        /// Filter the list of provided connexions to only include those that are usable.
-        /// A usable connexion is active and has transports available to send and receive messages.
-        /// </summary>
-        /// <typeparam name="T">an IConnexion implementation</typeparam>
-        /// <param name="connexions">the provided connexions</param>
-        /// <returns>the usable subset of <c>connexions</c></returns>
-        public static ICollection<IConnexion> SelectUsable<T>(ICollection<T> connexions)
-            where T : IConnexion
-        {
-            List<IConnexion> usable = new List<IConnexion>(connexions.Count);
-            foreach (T connexion in connexions)
-            {
-                if (connexion.Active && connexion.Transports.Count > 0) { usable.Add(connexion); }
-            }
-            return usable;
-        }
-
-        /// <summary>
-        /// Downcast the list of provided objects to a common superclass/interface.
-        /// </summary>
-        /// <typeparam name="S">the superclass</typeparam>
-        /// <typeparam name="T">the current list type</typeparam>
-        /// <param name="original">the original collection</param>
-        /// <returns>the downcast collection</returns>
-        public static ICollection<S> Downcast<S,T>(ICollection<T> original)
-            where T : S
-        {
-            List<S> downcast = new List<S>(original.Count);
-            foreach (T element in original)
-            {
-                downcast.Add(element);
-            }
-            return downcast;
         }
     }
 

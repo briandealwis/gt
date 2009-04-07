@@ -11,13 +11,18 @@ using GT.Utils;
 namespace GT.Net
 {
 
-    public delegate void PacketHandler(byte[] buffer, int offset, int count, ITransport transport);
+    public delegate void PacketHandler(TransportPacket packet, ITransport transport);
 
     /// <remarks>
     /// Represents a connection to either a server or a client.
-    /// Errors should be notified by throwing an instanceof TransportError.
-    /// Should the transport have been cleanly shutdown by the remote side, then
-    /// throw a TransportDecomissionedException.
+    /// Errors should be notified by throwing a <see cref="TransportError"/>;
+    /// warnings and recovered errors are notified through the <see cref="ErrorEvent"/>.
+    /// Transports are responsible for disposing of any <see cref="TransportPacket"/>
+    /// instances provided to <see cref="SendPacket"/>.
+    /// <see cref="TransportPacket"/> instances provided through the <see cref="PacketSentEvent"/>
+    /// and <see cref="PacketReceivedEvent"/> are disposed of upon the completion of the
+    /// callback, and thus only have a lifetime of the callback
+    /// unless they are first attached to using <see cref="TransportPacket.Retain"/>.
     /// </remarks>
     public interface ITransport : ITransportDeliveryCharacteristics, IDisposable
     {
@@ -39,13 +44,31 @@ namespace GT.Net
 
         /// <summary>
         /// An event triggered on receiving an incoming packet.
+        /// The <see cref="TransportPacket"/> instance generally only has a 
+        /// lifetime of the callback; be sure to first call <see cref="TransportPacket.Retain"/>
+        /// to reference the packet beyond the callback.
         /// </summary>
         event PacketHandler PacketReceivedEvent;
         
         /// <summary>
         /// An event triggered having sent a packet.
+        /// The <see cref="TransportPacket"/> instance generally only has a 
+        /// lifetime of the callback; be sure to first call <see cref="TransportPacket.Retain"/>
+        /// to reference the packet beyond the callback.
         /// </summary>
         event PacketHandler PacketSentEvent;
+
+        /// <summary>
+        /// Raised to notify of warnings or recovered errors arising from the use of
+        /// this transport.  Unrecoverable errors are indicated by <see cref="TransportError"/>.
+        /// Primarily used for indicating that the instance has become backlogged.
+        /// different transports handle backlog differently; reports with
+        /// <see cref="Severity.Information"/> generally indicates that the packet was
+        /// be queued or buffered to be resent on subsequent calls to <see cref="SendPacket"/>
+        /// and <see cref="Update"/>;  <see cref="Severity.Warning"/> generally indicates that 
+        /// the packet has been discarded.
+        /// </summary>
+        event ErrorEventNotication ErrorEvent;
 
         /// <summary>
         /// A set of tags describing the capabilities of the transport and of expectations/capabilities
@@ -54,31 +77,12 @@ namespace GT.Net
         IDictionary<string,string> Capabilities { get; }
 
         /// <summary>
-        /// Send the given message to the server.
+        /// Send the given packet to the server.  This transport will call
+        /// <see cref="TransportPacket.Dispose"/> once completed.
         /// </summary>
-        /// <param name="packet">the packet of message(s) to send</param>
-        /// <param name="offset">the offset into the packet to send</param>
-        /// <param name="count">the number of bytes within the packet to send</param>
+        /// <param name="packet">the packet to send</param>
         /// <exception cref="TransportError">thrown on a fatal transport error.</exception>
-        /// <exception cref="TransportBackloggedWarning">thrown if this packet cannot
-        ///     be sent at the moment</exception>
-        void SendPacket(byte[] packet, int offset, int count);
-
-        /// <summary>
-        /// Send the given message to the server.  The stream is sent 
-        /// <b>from the stream's current position</b> to the end of the stream.  
-        /// <b>It is not sent from position 0.</b>
-        /// </summary>
-        /// <param name="stream">the stream encoding the packet</param>
-        /// <exception cref="TransportError">thrown on a fatal transport error.</exception>
-        /// <exception cref="TransportBackloggedWarning">thrown if this packet cannot
-        ///     be sent at the moment</exception>
-        void SendPacket(Stream stream);
-
-        /// <summary>
-        /// Get a suitable stream for the transport.
-        /// </summary>
-        Stream GetPacketStream();
+        void SendPacket(TransportPacket packet);
 
         /// <summary>
         /// Process any events pertaining to this instance; also flushes any 
@@ -94,6 +98,15 @@ namespace GT.Net
         uint MaximumPacketSize { get; set; }
     }
 
+    /// <summary>
+    /// 
+    /// </summary>
+    /// <remarks>
+    /// <see cref="NotifyPacketSent"/> and <see cref="NotifyPacketReceived"/> 
+    /// will ensure that the packet is disposed after the callbacks have been
+    /// issued.  Listeners wishing to hold onto the packet should call
+    /// <see cref="TransportPacket.Retain"/>.
+    /// </remarks>
     public abstract class BaseTransport : ITransport
     {
         protected ILog log;
@@ -101,6 +114,7 @@ namespace GT.Net
         private Dictionary<string, string> capabilities = new Dictionary<string, string>();
         public event PacketHandler PacketReceivedEvent;
         public event PacketHandler PacketSentEvent;
+        public event ErrorEventNotication ErrorEvent;
         public abstract string Name { get; }
         public abstract uint Backlog { get; }
         public abstract bool Active { get; }
@@ -146,60 +160,40 @@ namespace GT.Net
             get { return capabilities; }
         }
 
-        public abstract void SendPacket(byte[] packet, int offset, int count);
-        public abstract void SendPacket(Stream packetStream);
-
-        // Must be kept in sync with CheckValidPacketStream()
-        virtual public Stream GetPacketStream()
-        {
-            MemoryStream ms = new MemoryStream((int)(PacketHeaderSize + AveragePacketSize));
-
-            // Encode a known byte pattern to verify that is same stream provided to SendPacket.
-            byte[] name = Encoding.UTF8.GetBytes(Name);
-            for (int i = 0; i < PacketHeaderSize; i++)
-            {
-                ms.WriteByte(name[i % name.Length]);
-            }
-
-            Debug.Assert(ms.Position == PacketHeaderSize);
-            return ms;
-        }
-
-        /// <summary>
-        /// Check that this stream is a stream as obtained from <see cref="GetPacketStream"/>.
-        /// </summary>
-        /// <param name="stream">the stream to check</param>
-        protected virtual void CheckValidPacketStream(Stream stream)
-        {
-            ContractViolation.Assert(stream is MemoryStream, "stream should be a MemoryStream");
-            // Encode a known byte pattern to verify that is same stream provided to SendPacket.
-            byte[] name = Encoding.UTF8.GetBytes(Name);
-            long savedPosition = stream.Position;
-            stream.Position = 0;
-            for (int i = 0; i < PacketHeaderSize; i++)
-            {
-                ContractViolation.Assert(stream.ReadByte() == name[i % name.Length], "Stream header appears to have been overwritten");
-            }
-            stream.Position = savedPosition;
-        }
+        public abstract void SendPacket(TransportPacket packet);
 
         public abstract void Update();
 
-        protected virtual void NotifyPacketReceived(byte[] buffer, int offset, int count)
+        protected virtual void NotifyPacketReceived(TransportPacket packet)
         {
             // DebugUtils.DumpMessage(this.ToString() + " notifying of received message", buffer, offset, count);
             if (PacketReceivedEvent == null)
             {
-                Debug.WriteLine(DateTime.Now + " WARNING: transport has nobody to receive incoming messages!");
-                return;
+                NotifyError(new ErrorSummary(Severity.Warning, SummaryErrorCode.Configuration,
+                    "transport has no listeners for receiving incoming messages!", this, null));
+            } 
+            else
+            {
+                PacketReceivedEvent(packet, this);
             }
-            PacketReceivedEvent(buffer, offset, count, this);
+            // event listeners are responsible for calling Retain() if they
+            // want to use it for longer.
+            packet.Dispose();   
         }
 
-        protected virtual void NotifyPacketSent(byte[] buffer, int offset, int count)
+        protected virtual void NotifyPacketSent(TransportPacket packet)
         {
-            if (PacketSentEvent == null) { return; }
-            PacketSentEvent(buffer, offset, count, this);
+            if (PacketSentEvent != null) { PacketSentEvent(packet, this); }
+            packet.Dispose();
+        }
+
+        protected virtual void NotifyError(ErrorSummary es)
+        {
+            es.LogTo(log);
+            if(ErrorEvent != null)
+            {
+                ErrorEvent(es);
+            }
         }
     }
 
@@ -210,6 +204,9 @@ namespace GT.Net
     {
         public event PacketHandler PacketReceivedEvent;
         public event PacketHandler PacketSentEvent;
+        public event ErrorEventNotication ErrorEvent;
+
+        protected ILog log;
 
         /// <summary>
         /// Return the wrapper transport instance
@@ -222,10 +219,13 @@ namespace GT.Net
         /// <param name="wrapped">the transport to be wrapped</param>
         public WrappedTransport(ITransport wrapped)
         {
+            log = LogManager.GetLogger(GetType());
+
             Wrapped = wrapped;
 
             Wrapped.PacketReceivedEvent += _wrapped_PacketReceivedEvent;
             Wrapped.PacketSentEvent += _wrapped_PacketSentEvent;
+            Wrapped.ErrorEvent += NotifyError;
         }
 
         virtual public Reliability Reliability
@@ -269,9 +269,9 @@ namespace GT.Net
             get { return Wrapped.Capabilities; }
         }
 
-        virtual public void SendPacket(byte[] packet, int offset, int count)
+        virtual public void SendPacket(TransportPacket packet)
         {
-            Wrapped.SendPacket(packet, offset, count);
+            Wrapped.SendPacket(packet);
         }
 
         virtual public void Update()
@@ -285,36 +285,36 @@ namespace GT.Net
             set { Wrapped.MaximumPacketSize = value; }
         }
 
-        // Use our own memory streams as we don't know what kind of
-        // packet header the wrapped transport might place on the stream.
-        public void SendPacket(Stream stream)
-        {
-            byte[] packet = ((MemoryStream)stream).ToArray();
-            SendPacket(packet, 0, packet.Length);
-        }
-
-        virtual public Stream GetPacketStream()
-        {
-            return new MemoryStream();
-        }
-
-        virtual protected void _wrapped_PacketSentEvent(byte[] buffer, int offset, 
-            int count, ITransport transport)
+        virtual protected void _wrapped_PacketSentEvent(TransportPacket packet, ITransport transport)
         {
             if (PacketSentEvent != null)
             {
-                PacketSentEvent(buffer, offset, count, this);
+                PacketSentEvent(packet, this);
             }
         }
 
-        virtual protected void _wrapped_PacketReceivedEvent(byte[] buffer, int offset, 
-            int count, ITransport transport)
+        virtual protected void _wrapped_PacketReceivedEvent(TransportPacket packet, ITransport transport)
         {
-            if (PacketReceivedEvent != null)
+            if (PacketReceivedEvent == null)
             {
-                PacketReceivedEvent(buffer, offset, count, this);
+                NotifyError(new ErrorSummary(Severity.Warning, SummaryErrorCode.Configuration,
+                    "transport has no listeners for receiving incoming messages!", this, null));
+            }
+            else
+            {
+                PacketReceivedEvent(packet, this);
             }
         }
+
+        virtual protected void NotifyError(ErrorSummary summary)
+        {
+            summary.LogTo(log);
+            if (ErrorEvent != null)
+            {
+                ErrorEvent(summary);
+            }
+        }
+
     }
 
     /// <summary>
@@ -369,7 +369,7 @@ namespace GT.Net
         /// <summary>
         /// The bucket contents
         /// </summary>
-        protected Queue<byte[]> bucketContents;
+        protected Queue<TransportPacket> bucketContents;
 
         protected uint contentsSize;
 
@@ -390,7 +390,7 @@ namespace GT.Net
             TimeUnit = drainageTimeUnit;
             MaximumCapacity = bucketCapacity;
             
-            bucketContents = new Queue<byte[]>();
+            bucketContents = new Queue<TransportPacket>();
             contentsSize = 0;
 
             availableCapacity = DrainageAmount;
@@ -439,13 +439,14 @@ namespace GT.Net
             }
         }
 
-        override public void SendPacket(byte[] packet, int offset, int count)
+        override public void SendPacket(TransportPacket packet)
         {
-            Debug.Assert(count <= DrainageAmount,
-                "leaky bucket will never have sufficient capacity to send a packet of size " + count);
+            Debug.Assert(packet.Length <= DrainageAmount,
+                "leaky bucket will never have sufficient capacity to send a packet of size " 
+                + packet.Length);
             CheckDrain();
             DrainPackets();
-            QueuePacket(packet, offset, count);
+            QueuePacket(packet);
             DrainPackets();
         }
 
@@ -457,36 +458,31 @@ namespace GT.Net
         }
 
 
-        protected void QueuePacket(byte[] packet, int offset, int count)
+        protected void QueuePacket(TransportPacket packet)
         {
-            if (contentsSize + count > MaximumCapacity)
+            if (contentsSize + packet.Length > MaximumCapacity)
             {
-                throw new TransportBackloggedWarning(this);
+                NotifyError(new ErrorSummary(Severity.Warning,
+                    SummaryErrorCode.TransportBacklogged,
+                    "Capacity exceeded: packet discarded", this, null));
+                return;
             }
 
-            if (offset == 0 && count == packet.Length)
-            {
-                bucketContents.Enqueue(packet);
-            }
-            else
-            {
-                byte[] ba = new byte[count];
-                Array.Copy(packet, offset, ba, 0, count);
-                bucketContents.Enqueue(ba);
-            }
-            contentsSize += (uint)count;
+            bucketContents.Enqueue(packet);
+            contentsSize += (uint)packet.Length;
         }
 
         protected void DrainPackets()
         {
             while (availableCapacity > 0 && bucketContents.Count > 0)
             {
-                byte[] packet = bucketContents.Peek();
+                TransportPacket packet = bucketContents.Peek();
                 if (packet.Length > availableCapacity) { return; }
-                base.SendPacket(packet, 0, packet.Length);
+                int packetLength = packet.Length;   // must stash as packet is disposed in SendPacket
                 bucketContents.Dequeue();
-                contentsSize -= (uint)packet.Length;
-                availableCapacity -= (uint)packet.Length;
+                base.SendPacket(packet);
+                contentsSize -= (uint)packetLength;
+                availableCapacity -= (uint)packetLength;
             }
         }
 
@@ -542,7 +538,7 @@ namespace GT.Net
         /// <summary>
         /// The packets that are queued for sending.
         /// </summary>
-        protected Queue<byte[]> queuedPackets;
+        protected Queue<TransportPacket> queuedPackets;
 
         /// <summary>
         /// Wrap the provided transport.
@@ -557,7 +553,7 @@ namespace GT.Net
             RefillRate = refillRate;
             MaximumCapacity = maximumCapacity;
 
-            queuedPackets = new Queue<byte[]>();
+            queuedPackets = new Queue<TransportPacket>();
             timer = Stopwatch.StartNew();
             capacity = maximumCapacity;
         }
@@ -594,50 +590,45 @@ namespace GT.Net
             }
         }
 
-        override public void SendPacket(byte[] packet, int offset, int count)
+        override public void SendPacket(TransportPacket packet)
         {
-            Debug.Assert(count < MaximumCapacity, 
+            Debug.Assert(packet.Length < MaximumCapacity, 
                 "transport can never have sufficient capacity to send this message");
 
-            QueuePacket(packet, offset, count);
+            QueuePacket(packet);
             if (!TrySending())
             {
-                throw new TransportBackloggedWarning(this);
+                NotifyError(new ErrorSummary(Severity.Information,
+                    SummaryErrorCode.TransportBacklogged,
+                    "Capacity exceeded: packet queued", this, null));
+                return;
             }
         }
 
-        protected void QueuePacket(byte[] packet, int offset, int count)
+        protected void QueuePacket(TransportPacket packet)
         {
-            if (offset == 0 && count == packet.Length)
-            {
-                queuedPackets.Enqueue(packet);
-            }
-            else
-            {
-                byte[] ba = new byte[count];
-                Array.Copy(packet, offset, ba, 0, count);
-                queuedPackets.Enqueue(ba);
-            }
+            queuedPackets.Enqueue(packet);
         }
 
         /// <summary>
         /// Could throw an exception.
         /// </summary>
-        /// <returns></returns>
+        /// <returns>true if all packets were sent, false if there are still some
+        ///     packets queued</returns>
         protected bool TrySending()
         {
             // add to capacity to the maximum
             AccmulateNewTokens();
             while (queuedPackets.Count > 0)
             {
-                byte[] packet = queuedPackets.Peek();
+                TransportPacket packet = queuedPackets.Peek();
                 if(capacity < packet.Length)
                 {
                     return false;
                 }
                 capacity -= packet.Length;
                 queuedPackets.Dequeue();
-                base.SendPacket(packet, 0, packet.Length);
+                base.SendPacket(packet);
             }
             return true;
         }

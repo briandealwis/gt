@@ -231,16 +231,18 @@ namespace GT.UnitTests
 
         virtual public void Stop()
         {
+            running = false;
             foreach (Thread t in threads)
             {
                 t.Abort();
             }
-
+            threads.Clear();
+            client.Stop();
         }
 
         virtual public void Dispose()
         {
-            client.Stop();
+            Stop();
         }
 
         private void client_StartThread(object obj)
@@ -271,6 +273,12 @@ namespace GT.UnitTests
                 }
             }
             catch (ThreadAbortException) { }
+            catch (GTException e)
+            {
+                // rethrow unless we're stopped
+                if(running) { throw; }
+            }
+
         }
 
         private void client_ReceivedBinaryMessage(IBinaryStream stream)
@@ -370,16 +378,6 @@ namespace GT.UnitTests
         [TearDown]
         public void TearDown()
         {
-            if (server != null)
-            {
-                try
-                {
-                    server.Stop();
-                    server.Dispose();
-                }
-                catch (Exception) { }
-            }
-
             if (clients != null)
             {
                 foreach (StressingClient client in clients)
@@ -392,6 +390,17 @@ namespace GT.UnitTests
                     catch (Exception) {}
                 }
             }
+
+            if (server != null)
+            {
+                try
+                {
+                    server.Stop();
+                    server.Dispose();
+                }
+                catch (Exception) { }
+            }
+
         }
 
     }

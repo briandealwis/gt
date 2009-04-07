@@ -72,34 +72,35 @@ namespace GT.Net
         /// <returns>True if there are bytes that still have to be sent out</returns>
         protected override void FlushOutstandingPackets()
         {
-            byte[] b;
-            SocketError error = SocketError.Success;
-
             lock (this)
             {
                 try
                 {
                     while (outstanding.Count > 0 && udpClient.Client.Connected)
                     {
-                        b = outstanding.Peek();
-                        ContractViolation.Assert(b.Length > 0, "Cannot send 0-byte messages!");
-                        ContractViolation.Assert(b.Length - PacketHeaderSize <= MaximumPacketSize,
-                            String.Format("Packet exceeds transport capacity: {0} > {1}",
-                                b.Length - PacketHeaderSize, MaximumPacketSize));
+                        TransportPacket packet = outstanding.Peek();
 
-                        udpClient.Client.Send(b, 0, b.Length, SocketFlags.None, out error);
+                        ContractViolation.Assert(packet.Length > 0, "Cannot send 0-byte messages!");
+                        ContractViolation.Assert(packet.Length - PacketHeaderSize <= MaximumPacketSize,
+                            String.Format("Packet exceeds transport capacity: {0} > {1}",
+                                packet.Length - PacketHeaderSize, MaximumPacketSize));
+
+                        SocketError error;
+                        udpClient.Client.Send(packet, SocketFlags.None, out error);
 
                         switch (error)
                         {
                         case SocketError.Success:
                             outstanding.Dequeue();
-                            NotifyPacketSent(b, (int)PacketHeaderSize, b.Length);
+                            NotifyPacketSent(packet);
                             break;
                         case SocketError.WouldBlock:
                             // FIXME: Does UDP ever cause a WouldBlock?
-                            //NotifyError(null, error, "The UDP write buffer is full now, but the data will be saved and " +
-                            //        "sent soon.  Send less data to reduce perceived latency.");
+                            NotifyError(new ErrorSummary(Severity.Information,
+                                SummaryErrorCode.TransportBacklogged,
+                                "Transport backlogged", this, null));
                             return;
+
                         default:
                             //something terrible happened, but this is only UDP, so stick around.
                             throw new TransportError(this, "Error sending UDP packet", error);
@@ -131,8 +132,7 @@ namespace GT.Net
                         byte[] buffer = udpClient.Receive(ref ep);
 
                         Debug.Assert(ep.Equals(udpClient.Client.RemoteEndPoint));
-                        NotifyPacketReceived(buffer, (int)PacketHeaderSize, 
-                            (int)(buffer.Length - PacketHeaderSize));
+                        NotifyPacketReceived(new TransportPacket(buffer));
                         return true;
                     }
                 }
@@ -172,15 +172,16 @@ namespace GT.Net
         {
         }
 
-        protected override void NotifyPacketReceived(byte[] buffer, int offset, int count)
+        protected override void NotifyPacketReceived(TransportPacket packet)
         {
-            Debug.Assert(offset == PacketHeaderSize, "datagram doesn't include packet header!");
-            if (buffer.Length < PacketHeaderSize)
+            if (packet.Length < PacketHeaderSize)
             {
                 throw new TransportError(this,
-                    "should not receive datagrams whose size is less than PacketHeaderSize bytes", buffer);
+                    "should not receive datagrams whose size is less than PacketHeaderSize bytes", packet);
             }
-            uint packetSeqNo = BitConverter.ToUInt32(buffer, 0);
+            uint packetSeqNo = 0;
+            packet.BytesAt(0, 4, (b,offset) => packetSeqNo = BitConverter.ToUInt32(b, offset));
+            packet.RemoveBytes(0, 4);
             // We handle wrap around by checking if the difference between the
             // packet-seqno and the expected next packet-seqno > uint.MaxValue / 2
             // After all, it's unlikely that 2 billion packets will mysteriously disappear!
@@ -189,13 +190,13 @@ namespace GT.Net
             nextIncomingPacketSeqNo = packetSeqNo + 1;
 
             // pass it on
-            base.NotifyPacketReceived(buffer, offset, count);
+            base.NotifyPacketReceived(packet);
         }
 
 
-        protected override void WritePacketHeader(byte[] buffer, uint packetLength)
+        protected override void WritePacketHeader(TransportPacket packet)
         {
-            BitConverter.GetBytes(nextOutgoingPacketSeqNo++).CopyTo(buffer, 0);
+            packet.Prepend(BitConverter.GetBytes(nextOutgoingPacketSeqNo++));
         }
     }
 
