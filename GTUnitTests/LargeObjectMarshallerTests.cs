@@ -22,7 +22,6 @@ namespace GT.UnitTests
             MarshalledResult mr = (MarshalledResult)m.Marshal(0, new BinaryMessage(0, new byte[0]), 
                 new DummyTransportChar(6000));
             Assert.AreEqual(1, mr.Packets.Count);
-            Assert.AreEqual(255, mr.Packets[0].ByteAt(0));
             Assert.AreEqual(0, discarded, "should have not discarded");
             
             bool sawResult = false;
@@ -52,11 +51,13 @@ namespace GT.UnitTests
 
             MarshalledResult mr = (MarshalledResult)m.Marshal(0, new BinaryMessage(0, sourceData),
                 tdc);
-            Assert.AreEqual(10, mr.Packets.Count);
-            Assert.AreEqual(0, mr.Packets[0].ByteAt(0));
-            for (int i = 1; i < 10; i++)
+            Assert.AreEqual(11, mr.Packets.Count);
+            // The first packet should not have the high-bit of the seqno set
+            Assert.AreEqual(0, mr.Packets[0].ByteAt((int)LWDNv11.HeaderSize));   // seqno
+            for (int i = 1; i < 11; i++)
             {
-                Assert.AreEqual(128 | 0, mr.Packets[i].ByteAt(0));
+                // The remaining packets should have the high-bit of the seqno set
+                Assert.AreEqual(128 | 0, mr.Packets[i].ByteAt((int)LWDNv11.HeaderSize));
             }
             Assert.AreEqual(0, discarded, "should have not discarded");
 
@@ -92,11 +93,13 @@ namespace GT.UnitTests
 
             MarshalledResult mr = (MarshalledResult)m.Marshal(0, new BinaryMessage(0, sourceData),
                 tdc);
-            Assert.AreEqual(10, mr.Packets.Count);
-            Assert.AreEqual(0, mr.Packets[0].ByteAt(0));
-            for (int i = 1; i < 10; i++)
+            Assert.AreEqual(11, mr.Packets.Count);
+            // The first packet should not have the high-bit of the seqno set
+            Assert.AreEqual(0, mr.Packets[0].ByteAt((int)LWDNv11.HeaderSize));     // seqno
+            for (int i = 1; i < 11; i++)
             {
-                Assert.AreEqual(128 | 0, mr.Packets[i].ByteAt(0));
+                // The remaining packets should have the high-bit of the seqno set
+                Assert.AreEqual(128 | 0, mr.Packets[i].ByteAt((int)LWDNv11.HeaderSize));
             }
             Assert.AreEqual(0, discarded, "should have not discarded");
 

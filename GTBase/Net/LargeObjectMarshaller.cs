@@ -14,16 +14,40 @@ namespace GT.Net
     /// A marshaller that wraps another marshaller to break down large messages 
     /// into manageable chunks for the provided transport.  Each manageable chunk
     /// is called a fragment.  A message may be discarded if the underlying transport
-    /// is sequenced and a fragment is received out of order (or rather, a fragment
-    /// has been dropped), or if the message has passed our of the sequence window.
+    /// is sequenced and a fragment is received out of order or an intermediate fragment
+    /// has been dropped), or if the message has passed out of the sequence window.
     /// </summary>
     /// <remarks>
     /// The LOM operates on the results from a different marshaller.
     /// This sub-marshaller is used to transform objects, etc. to bytes.
-    /// Each message is broken down into:
-    ///   [255] [packet-size] [original packet]                 if the message fits into a transport packet
-    ///   [seqno] [encoded-#-fragments] [frag-0-size] [frag]    if the message is the first fragment
-    ///   [seqno'] [fragment-#] [frag-size] [frag]              for all subsequent fragments; seqno' = seqno | 128
+    /// The LOM uses the high bit of the MessageType byte to encode whether 
+    /// a message has been fragmented.
+    /// 
+    /// The LOM uses the <see cref="LightweightDotNetSerializingMarshaller.LwdnContainerDescriptor11"/>
+    /// LWDNv1.1 message container format</see>, regardless of the primitive message 
+    /// container format used by the sub-marshaller.  When used with a LWDNv1.1 sub-marshaller,
+    /// the LOM is able to optimize packet layout by removing the duplicate header.
+    /// 
+    /// Each message is broken down as follows:
+    /// <list>
+    /// <item> if the message fits into a transport packet, then the message 
+    ///     is returned as-is:
+    ///     <pre>[byte:message-type] [byte:channel] [uint32:packet-size] 
+    ///         [bytes:original packet]</pre>
+    /// </item>
+    /// <item> if the message is the first fragment, then the high-bit is
+    ///     set on the message-type; the number of fragments is encoded using
+    ///     the adaptive <see cref="ByteUtils.EncodeLength(int)"/> format.
+    ///     <pre>[byte:message-type'] [byte:channel] [uint32:packet-size] 
+    ///         [byte:seqno] [bytes:encoded-#-fragments] [bytes:frag]</pre>
+    /// </item>
+    /// <item> for all subsequent fragments; seqno' = seqno | 128;
+    ///     the number of fragments is encoded using the adaptive 
+    ///     <see cref="ByteUtils.EncodeLength(int)"/> format.
+    ///     <pre>[byte:message-type'] [byte:channel] [uint32:packet-size] 
+    ///         [byte:seqno'] [bytes:encoded-fragment-#] [bytes:frag]</pre>
+    /// </item>
+    ///  </list>
     /// </remarks>
     public class LargeObjectMarshaller : IMarshaller
     {
@@ -38,6 +62,7 @@ namespace GT.Net
         /// The submarshaller used for encoding messages into packets.
         /// </summary>
         private readonly IMarshaller subMarshaller;
+        private readonly bool subMarshallerIsLwdn11;
 
         /// <summary>
         /// The maximum number of messages maintained; messages that are not
@@ -55,9 +80,10 @@ namespace GT.Net
             get { return _defaultWindowSize; }
             set
             {
-                if (value >= MaxSequenceCapacity)
+                if (value < 2 || value > MaxWindowSize)
                 {
-                    throw new ArgumentException("Cannot be larger than " + MaxSequenceCapacity);
+                    throw new ArgumentException(String.Format(
+                        "Invalid window size: must be on [2,{0}]", MaxWindowSize));
                 }
                 _defaultWindowSize = value;
             }
@@ -65,20 +91,21 @@ namespace GT.Net
 
         // SeqNo must be expressible in a byte.  Top bit used to distinguish 
         // between first fragment in a sequence and subsequent fragments.
-        // (And 255 = unfragmented packet)
-        // This leaves 7 bits for the sequence number.
-        public const uint MaxSequenceCapacity = 127;    // 2^7 - 1
+        // This leaves 7 bits for the sequence number; need at least 1 bit for
+        // outside of the window.
+        public const uint SeqNoCapacity = 128;
+        public const uint MaxWindowSize = SeqNoCapacity - 1;
 
         /// <summary>
         /// The sequence number for the next outgoing message on a particular transport
         /// </summary>
-        private WeakKeyDictionary<ITransportDeliveryCharacteristics,uint> outgoingSeqNo =
+        private WeakKeyDictionary<ITransportDeliveryCharacteristics, uint> outgoingSeqNo =
             new WeakKeyDictionary<ITransportDeliveryCharacteristics, uint>();
 
         /// <summary>
         /// Bookkeeping data for in-progress messages received.
         /// </summary>
-        private WeakKeyDictionary<ITransportDeliveryCharacteristics,Sequences> accumulatedReceived =
+        private WeakKeyDictionary<ITransportDeliveryCharacteristics, Sequences> accumulatedReceived =
             new WeakKeyDictionary<ITransportDeliveryCharacteristics, Sequences>();
 
         protected ILog log;
@@ -91,8 +118,11 @@ namespace GT.Net
             log = LogManager.GetLogger(GetType());
 
             this.subMarshaller = submarshaller;
-            Debug.Assert(windowSize >= 2 && windowSize <= MaxSequenceCapacity, 
-                "Invalid window size: must be a power of 2 and on [2,64]");
+            subMarshallerIsLwdn11 = submarshaller.Descriptors.Length > 0 &&
+                LWDNv11.Descriptor.Equals(submarshaller.Descriptors[0]);
+
+            InvalidStateException.Assert(windowSize >= 2 && windowSize <= MaxWindowSize, 
+                String.Format("Invalid window size: must be on [2,{0}]",  MaxWindowSize), this);
             this.windowSize = windowSize;
         }
 
@@ -100,7 +130,10 @@ namespace GT.Net
         {
             get
             {
-                List<string> descriptors = new List<string>();
+                List<string> descriptors = new List<string>(1 + subMarshaller.Descriptors.Length);
+                // The LOM packages its message content using the 
+                // LightweightDotNet Message Container Format v1.1
+                descriptors.Add(LWDNv11.Descriptor);
                 foreach (string subdescriptor in subMarshaller.Descriptors)
                 {
                     StringBuilder sb = new StringBuilder();
@@ -117,56 +150,87 @@ namespace GT.Net
         public IMarshalledResult Marshal(int senderIdentity, Message message, ITransportDeliveryCharacteristics tdc)
         {
             IMarshalledResult submr = subMarshaller.Marshal(senderIdentity, message, tdc);
+            // Hmm, maybe this would be better as a generator, just in case the
+            // sub-marshaller returns an infinite message.
             MarshalledResult mr = new MarshalledResult();
             while (submr.HasPackets)
             {
                 TransportPacket packet = submr.RemovePacket();
-                if (packet.Length < tdc.MaximumPacketSize - 5)
+                // Need to account for LWDNv1.1 header for non-LWDNv1.1 marshallers
+                uint contentLength = (uint)packet.Length -
+                    (subMarshallerIsLwdn11 ? LWDNv11.HeaderSize : 0);
+                // If this packet fits within the normal transport packet length
+                // then we don't have to fragment it.
+                if (LWDNv11.HeaderSize + contentLength < tdc.MaximumPacketSize)
                 {
-                    ///   [255] [packet-size] [original packet]  if the message fits into a transport packet
-                    MemoryStream ms = new MemoryStream(5);
-                    ms.WriteByte(255);
-                    ByteUtils.EncodeLength(packet.Length, ms);
-                    packet.Prepend(ms.GetBuffer(), 0, (int)ms.Length);
+                    /// Message fits within the transport packet length, so sent unmodified
+                    ///     <pre>[byte:message-type] [byte:channel] [uint32:packet-size] 
+                    ///         [bytes:content]</pre>
+                    if (!subMarshallerIsLwdn11) 
+                    {
+                        // need to prefix the LWDNv1.1 header
+                        packet.Prepend(LWDNv11.EncodeHeader(message.MessageType,
+                            message.Channel, (uint)packet.Length));
+                    }
                     mr.AddPacket(packet);
                 }
                 else
                 {
-                    ///   [seqno] [encoded-#-fragments] [frag-0-size] [frag]    if the message is the first fragment
-                    ///   [seqno'] [fragment-#] [frag-size] [frag]              for all subsequent fragments; seqno' = seqno | 128
-                    // Although we use an adaptive scheme for encoding the number,
-                    // we assume a maximum of 4 bytes for encoding both # frags and frag size
-                    // for a total of 9 bytes.
-                    uint MaxHeaderSize = 9;
-                    uint MaxPacketSize = Math.Max(MaxHeaderSize, tdc.MaximumPacketSize - MaxHeaderSize);
-                    uint numFragments = (uint)(packet.Length - 1 + MaxPacketSize) / MaxPacketSize;
-                    Debug.Assert(numFragments > 1);
-                    uint seqNo = AllocateOutgoingSeqNo(tdc);
-                    for(uint fragNo = 0; fragNo < numFragments; fragNo++)
-                    {
-                        TransportPacket newPacket = new TransportPacket();
-                        Stream s = newPacket.AsWriteStream();
-                        uint fragSize = (uint)Math.Min(MaxPacketSize, 
-                            packet.Length - (fragNo * MaxPacketSize));
-                        if(fragNo == 0)
-                        {
-                            s.WriteByte((byte)seqNo);
-                            ByteUtils.EncodeLength((int)numFragments, s);
-                        } 
-                        else
-                        {
-                            s.WriteByte((byte)(seqNo | 128));
-                            ByteUtils.EncodeLength((int)fragNo, s);
-                        }
-                        ByteUtils.EncodeLength((int)fragSize, s);
-                        newPacket.Add(packet, (int)(fragNo * MaxPacketSize), (int)fragSize);
-                        mr.AddPacket(newPacket);
-                    }
-                    packet.Dispose();
+                    FragmentMessage(message, tdc, packet, mr);
                 }
             }
             submr.Dispose();
             return mr;
+        }
+
+        private void FragmentMessage(Message message, ITransportDeliveryCharacteristics tdc, 
+            TransportPacket packet, MarshalledResult mr)
+        {
+            /// <item> if the message is the first fragment, then the high-bit is
+            ///     set on the message-type; the number of fragments is encoded using
+            ///     the adaptive <see cref="ByteUtils.EncodeLength(int)"/> format.
+            ///     <pre>[byte:message-type'] [byte:channel] [uint32:packet-size] 
+            ///         [byte:seqno] [bytes:encoded-#-fragments] [bytes:frag]</pre>
+            /// </item>
+            /// <item> for all subsequent fragments; seqno' = seqno | 128;
+            ///     the number of fragments is encoded using the adaptive 
+            ///     <see cref="ByteUtils.EncodeLength(int)"/> format.
+            ///     <pre>[byte:message-type'] [byte:channel] [uint32:packet-size] 
+            ///         [byte:seqno'] [bytes:encoded-fragment-#] [bytes:frag]</pre>
+
+            // Although we use an adaptive scheme for encoding the number,
+            // we assume a maximum of 4 bytes for encoding # frags
+            // for a total of 4 extra bytes bytes; we determine the frag
+            // size from the message size - MaxHeaderSize
+            const uint maxFragHeaderSize = 1 /*seqno*/ + 4;
+            const uint maxHeaderSize = LWDNv11.HeaderSize + maxFragHeaderSize;
+            uint maxPacketSize = Math.Max(maxHeaderSize, tdc.MaximumPacketSize - maxHeaderSize);
+            // round up the number of possible fragments
+            uint numFragments = (uint)(packet.Length + maxPacketSize - 1) / maxPacketSize;
+            Debug.Assert(numFragments > 1);
+            uint seqNo = AllocateOutgoingSeqNo(tdc);
+            for (uint fragNo = 0; fragNo < numFragments; fragNo++)
+            {
+                TransportPacket newPacket = new TransportPacket();
+                Stream s = newPacket.AsWriteStream();
+                uint fragSize = (uint)Math.Min(maxPacketSize,
+                    packet.Length - (fragNo * maxPacketSize));
+                if (fragNo == 0)
+                {
+                    s.WriteByte((byte)seqNo);
+                    ByteUtils.EncodeLength((int)numFragments, s);
+                }
+                else
+                {
+                    s.WriteByte((byte)(seqNo | 128));
+                    ByteUtils.EncodeLength((int)fragNo, s);
+                }
+                newPacket.Prepend(LWDNv11.EncodeHeader((MessageType)((byte)message.MessageType | 128),
+                    message.Channel, (uint)(fragSize + s.Length)));
+                newPacket.Add(packet, (int)(fragNo * maxPacketSize), (int)fragSize);
+                mr.AddPacket(newPacket);
+            }
+            packet.Dispose();
         }
 
         private uint AllocateOutgoingSeqNo(ITransportDeliveryCharacteristics tdc)
@@ -178,38 +242,57 @@ namespace GT.Net
                 {
                     seqNo = 0;
                 }
-                outgoingSeqNo[tdc] = (seqNo + 1) % (MaxSequenceCapacity * 2);
+                outgoingSeqNo[tdc] = (seqNo + 1) % SeqNoCapacity;
                 return seqNo;
             }
         }
 
         public void Unmarshal(TransportPacket input, ITransportDeliveryCharacteristics tdc, EventHandler<MessageEventArgs> messageAvailable)
         {
-            ///   [255] [packet-size] [original packet]                 if the message fits into a transport packet
-            ///   [seqno] [encoded-#-fragments] [frag-0-size] [frag]    if the message is the first fragment
-            ///   [seqno'] [fragment-#] [frag-size] [frag]              for all subsequent fragments; seqno' = seqno | 128
+            /// <item>Message fits within the transport packet length, so sent unmodified
+            ///     <pre>[byte:message-type] [byte:channel] [uint32:packet-size] 
+            ///         [bytes:content]</pre>
+            /// </item>
+            /// <item> if the message is the first fragment, then the high-bit is
+            ///     set on the message-type; the number of fragments is encoded using
+            ///     the adaptive <see cref="ByteUtils.EncodeLength(int)"/> format.
+            ///     <pre>[byte:message-type'] [byte:channel] [uint32:packet-size] 
+            ///         [byte:seqno] [bytes:encoded-#-fragments] [bytes:frag]</pre>
+            /// </item>
+            /// <item> for all subsequent fragments; seqno' = seqno | 128;
+            ///     the number of fragments is encoded using the adaptive 
+            ///     <see cref="ByteUtils.EncodeLength(int)"/> format.
+            ///     <pre>[byte:message-type'] [byte:channel] [uint32:packet-size] 
+            ///         [byte:seqno'] [bytes:encoded-fragment-#] [bytes:frag]</pre>
+
+            if (subMarshallerIsLwdn11 && (input.ByteAt(0) & 128) == 0)
+            {
+                subMarshaller.Unmarshal(input, tdc, messageAvailable);
+                return;
+            }
+
+            MessageType type;
+            byte channel;
+            uint contentLength;
+
             Stream s = input.AsReadStream();
+            LWDNv11.DecodeHeader(out type, out channel, out contentLength, s);
             byte seqNo = (byte)s.ReadByte();
             TransportPacket subPacket;
-            if (seqNo == 255)
-            {
-                uint length = (uint)ByteUtils.DecodeLength(s);
-                subPacket = input.SplitOut((int)length);
-            }
-            else if ((seqNo & 128) == 0)
+            if ((seqNo & 128) == 0)
             {
                 // This starts a new message
                 uint numFrags = (uint)ByteUtils.DecodeLength(s);
-                uint fragLength = (uint)ByteUtils.DecodeLength(s);
-                subPacket = UnmarshalFirstFragment(seqNo, numFrags, input.SplitOut((int)fragLength), tdc);
+                subPacket = UnmarshalFirstFragment(seqNo, numFrags,
+                    input.SplitOut((int)(s.Length - s.Position)), tdc);
             }
             else 
             {
                 // This is a message in progress
                 seqNo = (byte)(seqNo & ~128);
                 uint fragNo = (uint)ByteUtils.DecodeLength(s);
-                uint fragLength = (uint)ByteUtils.DecodeLength(s);
-                subPacket = UnmarshalFragInProgress(seqNo, fragNo, input.SplitOut((int)fragLength), tdc);
+                subPacket = UnmarshalFragInProgress(seqNo, fragNo,
+                    input.SplitOut((int)(s.Length - s.Position)), tdc);
             }
             if (subPacket != null)
             {
@@ -224,7 +307,7 @@ namespace GT.Net
             Sequences sequences;
             if (!accumulatedReceived.TryGetValue(tdc, out sequences))
             {
-                accumulatedReceived[tdc] = sequences = Sequences.ForTransport(tdc, windowSize, MaxSequenceCapacity);
+                accumulatedReceived[tdc] = sequences = Sequences.ForTransport(tdc, windowSize, SeqNoCapacity);
             }
             return sequences.ReceivedFirstFrag(seqNo, numFrags, frag);
         }
@@ -236,7 +319,7 @@ namespace GT.Net
             Sequences sequences;
             if (!accumulatedReceived.TryGetValue(tdc, out sequences))
             {
-                accumulatedReceived[tdc] = sequences = Sequences.ForTransport(tdc, windowSize, MaxSequenceCapacity);
+                accumulatedReceived[tdc] = sequences = Sequences.ForTransport(tdc, windowSize, SeqNoCapacity);
             }
             return sequences.ReceivedFrag(seqNo, fragNo, frag);
         }
@@ -250,13 +333,13 @@ namespace GT.Net
     abstract class Sequences
     {
         internal static Sequences ForTransport(ITransportDeliveryCharacteristics tdc, 
-            uint seqWindowSize, uint maxSeqCapacity)
+            uint seqWindowSize, uint seqCapacity)
         {
             if(tdc.Reliability == Reliability.Reliable)
             {
-                return new ReliableSequences(tdc); // seqWindowSize, maxSeqCapacity 
+                return new ReliableSequences(tdc); // seqWindowSize, seqCapacity 
             }
-            return new DiscardingSequences(tdc, seqWindowSize, maxSeqCapacity);
+            return new DiscardingSequences(tdc, seqWindowSize, seqCapacity);
         }
 
         protected ITransportDeliveryCharacteristics tdc;

@@ -32,7 +32,11 @@ namespace GT.Net
         IncompatibleVersion = 8,
     }
 
-    /// <summary>Possible message types for Messages to have.</summary>
+    /// <summary>
+    /// Possible message types for Messages to have.
+    /// These values must fall between 0 to 127.
+    /// Values 128 - 255 are reserved for marshaller uses.
+    /// </summary>
     public enum MessageType
     {
         /// <summary>This message is a byte array</summary>

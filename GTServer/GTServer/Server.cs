@@ -394,6 +394,9 @@ namespace GT.Net
                 t.Dispose();
                 return;
             }
+
+            // FIXME: Hmmm, how do we check the GTCapabilities.MARSHALLER_DESCRIPTORS?
+
             ConnexionToClient c = GetConnexionForClientGuid(clientGuid);
             if (c == null)
             {

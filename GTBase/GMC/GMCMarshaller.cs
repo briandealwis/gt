@@ -35,6 +35,10 @@ namespace GT.GMC
     /// takes three parts: identifying and creating a template, compressing the
     /// message, and announcing any new templates.
     /// </summary>
+    /// <remarks>
+    /// Note: the GMCMarshaller uses its own message container format, and does not 
+    /// use the Lightweight DotNet Message Container Format.
+    /// </remarks>
     public class GMCMarshaller : IMarshaller
     {
         /// <summary>
