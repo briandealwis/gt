@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using GT.Weak;
 using NUnit.Framework;
 using GT.Net;
 using GT.Utils;

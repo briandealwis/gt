@@ -6,7 +6,6 @@ using System.Text;
 using System.Threading;
 using Common.Logging;
 using GT.Utils;
-using GT.Weak;
 
 namespace GT.Net
 {

@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using Common.Logging;
 using GT.Utils;
-using GT.Weak;
 
 namespace GT.Net
 {

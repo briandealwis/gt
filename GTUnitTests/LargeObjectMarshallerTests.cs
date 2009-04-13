@@ -122,6 +122,9 @@ namespace GT.UnitTests
             Assert.AreEqual(0, discarded, "should have not discarded");
         }
 
+
+
+        #region Utility Functions
         private void Randomize<T>(IList<T> packets)
         {
             Random r = new Random();
@@ -133,6 +136,7 @@ namespace GT.UnitTests
                 packets[iother] = tmp;
             }
         }
+        #endregion
     }
     
 

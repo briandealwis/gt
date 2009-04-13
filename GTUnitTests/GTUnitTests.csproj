@@ -54,7 +54,7 @@
     <Reference Include="System" />
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="BagTests.cs" />
+    <Compile Include="CollectionsTests.cs" />
     <Compile Include="BaseTests.cs" />
     <Compile Include="GMCTests.cs" />
     <Compile Include="GTClientServerTests.cs" />
