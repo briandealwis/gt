@@ -19,34 +19,38 @@ namespace GT.UnitTests
         uint bytesSent = 0;
         public uint BytesSent { get { return bytesSent; } }
 
+        #region ITransportDeliveryCharacteristics Members
+
+        public Reliability Reliability { get; internal set; }
+        public Ordering Ordering { get; internal set; }
+        public float Delay { get; set; }
+        public uint MaximumPacketSize { get; set; }
+
+        #endregion
+
         public string Name
         {
             get { return "NULL"; }
         }
 
-        public bool Active
-        {
-            get { return true; }
-        }
-
+        public bool Active { get; internal set; }
         public uint Backlog { get { return 0; } }
 
         public event PacketHandler PacketReceivedEvent;
         public event PacketHandler PacketSentEvent;
         public event ErrorEventNotication ErrorEvent;
 
-        public NullTransport()
+        public NullTransport() : this(Net.Reliability.Unreliable, Net.Ordering.Unordered, 10, 1024)
         {
-            MaximumPacketSize = 1024;
         }
 
-        public float Delay
+        public NullTransport(Reliability reliability, Ordering ordering, int delay, uint maxPacketSize)
         {
-            get { return 0; }
-            set
-            {
-                /* do nothing */
-            }
+            Active = true;
+            Reliability = reliability;
+            Ordering = ordering;
+            Delay = delay;
+            MaximumPacketSize = maxPacketSize;
         }
 
         public IDictionary<string, string> Capabilities
@@ -65,29 +69,11 @@ namespace GT.UnitTests
         {
         }
 
-        public uint MaximumPacketSize
-        {
-            get;
-            set;
-        }
-
         public void Dispose()
         {
+            Active = false;
         }
 
-        #region ITransportDeliveryCharacteristics Members
-
-        public Reliability Reliability
-        {
-            get { return Reliability.Unreliable; }
-        }
-
-        public Ordering Ordering
-        {
-            get { return Ordering.Unordered; }
-        }
-
-        #endregion
     }
     #endregion
 

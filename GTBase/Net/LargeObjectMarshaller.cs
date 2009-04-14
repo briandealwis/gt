@@ -67,6 +67,7 @@ namespace GT.Net
         /// The maximum number of messages maintained; messages that are not
         /// completed within this window are discarded.
         /// </summary>
+        public uint WindowSize { get { return windowSize; } }
         private readonly uint windowSize;
 
         /// <summary>
@@ -326,10 +327,15 @@ namespace GT.Net
         public void Dispose()
         {
             subMarshaller.Dispose();
+            foreach (Sequences seq in accumulatedReceived.Values)
+            {
+                seq.Dispose();
+            }
+            accumulatedReceived.Clear();
         }
     }
 
-    abstract class Sequences
+    abstract class Sequences : IDisposable
     {
         internal static Sequences ForTransport(ITransportDeliveryCharacteristics tdc, 
             uint seqWindowSize, uint seqCapacity)
@@ -350,6 +356,7 @@ namespace GT.Net
 
         public abstract TransportPacket ReceivedFirstFrag(uint seqNo, uint numFrags, TransportPacket fragment);
         public abstract TransportPacket ReceivedFrag(uint seqNo, uint fragNo, TransportPacket fragment);
+        public abstract void Dispose();
     }
 
     /// <summary>
@@ -368,14 +375,16 @@ namespace GT.Net
             FragmentedMessage inProgress;
             if (!pendingMessages.TryGetValue(seqNo, out inProgress))
             {
-                pendingMessages[seqNo] = inProgress = newFragmentedMessage(numFrags);
+                pendingMessages[seqNo] = inProgress = NewFragmentedMessage(numFrags);
             }
             else
             {
                 inProgress.SetNumberFragments(numFrags);
             }
-            inProgress.RecordFragment(0, fragment);  // FragmentedMessage should Retain()
-            return inProgress.Finished ? inProgress.Assemble() : null;
+            inProgress.RecordFragment(0, fragment);  // FragmentedMessage will Retain()
+            if (!inProgress.Finished) { return null; }
+            pendingMessages.Remove(seqNo);
+            return inProgress.Assemble();   // properly disposes too
         }
 
         public override TransportPacket ReceivedFrag(uint seqNo, uint fragNo, TransportPacket fragment)
@@ -383,13 +392,24 @@ namespace GT.Net
             FragmentedMessage inProgress;
             if (!pendingMessages.TryGetValue(seqNo, out inProgress))
             {
-                pendingMessages[seqNo] = inProgress = newFragmentedMessage(0);
+                pendingMessages[seqNo] = inProgress = NewFragmentedMessage(0);
             }
             inProgress.RecordFragment(fragNo, fragment);  // FragmentedMessage should Retain()
-            return inProgress.Finished ? inProgress.Assemble() : null;
+            if (!inProgress.Finished) { return null; }
+            pendingMessages.Remove(seqNo);
+            return inProgress.Assemble();   // properly disposes too
         }
 
-        protected virtual FragmentedMessage newFragmentedMessage(uint numFrags)
+        public override void Dispose()
+        {
+            foreach (FragmentedMessage fm in pendingMessages.Values)
+            {
+                fm.Dispose();
+            }
+            pendingMessages.Clear();
+        }
+
+        protected virtual FragmentedMessage NewFragmentedMessage(uint numFrags)
         {
             return new FragmentedMessage(numFrags);
         }
@@ -403,11 +423,13 @@ namespace GT.Net
             : base(tdc) 
         {
             sw = new SlidingWindowManager(windowSize, capacity);
-            sw.FrameExpired += _expireFrame;
+            sw.FrameExpired += _ExpireFrame;
         }
 
-        private void _expireFrame(uint seqNo)
+        private void _ExpireFrame(uint seqNo)
         {
+            FragmentedMessage fm;
+            if (pendingMessages.TryGetValue(seqNo, out fm)) { fm.Dispose(); }
             pendingMessages.Remove(seqNo);
         }
 
@@ -479,7 +501,20 @@ namespace GT.Net
                 packet.Add(frag, 0, frag.Length);
                 frag.Dispose();
             }
+            fragments = null;
             return packet;
+        }
+
+        public void Dispose()
+        {
+            if(fragments != null)
+            {
+                foreach(TransportPacket frag in fragments)
+                {
+                    if (frag != null) { frag.Dispose(); }
+                }
+            }
+            fragments = null;
         }
 
         public void SetNumberFragments(uint frags)

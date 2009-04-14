@@ -36,7 +36,7 @@ namespace GT.UnitTests
             TransportPacket.ReservedInitialBytes = _OriginalReservedInitialBytes;
         }
 
-        private void CheckForUndisposedSegments()
+        public static void CheckForUndisposedSegments()
         {
             Pool<byte[]>[] pools = TransportPacket.TestingDiscardPools();
             if (pools != null)
