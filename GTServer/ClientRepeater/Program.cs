@@ -68,6 +68,11 @@ namespace GT.Net
         public static uint DefaultPort = 9999;
         public static byte DefaultSessionChannel = 0;
 
+        /// <summary>
+        /// Triggered on the occurrence of underlying GT errors.
+        /// </summary>
+        public event ErrorEventNotication ErrorEvent;
+
         protected ILog log;
         protected ServerConfiguration config;
         protected Server server;
@@ -233,6 +238,7 @@ namespace GT.Net
                 log.Info(message, es.Context);
                 break;
             }
+            if (ErrorEvent != null) { ErrorEvent(es); }
         }
 
         private void s_ClientsJoined(ICollection<IConnexion> list)
@@ -257,8 +263,19 @@ namespace GT.Net
             }
             if (SessionChangesChannel < 0) { return; }
 
+            // Update all clients with the new clients
             foreach (IConnexion client in list)
             {
+                // First update the new clients with the currently connected set
+                foreach (IConnexion other in server.Connexions)
+                {
+                    if (!list.Contains(other))
+                    {
+                        client.Send(new SessionMessage((byte)SessionChangesChannel, other.Identity,
+                            SessionAction.Lives), sessionMDR, null);
+                    }
+                }
+
                 client.TransportAdded += _client_TransportAdded;
                 client.TransportRemoved += _client_TransportRemoved;
                 server.Send(new SessionMessage((byte)SessionChangesChannel, client.Identity,
