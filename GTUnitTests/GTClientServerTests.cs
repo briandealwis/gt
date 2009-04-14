@@ -14,6 +14,7 @@ namespace GT.UnitTests
 
     #region Useful Client and Server testing configurations
     #region Transport-specific configurations
+
     public class TestServerConfiguration : DefaultServerConfiguration
     {
         public TestServerConfiguration(int port)
@@ -24,10 +25,9 @@ namespace GT.UnitTests
         public override ICollection<IAcceptor> CreateAcceptors()
         {
             ICollection<IAcceptor> acceptors = base.CreateAcceptors();
-            acceptors.Add(new LocalAcceptor("127.0.0.1:" + port)); // whatahack!
+            acceptors.Add(new LocalAcceptor(port.ToString())); // whatahack!
             return acceptors;
         }
-
     }
 
     public class TestClientConfiguration : DefaultClientConfiguration
@@ -54,10 +54,16 @@ namespace GT.UnitTests
         {
             return transportType.IsInstanceOfType(transport);
         }
+
+        public override string ToString()
+        {
+            return "TestCDR: for " + transportType;
+        }
     }
     #endregion
 
     #region Local-transport configurations 
+
     public class LocalServerConfiguration : DefaultServerConfiguration
     {
         public LocalServerConfiguration(int port)
@@ -68,7 +74,7 @@ namespace GT.UnitTests
         public override ICollection<IAcceptor> CreateAcceptors()
         {
             ICollection<IAcceptor> acceptors = new List<IAcceptor>();
-            acceptors.Add(new LocalAcceptor("127.0.0.1:" + port)); // whatahack!
+            acceptors.Add(new LocalAcceptor(port.ToString())); // whatahack!
             return acceptors;
         }
 
@@ -230,7 +236,7 @@ namespace GT.UnitTests
         /// <summary>This is triggered if something goes wrong</summary>
         void ServerErrorEvent(ErrorSummary es)
         {
-            Debug("Server: {0}: {1}[{2}]: {3}: {4}", DateTime.Now, es.Severity, es.ErrorCode,
+            Console.WriteLine("Server: {0}: {1}[{2}]: {3}: {4}", DateTime.Now, es.Severity, es.ErrorCode,
                 es.Message, es.Context);
             errorOccurred = true;
         }
@@ -593,6 +599,92 @@ namespace GT.UnitTests
 
     }
 
+    [TestFixture]
+    public class ZTClientRepeaterTests
+    {
+        IList<Client> clients = new List<Client>();
+        ClientRepeater server;
+        bool errorOccurred = false;
+        IDictionary<int, IList<SessionMessage>> sessionMessages = new Dictionary<int, IList<SessionMessage>>();
+
+        [SetUp]
+        public void SetUp()
+        {
+            errorOccurred = false;
+            server = new ClientRepeater(new LocalServerConfiguration(9999));
+            server.ErrorEvent += delegate(ErrorSummary es)
+            {
+                Console.WriteLine("SERVER ERROR: " + es);
+                errorOccurred = true;
+            };
+            server.Start();
+        }
+
+        [TearDown]
+        public void TearDown()
+        {
+            server.Stop();
+            foreach (Client client in clients) { client.Stop(); }
+        }
+
+
+        [Test]
+        public void TestNewlyConnectedSentLives()
+        {
+            IList<int> orderedIdentities = new List<int>();
+            for (int i = 0; i < 5; i++)
+            {
+                Client client = new LocalClientConfiguration().BuildClient();
+                client.Start();
+                client.ErrorEvent += delegate(ErrorSummary es) {
+                    Console.WriteLine("CLIENT ERROR: " + es);
+                    errorOccurred = true;
+                };
+                ISessionStream ss = client.GetSessionStream("localhost", "9999", 0, ChannelDeliveryRequirements.SessionLike);
+                ss.MessagesReceived += delegate(ISessionStream stream) {
+                    SessionMessage sm; 
+                    while((sm = stream.DequeueMessage(0)) != null)
+                    {
+                        lock(this)
+                        {
+                            if(!sessionMessages.ContainsKey(stream.Identity))
+                            {
+                                sessionMessages[ss.Identity] = new List<SessionMessage>();
+                                orderedIdentities.Add(ss.Identity);
+                            }
+                            sessionMessages[ss.Identity].Add(sm);
+                        }
+                    }
+                };
+                Assert.IsFalse(errorOccurred);
+                clients.Add(client);
+                Thread.Sleep(100);
+                foreach (Client c in clients)
+                {
+                    c.Update();
+                    Assert.IsFalse(errorOccurred);
+                }
+            }
+
+            Assert.AreEqual(orderedIdentities.Count, clients.Count);
+            for (int i = 0; i < clients.Count; i++)
+            {
+                int id = orderedIdentities[i];
+                // each client i should have 5 - i Joineds and i Lives
+                int joined = 0;
+                int lives = 0;
+                foreach(SessionMessage sm in sessionMessages[id])
+                {
+                    if(sm.Action == SessionAction.Joined) { joined++; }
+                    if(sm.Action == SessionAction.Lives) { lives++; }
+                }
+                Assert.AreEqual(clients.Count - i, joined);
+                Assert.AreEqual(i, lives);
+            }
+        }
+
+    }
+
     /// <summary>
     /// Test basic GT functionality
     /// </summary>
@@ -673,7 +765,7 @@ namespace GT.UnitTests
         {
             StartExpectedResponseServer(EXPECTED_GREETING, EXPECTED_RESPONSE);
 
-            client = new TestClientConfiguration().BuildClient();  //this is a client
+            client = new LocalClientConfiguration().BuildClient();  //this is a client
             client.ErrorEvent += client_ErrorEvent;  //triggers if there is an error
 
             bool connexionAdded = false, connexionRemoved = false;
@@ -696,7 +788,7 @@ namespace GT.UnitTests
             {
                 Debug("Client: sending greeting: " + EXPECTED_GREETING);
                 IStringStream strStream = client.GetStringStream("127.0.0.1", "9999", 0,
-                    new TestChannelDeliveryRequirements(typeof(BaseUdpTransport)));  //connect here
+                    ChannelDeliveryRequirements.CommandsLike);  //connect here
                 strStream.MessagesReceived += ClientStringMessageReceivedEvent;
                 strStream.Send(EXPECTED_GREETING);  //send a string
                 CheckForResponse();
@@ -737,14 +829,14 @@ namespace GT.UnitTests
         {
             StartExpectedResponseServer(EXPECTED_GREETING, EXPECTED_RESPONSE);
 
-            client = new TestClientConfiguration().BuildClient(); //this is a client
+            client = new LocalClientConfiguration().BuildClient(); //this is a client
             client.ErrorEvent += client_ErrorEvent; //triggers if there is an error
             client.Start();
             Assert.IsFalse(errorOccurred);
             Assert.IsFalse(responseReceived);
 
             IStringStream strStream = client.GetStringStream("127.0.0.1", "9999", 0,
-                new TestChannelDeliveryRequirements(typeof(BaseUdpTransport))); //connect here
+                ChannelDeliveryRequirements.CommandsLike); //connect here
             strStream.MessagesReceived += ClientStringMessageReceivedEvent;
             strStream.Send(EXPECTED_GREETING); //send a string
             CheckForResponse();
@@ -757,14 +849,14 @@ namespace GT.UnitTests
         {
             StartExpectedResponseServer(EXPECTED_GREETING, EXPECTED_RESPONSE);
 
-            client = new TestClientConfiguration().BuildClient(); //this is a client
+            client = new LocalClientConfiguration().BuildClient(); //this is a client
             client.ErrorEvent += client_ErrorEvent; //triggers if there is an error
             client.Start();
             Assert.IsFalse(errorOccurred);
             Assert.IsFalse(responseReceived);
 
             IStringStream origStream = client.GetStringStream("127.0.0.1", "9999", 0,
-                new TestChannelDeliveryRequirements(typeof(TcpTransport))); //connect here
+                ChannelDeliveryRequirements.CommandsLike); //connect here
 
             Assert.IsTrue(client.Connexions.Count == 1);
             foreach (IConnexion cnx in client.Connexions) {
@@ -773,7 +865,7 @@ namespace GT.UnitTests
             Assert.IsFalse(origStream.Connexion.Active, "connexion should now be closed");
             
             IStringStream newStream = client.GetStringStream("127.0.0.1", "9999", 0,
-                new TestChannelDeliveryRequirements(typeof(TcpTransport))); //connect here
+                ChannelDeliveryRequirements.CommandsLike); //connect here
             Assert.IsTrue(newStream.Connexion.Active, "a new stream should have been provided");
         }
 
@@ -782,7 +874,7 @@ namespace GT.UnitTests
         {
             StartExpectedResponseServer(EXPECTED_GREETING, EXPECTED_RESPONSE);
 
-            client = new TestClientConfiguration().BuildClient();  //this is a client
+            client = new LocalClientConfiguration().BuildClient();  //this is a client
             client.ErrorEvent += client_ErrorEvent;  //triggers if there is an error
             client.Start();
             Assert.IsFalse(errorOccurred);
@@ -791,7 +883,7 @@ namespace GT.UnitTests
             {
                 Debug("Client: sending greeting: " + EXPECTED_GREETING);
                 IStringStream strStream = client.GetStringStream("127.0.0.1", "9999", 0,
-                    new TestChannelDeliveryRequirements(typeof(BaseUdpTransport)));  //connect here
+                    ChannelDeliveryRequirements.CommandsLike);  //connect here
                 strStream.MessagesReceived += ClientStringMessageReceivedEvent;
                 strStream.Send(EXPECTED_GREETING);  //send a string
                 CheckForResponse();
@@ -816,7 +908,7 @@ namespace GT.UnitTests
         {
             StartExpectedResponseServer(EXPECTED_GREETING, EXPECTED_RESPONSE);
 
-            client = new TestClientConfiguration().BuildClient(); //this is a client
+            client = new LocalClientConfiguration().BuildClient(); //this is a client
             client.ErrorEvent += client_ErrorEvent; //triggers if there is an error
 
             bool connexionAdded = false;
@@ -1022,7 +1114,7 @@ namespace GT.UnitTests
         /// <summary>This is triggered if something goes wrong</summary>
         void client_ErrorEvent(ErrorSummary es)
         {
-            Debug("Client: {0}[{1}]: {2}: {3}", es.Severity, es.ErrorCode,
+            Console.WriteLine("Client: {0}[{1}]: {2}: {3}", es.Severity, es.ErrorCode,
                 es.Message, es.Context);
             errorOccurred = true;
         }

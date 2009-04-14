@@ -352,7 +352,7 @@ namespace GT.UnitTests
         public void TestLocalTransport()
         {
             Console.Write("\nTesting Local Transport: ");
-            TestTransport(new LocalAcceptor("127.0.0.1:9999"), new LocalConnector(), "127.0.0.1", "9999");
+            TestTransport(new LocalAcceptor("9999"), new LocalConnector(), "127.0.0.1", "9999");
         }
 
         [Test]

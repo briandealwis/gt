@@ -7,6 +7,10 @@ using GT.Utils;
 
 namespace GT.Net.Local
 {
+    /// <summary>
+    /// Wait for connections across a local pipe.  Local pipes are only addressed 
+    /// using the port: do not embed the host (since this is a local anyays).
+    /// </summary>
     public class LocalAcceptor : IAcceptor
     {
         protected string name;
@@ -79,8 +83,15 @@ namespace GT.Net.Local
             pending.RemoveAll(delegate(LocalHalfPipe o) { return toBeRemoved.Contains(o); });
         }
 
+        public override string ToString()
+        {
+            return GetType().Name + "('" + name + "')";
+        }
     }
 
+    /// <summary>
+    /// Connect to a local pipe.  Local pipes are only addressed using the port.
+    /// </summary>
     public class LocalConnector : IConnector
     {
         protected bool active = false;
@@ -88,9 +99,9 @@ namespace GT.Net.Local
         public ITransport Connect(string address, string port, IDictionary<string, string> capabilities)
         {
             LocalHalfPipe hp;
-            if ((hp = LocalTransport.OpenConnection(address + ":" + port, capabilities)) == null) {
+            if ((hp = LocalTransport.OpenConnection(port, capabilities)) == null) {
                 CannotConnectException error = new CannotConnectException(
-                    String.Format("no local connection named '{0}:{1}'",
+                    String.Format("no local connection named '{1}'",
                         address, port));
                 error.SourceComponent = this;
                 throw error;
