@@ -69,10 +69,10 @@ namespace GT.Net
                 const int SIO_UDP_CONNRESET = -1744830452;
                 byte[] inValue = new byte[4];   // zeroes = false
                 udpClient.Client.IOControl(SIO_UDP_CONNRESET, inValue, null);
-                log.Info("installed SIO_UDP_CONNRESET hack for UdpMultiplexer");
+                log.Debug("installed SIO_UDP_CONNRESET hack for UdpMultiplexer");
             }
             catch (Exception e) {
-                log.Info("unable to install SIO_UDP_CONNRESET hack for UdpMultiplexer: {0}", e);
+                log.Debug("unable to install SIO_UDP_CONNRESET hack for UdpMultiplexer: {0}", e);
             }
         }
 

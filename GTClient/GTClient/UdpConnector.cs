@@ -121,7 +121,7 @@ namespace GT.Net
                     client.Client.ReceiveTimeout = 1;
                     client.Connect(endPoint);
                     ShakeHands(client, capabilities);
-                    log.Info("Now connected to UDP: " + client.Client.RemoteEndPoint);
+                    log.Debug("Now connected to UDP: " + client.Client.RemoteEndPoint);
                     return factory.CreateTransport(client);
                 }
                 catch (SocketException e)

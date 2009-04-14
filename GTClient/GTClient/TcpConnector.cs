@@ -77,7 +77,7 @@ namespace GT.Net
             ByteUtils.EncodeDictionary(capabilities, ms);
             client.Client.Send(ms.GetBuffer(), 0, (int)ms.Length, SocketFlags.None);
 
-            log.Info("Now connected via TCP: " + endPoint);
+            log.Debug("Now connected via TCP: " + endPoint);
             return new TcpTransport(client);
         }
 
