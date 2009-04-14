@@ -127,17 +127,15 @@ namespace GT.Net
                 catch (SocketException e)
                 {
                     if (client != null) { client.Close(); client = null; }
-                    log.Info(String.Format("Cannot connect: {0}: {1}", 
-                        e.GetType().Name, e.Message), e);
                     error = new CannotConnectException(
                         String.Format("Cannot connect to {0}/{1}: {2}",
-                        address, port, e.Message), e);
+                        address, port, e.Message));
+                    log.Info(e.Message);
                     error.SourceComponent = this;
                 }
                 catch (CannotConnectException e)
                 {
-                    log.Info(String.Format("Cannot connect: {0}: {1}",
-                        e.GetType().Name, e.Message), e);
+                    log.Info(e.Message);
                     error = e;
                 }
             }
@@ -192,11 +190,12 @@ namespace GT.Net
         private byte[] CreateHandshakeOffering(UdpClient client, IDictionary<string, string> capabilities)
         {
             // This is the GT (UDP) protocol 1.0:
-            // bytes 0 - 3: the protocol version (the result from ProtocolDescriptor)
-            // bytes 4 - n: the number of bytes in the capability dictionary (see ByteUtils.EncodeLength)
-            // bytes n+1 - end: the capability dictionary
+            //   bytes 0 - 3: the protocol version (the result from ProtocolDescriptor)
+            //   bytes 4 - n: the number of bytes in the capability dictionary (see ByteUtils.EncodeLength)
+            //   bytes n+1 - end: the capability dictionary
+            // The # bytes in the dictionary isn't actually necessary in UDP, but oh well
             MemoryStream ms = new MemoryStream(4 + 60);
-            // approx: 4 bytes for protocol, 50 for capabilities
+            // approx: 4 bytes for protocol, 60 for capabilities
             Debug.Assert(ProtocolDescriptor.Length == 4);
             ms.Write(ProtocolDescriptor, 0, 4);
             ByteUtils.EncodeLength(ByteUtils.EncodedDictionaryByteCount(capabilities), ms);

@@ -145,6 +145,61 @@ namespace GT.UnitTests
                 conn.Dispose();
             }
         }
+
+        [Test]
+        public void TestUdpAutoDetermination()
+        {
+            UdpAcceptor acc = new UdpAcceptor(IPAddress.Loopback, 9999);
+            Thread acceptorThread = null;
+            try
+            {
+                acc.Start();
+                acceptorThread = new Thread(delegate()
+                {
+                    while(acc.Active)
+                    {
+                        try
+                        {
+                            acc.Update();
+                            Thread.Sleep(50);
+                        }
+                        catch (Exception e)
+                        {
+                            Console.WriteLine("Acceptor Thread: " + e);
+                        }
+                    }
+                });
+                acceptorThread.IsBackground = true;
+                acceptorThread.Name = "Acceptor Thread";
+                acceptorThread.Start();
+                Thread.Sleep(50);
+
+                UdpConnector conn = new UdpConnector(Ordering.Unordered);
+                conn.Start();
+                try
+                {
+                    ITransport t = conn.Connect("127.0.0.1", "9999", new Dictionary<string, string>());
+                    Assert.AreEqual(Ordering.Unordered, t.Ordering);
+                }
+                catch (CannotConnectException) { Assert.Fail("Should have worked"); }
+                finally { conn.Dispose(); }
+
+                conn = new UdpConnector(Ordering.Sequenced);
+                conn.Start();
+                try
+                {
+                    ITransport t = conn.Connect("127.0.0.1", "9999", new Dictionary<string, string>());
+                    Assert.AreEqual(Ordering.Sequenced, t.Ordering);
+                }
+                catch (CannotConnectException) { Assert.Fail("Should have worked"); }
+                finally { conn.Dispose(); }
+            }
+            finally
+            {
+                if (acceptorThread != null) { acceptorThread.Abort(); }
+                if (acc != null) { acc.Dispose(); }
+            }
+        }
     }
 
     /// <summary>
@@ -381,7 +436,7 @@ namespace GT.UnitTests
         public void TestSequencedUdpTransport()
         {
             Console.Write("\nTesting Sequenced UDP Transport: ");
-            TestTransport(new UdpAcceptor(IPAddress.Any, port, Ordering.Sequenced), 
+            TestTransport(new UdpAcceptor(IPAddress.Any, port), 
                 new UdpConnector(Ordering.Sequenced), "127.0.0.1", port.ToString());
         }
     }
@@ -410,24 +465,42 @@ namespace GT.UnitTests
                 serverTransport = (UdpSequencedServerTestTransport)transport;
             };
             acceptor.Start();
+            Thread acceptorThread = new Thread(delegate()
+            {
+                for (int i = 0; serverTransport == null && i < 100; i++)
+                {
+                    try
+                    {
+                        acceptor.Update();
+                        Thread.Sleep(50);
+                    }
+                    catch (Exception e)
+                    {
+                        Console.WriteLine("Acceptor Thread: " + e);
+                    }
+                }
+            });
+            acceptorThread.IsBackground = true;
+            acceptorThread.Name = "Acceptor Thread";
+            acceptorThread.Start();
+            Thread.Sleep(50);
 
             clientTransport = (UdpSequencedClientTestTransport)connector.Connect("127.0.0.1", "8765", new Dictionary<string, string>());
+            acceptorThread.Join();
             Assert.IsNotNull(clientTransport);
-            for (int i = 0; i < 10; i++) 
-            {
-                acceptor.Update();
-                Thread.Sleep(100);
-            }
             Assert.IsNotNull(serverTransport);
+
+            acceptor.Dispose();
+            connector.Dispose();
         }
 
         [TearDown]
         public void TearDown() 
         {
-            acceptor.Dispose();
-            connector.Dispose();
             serverTransport.Dispose();
             clientTransport.Dispose();
+            clientTransport = null;
+            serverTransport = null;
         }
 
         protected void DoUpdates()

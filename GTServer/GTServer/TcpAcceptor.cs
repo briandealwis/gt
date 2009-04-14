@@ -218,7 +218,7 @@ namespace GT.Net
                         MemoryStream ms = new MemoryStream(data);
                         Dictionary<string, string> dict = ByteUtils.DecodeDictionary(ms);
                         acceptor.Remove(this);
-                        acceptor.NotifyNewClient(new TcpTransport(connection), dict);
+                        acceptor.NotifyNewTransport(new TcpTransport(connection), dict);
                     }
                     return;
                 }

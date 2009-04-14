@@ -88,9 +88,9 @@ namespace GT.Net
         /// <param name="t">the newly-negotiated transport</param>
         /// <param name="capabilities">a dictionary describing the
         ///     capabilities of the remote system</param>
-        internal void NotifyNewClient(ITransport t, IDictionary<string,string> capabilities)
+        internal void NotifyNewTransport(ITransport t, IDictionary<string,string> capabilities)
         {
-            NewTransportAccepted(t, capabilities);
+            if (NewTransportAccepted != null) { NewTransportAccepted(t, capabilities); }
         }
 
         public override string ToString()

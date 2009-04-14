@@ -200,8 +200,14 @@ namespace GT.Net
     /// </remarks>
     public class UdpAcceptor : IPBasedAcceptor
     {
-        protected TransportFactory<UdpHandle> factory;
+        protected IList<TransportFactory<UdpHandle>> factories = 
+            new List<TransportFactory<UdpHandle>>();
         protected UdpMultiplexer udpMultiplexer;
+
+        /// <summary>
+        /// 
+        /// </summary>
+        public IList<TransportFactory<UdpHandle>> Factories { get { return factories; }}
 
         /// <summary>
         /// Create an acceptor to accept incoming UDP connections, with no guarantees
@@ -211,35 +217,16 @@ namespace GT.Net
         ///     <see cref="IPAddress.Any"/></param>
         /// <param name="port">the local port on which to wait</param>
         public UdpAcceptor(IPAddress address, int port)
-            : this(address, port, Ordering.Unordered) {}
-
-        /// <summary>
-        /// Create an acceptor to accept incoming UDP connections satisfying the
-        /// given ordering requirements.
-        /// </summary>
-        /// <param name="address">the local address on which to wait; usually
-        ///     <see cref="IPAddress.Any"/></param>
-        /// <param name="port">the local port on which to wait</param>
-        /// <param name="ordering">the expected ordering to support</param>
-        public UdpAcceptor(IPAddress address, int port, Ordering ordering)
             : base(address, port)
         {
-            switch (ordering)
-            {
-                case Ordering.Unordered:
-                    factory = new TransportFactory<UdpHandle>(
-                        BaseUdpTransport.UnorderedProtocolDescriptor,
-                        h => new UdpServerTransport(h),
-                        t => t is UdpServerTransport);
-                    return;
-                case Ordering.Sequenced:
-                    factory = new TransportFactory<UdpHandle>(
-                        BaseUdpTransport.SequencedProtocolDescriptor,
-                        h => new UdpSequencedServerTransport(h),
-                        t => t is UdpSequencedServerTransport);
-                    return;
-                default: throw new InvalidOperationException("Unsupported ordering type: " + ordering);
-            }
+            factories.Add(new TransportFactory<UdpHandle>(
+                BaseUdpTransport.UnorderedProtocolDescriptor,
+                h => new UdpServerTransport(h),
+                t => t is UdpServerTransport));
+            factories.Add(new TransportFactory<UdpHandle>(
+                BaseUdpTransport.SequencedProtocolDescriptor,
+                h => new UdpSequencedServerTransport(h),
+                t => t is UdpSequencedServerTransport));
         }
 
         /// <summary>
@@ -248,12 +235,15 @@ namespace GT.Net
         /// <param name="address">the local address on which to wait; usually
         ///     <see cref="IPAddress.Any"/></param>
         /// <param name="port">the local port on which to wait</param>
-        /// <param name="factory">the factory responsible for creating an appropriate
+        /// <param name="factories">the factories responsible for creating an appropriate
         ///     <see cref="ITransport"/> instance</param>
-        public UdpAcceptor(IPAddress address, int port, TransportFactory<UdpHandle> factory)
+        public UdpAcceptor(IPAddress address, int port, params TransportFactory<UdpHandle>[] factories)
             : base(address, port)
         {
-            this.factory = factory;
+            foreach (TransportFactory<UdpHandle> factory in factories)
+            {
+                Factories.Add(factory);
+            }
         }
 
         #region IStartable
@@ -304,88 +294,83 @@ namespace GT.Net
             }
         }
 
-        protected byte[] ProtocolDescriptor
-        {
-            get { return factory.ProtocolDescriptor; }
-        }
-
         protected void PreviouslyUnseenUdpEndpoint(EndPoint ep, TransportPacket packet)
         {
             TransportPacket response;
             Stream ms;
 
-            // Console.WriteLine(this + ": Incoming unaddressed packet from " + ep);
-            if (packet.Length < ProtocolDescriptor.Length)
+            // This is the GT (UDP) protocol 1.0:
+            //   bytes 0 - 3: the protocol version (the result from ProtocolDescriptor)
+            //   bytes 4 - n: the number of bytes in the capability dictionary (see ByteUtils.EncodeLength)
+            //   bytes n+1 - end: the capability dictionary
+            // The # bytes in the dictionary isn't actually necessary in UDP, but oh well
+            foreach(TransportFactory<UdpHandle> factory in factories)
             {
-                response = new TransportPacket();
-                ms = response.AsWriteStream();
-                log.Info("Undecipherable packet (ignored)");
-                // NB: following follows the format specified by LWDN v1.1
-                LWDNv11.EncodeHeader(MessageType.System, (byte)SystemMessageType.UnknownConnexion, 
-                    (uint)ProtocolDescriptor.Length, ms);
-                ms.Write(ProtocolDescriptor, 0, ProtocolDescriptor.Length);
-                ms.Flush();
-                udpMultiplexer.Send(response, ep);
-                return;
-            }
-
-            if (!ByteUtils.Compare(packet.ToArray(0, ProtocolDescriptor.Length), ProtocolDescriptor))
-            {
-                response = new TransportPacket();
-                ms = response.AsWriteStream(); 
-                log.Info("Unknown protocol version: "
-                    + ByteUtils.DumpBytes(packet.ToArray(), 0, 4) + " [" 
-                    + ByteUtils.AsPrintable(packet.ToArray(), 0, 4) + "]");
-                // NB: following follows the format specified by LWDN v1.1
-                LWDNv11.EncodeHeader(MessageType.System, (byte)SystemMessageType.IncompatibleVersion,
-                    (uint)ProtocolDescriptor.Length, ms);
-                ms.Write(ProtocolDescriptor, 0, ProtocolDescriptor.Length);
-                ms.Flush();
-                udpMultiplexer.Send(response, ep);
-                return;
-            }
-
-            packet.RemoveBytes(0, ProtocolDescriptor.Length);
-            ms = packet.AsReadStream();
-            Dictionary<string, string> dict = null;
-            try
-            {
-                int count = ByteUtils.DecodeLength(ms); // we don't use it
-                dict = ByteUtils.DecodeDictionary(ms);
-                if (ms.Position != ms.Length)
+                if(packet.Length >= factory.ProtocolDescriptor.Length &&
+                    ByteUtils.Compare(packet.ToArray(0, factory.ProtocolDescriptor.Length),
+                        factory.ProtocolDescriptor))
                 {
-                    byte[] rest = packet.ToArray();
-                    log.Info(String.Format("{0} bytes still left at end of UDP handshake packet: {1} ({2})",
-                        rest.Length, ByteUtils.DumpBytes(rest, 0, rest.Length),
-                        ByteUtils.AsPrintable(rest, 0, rest.Length)));
+                    packet.RemoveBytes(0, factory.ProtocolDescriptor.Length);
+                    ms = packet.AsReadStream();
+                    Dictionary<string, string> dict = null;
+                    try
+                    {
+                        int count = ByteUtils.DecodeLength(ms); // we don't use it
+                        dict = ByteUtils.DecodeDictionary(ms);
+                        if(ms.Position != ms.Length)
+                        {
+                            byte[] rest = packet.ToArray();
+                            log.Info(String.Format(
+                                "{0} bytes still left at end of UDP handshake packet: {1} ({2})",
+                                rest.Length, ByteUtils.DumpBytes(rest, 0, rest.Length),
+                                ByteUtils.AsPrintable(rest, 0, rest.Length)));
+                        }
+                        // FIXME: don't we want some way of validating the capabilities
+                        // dictionary here?
+
+                        // Send confirmation
+                        response = new TransportPacket();
+                        ms = response.AsWriteStream();
+                        // NB: following uses the format specified by LWDN v1.1
+                        LWDNv11.EncodeHeader(MessageType.System,
+                            (byte)SystemMessageType.Acknowledged,
+                            (uint)factory.ProtocolDescriptor.Length, ms);
+                        ms.Write(factory.ProtocolDescriptor, 0, factory.ProtocolDescriptor.Length);
+                        ms.Flush();
+                        udpMultiplexer.Send(response, ep);
+
+                        NotifyNewTransport(factory.CreateTransport(new UdpHandle(ep, udpMultiplexer)),
+                            dict);
+                        return;
+                    }
+                    catch(Exception e)
+                    {
+                        log.Warn(String.Format("Error decoding handshake from remote {0}", ep), e);
+                    }
                 }
-                // Send confirmation
-                response = new TransportPacket();
-                ms = response.AsWriteStream();
-                // NB: following uses the format specified by LWDN v1.1
-                LWDNv11.EncodeHeader(MessageType.System, (byte)SystemMessageType.Acknowledged,
-                    (uint)ProtocolDescriptor.Length, ms);
-                ms.Write(ProtocolDescriptor, 0, ProtocolDescriptor.Length);
-                ms.Flush();
-
-                udpMultiplexer.Send(new TransportPacket(ProtocolDescriptor), ep);
-                //Debug.Assert(ms.Position != ms.Length, "crud left at end of UDP handshake packet");
-                NotifyNewClient(factory.CreateTransport(new UdpHandle(ep, udpMultiplexer)), dict);
             }
-            catch (Exception e)
-            {
-                log.Warn(String.Format("Error decoding handshake from remote {0}", ep), e);
 
-                response = new TransportPacket();
-                ms = response.AsWriteStream();
-                // NB: following follows the format specified by LWDN v1.1
-                LWDNv11.EncodeHeader(MessageType.System, (byte)SystemMessageType.IncompatibleVersion,
-                    (uint)ProtocolDescriptor.Length, ms);
-                ms.Write(ProtocolDescriptor, 0, ProtocolDescriptor.Length);
-                ms.Flush();
-                udpMultiplexer.Send(response, ep);
-                return;
-            }
+            // If we can figure out some way to say: the packet is an invalid form:
+            //  response = new TransportPacket();
+            //  ms = response.AsWriteStream();
+            //  log.Info("Undecipherable packet (ignored)");
+            //  // NB: following follows the format specified by LWDN v1.1
+            //  LWDNv11.EncodeHeader(MessageType.System, (byte)SystemMessageType.UnknownConnexion,
+            //    (uint)ProtocolDescriptor.Length, ms);
+            //  ms.Write(ProtocolDescriptor, 0, ProtocolDescriptor.Length);
+            //  ms.Flush();
+            //  udpMultiplexer.Send(response, ep);
+
+            response = new TransportPacket();
+            ms = response.AsWriteStream(); 
+            log.Info("Unknown protocol version: "
+                + ByteUtils.DumpBytes(packet.ToArray(), 0, 4) + " [" 
+                + ByteUtils.AsPrintable(packet.ToArray(), 0, 4) + "]");
+            // NB: following follows the format specified by LWDN v1.1
+            LWDNv11.EncodeHeader(MessageType.System, (byte)SystemMessageType.IncompatibleVersion,
+                0, ms);
+            ms.Flush();
+            udpMultiplexer.Send(response, ep);
         }
     }
 }

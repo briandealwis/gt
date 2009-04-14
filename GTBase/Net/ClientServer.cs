@@ -1027,11 +1027,19 @@ namespace GT.Net
 
         virtual protected void HandleNewPacket(TransportPacket packet, ITransport transport)
         {
-            while (packet.Length > 0)
+            try
             {
-                Marshaller.Unmarshal(packet, transport, _marshaller_MessageAvailable);
+                while (packet.Length > 0)
+                {
+                    Marshaller.Unmarshal(packet, transport, _marshaller_MessageAvailable);
+                }
             }
-            //DebugUtils.DumpMessage("ClientConnexionConnexion.PostNewlyReceivedMessage", m);
+            catch (MarshallingException e) 
+            {
+                log.Warn(String.Format("Invalid message received from {0}: {1}",
+                    transport, e.Message));
+                // ??? transport.Dispose();
+            }
         }
 
         virtual protected void _marshaller_MessageAvailable(object marshaller, MessageEventArgs mea)
