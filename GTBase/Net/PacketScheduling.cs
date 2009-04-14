@@ -521,7 +521,6 @@ namespace GT.Net
                     cs.MarshalledForm.Dispose();
                 }
             }
-            Debug.Assert(pmPool.Out == 0);
             foreach (TransportPacket tp in packetsInProgress.Values)
             {
                 tp.Dispose();
