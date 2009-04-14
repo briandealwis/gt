@@ -11,7 +11,7 @@ namespace GT.Net
     {
         IdentityRequest = 1,
         IdentityResponse = 2,
-        // id 3 is reserved (deprecated and removed)
+        Acknowledged = 3,
         PingRequest = 4,
         PingResponse = 5,
 

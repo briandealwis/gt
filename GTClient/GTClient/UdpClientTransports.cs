@@ -146,6 +146,19 @@ namespace GT.Net
             }
             return false;
         }
+
+        public override string ToString()
+        {
+            if (udpClient != null)
+            {
+                try
+                {
+                    return String.Format("{0}: {1}", Name, udpClient.Client.RemoteEndPoint);
+                }
+                catch (SocketException) { /* FALLTHROUGH */ }
+            }
+            return String.Format("{0}: disconnected?", Name);
+        }
     }
 
     /// <summary>

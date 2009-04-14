@@ -123,9 +123,31 @@ namespace GT.UnitTests
             }
         }
 
+        [Test]
+        public void TestUdpNegotiationTimeout()
+        {
+            UdpClient serverSocket = new UdpClient(9999);
+            UdpConnector conn = new UdpConnector();
+
+            try {
+                conn.Start();
+                try
+                {
+                    conn.Connect("127.0.0.1", "9999", new Dictionary<string, string>());
+                    Assert.Fail("Should have timed out");
+                } catch(CannotConnectException e)
+                {
+                    // expected
+                }
+            } finally
+            {
+                serverSocket.Close();
+                conn.Dispose();
+            }
+        }
     }
 
-        /// <summary>
+    /// <summary>
     /// Test GT transports functionality
     /// </summary>
     [TestFixture]

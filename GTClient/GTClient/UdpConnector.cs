@@ -1,4 +1,5 @@
 using System;
+using System.Collections;
 using System.Net;
 using System.Net.Sockets;
 using System.Collections.Generic;
@@ -64,59 +65,162 @@ namespace GT.Net
             get { return factory.ProtocolDescriptor; }
         }
 
+        /// <summary>
+        /// Number of times to retry handshake negotiation.
+        /// </summary>
+        protected virtual uint MaximumRetries { get { return 5; } }
+
+        /// <summary>
+        /// Amount of time to wait for a return on negotiation.
+        /// </summary>
+        protected virtual TimeSpan NegotiationTimeout { get { return TimeSpan.FromMilliseconds(500); } }
+
+
+
         public void Start() { active = true; }
         public void Stop() { active = false; }
         public bool Active { get { return active; } }
         public void Dispose() { Stop(); }
 
-        public ITransport Connect(string address, string port, IDictionary<string, string> capabilities)
+        public ITransport Connect(string address, string portDescription, 
+            IDictionary<string, string> capabilities)
         {
-            IPAddress[] addr = Dns.GetHostAddresses(address);
-            UdpClient client = new UdpClient();
-            IPEndPoint endPoint = null;
+            IPAddress[] addr;
+            try
+            {
+                addr = Dns.GetHostAddresses(address);
+            }
+            catch (SocketException e)
+            {
+                throw new CannotConnectException("Cannot resolve hostname: " + address, e);
+            }
+
+            int port;
+            try
+            {
+                port = Int32.Parse(portDescription);
+            }
+            catch (FormatException e)
+            {
+                throw new CannotConnectException("invalid port: " + portDescription, e);
+            }
 
             //try to connect to the address
             CannotConnectException error = null;
             for (int i = 0; i < addr.Length; i++)
             {
+                UdpClient client = null;
+
                 try
                 {
-                    endPoint = new IPEndPoint(addr[0], Int32.Parse(port));
+                    IPEndPoint endPoint = new IPEndPoint(addr[i], port);
                     client = new UdpClient();
                     client.DontFragment = true; // FIXME: what are the implications of setting this flag?
                     client.Client.Blocking = false;
                     client.Client.SendTimeout = 1;
                     client.Client.ReceiveTimeout = 1;
                     client.Connect(endPoint);
-                    error = null;
-                    break;
+                    ShakeHands(client, capabilities);
+                    log.Info("Now connected to UDP: " + client.Client.RemoteEndPoint);
+                    return factory.CreateTransport(client);
                 }
-                catch (Exception e)
+                catch (SocketException e)
                 {
-                    error = new CannotConnectException(String.Format("Cannot connect to {0}/{1}: {2}",
+                    if (client != null) { client.Close(); client = null; }
+                    log.Info(String.Format("Cannot connect: {0}: {1}", 
+                        e.GetType().Name, e.Message), e);
+                    error = new CannotConnectException(
+                        String.Format("Cannot connect to {0}/{1}: {2}",
                         address, port, e.Message), e);
                     error.SourceComponent = this;
                 }
+                catch (CannotConnectException e)
+                {
+                    log.Info(String.Format("Cannot connect: {0}: {1}",
+                        e.GetType().Name, e.Message), e);
+                    error = e;
+                }
             }
-
             if (error != null) { throw error; }
+            throw new CannotConnectException(
+                String.Format("Unable to connect to remote {0}/{1}", address, port));
+        }
 
-            // FIXME: a handshake is between two people; we assume that if they don't want
-            // to talk to us then they'll close the connexion.
+        /// <summary>
+        /// Attempt connection negotiation with remote side.
+        /// </summary>
+        /// <exception cref="SocketException">thrown on socket error</exception>
+        /// <exception cref="CannotConnectException">thrown if the remote endpoint
+        /// cannot be resolved.</exception>
+        private void ShakeHands(UdpClient client, IDictionary<string, string> capabilities)
+        {
+            byte[] offering = CreateHandshakeOffering(client, capabilities);
 
+            IList readSockets = new ArrayList(1);
+            int readTimeoutMicroseconds = (int)(NegotiationTimeout.TotalMilliseconds * 1000);
+            bool invalidPackets = false;
+            for (int i = 0; i < MaximumRetries; i++)
+            {
+                client.Send(offering, offering.Length);
+
+                readSockets.Clear();
+                readSockets.Add(client.Client);
+                Socket.Select(readSockets, null, null, readTimeoutMicroseconds);
+                if(readSockets.Count > 0)
+                {
+                    EndPoint remoteEP = client.Client.RemoteEndPoint;
+                    IPEndPoint remote = (IPEndPoint)remoteEP;
+                    byte[] reply = client.Receive(ref remote);
+                    if (ValidateHandshakeReply(client, reply))
+                    {
+                        return;
+                    }
+                    invalidPackets = true;
+                }
+            }
+            throw new CannotConnectException(invalidPackets
+                ? "negotiation failed: invalid response data" 
+                : "negotiation failed: timed out");
+        }
+
+        /// <summary>
+        /// Create the handshake initiation message.
+        /// </summary>
+        /// <param name="client"></param>
+        /// <param name="capabilities"></param>
+        /// <returns></returns>
+        private byte[] CreateHandshakeOffering(UdpClient client, IDictionary<string, string> capabilities)
+        {
             // This is the GT (UDP) protocol 1.0:
             // bytes 0 - 3: the protocol version (the result from ProtocolDescriptor)
             // bytes 4 - n: the number of bytes in the capability dictionary (see ByteUtils.EncodeLength)
             // bytes n+1 - end: the capability dictionary
-            MemoryStream ms = new MemoryStream(4 + 60); // approx: 4 bytes for protocol, 50 for capabilities
+            MemoryStream ms = new MemoryStream(4 + 60);
+            // approx: 4 bytes for protocol, 50 for capabilities
             Debug.Assert(ProtocolDescriptor.Length == 4);
             ms.Write(ProtocolDescriptor, 0, 4);
             ByteUtils.EncodeLength(ByteUtils.EncodedDictionaryByteCount(capabilities), ms);
             ByteUtils.EncodeDictionary(capabilities, ms);
-            client.Client.Send(ms.GetBuffer(), 0, (int)ms.Length, SocketFlags.None);
+            return ms.ToArray();
+        }
 
-            log.Info("Now connected to UDP: " + endPoint);
-            return factory.CreateTransport(client);
+        /// <summary>
+        /// Validate the reply message against our expectations
+        /// </summary>
+        /// <param name="client">the socket on which the message was received</param>
+        /// <param name="reply">the reply message received</param>
+        /// <returns>true if valid, false otherwise</returns>
+        private bool ValidateHandshakeReply(UdpClient client, byte[] reply)
+        {
+            MessageType mt;
+            byte sysMessage;
+            uint length;
+            LWDNv11.DecodeHeader(out mt, out sysMessage, out length, reply, 0);
+            return mt == MessageType.System 
+                && (SystemMessageType)sysMessage == SystemMessageType.Acknowledged
+                && length == ProtocolDescriptor.Length
+                && reply.Length - LWDNv11.HeaderSize == length
+                && ByteUtils.Compare(ProtocolDescriptor, 0, reply, (int)LWDNv11.HeaderSize, (int)length);
         }
 
         public bool Responsible(ITransport transport)

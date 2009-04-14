@@ -320,10 +320,9 @@ namespace GT.Net
                 response = new TransportPacket();
                 ms = response.AsWriteStream();
                 log.Info("Undecipherable packet (ignored)");
-                // NB: following follows the format used by the LightweightDotNetSerializingMarshaller 
-                ms.WriteByte((byte)MessageType.System);
-                ms.WriteByte((byte)SystemMessageType.UnknownConnexion);
-                ByteUtils.EncodeLength(ProtocolDescriptor.Length, ms);
+                // NB: following follows the format specified by LWDN v1.1
+                LWDNv11.EncodeHeader(MessageType.System, (byte)SystemMessageType.UnknownConnexion, 
+                    (uint)ProtocolDescriptor.Length, ms);
                 ms.Write(ProtocolDescriptor, 0, ProtocolDescriptor.Length);
                 ms.Flush();
                 udpMultiplexer.Send(response, ep);
@@ -337,10 +336,9 @@ namespace GT.Net
                 log.Info("Unknown protocol version: "
                     + ByteUtils.DumpBytes(packet.ToArray(), 0, 4) + " [" 
                     + ByteUtils.AsPrintable(packet.ToArray(), 0, 4) + "]");
-                // NB: following follows the format used by the LightweightDotNetSerializingMarshaller 
-                ms.WriteByte((byte)MessageType.System);
-                ms.WriteByte((byte)SystemMessageType.IncompatibleVersion);
-                ByteUtils.EncodeLength(ProtocolDescriptor.Length, ms);
+                // NB: following follows the format specified by LWDN v1.1
+                LWDNv11.EncodeHeader(MessageType.System, (byte)SystemMessageType.IncompatibleVersion,
+                    (uint)ProtocolDescriptor.Length, ms);
                 ms.Write(ProtocolDescriptor, 0, ProtocolDescriptor.Length);
                 ms.Flush();
                 udpMultiplexer.Send(response, ep);
@@ -361,6 +359,16 @@ namespace GT.Net
                         rest.Length, ByteUtils.DumpBytes(rest, 0, rest.Length),
                         ByteUtils.AsPrintable(rest, 0, rest.Length)));
                 }
+                // Send confirmation
+                response = new TransportPacket();
+                ms = response.AsWriteStream();
+                // NB: following uses the format specified by LWDN v1.1
+                LWDNv11.EncodeHeader(MessageType.System, (byte)SystemMessageType.Acknowledged,
+                    (uint)ProtocolDescriptor.Length, ms);
+                ms.Write(ProtocolDescriptor, 0, ProtocolDescriptor.Length);
+                ms.Flush();
+
+                udpMultiplexer.Send(new TransportPacket(ProtocolDescriptor), ep);
                 //Debug.Assert(ms.Position != ms.Length, "crud left at end of UDP handshake packet");
                 NotifyNewClient(factory.CreateTransport(new UdpHandle(ep, udpMultiplexer)), dict);
             }
@@ -370,10 +378,9 @@ namespace GT.Net
 
                 response = new TransportPacket();
                 ms = response.AsWriteStream();
-                // NB: following follows the format used by the LightweightDotNetSerializingMarshaller 
-                ms.WriteByte((byte)MessageType.System);
-                ms.WriteByte((byte)SystemMessageType.IncompatibleVersion);
-                ByteUtils.EncodeLength(ProtocolDescriptor.Length, ms);
+                // NB: following follows the format specified by LWDN v1.1
+                LWDNv11.EncodeHeader(MessageType.System, (byte)SystemMessageType.IncompatibleVersion,
+                    (uint)ProtocolDescriptor.Length, ms);
                 ms.Write(ProtocolDescriptor, 0, ProtocolDescriptor.Length);
                 ms.Flush();
                 udpMultiplexer.Send(response, ep);
