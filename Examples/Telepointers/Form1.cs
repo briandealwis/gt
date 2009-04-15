@@ -92,6 +92,7 @@ namespace Telepointers
             // Set up GT
             client = new Client(new DefaultClientConfiguration());
             client.ErrorEvent += es => Console.WriteLine(es);
+            client.ConnexionRemoved += client_ConnexionRemoved;
             client.Start();
 
             updates = client.GetSessionStream(host, port, SessionUpdatesChannel,
@@ -102,6 +103,15 @@ namespace Telepointers
                 TimeSpan.FromMilliseconds(50),
                 ChannelDeliveryRequirements.TelepointerLike);
             coords.StreamedTupleReceived += coords_StreamedTupleReceived;
+        }
+
+        private void client_ConnexionRemoved(Communicator c, IConnexion conn)
+        {
+            if(!IsDisposed && client.Connexions.Count == 0)
+            {
+                MessageBox.Show(this, "Disconnected from server", Text);
+                Close();
+            }
         }
 
         /// <summary>

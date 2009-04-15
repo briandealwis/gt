@@ -43,11 +43,21 @@ namespace GT.ChatClient
             string port = parts.Length > 1 ? parts[1] : "9999";
 
             client = new Client();
+            client.ConnexionRemoved += client_ConnexionRemoved;
             chats = client.GetStringStream(host, port, ChatMessagesChannel, ChannelDeliveryRequirements.ChatLike);
             updates = client.GetSessionStream(host, port, SessionUpdatesChannel, ChannelDeliveryRequirements.SessionLike);
             client.Start();
             InitializeComponent();
             this.Disposed += Form1_Disposed;
+        }
+
+        private void client_ConnexionRemoved(Communicator c, IConnexion conn)
+        {
+            if(!IsDisposed && client.Connexions.Count == 0)
+            {
+                MessageBox.Show(this, "Disconnected from server", Text);
+                Close();
+            }
         }
 
         private void timer_Tick(object sender, EventArgs e)
