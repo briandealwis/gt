@@ -40,11 +40,11 @@ namespace GT.UnitTests
         }
     }
 
-    public class TestChannelDeliveryRequirements : ChannelDeliveryRequirements
+    public class SpecificTransportChannelDeliveryRequirements : ChannelDeliveryRequirements
     {
         protected Type transportType;
 
-        public TestChannelDeliveryRequirements(Type transportType)
+        public SpecificTransportChannelDeliveryRequirements(Type transportType)
             : base(Reliability.Unreliable, MessageAggregation.Immediate, Ordering.Unordered)
         {
             this.transportType = transportType;
@@ -745,19 +745,19 @@ namespace GT.UnitTests
         [Test]
         public void EchoStringViaLocal()
         {
-            PerformEchos(new TestChannelDeliveryRequirements(typeof(LocalTransport)));
+            PerformEchos(new SpecificTransportChannelDeliveryRequirements(typeof(LocalTransport)));
         }
 
         [Test]
         public void EchoStringViaTCP()
         {
-            PerformEchos(new TestChannelDeliveryRequirements(typeof(TcpTransport)));
+            PerformEchos(new SpecificTransportChannelDeliveryRequirements(typeof(TcpTransport)));
         }
 
         [Test]
         public void EchoStringViaUDP()
         {
-            PerformEchos(new TestChannelDeliveryRequirements(typeof(BaseUdpTransport)));
+            PerformEchos(new SpecificTransportChannelDeliveryRequirements(typeof(BaseUdpTransport)));
         }
 
         [Test]
@@ -926,7 +926,7 @@ namespace GT.UnitTests
             {
                 Debug("Client: sending greeting: " + EXPECTED_GREETING);
                 IStringStream strStream = client.GetStringStream("127.0.0.1", "9999", 0,
-                    new TestChannelDeliveryRequirements(typeof(LocalTransport))); //connect here
+                    new SpecificTransportChannelDeliveryRequirements(typeof(LocalTransport))); //connect here
                 strStream.MessagesReceived += ClientStringMessageReceivedEvent;
                 Assert.IsTrue(connexionAdded, "should have connected");
 
@@ -946,6 +946,52 @@ namespace GT.UnitTests
                 ProcessEvents();
                 Assert.AreEqual(6, messagesReceived);
                 Assert.AreEqual(6, strStream.Messages.Count);
+            }
+        }
+
+        [Test]
+        public void TestFreshnessHandling()
+        {
+            StartExpectedResponseServer(EXPECTED_GREETING, EXPECTED_RESPONSE);
+
+            client = new LocalClientConfiguration().BuildClient(); //this is a client
+            client.ErrorEvent += client_ErrorEvent; //triggers if there is an error
+
+            bool connexionAdded = false;
+            int messagesReceived = 0, messagesSent = 0;
+            client.ConnexionAdded += delegate(Communicator ignored, IConnexion c)
+            {
+                connexionAdded = true;
+                c.MessageReceived += delegate { messagesReceived++; };
+                c.MessageSent += delegate { messagesSent++; };
+            };
+
+            client.Start();
+            ProcessEvents();
+
+            {
+                Debug("Client: sending greeting: " + EXPECTED_GREETING);
+                ChannelDeliveryRequirements cdr = new SpecificTransportChannelDeliveryRequirements(typeof(LocalTransport));
+                cdr.Aggregation = MessageAggregation.Aggregatable;
+                cdr.Freshness = Freshness.IncludeLatestOnly;
+                IStringStream strStream = client.GetStringStream("127.0.0.1", "9999", 0, cdr);
+                strStream.MessagesReceived += ClientStringMessageReceivedEvent;
+                Assert.IsTrue(connexionAdded, "should have connected");
+
+                for (int i = 0; i < 5; i++)
+                {
+                    strStream.Send(EXPECTED_GREETING);
+                    ProcessEvents();
+                    Assert.AreEqual(0, messagesReceived);
+                    Assert.AreEqual(0, messagesSent);
+                    Assert.AreEqual(0, strStream.Messages.Count);
+                }
+
+                strStream.Flush();
+                Assert.AreEqual(1, messagesSent);
+                ProcessEvents();
+                Assert.AreEqual(1, messagesReceived);
+                Assert.AreEqual(1, strStream.Messages.Count);
             }
         }
 
