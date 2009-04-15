@@ -1017,6 +1017,10 @@ namespace GT.Net
                 // Is this the right exception?
                 throw new CannotConnectException("Remote does not speak a compatible protocol");
 
+            case SystemMessageType.Acknowledged:
+                // nothing to do
+                break;
+
             default:
                 Debug.WriteLine("connexion.HandleSystemMessage(): Unknown message type: " +
                     message.Descriptor);
@@ -1076,6 +1080,19 @@ namespace GT.Net
             throw new NoMatchingTransport(this, mdr, cdr);
         }
 
+        /// <summary>
+        /// Marshal the provided message.  Primarily intended for use by 
+        /// <see cref="IPacketScheduler"/> implementations.
+        /// </summary>
+        /// <param name="m"></param>
+        /// <param name="tdc"></param>
+        /// <returns>the marshalled result</returns>
+        public virtual IMarshalledResult Marshal(Message m, ITransportDeliveryCharacteristics tdc)
+        {
+            return Marshaller.Marshal(SendingIdentity, m, tdc);
+        }
+
+
         #region Sending
 
         /// <summary>Send a byte array on <see cref="channel"/>.</summary>
@@ -1108,17 +1125,13 @@ namespace GT.Net
             Send(new ObjectMessage(channel, o), mdr, cdr);
         }
 
-        public virtual IMarshalledResult Marshal(Message m, ITransportDeliveryCharacteristics tdc)
-        {
-            return Marshaller.Marshal(SendingIdentity, m, tdc);
-        }
-
         /// <summary>Send a message.</summary>
         /// <param name="message">The message to send.</param>
         /// <param name="mdr">Requirements for this particular message; may be null.</param>
         /// <param name="cdr">Requirements for the message's channel.</param>
         public virtual void Send(Message message, MessageDeliveryRequirements mdr, ChannelDeliveryRequirements cdr)
         {
+            InvalidStateException.Assert(Active, "Cannot send on a stopped connexion", this);
             // must be locked as is called by AbstractStream implementations
             lock(this)
             {
@@ -1133,6 +1146,7 @@ namespace GT.Net
         public virtual void Send(IList<Message> messages, MessageDeliveryRequirements mdr,
             ChannelDeliveryRequirements cdr)
         {
+            InvalidStateException.Assert(Active, "Cannot send on a stopped connexion", this);
             // must be locked as is called by AbstractStream implementations
             lock (this)
             {

@@ -726,7 +726,6 @@ namespace GT.Net
         public Client()
             : this(new DefaultClientConfiguration())
         {
-            Start();    // this behaviour is deprecated
         }
 
         public Client(ClientConfiguration cc)
@@ -1332,6 +1331,8 @@ namespace GT.Net
         ///     remote could not be contacted.</exception>
         virtual protected ConnexionToServer GetConnexion(string address, string port)
         {
+            InvalidStateException.Assert(Active, "Cannot connect from a stopped client", this);
+
             foreach (ConnexionToServer s in connexions)
             {
                 if (s.Address.Equals(address) && s.Port.Equals(port) && s.Active)

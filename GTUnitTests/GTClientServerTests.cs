@@ -274,6 +274,92 @@ namespace GT.UnitTests
                 s.Stop();
             }
         }
+
+        [Test]
+        public void TestSendingOnUnstartedServer() {
+            Server s = new Server(9876);
+            try
+            {
+                s.Send(new byte[5], 0, null, MessageDeliveryRequirements.MostStrict);
+                Assert.Fail("Should not reach here");
+            }
+            catch (InvalidStateException)
+            {
+                /* expected result */
+            }
+            finally
+            {
+                s.Dispose();
+            }
+        }
+
+        [Test]
+        public void TestSendingOnStoppedServer() {
+            Server s = new Server(9876);
+            s.Start();
+            s.StartSeparateListeningThread();
+            Thread.Sleep(200);
+            s.Stop();
+            try
+            {
+                s.Send(new byte[5], 0, null, MessageDeliveryRequirements.MostStrict);
+                Assert.Fail("Should not reach here");
+            }
+            catch (InvalidStateException)
+            {
+                /* expected result */
+            }
+            finally
+            {
+                s.Dispose();
+            }
+        }
+    }
+
+    [TestFixture]
+    public class ZAClientBasics
+    {
+        [Test]
+        public void TestSendingOnUnstartedClient()
+        {
+            Client c = new Client();
+            try
+            {
+                c.GetStringStream("localhost", "9999", 0, ChannelDeliveryRequirements.Data);
+                Assert.Fail("Should not reach here");
+            }
+            catch (InvalidStateException)
+            {
+                /* expected result */
+            }
+            finally
+            {
+                c.Dispose();
+            }
+        }
+
+        [Test]
+        public void TestSendingOnStoppedClient()
+        {
+            Client c = new Client();
+            c.Start();
+            c.StartSeparateListeningThread();
+            Thread.Sleep(200);
+            c.Stop();
+            try
+            {
+                c.GetStringStream("localhost", "9999", 0, ChannelDeliveryRequirements.Data);
+                Assert.Fail("Should not reach here");
+            }
+            catch (InvalidStateException)
+            {
+                /* expected result */
+            }
+            finally
+            {
+                c.Dispose();
+            }
+        }
     }
 
     /// <summary>
@@ -640,7 +726,8 @@ namespace GT.UnitTests
                     Console.WriteLine("CLIENT ERROR: " + es);
                     errorOccurred = true;
                 };
-                ISessionStream ss = client.GetSessionStream("localhost", "9999", 0, ChannelDeliveryRequirements.SessionLike);
+                ISessionStream ss = client.GetSessionStream("localhost", "9999", 0, 
+                    ChannelDeliveryRequirements.SessionLike);
                 ss.MessagesReceived += delegate(ISessionStream stream) {
                     SessionMessage sm; 
                     while((sm = stream.DequeueMessage(0)) != null)

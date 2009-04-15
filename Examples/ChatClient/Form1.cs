@@ -44,9 +44,9 @@ namespace GT.ChatClient
 
             client = new Client();
             client.ConnexionRemoved += client_ConnexionRemoved;
+            client.Start();
             chats = client.GetStringStream(host, port, ChatMessagesChannel, ChannelDeliveryRequirements.ChatLike);
             updates = client.GetSessionStream(host, port, SessionUpdatesChannel, ChannelDeliveryRequirements.SessionLike);
-            client.Start();
             InitializeComponent();
             this.Disposed += Form1_Disposed;
         }

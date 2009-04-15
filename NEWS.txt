@@ -189,6 +189,9 @@ GT 3.0.
     on a first-come, first-served basis.  Packet schedulers are
     created by connexion instances.
 
+  * Creating a new Client() no longer implicitly starts the client
+    instance.
+
   * There have been some major renames:
 
       * Message.Id has been renamed Channel.  The use of 'id' was
