@@ -153,7 +153,8 @@ namespace GT.Net
             {
                 try
                 {
-                    return String.Format("{0}: {1}", Name, udpClient.Client.RemoteEndPoint);
+                    return String.Format("{0}: {1} -> {2}", Name, 
+                        udpClient.Client.LocalEndPoint, udpClient.Client.RemoteEndPoint);
                 }
                 catch (SocketException) { /* FALLTHROUGH */ }
             }
