@@ -290,6 +290,7 @@ namespace GT.Net
                 {
                     // DebugUtils.WriteLine("Server.Update(): pinging clients");
                     lastPingTime = System.Environment.TickCount;
+                    log.Debug("Pinging");
                     foreach (ConnexionToClient c in clientIDs.Values)
                     {
                         if (c.Active)

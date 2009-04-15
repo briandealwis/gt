@@ -1364,6 +1364,7 @@ namespace GT.Net
                 if (timer.TimeInMilliseconds - lastPingTime
                     > configuration.PingInterval.TotalMilliseconds)
                 {
+                    log.Debug("Pinging");
                     lastPingTime = timer.TimeInMilliseconds;
                     foreach (ConnexionToServer s in connexions)
                     {
