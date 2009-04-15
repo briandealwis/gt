@@ -197,7 +197,7 @@ namespace GT.Net
                         MemoryStream ms = new MemoryStream(data);
                         try
                         {
-                            int count = ByteUtils.DecodeLength(ms);
+                            uint count = ByteUtils.DecodeLength(ms);
                             state = NIPState.DictionaryContent;
                             data = new byte[count];
                             offset = 0;

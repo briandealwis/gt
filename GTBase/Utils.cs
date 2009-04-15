@@ -153,10 +153,10 @@ namespace GT.Utils
             output.Write(buffer, 0, buffer.Length);
         }
 
-        public static byte[] Read(Stream input, int length)
+        public static byte[] Read(Stream input, uint length)
         {
             byte[] bytes = new byte[length];
-            int rc = input.Read(bytes, 0, length);
+            int rc = input.Read(bytes, 0, (int)length);
             if (rc != length) { Array.Resize(ref bytes, rc); }
             return bytes;
         }
@@ -172,10 +172,9 @@ namespace GT.Utils
         /// </summary>
         /// <param name="length">the length to be encoded</param>
         /// <param name="output">where the encoded length should be placed.</param>
-        public static void EncodeLength(int length, Stream output)
+        public static void EncodeLength(uint length, Stream output)
         {
             // assumptions: a byte is 8 bites.  seems safe :)
-            if (length < 0) { throw new NotSupportedException("lengths must be positive"); }
             if (length < (1 << 6))  // 2^6 = 64
             {
                 output.WriteByte((byte)length);
@@ -210,7 +209,7 @@ namespace GT.Utils
         /// Assumes the length is &lt; 2^30 elements.  Lengths &lt; 64 elelements will fit in a single byte.
         /// </summary>
         /// <param name="length">the length to be encoded</param>
-        public static byte[] EncodeLength(int length)
+        public static byte[] EncodeLength(uint length)
         {
             // assumptions: a byte is 8 bites.  seems safe :)
             if (length < 0) { throw new NotSupportedException("lengths must be positive"); }
@@ -248,25 +247,25 @@ namespace GT.Utils
         /// </summary>
         /// <param name="input">stream containing the encoded length</param>
         /// <returns>the decoded length</returns>
-        public static int DecodeLength(Stream input)
+        public static uint DecodeLength(Stream input)
         {
             int b = input.ReadByte();
-            int result = b & 63;
+            uint result = (uint)(b & 63);
             int numBytes = b >> 6;
             if (numBytes >= 1)
             {
                 if ((b = input.ReadByte()) < 0) { throw new InvalidDataException("EOF"); }
-                result = (result << 8) | b;
+                result = (result << 8) | (uint)b;
             }
             if (numBytes >= 2)
             {
                 if ((b = input.ReadByte()) < 0) { throw new InvalidDataException("EOF"); }
-                result = (result << 8) | b;
+                result = (result << 8) | (uint)b;
             }
             if (numBytes >= 3)
             {
                 if ((b = input.ReadByte()) < 0) { throw new InvalidDataException("EOF"); }
-                result = (result << 8) | b;
+                result = (result << 8) | (uint)b;
             }
             if (numBytes > 3) { throw new InvalidDataException("encoding cannot have more than 3 bytes!"); }
             return result;
@@ -280,10 +279,10 @@ namespace GT.Utils
         /// <param name="index">in: the index in which to decode the byte length, out: set to
         /// the index of the first byte following the encoded length</param>
         /// <returns>the decoded length</returns>
-        public static int DecodeLength(byte[] bytes, ref int index)
+        public static uint DecodeLength(byte[] bytes, ref int index)
         {
             int numBytes = bytes[index] >> 6;
-            int result = bytes[index++] & 63;
+            uint result = (uint)bytes[index++] & 63;
             if (numBytes >= 1)
             {
                 result = (result << 8) | bytes[index++];
@@ -306,7 +305,7 @@ namespace GT.Utils
         /// </summary>
         /// <param name="bytes">byte content containing the encoded length</param>
         /// <returns>the decoded length</returns>
-        public static int DecodeLength(byte[] bytes)
+        public static uint DecodeLength(byte[] bytes)
         {
             int index = 0;
             return DecodeLength(bytes, ref index);
@@ -328,23 +327,23 @@ namespace GT.Utils
         /// Figure out how many bytes would be necessary to encode the provided dictionary
         /// using our bencoding-like format.
         /// </summary>
-        public static int EncodedDictionaryByteCount(IDictionary<string, string> dict)
+        public static uint EncodedDictionaryByteCount(IDictionary<string, string> dict)
         {
-            int count = 0;
+            uint count = 0;
             MemoryStream ms = new MemoryStream();
 
-            EncodeLength(dict.Count, ms);
+            EncodeLength((uint)dict.Count, ms);
             foreach (string key in dict.Keys)
             {
-                int nBytes = Encoding.UTF8.GetByteCount(key);
+                uint nBytes = (uint)Encoding.UTF8.GetByteCount(key);
                 EncodeLength(nBytes, ms);
                 count += nBytes;
 
-                nBytes = Encoding.UTF8.GetByteCount(dict[key]);
+                nBytes = (uint)Encoding.UTF8.GetByteCount(dict[key]);
                 EncodeLength(nBytes, ms);
                 count += nBytes;
             }
-            return (int)ms.Length + count;
+            return (uint)(ms.Length + count);
         }
 
         /// <summary>
@@ -355,15 +354,15 @@ namespace GT.Utils
         /// <returns>the decoded dictionary</returns>
         public static void EncodeDictionary(IDictionary<string, string> dict, Stream output)
         {
-            EncodeLength(dict.Count, output);
+            EncodeLength((uint)dict.Count, output);
             foreach (string key in dict.Keys)
             {
                 byte[] bytes = Encoding.UTF8.GetBytes(key);
-                EncodeLength(bytes.Length, output);
+                EncodeLength((uint)bytes.Length, output);
                 output.Write(bytes, 0, bytes.Length);
 
                 bytes = Encoding.UTF8.GetBytes(dict[key]);
-                EncodeLength(bytes.Length, output);
+                EncodeLength((uint)bytes.Length, output);
                 output.Write(bytes, 0, bytes.Length);
             }
         }
@@ -376,17 +375,17 @@ namespace GT.Utils
         public static Dictionary<string, string> DecodeDictionary(Stream input)
         {
             Dictionary<string, string> dict = new Dictionary<string, string>();
-            int nKeys = DecodeLength(input);
+            uint nKeys = DecodeLength(input);
             for (int i = 0; i < nKeys; i++)
             {
-                int nBytes = DecodeLength(input);
+                uint nBytes = DecodeLength(input);
                 byte[] bytes = new byte[nBytes];
-                input.Read(bytes, 0, nBytes);
+                input.Read(bytes, 0, (int)nBytes);
                 string key = Encoding.UTF8.GetString(bytes);
 
                 nBytes = DecodeLength(input);
                 bytes = new byte[nBytes];
-                input.Read(bytes, 0, nBytes);
+                input.Read(bytes, 0, (int)nBytes);
                 string value = Encoding.UTF8.GetString(bytes);
 
                 dict[key] = value;

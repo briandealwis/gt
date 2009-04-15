@@ -146,7 +146,7 @@ namespace GT.GMC
                     else
                     {
                         result.WriteByte(EscapeMultipleCharacterSequence);
-                        ByteUtils.EncodeLength(escapedIndex - endIndex, result);
+                        ByteUtils.EncodeLength((uint)(escapedIndex - endIndex), result);
                         result.Write(message, endIndex, escapedIndex - endIndex);
                     }
                     endIndex = escapedIndex;
@@ -174,7 +174,7 @@ namespace GT.GMC
                     break;
 
                 case EscapeMultipleCharacterSequence:
-                    int length = ByteUtils.DecodeLength(input);
+                    uint length = ByteUtils.DecodeLength(input);
                     while (length-- > 0 && input.Position < input.Length)
                     {
                         result.WriteByte((byte)input.ReadByte());

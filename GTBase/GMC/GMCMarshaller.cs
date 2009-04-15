@@ -138,7 +138,7 @@ namespace GT.GMC
                 // off using these byte arrays as the backing store.
                 TransportPacket newPacket = new TransportPacket(
                     BitConverter.GetBytes(senderIdentity),
-                    ByteUtils.EncodeLength(encoded.Length),
+                    ByteUtils.EncodeLength((uint)encoded.Length),
                     encoded);
                 result.AddPacket(newPacket);
             }
@@ -151,7 +151,7 @@ namespace GT.GMC
             Debug.Assert(messageAvailable != null, "callers must provide a messageAvailable handler");
             Stream input = packet.AsReadStream();
             int encoderId = BitConverter.ToInt32(ByteUtils.Read(input, 4), 0);
-            int length = ByteUtils.DecodeLength(input);
+            uint length = ByteUtils.DecodeLength(input);
             byte[] decoded = Decode(encoderId, ByteUtils.Read(input, length));
             TransportPacket subPacket = TransportPacket.On(decoded);
             input.Close();
@@ -195,7 +195,7 @@ namespace GT.GMC
             // note: must remember to replace/strip-off this first byte in TryDeflating() 
             result.WriteByte((byte)GMCWithinMessageCompression.None);
 
-            ByteUtils.EncodeLength(cmp.TemplateId, result);
+            ByteUtils.EncodeLength((uint)cmp.TemplateId, result);
             if (cmp.Template != null)
             {
                 if(log.IsTraceEnabled)
@@ -243,7 +243,7 @@ namespace GT.GMC
                         ByteUtils.DumpBytes(cmp.Message)));
                 }
                 result.WriteByte((byte)GMCMessageKey.Message);
-                ByteUtils.EncodeLength(cmp.Message.Length, result);
+                ByteUtils.EncodeLength((uint)cmp.Message.Length, result);
                 result.Write(cmp.Message, 0, cmp.Message.Length);
             }
 
@@ -312,7 +312,7 @@ namespace GT.GMC
         {
             long p = output.Position;
 
-            ByteUtils.EncodeLength(tmpl.Length, output);
+            ByteUtils.EncodeLength((uint)tmpl.Length, output);
             output.Write(tmpl, 0, tmpl.Length);
 
             totalTemplateBytes += output.Position - p;
@@ -322,7 +322,7 @@ namespace GT.GMC
         {
             long p = output.Position;
             
-            ByteUtils.EncodeLength(dictionary.Count, output);
+            ByteUtils.EncodeLength((uint)dictionary.Count, output);
             byte[] result = new byte[4];
             foreach (uint longForm in dictionary.Keys)
             {
@@ -400,9 +400,9 @@ namespace GT.GMC
                     }
                     break;
                 case GMCMessageKey.Message:
-                    int len = ByteUtils.DecodeLength(input);
+                    uint len = ByteUtils.DecodeLength(input);
                     cmp.Message = new byte[len];
-                    input.Read(cmp.Message, 0, len);
+                    input.Read(cmp.Message, 0, (int)len);
                     if (log.IsTraceEnabled)
                     {
                         log.Trace(String.Format("Decoded message: {0}",
@@ -434,7 +434,7 @@ namespace GT.GMC
 
         private Dictionary<uint, byte> DecodeAnnouncements(Stream input)
         {
-            int count = ByteUtils.DecodeLength(input);
+            uint count = ByteUtils.DecodeLength(input);
             byte[] buffer = new byte[4];
             Dictionary<uint, byte> result = new Dictionary<uint,byte>();
             for (int i = 0; i < count; i++)
@@ -447,9 +447,9 @@ namespace GT.GMC
 
         private byte[] DecodeTemplate(Stream input)
         {
-            int length = ByteUtils.DecodeLength(input);
+            uint length = ByteUtils.DecodeLength(input);
             byte[] tmpl = new byte[length];
-            input.Read(tmpl, 0, length);
+            input.Read(tmpl, 0, (int)length);
             return tmpl;
         }
 

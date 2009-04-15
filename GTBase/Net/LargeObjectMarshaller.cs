@@ -218,12 +218,12 @@ namespace GT.Net
                 if (fragNo == 0)
                 {
                     s.WriteByte((byte)seqNo);
-                    ByteUtils.EncodeLength((int)numFragments, s);
+                    ByteUtils.EncodeLength(numFragments, s);
                 }
                 else
                 {
                     s.WriteByte((byte)(seqNo | 128));
-                    ByteUtils.EncodeLength((int)fragNo, s);
+                    ByteUtils.EncodeLength(fragNo, s);
                 }
                 newPacket.Prepend(LWDNv11.EncodeHeader((MessageType)((byte)message.MessageType | 128),
                     message.Channel, (uint)(fragSize + s.Length)));

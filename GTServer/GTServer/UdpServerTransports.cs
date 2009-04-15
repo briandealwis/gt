@@ -315,7 +315,7 @@ namespace GT.Net
                     Dictionary<string, string> dict = null;
                     try
                     {
-                        int count = ByteUtils.DecodeLength(ms); // we don't use it
+                        uint count = ByteUtils.DecodeLength(ms); // we don't use it
                         dict = ByteUtils.DecodeDictionary(ms);
                         if(ms.Position != ms.Length)
                         {
