@@ -216,6 +216,52 @@ namespace GT.UnitTests
             AZPacketTests.CheckForUndisposedSegments();
         }
 
+        /// <summary>
+        /// Ensure that the fragments produced by the LargeObjectMarshaller 
+        /// are valid LWDNv1.1 messages and can be relayed by the
+        /// ClientRepeater, for example.
+        /// </summary>
+        [Test]
+        public void TestLWDNCompatibility() {
+            LightweightDotNetSerializingMarshaller lwdnm = new LightweightDotNetSerializingMarshaller();
+            LargeObjectMarshaller lom = new LargeObjectMarshaller(new DotNetSerializingMarshaller());
+
+            ITransportDeliveryCharacteristics tdc = new DummyTransportChar(600);
+            byte[] sourceData = new byte[5900];
+            for (int i = 0; i < sourceData.Length; i++) { sourceData[i] = (byte)(i % 256); }
+
+            IMarshalledResult mr = lom.Marshal(0, new BinaryMessage(0, sourceData),
+                tdc);
+            Assert.IsTrue(((MarshalledResult)mr).Packets.Count > 1);
+
+            IList<IMarshalledResult> lwdnMarshalledResults = new List<IMarshalledResult>();
+            while (mr.HasPackets)
+            {
+                Message lwdnRawMessage = null;
+                lwdnm.Unmarshal(mr.RemovePacket(), tdc,
+                    delegate(object sender, MessageEventArgs mea) {
+                        lwdnRawMessage = mea.Message;
+                    });
+                Assert.IsNotNull(lwdnRawMessage);
+                lwdnMarshalledResults.Add(lwdnm.Marshal(0, lwdnRawMessage, tdc));
+            }
+
+            for (int i = 0; i < lwdnMarshalledResults.Count; i++) {
+                 mr = lwdnMarshalledResults[i];
+                Assert.IsTrue(mr.HasPackets);
+                while (mr.HasPackets)
+                {
+                    lom.Unmarshal(mr.RemovePacket(), tdc, delegate(object sender, MessageEventArgs e) {
+                        Assert.IsTrue(i == lwdnMarshalledResults.Count - 1 && !mr.HasPackets);
+                        Assert.IsTrue(e.Message is BinaryMessage);
+                        Assert.AreEqual(sourceData, ((BinaryMessage)e.Message).Bytes);
+                    });
+                }
+            }
+            lom.Dispose();
+            lwdnm.Dispose();
+        }
+
         #region Utility Functions
         private void Randomize<T>(IList<T> packets)
         {
