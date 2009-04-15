@@ -214,12 +214,12 @@ namespace GT.Net
             MessageType mt;
             byte sysMessage;
             uint length;
-            LWDNv11.DecodeHeader(out mt, out sysMessage, out length, reply, 0);
+            LWMCFv11.DecodeHeader(out mt, out sysMessage, out length, reply, 0);
             return mt == MessageType.System 
                 && (SystemMessageType)sysMessage == SystemMessageType.Acknowledged
                 && length == ProtocolDescriptor.Length
-                && reply.Length - LWDNv11.HeaderSize == length
-                && ByteUtils.Compare(ProtocolDescriptor, 0, reply, (int)LWDNv11.HeaderSize, (int)length);
+                && reply.Length - LWMCFv11.HeaderSize == length
+                && ByteUtils.Compare(ProtocolDescriptor, 0, reply, (int)LWMCFv11.HeaderSize, (int)length);
         }
 
         public bool Responsible(ITransport transport)

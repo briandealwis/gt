@@ -53,11 +53,11 @@ namespace GT.UnitTests
                 tdc);
             Assert.AreEqual(11, mr.Packets.Count);
             // The first packet should not have the high-bit of the seqno set
-            Assert.AreEqual(0, mr.Packets[0].ByteAt((int)LWDNv11.HeaderSize));   // seqno
+            Assert.AreEqual(0, mr.Packets[0].ByteAt((int)LWMCFv11.HeaderSize));   // seqno
             for (int i = 1; i < 11; i++)
             {
                 // The remaining packets should have the high-bit of the seqno set
-                Assert.AreEqual(128 | 0, mr.Packets[i].ByteAt((int)LWDNv11.HeaderSize));
+                Assert.AreEqual(128 | 0, mr.Packets[i].ByteAt((int)LWMCFv11.HeaderSize));
             }
             Assert.AreEqual(0, discarded, "should have not discarded");
 
@@ -95,11 +95,11 @@ namespace GT.UnitTests
                 tdc);
             Assert.AreEqual(11, mr.Packets.Count);
             // The first packet should not have the high-bit of the seqno set
-            Assert.AreEqual(0, mr.Packets[0].ByteAt((int)LWDNv11.HeaderSize));     // seqno
+            Assert.AreEqual(0, mr.Packets[0].ByteAt((int)LWMCFv11.HeaderSize));     // seqno
             // The remaining packets should have the high-bit of the seqno set
             for (int i = 1; i < 11; i++)
             {
-                Assert.AreEqual(128 | 0, mr.Packets[i].ByteAt((int)LWDNv11.HeaderSize));
+                Assert.AreEqual(128 | 0, mr.Packets[i].ByteAt((int)LWMCFv11.HeaderSize));
             }
             //Assert.AreEqual(0, discarded, "should have not discarded");
 
@@ -154,30 +154,30 @@ namespace GT.UnitTests
 
                 for (int i = 0; i < mr.Packets.Count; i++)
                 {
-                    mr.Packets[i].BytesAt(0, (int)LWDNv11.HeaderSize,
+                    mr.Packets[i].BytesAt(0, (int)LWMCFv11.HeaderSize,
                         delegate(byte[] buffer, int offset) {
                             MessageType mt;
                             byte channel;
                             uint len;
-                            LWDNv11.DecodeHeader(out mt, out channel, out len, buffer, offset);
+                            LWMCFv11.DecodeHeader(out mt, out channel, out len, buffer, offset);
                             Assert.IsTrue(((byte)mt & 128) != 0, 
                                 "fragmented messages should have high-bit set");
                             Assert.AreEqual(MessageType.Binary, (MessageType)((byte)mt & 127));
                             Assert.AreEqual(0, channel);
-                            Assert.AreEqual(mr.Packets[i].Length - LWDNv11.HeaderSize, len);
+                            Assert.AreEqual(mr.Packets[i].Length - LWMCFv11.HeaderSize, len);
                         });
                     
                     if (i == 0)
                     {
                         // The first packet should not have the high-bit of the seqno set
                         Assert.AreEqual(expectedSeqNo,
-                            mr.Packets[0].ByteAt((int)LWDNv11.HeaderSize)); // seqno
+                            mr.Packets[0].ByteAt((int)LWMCFv11.HeaderSize)); // seqno
                     }
                     else
                     {
                         // The remaining packets should have the high-bit of the seqno set
                         Assert.AreEqual(128 | expectedSeqNo,
-                            mr.Packets[i].ByteAt((int)LWDNv11.HeaderSize));
+                            mr.Packets[i].ByteAt((int)LWMCFv11.HeaderSize));
                     }
                 }
 
@@ -218,12 +218,12 @@ namespace GT.UnitTests
 
         /// <summary>
         /// Ensure that the fragments produced by the LargeObjectMarshaller 
-        /// are valid LWDNv1.1 messages and can be relayed by the
+        /// are valid LWMCFv1.1 messages and can be relayed by the
         /// ClientRepeater, for example.
         /// </summary>
         [Test]
-        public void TestLWDNCompatibility() {
-            LightweightDotNetSerializingMarshaller lwdnm = new LightweightDotNetSerializingMarshaller();
+        public void TestLWMCFCompatibility() {
+            LightweightDotNetSerializingMarshaller lwmcfm = new LightweightDotNetSerializingMarshaller();
             LargeObjectMarshaller lom = new LargeObjectMarshaller(new DotNetSerializingMarshaller());
 
             ITransportDeliveryCharacteristics tdc = new DummyTransportChar(600);
@@ -234,32 +234,32 @@ namespace GT.UnitTests
                 tdc);
             Assert.IsTrue(((MarshalledResult)mr).Packets.Count > 1);
 
-            IList<IMarshalledResult> lwdnMarshalledResults = new List<IMarshalledResult>();
+            IList<IMarshalledResult> lwmcfMarshalledResults = new List<IMarshalledResult>();
             while (mr.HasPackets)
             {
-                Message lwdnRawMessage = null;
-                lwdnm.Unmarshal(mr.RemovePacket(), tdc,
+                Message lwmcfRawMessage = null;
+                lwmcfm.Unmarshal(mr.RemovePacket(), tdc,
                     delegate(object sender, MessageEventArgs mea) {
-                        lwdnRawMessage = mea.Message;
+                        lwmcfRawMessage = mea.Message;
                     });
-                Assert.IsNotNull(lwdnRawMessage);
-                lwdnMarshalledResults.Add(lwdnm.Marshal(0, lwdnRawMessage, tdc));
+                Assert.IsNotNull(lwmcfRawMessage);
+                lwmcfMarshalledResults.Add(lwmcfm.Marshal(0, lwmcfRawMessage, tdc));
             }
 
-            for (int i = 0; i < lwdnMarshalledResults.Count; i++) {
-                 mr = lwdnMarshalledResults[i];
+            for (int i = 0; i < lwmcfMarshalledResults.Count; i++) {
+                 mr = lwmcfMarshalledResults[i];
                 Assert.IsTrue(mr.HasPackets);
                 while (mr.HasPackets)
                 {
                     lom.Unmarshal(mr.RemovePacket(), tdc, delegate(object sender, MessageEventArgs e) {
-                        Assert.IsTrue(i == lwdnMarshalledResults.Count - 1 && !mr.HasPackets);
+                        Assert.IsTrue(i == lwmcfMarshalledResults.Count - 1 && !mr.HasPackets);
                         Assert.IsTrue(e.Message is BinaryMessage);
                         Assert.AreEqual(sourceData, ((BinaryMessage)e.Message).Bytes);
                     });
                 }
             }
             lom.Dispose();
-            lwdnm.Dispose();
+            lwmcfm.Dispose();
         }
 
         #region Utility Functions

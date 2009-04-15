@@ -22,10 +22,11 @@ namespace GT.Net
     /// The LOM uses the high bit of the MessageType byte to encode whether 
     /// a message has been fragmented.
     /// 
-    /// The LOM uses the <see cref="LightweightDotNetSerializingMarshaller.LwdnContainerDescriptor11"/>
-    /// LWDNv1.1 message container format</see>, regardless of the primitive message 
-    /// container format used by the sub-marshaller.  When used with a LWDNv1.1 sub-marshaller,
-    /// the LOM is able to optimize packet layout by removing the duplicate header.
+    /// The LOM uses the <see cref="LWMCFv11.Descriptor"/>
+    /// LWMCF v1.1 message container format</see>, regardless of the primitive message 
+    /// container format used by the sub-marshaller.  When used with a LWMCF v1.1
+    /// sub-marshaller, the LOM is able to optimize packet layout
+    /// by removing the duplicate header.
     /// 
     /// Each message is broken down as follows:
     /// <list>
@@ -61,7 +62,7 @@ namespace GT.Net
         /// The submarshaller used for encoding messages into packets.
         /// </summary>
         private readonly IMarshaller subMarshaller;
-        private readonly bool subMarshallerIsLwdn11;
+        private readonly bool subMarshallerIsLwmcf11;
 
         /// <summary>
         /// The maximum number of messages maintained; messages that are not
@@ -118,8 +119,8 @@ namespace GT.Net
             log = LogManager.GetLogger(GetType());
 
             this.subMarshaller = submarshaller;
-            subMarshallerIsLwdn11 = submarshaller.Descriptors.Length > 0 &&
-                LWDNv11.Descriptor.Equals(submarshaller.Descriptors[0]);
+            subMarshallerIsLwmcf11 = submarshaller.Descriptors.Length > 0 &&
+                LWMCFv11.Descriptor.Equals(submarshaller.Descriptors[0]);
 
             InvalidStateException.Assert(windowSize >= 2 && windowSize <= MaxWindowSize, 
                 String.Format("Invalid window size: must be on [2,{0}]",  MaxWindowSize), this);
@@ -133,7 +134,7 @@ namespace GT.Net
                 List<string> descriptors = new List<string>(1 + subMarshaller.Descriptors.Length);
                 // The LOM packages its message content using the 
                 // LightweightDotNet Message Container Format v1.1
-                descriptors.Add(LWDNv11.Descriptor);
+                descriptors.Add(LWMCFv11.Descriptor);
                 foreach (string subdescriptor in subMarshaller.Descriptors)
                 {
                     StringBuilder sb = new StringBuilder();
@@ -156,20 +157,20 @@ namespace GT.Net
             while (submr.HasPackets)
             {
                 TransportPacket packet = submr.RemovePacket();
-                // Need to account for LWDNv1.1 header for non-LWDNv1.1 marshallers
+                // Need to account for LWMCFv1.1 header for non-LWMCFv1.1 marshallers
                 uint contentLength = (uint)packet.Length -
-                    (subMarshallerIsLwdn11 ? LWDNv11.HeaderSize : 0);
+                    (subMarshallerIsLwmcf11 ? LWMCFv11.HeaderSize : 0);
                 // If this packet fits within the normal transport packet length
                 // then we don't have to fragment it.
-                if (LWDNv11.HeaderSize + contentLength < tdc.MaximumPacketSize)
+                if (LWMCFv11.HeaderSize + contentLength < tdc.MaximumPacketSize)
                 {
                     /// Message fits within the transport packet length, so sent unmodified
                     ///     <pre>[byte:message-type] [byte:channel] [uint32:packet-size] 
                     ///         [bytes:content]</pre>
-                    if (!subMarshallerIsLwdn11) 
+                    if (!subMarshallerIsLwmcf11) 
                     {
-                        // need to prefix the LWDNv1.1 header
-                        packet.Prepend(LWDNv11.EncodeHeader(message.MessageType,
+                        // need to prefix the LWMCFv1.1 header
+                        packet.Prepend(LWMCFv11.EncodeHeader(message.MessageType,
                             message.Channel, (uint)packet.Length));
                     }
                     mr.AddPacket(packet);
@@ -203,7 +204,7 @@ namespace GT.Net
             // for a total of 4 extra bytes bytes; we determine the frag
             // size from the message size - MaxHeaderSize
             const uint maxFragHeaderSize = 1 /*seqno*/ + 4;
-            const uint maxHeaderSize = LWDNv11.HeaderSize + maxFragHeaderSize;
+            const uint maxHeaderSize = LWMCFv11.HeaderSize + maxFragHeaderSize;
             uint maxPacketSize = Math.Max(maxHeaderSize, tdc.MaximumPacketSize - maxHeaderSize);
             // round up the number of possible fragments
             uint numFragments = (uint)(packet.Length + maxPacketSize - 1) / maxPacketSize;
@@ -225,7 +226,7 @@ namespace GT.Net
                     s.WriteByte((byte)(seqNo | 128));
                     ByteUtils.EncodeLength(fragNo, s);
                 }
-                newPacket.Prepend(LWDNv11.EncodeHeader((MessageType)((byte)message.MessageType | 128),
+                newPacket.Prepend(LWMCFv11.EncodeHeader((MessageType)((byte)message.MessageType | 128),
                     message.Channel, (uint)(fragSize + s.Length)));
                 newPacket.Add(packet, (int)(fragNo * maxPacketSize), (int)fragSize);
                 mr.AddPacket(newPacket);
@@ -265,7 +266,7 @@ namespace GT.Net
             ///     <pre>[byte:message-type'] [byte:channel] [uint32:packet-size] 
             ///         [byte:seqno'] [bytes:encoded-fragment-#] [bytes:frag]</pre>
 
-            if (subMarshallerIsLwdn11 && (input.ByteAt(0) & 128) == 0)
+            if (subMarshallerIsLwmcf11 && (input.ByteAt(0) & 128) == 0)
             {
                 subMarshaller.Unmarshal(input, tdc, messageAvailable);
                 return;
@@ -276,7 +277,7 @@ namespace GT.Net
             uint contentLength;
 
             Stream s = input.AsReadStream();
-            LWDNv11.DecodeHeader(out type, out channel, out contentLength, s);
+            LWMCFv11.DecodeHeader(out type, out channel, out contentLength, s);
             byte seqNo = (byte)s.ReadByte();
             TransportPacket subPacket;
             if ((seqNo & 128) == 0)

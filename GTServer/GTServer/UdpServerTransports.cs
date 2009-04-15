@@ -331,8 +331,8 @@ namespace GT.Net
                         // Send confirmation
                         response = new TransportPacket();
                         ms = response.AsWriteStream();
-                        // NB: following uses the format specified by LWDN v1.1
-                        LWDNv11.EncodeHeader(MessageType.System,
+                        // NB: following uses the format specified by LWMCF v1.1
+                        LWMCFv11.EncodeHeader(MessageType.System,
                             (byte)SystemMessageType.Acknowledged,
                             (uint)factory.ProtocolDescriptor.Length, ms);
                         ms.Write(factory.ProtocolDescriptor, 0, factory.ProtocolDescriptor.Length);
@@ -354,8 +354,8 @@ namespace GT.Net
             //  response = new TransportPacket();
             //  ms = response.AsWriteStream();
             //  log.Info("Undecipherable packet (ignored)");
-            //  // NB: following follows the format specified by LWDN v1.1
-            //  LWDNv11.EncodeHeader(MessageType.System, (byte)SystemMessageType.UnknownConnexion,
+            //  // NB: following follows the format specified by LWMCF v1.1
+            //  LWMCFv11.EncodeHeader(MessageType.System, (byte)SystemMessageType.UnknownConnexion,
             //    (uint)ProtocolDescriptor.Length, ms);
             //  ms.Write(ProtocolDescriptor, 0, ProtocolDescriptor.Length);
             //  ms.Flush();
@@ -366,8 +366,8 @@ namespace GT.Net
             log.Info("Unknown protocol version: "
                 + ByteUtils.DumpBytes(packet.ToArray(), 0, 4) + " [" 
                 + ByteUtils.AsPrintable(packet.ToArray(), 0, 4) + "]");
-            // NB: following follows the format specified by LWDN v1.1
-            LWDNv11.EncodeHeader(MessageType.System, (byte)SystemMessageType.IncompatibleVersion,
+            // NB: following follows the format specified by LWMCF v1.1
+            LWMCFv11.EncodeHeader(MessageType.System, (byte)SystemMessageType.IncompatibleVersion,
                 0, ms);
             ms.Flush();
             udpMultiplexer.Send(response, ep);

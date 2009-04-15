@@ -200,13 +200,13 @@ namespace GT.Net
     }
 
     /// <summary>
-    /// Support utilities for the Lightweight DotNet Message Container Format 1.1.
-    /// (aka LWDNv1.1).
+    /// Support utilities for the Lightweight Message Container Format 1.1.
+    /// (aka LWMCFv1.1).
     /// </summary>
-    public class LWDNv11
+    public class LWMCFv11
     {
         /// <summary>
-        /// Descriptor for the Lightweight DotNet message container format v1.1:
+        /// Descriptor for the Lightweight Message Container Format v1.1:
         /// This format prefix each marshaller with a 6 byte header where:
         /// </para>
         /// <list>
@@ -216,15 +216,15 @@ namespace GT.Net
         ///     <see cref="BitConverter.GetBytes(uint)"/> format.</item>
         /// </list>
         /// </summary>
-        public const string Descriptor = "LWDN-1.1";
+        public const string Descriptor = "LWMCF-1.1";
 
         /// <summary>
-        /// The # bytes in the LWDNv1.1 header.
+        /// The # bytes in the v1.1 header.
         /// </summary>
         public const uint HeaderSize = 6;
 
         /// <summary>
-        /// Encode a LWDNv1.1 compliant header.
+        /// Encode a v1.1 compliant header.
         /// </summary>
         /// <returns>the header bytes</returns>
         public static byte[] EncodeHeader(MessageType type, byte channel, uint length)
@@ -239,7 +239,7 @@ namespace GT.Net
         }
 
         /// <summary>
-        /// Encode a LWDNv1.1 compliant header.
+        /// Encode a v1.1 compliant header.
         /// </summary>
         public static void EncodeHeader(MessageType type, byte channel, uint length, Stream stream)
         {
@@ -272,7 +272,7 @@ namespace GT.Net
     /// uninterpreted byte arrays so as to avoid introducing latency from unneeded processing.
     /// Should your server need to use the message content, then you server should 
     /// use a <see cref="DotNetSerializingMarshaller"/>.
-    /// This marshaller adheres to the Lightweight DotNet Message Container Format 1.1.
+    /// This marshaller adheres to the Lightweight Message Container Format 1.1.
     /// </summary>
     /// <seealso cref="T:GT.Net.DotNetSerializingMarshaller"/>
     public class LightweightDotNetSerializingMarshaller : IMarshaller
@@ -280,7 +280,7 @@ namespace GT.Net
 
         public virtual string[] Descriptors
         {
-            get { return new[] { LWDNv11.Descriptor }; }
+            get { return new[] { LWMCFv11.Descriptor }; }
         }
 
         public virtual void Dispose()
@@ -291,7 +291,7 @@ namespace GT.Net
 
         /// <summary>
         /// Marshal the given message to the provided stream in a form suitable to
-        /// be sent out on transport t.
+        /// be sent out on the provided transport.
         /// </summary>
         /// <param name="senderIdentity">the identity of the sender</param>
         /// <param name="msg">the message being sent, that is to be marshalled</param>
@@ -307,7 +307,7 @@ namespace GT.Net
             if (msg is RawMessage)
             {
                 RawMessage rm = (RawMessage)msg;
-                tp.Prepend(LWDNv11.EncodeHeader(msg.MessageType, msg.Channel, (uint)rm.Bytes.Length));
+                tp.Prepend(LWMCFv11.EncodeHeader(msg.MessageType, msg.Channel, (uint)rm.Bytes.Length));
                 tp.Add(rm.Bytes);
             }
             else
@@ -318,7 +318,7 @@ namespace GT.Net
                 Debug.Assert(output.CanSeek);
                 MarshalContents(msg, output, tdc);
                 output.Flush();
-                tp.Prepend(LWDNv11.EncodeHeader(msg.MessageType, msg.Channel, (uint)output.Position));
+                tp.Prepend(LWMCFv11.EncodeHeader(msg.MessageType, msg.Channel, (uint)output.Position));
             }
             mr.AddPacket(tp);
             return mr;
@@ -374,7 +374,7 @@ namespace GT.Net
             MessageType type;
             byte channel;
             uint length;
-            LWDNv11.DecodeHeader(out type, out channel, out length, input);
+            LWMCFv11.DecodeHeader(out type, out channel, out length, input);
             Message m = UnmarshalContent(channel, type, new WrappedStream(input, length), length);
             messageAvailable(this, new MessageEventArgs(tdc as ITransport, m)); // FIXME!!!
         }

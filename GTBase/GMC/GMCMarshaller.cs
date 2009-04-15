@@ -37,7 +37,7 @@ namespace GT.GMC
     /// </summary>
     /// <remarks>
     /// Note: the GMCMarshaller uses its own message container format, and does not 
-    /// use the Lightweight DotNet Message Container Format.
+    /// use the LWMCF.
     /// </remarks>
     public class GMCMarshaller : IMarshaller
     {
