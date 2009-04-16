@@ -609,7 +609,7 @@ namespace GT.Net
             switch (message.Descriptor)
             {
             case SystemMessageType.IdentityResponse:
-                identity = BitConverter.ToInt32(message.data, 0);
+                identity = DataConverter.Converter.ToInt32(message.data, 0);
                 break;
 
             default:

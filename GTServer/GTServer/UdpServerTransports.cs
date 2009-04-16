@@ -171,7 +171,7 @@ namespace GT.Net
                     "should not receive datagrams whose size is less than PacketHeaderSize bytes", packet);
             }
             uint packetSeqNo = 0;
-            packet.BytesAt(0, 4, (b,offset) => packetSeqNo = BitConverter.ToUInt32(b, offset));
+            packet.BytesAt(0, 4, (b,offset) => packetSeqNo = DataConverter.Converter.ToUInt32(b, offset));
             packet.RemoveBytes(0, 4);
 
             // We handle wrap around by checking if the difference between the
@@ -187,7 +187,7 @@ namespace GT.Net
 
         protected override void WritePacketHeader(TransportPacket packet)
         {
-            packet.Prepend(BitConverter.GetBytes(nextOutgoingPacketSeqNo++));
+            packet.Prepend(DataConverter.Converter.GetBytes(nextOutgoingPacketSeqNo++));
         }
     }
 

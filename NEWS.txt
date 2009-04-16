@@ -94,6 +94,12 @@ Interoperability changes:
     the Marshal* methods are no longer responsible for encoding the
     payload length.
 
+  * System.BitConverter is not endian-agnostic.  We have provided a
+    new class, GT.Utils.DataConverter, to provide byte-level conversion
+    for most primitive types; the default converter is a LittleEndian
+    converter (since GT will be mostly used on LE machines).  This
+    change will only affect communication between BE machines.
+    Fixed <https://papyrus.usask.ca/trac/gt/ticket/81>.
 
 Developer-visible changes:
 ==========================

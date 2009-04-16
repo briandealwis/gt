@@ -137,7 +137,7 @@ namespace GT.GMC
                 // block of memory.  But if big, then we're probably better
                 // off using these byte arrays as the backing store.
                 TransportPacket newPacket = new TransportPacket(
-                    BitConverter.GetBytes(senderIdentity),
+                    DataConverter.Converter.GetBytes(senderIdentity),
                     ByteUtils.EncodeLength((uint)encoded.Length),
                     encoded);
                 result.AddPacket(newPacket);
@@ -150,7 +150,7 @@ namespace GT.GMC
         {
             Debug.Assert(messageAvailable != null, "callers must provide a messageAvailable handler");
             Stream input = packet.AsReadStream();
-            int encoderId = BitConverter.ToInt32(ByteUtils.Read(input, 4), 0);
+            int encoderId = DataConverter.Converter.ToInt32(ByteUtils.Read(input, 4), 0);
             uint length = ByteUtils.DecodeLength(input);
             byte[] decoded = Decode(encoderId, ByteUtils.Read(input, length));
             TransportPacket subPacket = TransportPacket.On(decoded);
@@ -326,7 +326,7 @@ namespace GT.GMC
             byte[] result = new byte[4];
             foreach (uint longForm in dictionary.Keys)
             {
-                BitConverter.GetBytes(longForm).CopyTo(result, 0);
+                DataConverter.Converter.GetBytes(longForm).CopyTo(result, 0);
                 output.Write(result, 0, 4);
                 output.WriteByte(dictionary[longForm]);
             }
@@ -440,7 +440,7 @@ namespace GT.GMC
             for (int i = 0; i < count; i++)
             {
                 input.Read(buffer, 0, 4);
-                result[BitConverter.ToUInt32(buffer, 0)] = (byte)input.ReadByte();
+                result[DataConverter.Converter.ToUInt32(buffer, 0)] = (byte)input.ReadByte();
             }
             return result;
         }

@@ -47,6 +47,7 @@
   <ItemGroup>
     <Compile Include="Collections.cs" />
     <Compile Include="BitUtils.cs" />
+    <Compile Include="DataConverter.cs" />
     <Compile Include="GetOpt.cs" />
     <Compile Include="GMC\CompressedStream.cs" />
     <Compile Include="GMC\HuffmanCompressor.cs" />

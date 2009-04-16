@@ -837,8 +837,8 @@ namespace GT.Net
                 try
                 {
                     byte[] pingmsg = new byte[8];
-                    BitConverter.GetBytes(Environment.TickCount).CopyTo(pingmsg, 0);
-                    BitConverter.GetBytes(pingSequence).CopyTo(pingmsg, 4);
+                    DataConverter.Converter.GetBytes(Environment.TickCount).CopyTo(pingmsg, 0);
+                    DataConverter.Converter.GetBytes(pingSequence).CopyTo(pingmsg, 4);
                     Send(new SystemMessage(SystemMessageType.PingRequest, pingmsg),
                         new SpecificTransportRequirement(t), null);
                     if (PingRequested != null) { PingRequested(t, pingSequence); }
@@ -994,14 +994,14 @@ namespace GT.Net
                 // record the difference; half of it is the latency between this client and the server
                 // Tickcount is the # milliseconds (fixme: this could wrap...)
                 int endCount = Environment.TickCount;
-                    int startCount = BitConverter.ToInt32(message.data, 0);
+                    int startCount = DataConverter.Converter.ToInt32(message.data, 0);
                 int roundtrip = endCount >= startCount ? endCount - startCount 
                     : (int.MaxValue - startCount) + endCount;
                 // NB: transport.Delay set may (and probably will) scale this value
                 transport.Delay = roundtrip / 2f;
                 if (PingReceived != null)
                 {
-                    uint sequence = BitConverter.ToUInt32(message.data, 4);
+                    uint sequence = DataConverter.Converter.ToUInt32(message.data, 4);
                     PingReceived(transport, sequence, TimeSpan.FromMilliseconds(roundtrip));
                 }
                 break;

@@ -719,7 +719,7 @@ namespace GT.Net
             base.AddTransport(t);
             // Send their identity right away
             Send(new SystemMessage(SystemMessageType.IdentityResponse,
-                    BitConverter.GetBytes(Identity)),
+                    DataConverter.Converter.GetBytes(Identity)),
                 new SpecificTransportRequirement(t), null);
         }
 
@@ -746,7 +746,7 @@ namespace GT.Net
                 //they want to know their own id?  They should have received it already...
                 // (see above in AddTransport())
                 Send(new SystemMessage(SystemMessageType.IdentityResponse,
-                        BitConverter.GetBytes(Identity)),
+                        DataConverter.Converter.GetBytes(Identity)),
                     new SpecificTransportRequirement(transport), null);
                 break;
 

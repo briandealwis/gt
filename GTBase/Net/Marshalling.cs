@@ -1,10 +1,8 @@
 using System;
-using System.Collections;
 using System.IO;
 using System.Runtime.Serialization.Formatters.Binary;
 using System.Text;
 using System.Diagnostics;
-using GT.Net;
 using System.Collections.Generic;
 using GT.Utils;
 
@@ -213,7 +211,7 @@ namespace GT.Net
         /// <item> byte 0 is the message type</item>
         /// <item> byte 1 is the channel</item>
         /// <item> bytes 2-6 encode the message data length using the 
-        ///     <see cref="BitConverter.GetBytes(uint)"/> format.</item>
+        ///     <see cref="DataConverter.Converter.GetBytes(uint)"/> format.</item>
         /// </list>
         /// </summary>
         public const string Descriptor = "LWMCF-1.1";
@@ -232,7 +230,7 @@ namespace GT.Net
             byte[] header = new byte[HeaderSize];
             header[0] = (byte)type;
             header[1] = channel;
-            byte[] encoded = BitConverter.GetBytes(length);
+            byte[] encoded = DataConverter.Converter.GetBytes(length);
             Debug.Assert(encoded.Length == 4);
             encoded.CopyTo(header, 2);
             return header;
@@ -245,7 +243,7 @@ namespace GT.Net
         {
             stream.WriteByte((byte)type);
             stream.WriteByte(channel);
-            byte[] encoded = BitConverter.GetBytes(length);
+            byte[] encoded = DataConverter.Converter.GetBytes(length);
             Debug.Assert(encoded.Length == 4);
             stream.Write(encoded, 0, 4);
         }
@@ -256,14 +254,14 @@ namespace GT.Net
             channel = (byte)stream.ReadByte();
             byte[] encoded = new byte[4];
             stream.Read(encoded, 0, 4);
-            length = BitConverter.ToUInt32(encoded, 0);
+            length = DataConverter.Converter.ToUInt32(encoded, 0);
         }
 
         public static void DecodeHeader(out MessageType type, out byte channel, out uint length, byte[] bytes, int offset)
         {
             type = (MessageType)bytes[offset + 0];
             channel = bytes[offset + 1];
-            length = BitConverter.ToUInt32(bytes, offset + 2);
+            length = DataConverter.Converter.ToUInt32(bytes, offset + 2);
         }
     }
 
@@ -354,7 +352,7 @@ namespace GT.Net
         protected void MarshalSessionAction(SessionMessage sm, Stream output)
         {
             output.WriteByte((byte)sm.Action);
-            output.Write(BitConverter.GetBytes(sm.ClientId), 0, 4);
+            output.Write(DataConverter.Converter.GetBytes(sm.ClientId), 0, 4);
         }
 
         protected void MarshalSystemMessage(SystemMessage systemMessage, Stream output)
@@ -414,7 +412,7 @@ namespace GT.Net
         {
             Debug.Assert(length == 5);
             SessionAction ac = (SessionAction)input.ReadByte();
-            return new SessionMessage(channel, BitConverter.ToInt32(ReadBytes(input, 4), 0), ac);
+            return new SessionMessage(channel, DataConverter.Converter.ToInt32(ReadBytes(input, 4), 0), ac);
         }
 
         #endregion
@@ -512,7 +510,7 @@ namespace GT.Net
 
         protected void MarshalTupleMessage(TupleMessage tm, Stream output)
         {
-            output.Write(BitConverter.GetBytes(tm.ClientId), 0, 4);
+            output.Write(DataConverter.Converter.GetBytes(tm.ClientId), 0, 4);
             if (tm.Dimension >= 1) { EncodeConvertible(tm.X, output); }
             if (tm.Dimension >= 2) { EncodeConvertible(tm.Y, output); }
             if (tm.Dimension >= 3) { EncodeConvertible(tm.Z, output); }
@@ -541,22 +539,22 @@ namespace GT.Net
                 long savedPosition = output.Position;
                 uint payloadLength = (uint)(output.Position - lengthPosition - 4);
                 output.Position = lengthPosition;
-                output.Write(BitConverter.GetBytes(payloadLength), 0, 4);
+                output.Write(DataConverter.Converter.GetBytes(payloadLength), 0, 4);
                 output.Position = savedPosition;
                 return;
             }
 
             // the following obtain byte arrays which are dumped below
-            case TypeCode.Char: result = BitConverter.GetBytes(value.ToChar(null)); break;
-            case TypeCode.Single: result = BitConverter.GetBytes(value.ToSingle(null)); break;
-            case TypeCode.Double: result = BitConverter.GetBytes(value.ToDouble(null)); break;
-            case TypeCode.Int16: result = BitConverter.GetBytes(value.ToInt16(null)); break;
-            case TypeCode.Int32: result = BitConverter.GetBytes(value.ToInt32(null)); break;
-            case TypeCode.Int64: result = BitConverter.GetBytes(value.ToInt64(null)); break;
-            case TypeCode.UInt16: result = BitConverter.GetBytes(value.ToUInt16(null)); break;
-            case TypeCode.UInt32: result = BitConverter.GetBytes(value.ToUInt32(null)); break;
-            case TypeCode.UInt64: result = BitConverter.GetBytes(value.ToUInt64(null)); break;
-            case TypeCode.DateTime: result = BitConverter.GetBytes(((DateTime)value).ToBinary()); break;
+            case TypeCode.Char: result = DataConverter.Converter.GetBytes(value.ToChar(null)); break;
+            case TypeCode.Single: result = DataConverter.Converter.GetBytes(value.ToSingle(null)); break;
+            case TypeCode.Double: result = DataConverter.Converter.GetBytes(value.ToDouble(null)); break;
+            case TypeCode.Int16: result = DataConverter.Converter.GetBytes(value.ToInt16(null)); break;
+            case TypeCode.Int32: result = DataConverter.Converter.GetBytes(value.ToInt32(null)); break;
+            case TypeCode.Int64: result = DataConverter.Converter.GetBytes(value.ToInt64(null)); break;
+            case TypeCode.UInt16: result = DataConverter.Converter.GetBytes(value.ToUInt16(null)); break;
+            case TypeCode.UInt32: result = DataConverter.Converter.GetBytes(value.ToUInt32(null)); break;
+            case TypeCode.UInt64: result = DataConverter.Converter.GetBytes(value.ToUInt64(null)); break;
+            case TypeCode.DateTime: result = DataConverter.Converter.GetBytes(((DateTime)value).ToBinary()); break;
 
             default: throw new MarshallingException("Unhandled form of IConvertible: " + value.GetTypeCode());
             }
@@ -608,7 +606,7 @@ namespace GT.Net
 
         protected TupleMessage UnmarshalTuple(byte channel, MessageType type, Stream input)
         {
-            int clientId = BitConverter.ToInt32(ReadBytes(input, 4), 0);
+            int clientId = DataConverter.Converter.ToInt32(ReadBytes(input, 4), 0);
             switch (type)
             {
             case MessageType.Tuple1D:
@@ -630,20 +628,20 @@ namespace GT.Net
             case TypeCode.Boolean: return input.ReadByte() == 0 ? false : true;
             case TypeCode.SByte: return (sbyte)(input.ReadByte() - 128);
             case TypeCode.Byte: return input.ReadByte();
-            case TypeCode.Char: return BitConverter.ToChar(ReadBytes(input, 2), 0);
-            case TypeCode.Single: return BitConverter.ToSingle(ReadBytes(input, 4), 0);
-            case TypeCode.Double: return BitConverter.ToDouble(ReadBytes(input, 8), 0);
-            case TypeCode.Int16: return BitConverter.ToInt16(ReadBytes(input, 2), 0);
-            case TypeCode.Int32: return BitConverter.ToInt32(ReadBytes(input, 4), 0);
-            case TypeCode.Int64: return BitConverter.ToInt64(ReadBytes(input, 8), 0);
-            case TypeCode.UInt16: return BitConverter.ToUInt16(ReadBytes(input, 2), 0);
-            case TypeCode.UInt32: return BitConverter.ToUInt32(ReadBytes(input, 4), 0);
-            case TypeCode.UInt64: return BitConverter.ToUInt64(ReadBytes(input, 8), 0);
-            case TypeCode.DateTime: return DateTime.FromBinary(BitConverter.ToInt64(ReadBytes(input, 8), 0));
+            case TypeCode.Char: return DataConverter.Converter.ToChar(ReadBytes(input, 2), 0);
+            case TypeCode.Single: return DataConverter.Converter.ToSingle(ReadBytes(input, 4), 0);
+            case TypeCode.Double: return DataConverter.Converter.ToDouble(ReadBytes(input, 8), 0);
+            case TypeCode.Int16: return DataConverter.Converter.ToInt16(ReadBytes(input, 2), 0);
+            case TypeCode.Int32: return DataConverter.Converter.ToInt32(ReadBytes(input, 4), 0);
+            case TypeCode.Int64: return DataConverter.Converter.ToInt64(ReadBytes(input, 8), 0);
+            case TypeCode.UInt16: return DataConverter.Converter.ToUInt16(ReadBytes(input, 2), 0);
+            case TypeCode.UInt32: return DataConverter.Converter.ToUInt32(ReadBytes(input, 4), 0);
+            case TypeCode.UInt64: return DataConverter.Converter.ToUInt64(ReadBytes(input, 8), 0);
+            case TypeCode.DateTime: return DateTime.FromBinary(DataConverter.Converter.ToInt64(ReadBytes(input, 8), 0));
 
             case TypeCode.Object: return (IConvertible)formatter.Deserialize(input);
             case TypeCode.String: {
-                uint length = BitConverter.ToUInt32(ReadBytes(input, 4), 0);
+                uint length = DataConverter.Converter.ToUInt32(ReadBytes(input, 4), 0);
                 StreamReader sr = new StreamReader(new WrappedStream(input, length), Encoding.UTF8);
                 return sr.ReadToEnd();
             }

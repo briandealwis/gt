@@ -588,7 +588,7 @@ namespace GT.UnitTests
             public void Inject(uint seqNo, TransportPacket payload)
             {
                 Debug.Assert(PacketHeaderSize == 4);
-                payload.Prepend(BitConverter.GetBytes(seqNo));
+                payload.Prepend(DataConverter.Converter.GetBytes(seqNo));
                 NotifyPacketReceived(payload);
             }
         }
@@ -603,7 +603,7 @@ namespace GT.UnitTests
             public void Inject(uint seqNo, TransportPacket payload)
             {
                 Debug.Assert(PacketHeaderSize == 4);
-                payload.Prepend(BitConverter.GetBytes(seqNo));
+                payload.Prepend(DataConverter.Converter.GetBytes(seqNo));
                 NotifyPacketReceived(payload);
             }
         }

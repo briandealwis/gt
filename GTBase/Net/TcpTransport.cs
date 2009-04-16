@@ -114,7 +114,7 @@ namespace GT.Net
 
             //DebugUtils.DumpMessage(this + "SendPacket", buffer, offset, length);
             Debug.Assert(PacketHeaderSize > 0);
-            packet.Prepend(BitConverter.GetBytes((uint)packet.Length));
+            packet.Prepend(DataConverter.Converter.GetBytes((uint)packet.Length));
 
             lock (this)
             {
@@ -271,7 +271,7 @@ namespace GT.Net
         {
             uint headerLength = 0;
             header.BytesAt(0, 4,
-                (b, offset) => headerLength = BitConverter.ToUInt32(b, offset));
+                (b, offset) => headerLength = DataConverter.Converter.ToUInt32(b, offset));
             return headerLength;
         }
 

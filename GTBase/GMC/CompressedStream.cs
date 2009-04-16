@@ -391,9 +391,9 @@ namespace GT.GMC
     //                return;
     //        }
 
-    //        BitConverter.GetBytes(e.UserID).CopyTo(b, 0);
-    //        BitConverter.GetBytes(e.Template).CopyTo(b, 5);
-    //        BitConverter.GetBytes(stream.Identity).CopyTo(b, 9);
+    //        DataConverter.Converter.GetBytes(e.UserID).CopyTo(b, 0);
+    //        DataConverter.Converter.GetBytes(e.Template).CopyTo(b, 5);
+    //        DataConverter.Converter.GetBytes(stream.Identity).CopyTo(b, 9);
 
     //        int count = e.IDs.Count;
     //        for (int i = 0; i < count; i++)
@@ -535,7 +535,10 @@ namespace GT.GMC
     //                        entry = new byte[7];
     //                        Array.Copy(messagePayload, i * 7, entry, 0, 7);
     //                        list.Add(entry);
-    //                        Console.WriteLine(currentTime + " Receiving announcement: name:" + BitConverter.ToInt16(entry, 0) + " longForm: " + BitConverter.ToInt32(entry, 2) + " shortForm: " + entry[6]);
+    //                        Console.WriteLine(currentTime + " Receiving announcement: name:" +
+    //                              DataConverter.Converter.ToInt16(entry, 0) +
+    //                              " longForm: " +
+    //                              DataConverter.Converter.ToInt32(entry, 2) + " shortForm: " + entry[6]);
     //                    }
     //                    gmc.ReceiveAnnouncements(list, userID);
     //                    break;
@@ -576,7 +579,7 @@ namespace GT.GMC
     //                for (int i = 0; i < count; i++)
     //                {
     //                    announcements[i].CopyTo(b, i * 7);
-    //                    Console.WriteLine(currentTime + " Sending announcement after request: name:" + BitConverter.ToInt16(announcements[i], 0) + " longForm: " + BitConverter.ToInt32(announcements[i], 2) + " shortForm: " + announcements[i][6]);
+    //                    Console.WriteLine(currentTime + " Sending announcement after request: name:" + DataConverter.Converter.ToInt16(announcements[i], 0) + " longForm: " + DataConverter.Converter.ToInt32(announcements[i], 2) + " shortForm: " + announcements[i][6]);
     //                }
     //                reply = new byte[13 + b.Length];
     //                reply[4] |= (byte)GMCMessageType.Announcements;
@@ -597,10 +600,10 @@ namespace GT.GMC
     //                return;
     //        }
 
-    //        BitConverter.GetBytes(userID).CopyTo(reply, 0);
+    //        DataConverter.Converter.GetBytes(userID).CopyTo(reply, 0);
     //        reply[4] |= (byte)GMCDestinationType.Directed;
-    //        BitConverter.GetBytes(templateID).CopyTo(reply, 5);
-    //        BitConverter.GetBytes(requesteeID).CopyTo(reply, 8);
+    //        DataConverter.Converter.GetBytes(templateID).CopyTo(reply, 5);
+    //        DataConverter.Converter.GetBytes(requesteeID).CopyTo(reply, 8);
 
     //        stream.Send(reply);
     //    }
@@ -617,7 +620,7 @@ namespace GT.GMC
     //                try
     //                {
     //                    GMCMessageType messageType = (GMCMessageType)(b[4] & maskGMCMessageType);
-    //                    int userID = BitConverter.ToInt32(b, 0);
+    //                    int userID = DataConverter.Converter.ToInt32(b, 0);
     //                    int templateID, requesteeID;
     //                    byte[] messagePayload;
 
@@ -640,8 +643,8 @@ namespace GT.GMC
     //                        case GMCMessageType.MissingAnnouncements:
     //                        case GMCMessageType.MissingFrequencies:
     //                        case GMCMessageType.MissingTemplates:
-    //                            templateID = BitConverter.ToInt32(b, 5);
-    //                            requesteeID = BitConverter.ToInt32(b, 9);
+    //                            templateID = DataConverter.Converter.ToInt32(b, 5);
+    //                            requesteeID = DataConverter.Converter.ToInt32(b, 9);
     //                            messagePayload = new byte[b.Length - 13];
     //                            Array.Copy(b, 13, messagePayload, 0, messagePayload.Length);
     //                            ReceiveRequest(currentTime, messageType, userID, templateID, requesteeID, messagePayload);
@@ -694,7 +697,7 @@ namespace GT.GMC
     //            if (co.Template != null)
     //            {
     //                data = new byte[co.Template.Length + 13];
-    //                BitConverter.GetBytes(Identity).CopyTo(data, 0);
+    //                DataConverter.Converter.GetBytes(Identity).CopyTo(data, 0);
     //                data[4] |= (byte)GMCMessageType.Template;
     //                data[4] |= (byte)GMCDestinationType.Broadcast;
     //                co.Template.CopyTo(data, 13);
@@ -707,13 +710,13 @@ namespace GT.GMC
     //            if (co.Announcements.Count > 0)
     //            {
     //                data = new byte[co.Announcements.Count * 7 + 13];
-    //                BitConverter.GetBytes(Identity).CopyTo(data, 0);
+    //                DataConverter.Converter.GetBytes(Identity).CopyTo(data, 0);
     //                data[4] |= (byte)GMCMessageType.Announcements;
     //                data[4] |= (byte)GMCDestinationType.Broadcast;
     //                for (int i = 0; i < co.Announcements.Count; i++)
     //                {
     //                    co.Announcements[i].CopyTo(data, 13 + i * 7);
-    //                    Console.WriteLine(System.Environment.TickCount + " Sending announcement: name:" + BitConverter.ToInt16(co.Announcements[i], 0) + " longForm: " + BitConverter.ToInt32(co.Announcements[i], 2) + " shortForm: " + co.Announcements[i][6]);
+    //                    Console.WriteLine(System.Environment.TickCount + " Sending announcement: name:" + DataConverter.Converter.ToInt16(co.Announcements[i], 0) + " longForm: " + DataConverter.Converter.ToInt32(co.Announcements[i], 2) + " shortForm: " + co.Announcements[i][6]);
     //                }
     //                stream.Send(data, MessageProtocol.Tcp, MessageAggregation.Yes, MessageOrder.AllChannel);
     //            }
@@ -721,7 +724,7 @@ namespace GT.GMC
     //            if (co.FrequencyTable != null)
     //            {
     //                data = new byte[co.FrequencyTable.Length + 13];
-    //                BitConverter.GetBytes(Identity).CopyTo(data, 0);
+    //                DataConverter.Converter.GetBytes(Identity).CopyTo(data, 0);
     //                data[4] |= (byte)GMCMessageType.FrequencyTable;
     //                data[4] |= (byte)GMCDestinationType.Broadcast;
     //                co.FrequencyTable.CopyTo(data, 13);
@@ -736,7 +739,7 @@ namespace GT.GMC
     //                data[4] |= (byte)GMCOrdering.OutOfOrder;
     //            else
     //                data[4] |= (byte)GMCOrdering.InOrder;
-    //            BitConverter.GetBytes(stream.Identity).CopyTo(data, 0);
+    //            DataConverter.Converter.GetBytes(stream.Identity).CopyTo(data, 0);
     //            co.Message.CopyTo(data, 5);
 
     //            //make sure the announcements and such get sent first
