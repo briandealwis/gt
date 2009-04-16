@@ -310,13 +310,18 @@ namespace GT.Net
             }
             else
             {
-                //  We use TransportPacket.Prepend to add the marshalling header in-place
+                // We use TransportPacket.Prepend to add the marshalling header in-place
                 // after the marshalling.
                 Stream output = tp.AsWriteStream();
                 Debug.Assert(output.CanSeek);
                 MarshalContents(msg, output, tdc);
                 output.Flush();
-                tp.Prepend(LWMCFv11.EncodeHeader(msg.MessageType, msg.Channel, (uint)output.Position));
+                /// System messages don't have a channel -- we encode their system message
+                /// type as the channel instead
+                tp.Prepend(LWMCFv11.EncodeHeader(msg.MessageType, 
+                    msg.MessageType == MessageType.System 
+                        ? (byte)((SystemMessage)msg).Descriptor : msg.Channel, 
+                    (uint)output.Position));
             }
             mr.AddPacket(tp);
             return mr;
@@ -355,10 +360,21 @@ namespace GT.Net
             output.Write(DataConverter.Converter.GetBytes(sm.ClientId), 0, 4);
         }
 
-        protected void MarshalSystemMessage(SystemMessage systemMessage, Stream output)
+        protected void MarshalSystemMessage(SystemMessage msg, Stream output)
         {
             // SystemMessageType is the channel
-            output.Write(systemMessage.data, 0, systemMessage.data.Length);
+            switch (msg.Descriptor)
+            {
+            case SystemMessageType.PingRequest:
+            case SystemMessageType.PingResponse:
+                ByteUtils.Write(DataConverter.Converter.GetBytes(((SystemPingMessage)msg).SentTime), output);
+                ByteUtils.Write(DataConverter.Converter.GetBytes(((SystemPingMessage)msg).Sequence), output);
+                break;
+
+            case SystemMessageType.IdentityResponse:
+                ByteUtils.Write(DataConverter.Converter.GetBytes(((SystemIdentityResponseMessage)msg).Identity), output);
+                break;
+            }
         }
 
         #endregion
@@ -404,7 +420,22 @@ namespace GT.Net
             Stream input, uint length)
         {
             // SystemMessageType is the channel
-            return new SystemMessage((SystemMessageType)channel, ReadBytes(input, length));
+            byte[] data = ReadBytes(input, length);
+            SystemMessageType smt = (SystemMessageType)channel;
+            switch (smt)
+            {
+            case SystemMessageType.PingRequest:
+            case SystemMessageType.PingResponse:
+                return new SystemPingMessage(smt,
+                    DataConverter.Converter.ToUInt32(data, 0),
+                    DataConverter.Converter.ToInt32(data, 4));
+
+            case SystemMessageType.IdentityResponse:
+                return new SystemIdentityResponseMessage(DataConverter.Converter.ToInt32(data, 0));
+
+            default:
+                return new SystemMessage(smt);
+            }
         }
 
         protected SessionMessage UnmarshalSessionAction(byte channel, MessageType type, 

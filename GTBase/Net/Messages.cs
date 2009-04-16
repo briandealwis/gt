@@ -133,26 +133,24 @@ namespace GT.Net
         }
     }
 
-    /// <summary>A GT control message.  System messages aren't sent
+    /// <summary>
+    /// A GT control message.  System messages aren't sent
     /// on a channel; the descriptor (the type of system message) is 
-    /// instead encoded as the channel.</summary>
+    /// instead encoded as the channel.
+    /// </summary>
     public class SystemMessage : Message
     {
-        public byte[] data;
-
         /// <summary>Create a new SystemMessage</summary>
         public SystemMessage(SystemMessageType t)
             : base((byte)t, MessageType.System)
         {
-            data = new byte[0];
         }
 
-        /// <summary>Create a new SystemMessage</summary>
-        public SystemMessage(SystemMessageType t, byte[] data)
-            : base((byte)t, MessageType.System)
-        {
-            this.data = data;
-        }
+        /// <summary>
+        /// Although system messages don't have a channel, some code assumes
+        /// that all messages have a channel.  So return a valid value.
+        /// </summary>
+        public override byte Channel { get { return 0; } }
 
         /// <summary>
         /// Return the system message descriptor.  System messages aren't sent
@@ -160,18 +158,63 @@ namespace GT.Net
         /// </summary>
         public SystemMessageType Descriptor { get { return (SystemMessageType)channel; } }
 
-        //public override byte Channel
-        //{
-        //    get
-        //    {
-        //        throw new NotSupportedException("system messages are not sent on a channel; use SystemMessage.Descriptor");
-        //    }
-        //}
-
         public override string ToString()
         {
-            return GetType().Name + "(" + Descriptor +
-                " data:[" + ByteUtils.DumpBytes(data) + "])";
+            StringBuilder result = new StringBuilder();
+            result.Append(GetType().Name);
+            result.Append('(');
+            result.Append(Descriptor);
+            string data = DataString();
+            if (data.Length > 0)
+            {
+                result.Append(':');
+                result.Append(data);
+            }
+            result.Append(')');
+            return result.ToString();
+        }
+
+        protected virtual string DataString()
+        {
+            return "";
+        }
+    }
+
+    /// <summary>
+    /// A system message either requesting or responding to a ping.
+    /// This is primarily intended for internal use.
+    /// </summary>
+    public class SystemPingMessage : SystemMessage
+    {
+        public uint Sequence { get; set; }
+        public int SentTime { get; set; }
+
+        public SystemPingMessage(SystemMessageType mt, uint sequence, int sentTime)
+            : base(mt)
+        {
+            Debug.Assert(mt == SystemMessageType.PingRequest || mt == SystemMessageType.PingResponse);
+            Sequence = sequence;
+            SentTime = sentTime;
+        }
+
+        protected override string DataString()
+        {
+            return "seq=" + Sequence + " sent=" + SentTime;
+        }
+    }
+
+    public class SystemIdentityResponseMessage : SystemMessage
+    {
+        public int Identity { get; set; }
+
+        public SystemIdentityResponseMessage(int identity) : base(SystemMessageType.IdentityResponse)
+        {
+            Identity = identity;
+        }
+
+        protected override string DataString()
+        {
+            return "id=" + Identity;
         }
     }
 

@@ -836,10 +836,7 @@ namespace GT.Net
             {
                 try
                 {
-                    byte[] pingmsg = new byte[8];
-                    DataConverter.Converter.GetBytes(Environment.TickCount).CopyTo(pingmsg, 0);
-                    DataConverter.Converter.GetBytes(pingSequence).CopyTo(pingmsg, 4);
-                    Send(new SystemMessage(SystemMessageType.PingRequest, pingmsg),
+                    Send(new SystemPingMessage(SystemMessageType.PingRequest, pingSequence, Environment.TickCount),
                         new SpecificTransportRequirement(t), null);
                     if (PingRequested != null) { PingRequested(t, pingSequence); }
                 }
@@ -986,7 +983,8 @@ namespace GT.Net
             switch (message.Descriptor)
             {
             case SystemMessageType.PingRequest:
-                Send(new SystemMessage(SystemMessageType.PingResponse, message.data),
+                Send(new SystemPingMessage(SystemMessageType.PingResponse, 
+                    ((SystemPingMessage)message).Sequence, ((SystemPingMessage)message).SentTime),
                         new SpecificTransportRequirement(transport), null);
                 break;
 
@@ -994,14 +992,14 @@ namespace GT.Net
                 // record the difference; half of it is the latency between this client and the server
                 // Tickcount is the # milliseconds (fixme: this could wrap...)
                 int endCount = Environment.TickCount;
-                    int startCount = DataConverter.Converter.ToInt32(message.data, 0);
+                int startCount = ((SystemPingMessage)message).SentTime;
                 int roundtrip = endCount >= startCount ? endCount - startCount 
                     : (int.MaxValue - startCount) + endCount;
                 // NB: transport.Delay set may (and probably will) scale this value
                 transport.Delay = roundtrip / 2f;
                 if (PingReceived != null)
                 {
-                    uint sequence = DataConverter.Converter.ToUInt32(message.data, 4);
+                    uint sequence = ((SystemPingMessage)message).Sequence;
                     PingReceived(transport, sequence, TimeSpan.FromMilliseconds(roundtrip));
                 }
                 break;
