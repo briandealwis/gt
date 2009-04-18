@@ -1,6 +1,3 @@
-using System;
-using System.Runtime.InteropServices;
-using System.ComponentModel;
 using System.Threading;
 using System.Diagnostics;
 using Common.Logging;

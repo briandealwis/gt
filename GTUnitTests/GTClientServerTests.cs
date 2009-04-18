@@ -177,7 +177,7 @@ namespace GT.UnitTests
             }
             Debug("Server: received greeting '" + s + "' on " + t);
             Debug("Server: sending response: '" + response + "'");
-            server.Send(response != null ? response : s, m.Channel, new SingleItem<IConnexion>(client),
+            server.Send(response != null ? response : s, m.ChannelId, new SingleItem<IConnexion>(client),
                 new MessageDeliveryRequirements(t.Reliability,
                     MessageAggregation.Immediate, Ordering.Unordered));
         }
@@ -190,7 +190,7 @@ namespace GT.UnitTests
             // Array.Reverse(buffer);
             Debug("Server: sending binary message in response");
             Debug(ByteUtils.HexDump(buffer));
-            server.Send(buffer, m.Channel, new SingleItem<IConnexion>(client),
+            server.Send(buffer, m.ChannelId, new SingleItem<IConnexion>(client),
                 new MessageDeliveryRequirements(t.Reliability, MessageAggregation.Immediate, Ordering.Unordered));
         }
 
@@ -199,7 +199,7 @@ namespace GT.UnitTests
             object o = ((ObjectMessage)m).Object;
             Debug("Server: received object '" + o + "' on " + t);
             Debug("Server: sending object back");
-            server.Send(o, m.Channel, new SingleItem<IConnexion>(client),
+            server.Send(o, m.ChannelId, new SingleItem<IConnexion>(client),
                 new MessageDeliveryRequirements(t.Reliability, MessageAggregation.Immediate, Ordering.Unordered));
         }
 
@@ -325,7 +325,7 @@ namespace GT.UnitTests
             Client c = new Client();
             try
             {
-                c.GetStringStream("localhost", "9999", 0, ChannelDeliveryRequirements.Data);
+                c.OpenStringChannel("localhost", "9999", 0, ChannelDeliveryRequirements.Data);
                 Assert.Fail("Should not reach here");
             }
             catch (InvalidStateException)
@@ -348,7 +348,7 @@ namespace GT.UnitTests
             c.Stop();
             try
             {
-                c.GetStringStream("localhost", "9999", 0, ChannelDeliveryRequirements.Data);
+                c.OpenStringChannel("localhost", "9999", 0, ChannelDeliveryRequirements.Data);
                 Assert.Fail("Should not reach here");
             }
             catch (InvalidStateException)
@@ -363,7 +363,7 @@ namespace GT.UnitTests
     }
 
     /// <summary>
-    /// Test that client-facing streams can handle messages that are
+    /// Test that client-facing channels can handle messages that are
     /// of a different type than expected.
     /// </summary>
     [TestFixture]
@@ -401,12 +401,12 @@ namespace GT.UnitTests
         [Test]
         public void TestObjectMessageMishandling()
         {
-            IObjectStream objStream = client.GetObjectStream("127.0.0.1", "9999", 0, ChannelDeliveryRequirements.LeastStrict);
+            IObjectChannel objChannel = client.OpenObjectChannel("127.0.0.1", "9999", 0, ChannelDeliveryRequirements.LeastStrict);
             for (int i = 0; server.Connexions.Count < 1 && i < 10; i++) { Thread.Sleep(200); }
-            Assert.IsNotNull(objStream);
+            Assert.IsNotNull(objChannel);
             Assert.AreEqual(1, server.Connexions.Count);
             bool received = false;
-            objStream.MessagesReceived += delegate { received = true; };
+            objChannel.MessagesReceived += delegate { received = true; };
             bool somethingReceived = false;
             foreach (IConnexion c in client.Connexions)
             {
@@ -422,7 +422,7 @@ namespace GT.UnitTests
             UpdateClient(() => received);
             Assert.IsTrue(somethingReceived); somethingReceived = false;
             Assert.IsFalse(received);
-            Assert.IsTrue(objStream.Count == 0);
+            Assert.IsTrue(objChannel.Count == 0);
 
             foreach (IConnexion c in server.Connexions)
             {
@@ -431,19 +431,19 @@ namespace GT.UnitTests
             UpdateClient(() => received);
             Assert.IsTrue(somethingReceived); somethingReceived = false;
             Assert.IsTrue(received);
-            Assert.IsTrue(objStream.Count > 0);
-            Assert.IsNotNull(objStream.DequeueMessage(0));
+            Assert.IsTrue(objChannel.Count > 0);
+            Assert.IsNotNull(objChannel.DequeueMessage(0));
         }
 
         [Test]
         public void TestStringMessageMishandling()
         {
-            IStringStream strStream = client.GetStringStream("127.0.0.1", "9999", 0, ChannelDeliveryRequirements.LeastStrict);
+            IStringChannel strChannel = client.OpenStringChannel("127.0.0.1", "9999", 0, ChannelDeliveryRequirements.LeastStrict);
             for (int i = 0; server.Connexions.Count < 1 && i < 10; i++) { Thread.Sleep(200); }
-            Assert.IsNotNull(strStream);
+            Assert.IsNotNull(strChannel);
             Assert.AreEqual(1, server.Connexions.Count);
             bool received = false;
-            strStream.MessagesReceived += delegate { received = true; };
+            strChannel.MessagesReceived += delegate { received = true; };
             bool somethingReceived = false;
             foreach (IConnexion c in client.Connexions)
             {
@@ -459,7 +459,7 @@ namespace GT.UnitTests
             UpdateClient(() => received);
             Assert.IsTrue(somethingReceived); somethingReceived = false;
             Assert.IsFalse(received);
-            Assert.IsTrue(strStream.Count == 0);
+            Assert.IsTrue(strChannel.Count == 0);
 
             foreach (IConnexion c in server.Connexions)
             {
@@ -468,19 +468,19 @@ namespace GT.UnitTests
             UpdateClient(() => received);
             Assert.IsTrue(somethingReceived); somethingReceived = false;
             Assert.IsTrue(received);
-            Assert.IsTrue(strStream.Count > 0);
-            Assert.IsNotNull(strStream.DequeueMessage(0));
+            Assert.IsTrue(strChannel.Count > 0);
+            Assert.IsNotNull(strChannel.DequeueMessage(0));
         }
 
         [Test]
         public void TestBinaryMessageMishandling()
         {
-            IBinaryStream binStream = client.GetBinaryStream("127.0.0.1", "9999", 0, ChannelDeliveryRequirements.LeastStrict);
+            IBinaryChannel binChannel = client.OpenBinaryChannel("127.0.0.1", "9999", 0, ChannelDeliveryRequirements.LeastStrict);
             for (int i = 0; server.Connexions.Count < 1 && i < 10; i++) { Thread.Sleep(200); }
-            Assert.IsNotNull(binStream);
+            Assert.IsNotNull(binChannel);
             Assert.AreEqual(1, server.Connexions.Count);
             bool received = false;
-            binStream.MessagesReceived += delegate { received = true; };
+            binChannel.MessagesReceived += delegate { received = true; };
             bool somethingReceived = false;
             foreach (IConnexion c in client.Connexions)
             {
@@ -496,7 +496,7 @@ namespace GT.UnitTests
             UpdateClient(() => received);
             Assert.IsTrue(somethingReceived); somethingReceived = false;
             Assert.IsFalse(received);
-            Assert.IsTrue(binStream.Count == 0);
+            Assert.IsTrue(binChannel.Count == 0);
 
             foreach (IConnexion c in server.Connexions)
             {
@@ -505,19 +505,19 @@ namespace GT.UnitTests
             UpdateClient(() => received);
             Assert.IsTrue(somethingReceived); somethingReceived = false;
             Assert.IsTrue(received);
-            Assert.IsTrue(binStream.Count > 0);
-            Assert.IsNotNull(binStream.DequeueMessage(0));
+            Assert.IsTrue(binChannel.Count > 0);
+            Assert.IsNotNull(binChannel.DequeueMessage(0));
         }
 
         [Test]
         public void TestSessionMessageMishandling()
         {
-            ISessionStream sessStream = client.GetSessionStream("127.0.0.1", "9999", 0, ChannelDeliveryRequirements.LeastStrict);
+            ISessionChannel sessChannel = client.OpenSessionChannel("127.0.0.1", "9999", 0, ChannelDeliveryRequirements.LeastStrict);
             for (int i = 0; server.Connexions.Count < 1 && i < 10; i++) { Thread.Sleep(200); }
-            Assert.IsNotNull(sessStream);
+            Assert.IsNotNull(sessChannel);
             Assert.AreEqual(1, server.Connexions.Count);
             bool received = false;
-            sessStream.MessagesReceived += delegate { received = true; };
+            sessChannel.MessagesReceived += delegate { received = true; };
             bool somethingReceived = false;
             foreach (IConnexion c in client.Connexions)
             {
@@ -533,7 +533,7 @@ namespace GT.UnitTests
             UpdateClient(() => received);
             Assert.IsTrue(somethingReceived); somethingReceived = false;
             Assert.IsFalse(received);
-            Assert.IsTrue(sessStream.Count == 0);
+            Assert.IsTrue(sessChannel.Count == 0);
 
             foreach (IConnexion c in server.Connexions)
             {
@@ -541,14 +541,14 @@ namespace GT.UnitTests
             }
             UpdateClient(() => received);
             Assert.IsTrue(received);
-            Assert.IsTrue(sessStream.Count > 0);
-            Assert.IsNotNull(sessStream.DequeueMessage(0));
+            Assert.IsTrue(sessChannel.Count > 0);
+            Assert.IsNotNull(sessChannel.DequeueMessage(0));
         }
 
         [Test]
         public void TestStreamed1TupleMishandling()
         {
-            IStreamedTuple<int> st = client.GetStreamedTuple<int>("127.0.0.1", "9999",
+            IStreamedTuple<int> st = client.OpenStreamedTuple<int>("127.0.0.1", "9999",
                 0, TimeSpan.FromSeconds(1), ChannelDeliveryRequirements.LeastStrict);
             for (int i = 0; server.Connexions.Count < 1 && i < 10; i++) { Thread.Sleep(200); }
             Assert.IsNotNull(st);
@@ -590,7 +590,7 @@ namespace GT.UnitTests
         [Test]
         public void TestStreamed2TupleMishandling()
         {
-            IStreamedTuple<int,int> st = client.GetStreamedTuple<int,int>("127.0.0.1", "9999",
+            IStreamedTuple<int,int> st = client.OpenStreamedTuple<int,int>("127.0.0.1", "9999",
                 0, TimeSpan.FromSeconds(1), ChannelDeliveryRequirements.LeastStrict);
             for (int i = 0; server.Connexions.Count < 1 && i < 10; i++) { Thread.Sleep(200); }
             Assert.IsNotNull(st);
@@ -633,7 +633,7 @@ namespace GT.UnitTests
         [Test]
         public void TestStreamed3TupleMishandling()
         {
-            IStreamedTuple<int, int, int> st = client.GetStreamedTuple<int, int, int>("127.0.0.1", "9999",
+            IStreamedTuple<int, int, int> st = client.OpenStreamedTuple<int, int, int>("127.0.0.1", "9999",
                 0, TimeSpan.FromSeconds(1), ChannelDeliveryRequirements.LeastStrict);
             for (int i = 0; server.Connexions.Count < 1 && i < 10; i++) { Thread.Sleep(200); }
             Assert.IsNotNull(st);
@@ -726,15 +726,15 @@ namespace GT.UnitTests
                     Console.WriteLine("CLIENT ERROR: " + es);
                     errorOccurred = true;
                 };
-                ISessionStream ss = client.GetSessionStream("localhost", "9999", 0, 
+                ISessionChannel ss = client.OpenSessionChannel("localhost", "9999", 0, 
                     ChannelDeliveryRequirements.SessionLike);
-                ss.MessagesReceived += delegate(ISessionStream stream) {
+                ss.MessagesReceived += delegate(ISessionChannel channel) {
                     SessionMessage sm; 
-                    while((sm = stream.DequeueMessage(0)) != null)
+                    while((sm = channel.DequeueMessage(0)) != null)
                     {
                         lock(this)
                         {
-                            if(!sessionMessages.ContainsKey(stream.Identity))
+                            if(!sessionMessages.ContainsKey(channel.Identity))
                             {
                                 sessionMessages[ss.Identity] = new List<SessionMessage>();
                                 orderedIdentities.Add(ss.Identity);
@@ -776,7 +776,7 @@ namespace GT.UnitTests
     /// Test basic GT functionality
     /// </summary>
     [TestFixture]
-    public class ZSStreamTests
+    public class ZSChannelTests
     {
         private bool verbose = false;
         private bool errorOccurred;
@@ -874,16 +874,16 @@ namespace GT.UnitTests
 
             {
                 Debug("Client: sending greeting: " + EXPECTED_GREETING);
-                IStringStream strStream = client.GetStringStream("127.0.0.1", "9999", 0,
+                IStringChannel strChannel = client.OpenStringChannel("127.0.0.1", "9999", 0,
                     ChannelDeliveryRequirements.CommandsLike);  //connect here
-                strStream.MessagesReceived += ClientStringMessageReceivedEvent;
-                strStream.Send(EXPECTED_GREETING);  //send a string
+                strChannel.MessagesReceived += ClientStringMessageReceivedEvent;
+                strChannel.Send(EXPECTED_GREETING);  //send a string
                 CheckForResponse();
-                Assert.AreEqual(1, strStream.Messages.Count);
-                string s = strStream.DequeueMessage(0);
+                Assert.AreEqual(1, strChannel.Messages.Count);
+                string s = strChannel.DequeueMessage(0);
                 Assert.IsNotNull(s);
                 Assert.AreEqual(EXPECTED_RESPONSE, s);
-                strStream.MessagesReceived -= ClientStringMessageReceivedEvent;
+                strChannel.MessagesReceived -= ClientStringMessageReceivedEvent;
             }
 
             foreach (IConnexion c in client.Connexions) { ((ConnexionToServer)c).Ping(); }
@@ -922,13 +922,13 @@ namespace GT.UnitTests
             Assert.IsFalse(errorOccurred);
             Assert.IsFalse(responseReceived);
 
-            IStringStream strStream = client.GetStringStream("127.0.0.1", "9999", 0,
+            IStringChannel strChannel = client.OpenStringChannel("127.0.0.1", "9999", 0,
                 ChannelDeliveryRequirements.CommandsLike); //connect here
-            strStream.MessagesReceived += ClientStringMessageReceivedEvent;
-            strStream.Send(EXPECTED_GREETING); //send a string
+            strChannel.MessagesReceived += ClientStringMessageReceivedEvent;
+            strChannel.Send(EXPECTED_GREETING); //send a string
             CheckForResponse();
 
-            Assert.IsFalse(strStream.Identity == 0, "Unique identity should be received");
+            Assert.IsFalse(strChannel.Identity == 0, "Unique identity should be received");
         }
 
         [Test]
@@ -942,18 +942,18 @@ namespace GT.UnitTests
             Assert.IsFalse(errorOccurred);
             Assert.IsFalse(responseReceived);
 
-            IStringStream origStream = client.GetStringStream("127.0.0.1", "9999", 0,
+            IStringChannel origChannel = client.OpenStringChannel("127.0.0.1", "9999", 0,
                 ChannelDeliveryRequirements.CommandsLike); //connect here
 
             Assert.IsTrue(client.Connexions.Count == 1);
             foreach (IConnexion cnx in client.Connexions) {
                 cnx.ShutDown(); cnx.Dispose();
             }
-            Assert.IsFalse(origStream.Connexion.Active, "connexion should now be closed");
+            Assert.IsFalse(origChannel.Connexion.Active, "connexion should now be closed");
             
-            IStringStream newStream = client.GetStringStream("127.0.0.1", "9999", 0,
+            IStringChannel newChannel = client.OpenStringChannel("127.0.0.1", "9999", 0,
                 ChannelDeliveryRequirements.CommandsLike); //connect here
-            Assert.IsTrue(newStream.Connexion.Active, "a new stream should have been provided");
+            Assert.IsTrue(newChannel.Connexion.Active, "a new channel should have been provided");
         }
 
         [Test]
@@ -969,16 +969,16 @@ namespace GT.UnitTests
 
             {
                 Debug("Client: sending greeting: " + EXPECTED_GREETING);
-                IStringStream strStream = client.GetStringStream("127.0.0.1", "9999", 0,
+                IStringChannel strChannel = client.OpenStringChannel("127.0.0.1", "9999", 0,
                     ChannelDeliveryRequirements.CommandsLike);  //connect here
-                strStream.MessagesReceived += ClientStringMessageReceivedEvent;
-                strStream.Send(EXPECTED_GREETING);  //send a string
+                strChannel.MessagesReceived += ClientStringMessageReceivedEvent;
+                strChannel.Send(EXPECTED_GREETING);  //send a string
                 CheckForResponse();
-                Assert.AreEqual(1, strStream.Messages.Count);
-                string s = strStream.DequeueMessage(0);
+                Assert.AreEqual(1, strChannel.Messages.Count);
+                string s = strChannel.DequeueMessage(0);
                 Assert.IsNotNull(s);
                 Assert.AreEqual(EXPECTED_RESPONSE, s);
-                strStream.MessagesReceived -= ClientStringMessageReceivedEvent;
+                strChannel.MessagesReceived -= ClientStringMessageReceivedEvent;
             }
 
             client.Stop();
@@ -1012,27 +1012,27 @@ namespace GT.UnitTests
 
             {
                 Debug("Client: sending greeting: " + EXPECTED_GREETING);
-                IStringStream strStream = client.GetStringStream("127.0.0.1", "9999", 0,
+                IStringChannel strChannel = client.OpenStringChannel("127.0.0.1", "9999", 0,
                     new SpecificTransportChannelDeliveryRequirements(typeof(LocalTransport))); //connect here
-                strStream.MessagesReceived += ClientStringMessageReceivedEvent;
+                strChannel.MessagesReceived += ClientStringMessageReceivedEvent;
                 Assert.IsTrue(connexionAdded, "should have connected");
 
                 for (int i = 0; i < 5; i++)
                 {
-                    strStream.Send(EXPECTED_GREETING,
+                    strChannel.Send(EXPECTED_GREETING,
                         new MessageDeliveryRequirements(Reliability.Reliable,
                             MessageAggregation.Aggregatable, Ordering.Unordered));
                     ProcessEvents();
                     Assert.AreEqual(0, messagesReceived);
                     Assert.AreEqual(0, messagesSent);
-                    Assert.AreEqual(0, strStream.Messages.Count);
+                    Assert.AreEqual(0, strChannel.Messages.Count);
                 }
 
-                strStream.Send(EXPECTED_GREETING);
+                strChannel.Send(EXPECTED_GREETING);
                 Assert.AreEqual(6, messagesSent);
                 ProcessEvents();
                 Assert.AreEqual(6, messagesReceived);
-                Assert.AreEqual(6, strStream.Messages.Count);
+                Assert.AreEqual(6, strChannel.Messages.Count);
             }
         }
 
@@ -1061,24 +1061,67 @@ namespace GT.UnitTests
                 ChannelDeliveryRequirements cdr = new SpecificTransportChannelDeliveryRequirements(typeof(LocalTransport));
                 cdr.Aggregation = MessageAggregation.Aggregatable;
                 cdr.Freshness = Freshness.IncludeLatestOnly;
-                IStringStream strStream = client.GetStringStream("127.0.0.1", "9999", 0, cdr);
-                strStream.MessagesReceived += ClientStringMessageReceivedEvent;
+                IStringChannel strChannel = client.OpenStringChannel("127.0.0.1", "9999", 0, cdr);
+                strChannel.MessagesReceived += ClientStringMessageReceivedEvent;
                 Assert.IsTrue(connexionAdded, "should have connected");
 
                 for (int i = 0; i < 5; i++)
                 {
-                    strStream.Send(EXPECTED_GREETING);
+                    strChannel.Send(EXPECTED_GREETING);
                     ProcessEvents();
                     Assert.AreEqual(0, messagesReceived);
                     Assert.AreEqual(0, messagesSent);
-                    Assert.AreEqual(0, strStream.Messages.Count);
+                    Assert.AreEqual(0, strChannel.Messages.Count);
                 }
 
-                strStream.Flush();
+                strChannel.Flush();
                 Assert.AreEqual(1, messagesSent);
                 ProcessEvents();
                 Assert.AreEqual(1, messagesReceived);
-                Assert.AreEqual(1, strStream.Messages.Count);
+                Assert.AreEqual(1, strChannel.Messages.Count);
+            }
+        }
+
+        [Test]
+        public void TestMultipleChannels()
+        {
+            StartExpectedResponseServer(EXPECTED_GREETING, EXPECTED_RESPONSE);
+
+            client = new LocalClientConfiguration().BuildClient(); //this is a client
+            client.ErrorEvent += client_ErrorEvent; //triggers if there is an error
+            client.Start();
+            Assert.IsFalse(errorOccurred);
+            Assert.IsFalse(responseReceived);
+
+            IStringChannel ch1 = client.OpenStringChannel("127.0.0.1", "9999", 0,
+                ChannelDeliveryRequirements.CommandsLike);
+            IStringChannel ch2 = client.OpenStringChannel("127.0.0.1", "9999", 0,
+                ChannelDeliveryRequirements.CommandsLike);
+            Assert.IsTrue(ch1 != ch2);
+            Assert.IsTrue(ch1.Active && ch2.Active);
+            Assert.IsTrue(ch1.Connexion == ch2.Connexion);
+
+            int mr = 0;
+            ch1.MessagesReceived += ClientStringMessageReceivedEvent;
+            ch1.MessagesReceived += delegate { mr++; };
+            ch2.MessagesReceived += delegate { mr++; };
+
+            ch1.Send(EXPECTED_GREETING);
+            CheckForResponse();
+            Assert.AreEqual(2, mr);
+            Assert.AreEqual(1, ch1.Count);
+            Assert.AreEqual(1, ch2.Count);
+
+            ch1.Dispose();
+            ch2.Dispose();
+            try
+            {
+                ch1.Send(EXPECTED_GREETING);
+                Assert.Fail("Send on a disposed channel should have failed");
+            }
+            catch (InvalidStateException)
+            {
+                /*expected*/
             }
         }
 
@@ -1125,15 +1168,15 @@ namespace GT.UnitTests
 
             {
                 Debug("Client: sending greeting: " + EXPECTED_GREETING);
-                IStringStream strStream = client.GetStringStream("127.0.0.1", "9999", 0, cdr);  //connect here
-                strStream.MessagesReceived += ClientStringMessageReceivedEvent;
-                strStream.Send(EXPECTED_GREETING);  //send a string
+                IStringChannel strChannel = client.OpenStringChannel("127.0.0.1", "9999", 0, cdr);  //connect here
+                strChannel.MessagesReceived += ClientStringMessageReceivedEvent;
+                strChannel.Send(EXPECTED_GREETING);  //send a string
                 CheckForResponse();
-                Assert.AreEqual(1, strStream.Messages.Count);
-                string s = strStream.DequeueMessage(0);
+                Assert.AreEqual(1, strChannel.Messages.Count);
+                string s = strChannel.DequeueMessage(0);
                 Assert.IsNotNull(s);
                 Assert.AreEqual(EXPECTED_RESPONSE, s);
-                strStream.MessagesReceived -= ClientStringMessageReceivedEvent;
+                strChannel.MessagesReceived -= ClientStringMessageReceivedEvent;
             }
 
             responseReceived = false;
@@ -1143,15 +1186,15 @@ namespace GT.UnitTests
             {
                 byte[] sentBytes = new byte[] { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9 };
                 Debug("Client: sending byte message: [0 1 2 3 4 5 6 7 8 9]");
-                IBinaryStream binStream = client.GetBinaryStream("127.0.0.1", "9999", 0, cdr);  //connect here
-                binStream.MessagesReceived += ClientBinaryMessageReceivedEvent;
-                binStream.Send(sentBytes);
+                IBinaryChannel binChannel = client.OpenBinaryChannel("127.0.0.1", "9999", 0, cdr);  //connect here
+                binChannel.MessagesReceived += ClientBinaryMessageReceivedEvent;
+                binChannel.Send(sentBytes);
                 CheckForResponse();
-                Assert.AreEqual(1, binStream.Messages.Count);
-                byte[] bytes = binStream.DequeueMessage(0);
+                Assert.AreEqual(1, binChannel.Messages.Count);
+                byte[] bytes = binChannel.DequeueMessage(0);
                 Assert.IsNotNull(bytes);
                 Assert.AreEqual(sentBytes, bytes);
-                binStream.MessagesReceived -= ClientBinaryMessageReceivedEvent;
+                binChannel.MessagesReceived -= ClientBinaryMessageReceivedEvent;
             }
 
             responseReceived = false;
@@ -1160,16 +1203,16 @@ namespace GT.UnitTests
 
             {
                 Debug("Client: sending greeting: list(\"hello\",\"world\")");
-                IObjectStream objStream = client.GetObjectStream("127.0.0.1", "9999", 0, cdr);  //connect here
-                objStream.MessagesReceived += ClientObjectMessageReceivedEvent;
-                objStream.Send(new List<string>(new string[] { "hello", "world" }));  //send a string
+                IObjectChannel objChannel = client.OpenObjectChannel("127.0.0.1", "9999", 0, cdr);  //connect here
+                objChannel.MessagesReceived += ClientObjectMessageReceivedEvent;
+                objChannel.Send(new List<string>(new string[] { "hello", "world" }));  //send a string
                 CheckForResponse();
-                Assert.AreEqual(1, objStream.Messages.Count);
-                object o = objStream.DequeueMessage(0);
+                Assert.AreEqual(1, objChannel.Messages.Count);
+                object o = objChannel.DequeueMessage(0);
                 Assert.IsNotNull(o);
                 Assert.IsInstanceOfType(typeof(List<string>), o);
                 Assert.AreEqual(new List<string>(new string[] { "hello", "world" }), o);
-                objStream.MessagesReceived -= ClientObjectMessageReceivedEvent;
+                objChannel.MessagesReceived -= ClientObjectMessageReceivedEvent;
             }
 
             responseReceived = false;
@@ -1178,15 +1221,15 @@ namespace GT.UnitTests
 
             {
                 Debug("Client: sending greeting: SessionAction.Joined");
-                ISessionStream sessStream = client.GetSessionStream("127.0.0.1", "9999", 0, cdr);  //connect here
-                sessStream.MessagesReceived += ClientSessionMessageReceivedEvent;
-                sessStream.Send(SessionAction.Joined);  //send a string
+                ISessionChannel sessChannel = client.OpenSessionChannel("127.0.0.1", "9999", 0, cdr);  //connect here
+                sessChannel.MessagesReceived += ClientSessionMessageReceivedEvent;
+                sessChannel.Send(SessionAction.Joined);  //send a string
                 CheckForResponse();
-                Assert.AreEqual(1, sessStream.Messages.Count);
-                SessionMessage sm = sessStream.DequeueMessage(0);
+                Assert.AreEqual(1, sessChannel.Messages.Count);
+                SessionMessage sm = sessChannel.DequeueMessage(0);
                 Assert.IsNotNull(sm);
                 Assert.AreEqual(sm.Action, SessionAction.Joined);
-                sessStream.MessagesReceived -= ClientSessionMessageReceivedEvent;
+                sessChannel.MessagesReceived -= ClientSessionMessageReceivedEvent;
             }
 
             responseReceived = false;
@@ -1196,7 +1239,7 @@ namespace GT.UnitTests
             {
                 Debug("Client: sending tuple message: [-1, 0, 1]");
                 IStreamedTuple<int, int, int> tupleStream = 
-                    client.GetStreamedTuple<int, int, int>("127.0.0.1", "9999", 0, 
+                    client.OpenStreamedTuple<int, int, int>("127.0.0.1", "9999", 0, 
                     TimeSpan.FromMilliseconds(20), cdr);
                 tupleStream.StreamedTupleReceived += ClientTupleMessageReceivedEvent;
                 tupleStream.X = -1;
@@ -1210,25 +1253,25 @@ namespace GT.UnitTests
             }
         }
 
-        void ClientStringMessageReceivedEvent(IStringStream stream)
+        void ClientStringMessageReceivedEvent(IStringChannel channel)
         {
             Debug("Client: received a string response\n");
             responseReceived = true;
         }
 
-        void ClientBinaryMessageReceivedEvent(IBinaryStream stream)
+        void ClientBinaryMessageReceivedEvent(IBinaryChannel channel)
         {
             Debug("Client: received a byte[] response\n");
             responseReceived = true;
         }
 
-        void ClientObjectMessageReceivedEvent(IObjectStream stream)
+        void ClientObjectMessageReceivedEvent(IObjectChannel channel)
         {
             Debug("Client: received a object response\n");
             responseReceived = true;
         }
 
-        void ClientSessionMessageReceivedEvent(ISessionStream stream)
+        void ClientSessionMessageReceivedEvent(ISessionChannel channel)
         {
             Debug("Client: received a session response\n");
             responseReceived = true;
@@ -1289,7 +1332,7 @@ namespace GT.UnitTests
                 clients.Add(c);
                 c.Start();
                 AggregatingSharedDictionary d =
-                    new AggregatingSharedDictionary(c.GetObjectStream("127.0.0.1", "9678", 0,
+                    new AggregatingSharedDictionary(c.OpenObjectChannel("127.0.0.1", "9678", 0,
                         new ChannelDeliveryRequirements(Reliability.Reliable, MessageAggregation.Aggregatable,
                             Ordering.Ordered)), TimeSpan.FromMilliseconds(20));
                 d.ChangeEvent += DictionaryChanged;
@@ -1394,7 +1437,7 @@ namespace GT.UnitTests
             return new Client(this);
         }
 
-        public override ConnexionToServer CreateServerConnexion(Client owner, string address, string port)
+        public override IConnexion CreateServerConnexion(Client owner, string address, string port)
         {
             return new DebuggingServerConnexion(owner, address, port);
         }
@@ -1439,7 +1482,7 @@ namespace GT.UnitTests
             client = new TcpClientConfiguration().BuildClient();
             client.Start();
 
-            IStringStream stream = client.GetStringStream("localhost", "9999", 0, 
+            IStringChannel channel = client.OpenStringChannel("localhost", "9999", 0, 
                 ChannelDeliveryRequirements.MostStrict);
             Assert.AreEqual(1, client.Connexions.Count);
             Assert.IsInstanceOfType(typeof(DebuggingServerConnexion), new List<IConnexion>(client.Connexions)[0]);
@@ -1448,10 +1491,10 @@ namespace GT.UnitTests
             Assert.IsInstanceOfType(typeof(TcpTransport), sc.Transports[0]);
             TcpTransport transport = (TcpTransport)sc.Transports[0];
 
-            stream.Send("foo");
+            channel.Send("foo");
             CheckUpdates();
-            Assert.IsTrue(stream.Count > 0);
-            Assert.AreEqual("foo", stream.DequeueMessage(0));
+            Assert.IsTrue(channel.Count > 0);
+            Assert.AreEqual("foo", channel.DequeueMessage(0));
 
             sc.TriggerTransportError(transport);
 
@@ -1459,10 +1502,10 @@ namespace GT.UnitTests
             Assert.IsInstanceOfType(typeof(TcpTransport), sc.Transports[0]);
             Assert.IsFalse(transport == sc.Transports[0]);  // should be a new connection
 
-            stream.Send("foo");
+            channel.Send("foo");
             CheckUpdates();
-            Assert.IsTrue(stream.Count > 0);
-            Assert.AreEqual("foo", stream.DequeueMessage(0));
+            Assert.IsTrue(channel.Count > 0);
+            Assert.AreEqual("foo", channel.DequeueMessage(0));
 
 
         }

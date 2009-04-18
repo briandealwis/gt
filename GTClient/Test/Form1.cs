@@ -12,7 +12,7 @@ namespace Test
     public partial class Form1 : Form
     {
         Client client = new Client();
-        StringStream stream;
+        IStringChannel channel;
 
         int sent;
         int received;
@@ -20,7 +20,7 @@ namespace Test
         public Form1()
         {
             InitializeComponent();
-            stream = client.GetStringStream("127.0.0.1", "9999", 0);
+            channel = client.OpenStringChannel("127.0.0.1", "9999", 0);
         }
 
         private void Form1_Load(object sender, EventArgs e)
@@ -30,10 +30,10 @@ namespace Test
                 string test = "";
                 for (int i = 0; i < 9999; i++)
                     test += "test";
-                stream.Send(test);
+                channel.Send(test);
                 sent++;
                 client.Update();
-                while (stream.DequeueMessage(0) != null)
+                while (channel.DequeueMessage(0) != null)
                     received++;
             }
         }

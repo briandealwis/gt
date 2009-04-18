@@ -28,7 +28,7 @@ namespace GT.UnitTests
             m.Unmarshal(mr.Packets[0], new DummyTransportChar(6000), 
                 delegate(object sender, MessageEventArgs e) {
                     sawResult = true;
-                    Assert.AreEqual(0, e.Message.Channel);
+                    Assert.AreEqual(0, e.Message.ChannelId);
                     Assert.AreEqual(MessageType.Binary, e.Message.MessageType);
                     Assert.AreEqual(0, ((BinaryMessage)e.Message).Bytes.Length);
                 });
@@ -68,7 +68,7 @@ namespace GT.UnitTests
                 m.Unmarshal(packet, tdc,
                     delegate(object sender, MessageEventArgs e) {
                         sawResult = true;
-                        Assert.AreEqual(0, e.Message.Channel);
+                        Assert.AreEqual(0, e.Message.ChannelId);
                         Assert.AreEqual(MessageType.Binary, e.Message.MessageType);
                         Assert.AreEqual(sourceData, ((BinaryMessage)e.Message).Bytes);
                     });
@@ -112,7 +112,7 @@ namespace GT.UnitTests
                     delegate(object sender, MessageEventArgs e)
                     {
                         sawResult = true;
-                        Assert.AreEqual(0, e.Message.Channel);
+                        Assert.AreEqual(0, e.Message.ChannelId);
                         Assert.AreEqual(MessageType.Binary, e.Message.MessageType);
                         Assert.AreEqual(sourceData, ((BinaryMessage)e.Message).Bytes);
                     });
@@ -157,13 +157,13 @@ namespace GT.UnitTests
                     mr.Packets[i].BytesAt(0, (int)LWMCFv11.HeaderSize,
                         delegate(byte[] buffer, int offset) {
                             MessageType mt;
-                            byte channel;
+                            byte channelId;
                             uint len;
-                            LWMCFv11.DecodeHeader(out mt, out channel, out len, buffer, offset);
+                            LWMCFv11.DecodeHeader(out mt, out channelId, out len, buffer, offset);
                             Assert.IsTrue(((byte)mt & 128) != 0, 
                                 "fragmented messages should have high-bit set");
                             Assert.AreEqual(MessageType.Binary, (MessageType)((byte)mt & 127));
-                            Assert.AreEqual(0, channel);
+                            Assert.AreEqual(0, channelId);
                             Assert.AreEqual(mr.Packets[i].Length - LWMCFv11.HeaderSize, len);
                         });
                     
@@ -202,7 +202,7 @@ namespace GT.UnitTests
                         delegate(object sender, MessageEventArgs e)
                         {
                             sawResult = true;
-                            Assert.AreEqual(0, e.Message.Channel);
+                            Assert.AreEqual(0, e.Message.ChannelId);
                             Assert.AreEqual(MessageType.Binary, e.Message.MessageType);
                             Assert.AreEqual(sourceData, ((BinaryMessage)e.Message).Bytes);
                         });

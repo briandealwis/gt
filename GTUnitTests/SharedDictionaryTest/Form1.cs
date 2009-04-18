@@ -19,7 +19,7 @@ namespace SharedDictionaryTest
             InitializeComponent();
 
             c = new Client();
-            sd = new SimpleSharedDictionary(c.GetBinaryStream("127.0.0.1", "9999", 0));
+            sd = new SimpleSharedDictionary(c.OpenBinaryChannel("127.0.0.1", "9999", 0));
             sd.ChangeEvent += new SimpleSharedDictionary.Change(sd_ChangeEvent);
         }
 

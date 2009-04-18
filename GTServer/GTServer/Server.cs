@@ -509,35 +509,35 @@ namespace GT.Net
 
         #region Sending
 
-        /// <summary>Sends a byte array on <see cref="channel"/> to many clients in an efficient manner.</summary>
+        /// <summary>Sends a byte array on <see cref="channelId"/> to many clients in an efficient manner.</summary>
         /// <param name="buffer">The byte array to send</param>
-        /// <param name="channel">The channel to be sent on</param>
+        /// <param name="channelId">The channel to be sent on</param>
         /// <param name="list">The list of clients; if null then all clients</param>
         /// <param name="mdr">How to send it (can be null)</param>
-        virtual public void Send(byte[] buffer, byte channel, ICollection<IConnexion> list, MessageDeliveryRequirements mdr)
+        virtual public void Send(byte[] buffer, byte channelId, ICollection<IConnexion> list, MessageDeliveryRequirements mdr)
         {
-            Send(new SingleItem<Message>(new BinaryMessage(channel, buffer)),
+            Send(new SingleItem<Message>(new BinaryMessage(channelId, buffer)),
 		list, mdr);
         }
 
-        /// <summary>Sends a string on <see cref="channel"/> to many clients in an efficient manner.</summary>
+        /// <summary>Sends a string on <see cref="channelId"/> to many clients in an efficient manner.</summary>
         /// <param name="s">The string to send</param>
-        /// <param name="channel">The channel to be sent on</param>
+        /// <param name="channelId">The channel to be sent on</param>
         /// <param name="list">The list of clients; if null then all clients</param>
         /// <param name="mdr">How to send it (can be null)</param>
-        virtual public void Send(string s, byte channel, ICollection<IConnexion> list, MessageDeliveryRequirements mdr)
+        virtual public void Send(string s, byte channelId, ICollection<IConnexion> list, MessageDeliveryRequirements mdr)
         {
-            Send(new SingleItem<Message>(new StringMessage(channel, s)), list, mdr);
+            Send(new SingleItem<Message>(new StringMessage(channelId, s)), list, mdr);
         }
 
-        /// <summary>Sends an object on <see cref="channel"/> to many clients in an efficient manner.</summary>
+        /// <summary>Sends an object on <see cref="channelId"/> to many clients in an efficient manner.</summary>
         /// <param name="o">The object to send</param>
-        /// <param name="channel">The channel to be sent on</param>
+        /// <param name="channelId">The channel to be sent on</param>
         /// <param name="list">The list of clients; if null then all clients</param>
         /// <param name="mdr">How to send it (can be null)</param>
-        virtual public void Send(object o, byte channel, ICollection<IConnexion> list, MessageDeliveryRequirements mdr)
+        virtual public void Send(object o, byte channelId, ICollection<IConnexion> list, MessageDeliveryRequirements mdr)
         {
-            Send(new SingleItem<Message>(new ObjectMessage(channel, o)), list, mdr);
+            Send(new SingleItem<Message>(new ObjectMessage(channelId, o)), list, mdr);
         }
 
         /// <summary>Send a message to many clients in an efficient manner.</summary>
@@ -566,7 +566,7 @@ namespace GT.Net
                 //Console.WriteLine("{0}: sending to {1}", this, c);
                 try
                 {
-                    c.Send(messages, mdr, GetChannelDeliveryRequirements(messages[0].Channel));
+                    c.Send(messages, mdr, GetChannelDeliveryRequirements(messages[0].ChannelId));
                 }
                 catch (GTException e)
                 {
@@ -581,29 +581,29 @@ namespace GT.Net
         /// Return the delivery requirements for a channel; if the channel has not hd
         /// a set of delivery requirements configured, then return the default set.
         /// </summary>
-        /// <param name="channel">the channel</param>
+        /// <param name="channelId">the channel</param>
         /// <returns>the delivery requirements configured for the channel</returns>
-        virtual public ChannelDeliveryRequirements GetChannelDeliveryRequirements(byte channel)
+        virtual public ChannelDeliveryRequirements GetChannelDeliveryRequirements(byte channelId)
         {
             ChannelDeliveryRequirements cdr;
-            if (channelRequirements.TryGetValue(channel, out cdr)) { return cdr; }
+            if (channelRequirements.TryGetValue(channelId, out cdr)) { return cdr; }
             return configuration.DefaultChannelRequirements();
         }
 
         /// <summary>
         /// Set the delivery requirements for a particular channel.
         /// </summary>
-        /// <param name="channel">the channel</param>
+        /// <param name="channelId">the channel</param>
         /// <param name="cdr">the delivery requirements to be configured; null to remove</param>
-        virtual public void SetChannelDeliveryRequirements(byte channel, ChannelDeliveryRequirements cdr)
+        virtual public void SetChannelDeliveryRequirements(byte channelId, ChannelDeliveryRequirements cdr)
         {
             if (cdr == null)
             {
-                channelRequirements.Remove(channel);
+                channelRequirements.Remove(channelId);
             }
             else
             {
-                channelRequirements[channel] = cdr;
+                channelRequirements[channelId] = cdr;
             }
         }
 
@@ -725,13 +725,13 @@ namespace GT.Net
         /// <summary>Send notice of some session action.</summary>
         /// <param name="clientId">The subject of the action.</param>
         /// <param name="e">The session action.</param>
-        /// <param name="channel">Channel on which to send the notice.</param>
+        /// <param name="channelId">Channel on which to send the notice.</param>
         /// <param name="mdr">How to send the session message (can be null)</param>
         /// <param name="cdr">Requirements for the message's channel.</param>
-        public void Send(int clientId, SessionAction e, byte channel, MessageDeliveryRequirements mdr,
+        public void Send(int clientId, SessionAction e, byte channelId, MessageDeliveryRequirements mdr,
             ChannelDeliveryRequirements cdr)
         {
-            Send(new SessionMessage(channel, clientId, e), mdr, cdr);
+            Send(new SessionMessage(channelId, clientId, e), mdr, cdr);
         }
 
         /// <summary>Handles a system message in that it takes the information and does something with it.</summary>

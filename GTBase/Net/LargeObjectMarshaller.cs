@@ -32,19 +32,19 @@ namespace GT.Net
     /// <list>
     /// <item> if the message fits into a transport packet, then the message 
     ///     is returned as-is:
-    ///     <pre>[byte:message-type] [byte:channel] [uint32:packet-size] 
+    ///     <pre>[byte:message-type] [byte:channelId] [uint32:packet-size] 
     ///         [bytes:original packet]</pre>
     /// </item>
     /// <item> if the message is the first fragment, then the high-bit is
     ///     set on the message-type; the number of fragments is encoded using
     ///     the adaptive <see cref="ByteUtils.EncodeLength(int)"/> format.
-    ///     <pre>[byte:message-type'] [byte:channel] [uint32:packet-size] 
+    ///     <pre>[byte:message-type'] [byte:channelId] [uint32:packet-size] 
     ///         [byte:seqno] [bytes:encoded-#-fragments] [bytes:frag]</pre>
     /// </item>
     /// <item> for all subsequent fragments; seqno' = seqno | 128;
     ///     the number of fragments is encoded using the adaptive 
     ///     <see cref="ByteUtils.EncodeLength(int)"/> format.
-    ///     <pre>[byte:message-type'] [byte:channel] [uint32:packet-size] 
+    ///     <pre>[byte:message-type'] [byte:channelId] [uint32:packet-size] 
     ///         [byte:seqno'] [bytes:encoded-fragment-#] [bytes:frag]</pre>
     /// </item>
     ///  </list>
@@ -165,13 +165,13 @@ namespace GT.Net
                 if (LWMCFv11.HeaderSize + contentLength < tdc.MaximumPacketSize)
                 {
                     /// Message fits within the transport packet length, so sent unmodified
-                    ///     <pre>[byte:message-type] [byte:channel] [uint32:packet-size] 
+                    ///     <pre>[byte:message-type] [byte:channelId] [uint32:packet-size] 
                     ///         [bytes:content]</pre>
                     if (!subMarshallerIsLwmcf11) 
                     {
                         // need to prefix the LWMCFv1.1 header
                         packet.Prepend(LWMCFv11.EncodeHeader(message.MessageType,
-                            message.Channel, (uint)packet.Length));
+                            message.ChannelId, (uint)packet.Length));
                     }
                     mr.AddPacket(packet);
                 }
@@ -190,13 +190,13 @@ namespace GT.Net
             /// <item> if the message is the first fragment, then the high-bit is
             ///     set on the message-type; the number of fragments is encoded using
             ///     the adaptive <see cref="ByteUtils.EncodeLength(int)"/> format.
-            ///     <pre>[byte:message-type'] [byte:channel] [uint32:packet-size] 
+            ///     <pre>[byte:message-type'] [byte:channelId] [uint32:packet-size] 
             ///         [byte:seqno] [bytes:encoded-#-fragments] [bytes:frag]</pre>
             /// </item>
             /// <item> for all subsequent fragments; seqno' = seqno | 128;
             ///     the number of fragments is encoded using the adaptive 
             ///     <see cref="ByteUtils.EncodeLength(int)"/> format.
-            ///     <pre>[byte:message-type'] [byte:channel] [uint32:packet-size] 
+            ///     <pre>[byte:message-type'] [byte:channelId] [uint32:packet-size] 
             ///         [byte:seqno'] [bytes:encoded-fragment-#] [bytes:frag]</pre>
 
             // Although we use an adaptive scheme for encoding the number,
@@ -227,7 +227,7 @@ namespace GT.Net
                     ByteUtils.EncodeLength(fragNo, s);
                 }
                 newPacket.Prepend(LWMCFv11.EncodeHeader((MessageType)((byte)message.MessageType | 128),
-                    message.Channel, (uint)(fragSize + s.Length)));
+                    message.ChannelId, (uint)(fragSize + s.Length)));
                 newPacket.Add(packet, (int)(fragNo * maxPacketSize), (int)fragSize);
                 mr.AddPacket(newPacket);
             }
@@ -251,19 +251,19 @@ namespace GT.Net
         public void Unmarshal(TransportPacket input, ITransportDeliveryCharacteristics tdc, EventHandler<MessageEventArgs> messageAvailable)
         {
             /// <item>Message fits within the transport packet length, so sent unmodified
-            ///     <pre>[byte:message-type] [byte:channel] [uint32:packet-size] 
+            ///     <pre>[byte:message-type] [byte:channelId] [uint32:packet-size] 
             ///         [bytes:content]</pre>
             /// </item>
             /// <item> if the message is the first fragment, then the high-bit is
             ///     set on the message-type; the number of fragments is encoded using
             ///     the adaptive <see cref="ByteUtils.EncodeLength(int)"/> format.
-            ///     <pre>[byte:message-type'] [byte:channel] [uint32:packet-size] 
+            ///     <pre>[byte:message-type'] [byte:channelId] [uint32:packet-size] 
             ///         [byte:seqno] [bytes:encoded-#-fragments] [bytes:frag]</pre>
             /// </item>
             /// <item> for all subsequent fragments; seqno' = seqno | 128;
             ///     the number of fragments is encoded using the adaptive 
             ///     <see cref="ByteUtils.EncodeLength(int)"/> format.
-            ///     <pre>[byte:message-type'] [byte:channel] [uint32:packet-size] 
+            ///     <pre>[byte:message-type'] [byte:channelId] [uint32:packet-size] 
             ///         [byte:seqno'] [bytes:encoded-fragment-#] [bytes:frag]</pre>
 
             if (subMarshallerIsLwmcf11 && (input.ByteAt(0) & 128) == 0)
@@ -273,11 +273,11 @@ namespace GT.Net
             }
 
             MessageType type;
-            byte channel;
+            byte channelId;
             uint contentLength;
 
             Stream s = input.AsReadStream();
-            LWMCFv11.DecodeHeader(out type, out channel, out contentLength, s);
+            LWMCFv11.DecodeHeader(out type, out channelId, out contentLength, s);
             byte seqNo = (byte)s.ReadByte();
             TransportPacket subPacket;
             if ((seqNo & 128) == 0)

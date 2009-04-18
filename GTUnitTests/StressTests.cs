@@ -188,9 +188,9 @@ namespace GT.UnitTests
         private readonly IList<Thread> threads = new List<Thread>();
         private readonly Random random = new Random();
 
-        private IObjectStream objectStream;
-        private IBinaryStream binaryStream;
-        private IStringStream stringStream;
+        private IObjectChannel objectChannel;
+        private IBinaryChannel binaryChannel;
+        private IStringChannel stringChannel;
 
         public Client Client { get { return client; } }
 
@@ -207,15 +207,15 @@ namespace GT.UnitTests
         {
             running = true;
             client.Start();
-            objectStream = client.GetObjectStream(host, port,
+            objectChannel = client.OpenObjectChannel(host, port,
                 0, ChannelDeliveryRequirements.MostStrict);
-            objectStream.MessagesReceived += client_ReceivedObjectMessage;
-            stringStream = client.GetStringStream(host, port,
+            objectChannel.MessagesReceived += client_ReceivedObjectMessage;
+            stringChannel = client.OpenStringChannel(host, port,
                 1, ChannelDeliveryRequirements.MostStrict);
-            stringStream.MessagesReceived += client_ReceivedStringMessage;
-            binaryStream = client.GetBinaryStream(host, port,
+            stringChannel.MessagesReceived += client_ReceivedStringMessage;
+            binaryChannel = client.OpenBinaryChannel(host, port,
                 2, ChannelDeliveryRequirements.MostStrict);
-            binaryStream.MessagesReceived += client_ReceivedBinaryMessage;
+            binaryChannel.MessagesReceived += client_ReceivedBinaryMessage;
 
             client.StartSeparateListeningThread();
             for (int i = 0; i < numberSenders; i++)
@@ -255,17 +255,17 @@ namespace GT.UnitTests
                     {
                         case 0:
                             Console.Write('o');
-                            objectStream.Send(StandardObjects.ObjectMessage);
+                            objectChannel.Send(StandardObjects.ObjectMessage);
                             break;
 
                         case 1:
                             Console.Write('s');
-                            stringStream.Send(StandardObjects.StringMessage);
+                            stringChannel.Send(StandardObjects.StringMessage);
                             break;
 
                         case 2:
                             Console.Write('b');
-                            binaryStream.Send(StandardObjects.ByteMessage);
+                            binaryChannel.Send(StandardObjects.ByteMessage);
                             break;
 
                     }
@@ -281,10 +281,10 @@ namespace GT.UnitTests
 
         }
 
-        private void client_ReceivedBinaryMessage(IBinaryStream stream)
+        private void client_ReceivedBinaryMessage(IBinaryChannel channel)
         {
             byte[] message;
-            while ((message = stream.DequeueMessage(0)) != null)
+            while ((message = channel.DequeueMessage(0)) != null)
             {
                 if (!ByteUtils.Compare(message, StandardObjects.ByteMessage))
                 {
@@ -295,15 +295,15 @@ namespace GT.UnitTests
 
                 if (random.Next(0, 100) < 10)
                 {
-                    binaryStream.Send(message);
+                    binaryChannel.Send(message);
                 }
             }
         }
 
-        private void client_ReceivedStringMessage(IStringStream stream)
+        private void client_ReceivedStringMessage(IStringChannel channel)
         {
             string message;
-            while ((message = stream.DequeueMessage(0)) != null)
+            while ((message = channel.DequeueMessage(0)) != null)
             {
                 if (!StandardObjects.StringMessage.Equals(message))
                 {
@@ -314,15 +314,15 @@ namespace GT.UnitTests
 
                 if (random.Next(0, 100) < 10)
                 {
-                    stringStream.Send(message);
+                    stringChannel.Send(message);
                 }
             }
         }
 
-        private void client_ReceivedObjectMessage(IObjectStream stream)
+        private void client_ReceivedObjectMessage(IObjectChannel channel)
         {
             object message;
-            while ((message = stream.DequeueMessage(0)) != null)
+            while ((message = channel.DequeueMessage(0)) != null)
             {
                 if (!StandardObjects.Equivalent(StandardObjects.ObjectMessage, message))
                 {
@@ -333,7 +333,7 @@ namespace GT.UnitTests
 
                 if (random.Next(0, 100) < 10)
                 {
-                    objectStream.Send(message);
+                    objectChannel.Send(message);
                 }
             }
         }

@@ -7,33 +7,36 @@ namespace GT.Net
 {
     #region Message Classes
 
-    /// <remarks>A GT message; the contents of the message have not been unmarshalled.</remarks>
+    /// <remarks>A base GT message.</remarks>
     public abstract class Message
     {
-        /// <summary>The channel that this message is on.</summary>
-        virtual public byte Channel { get { return channel; } }
+        /// <summary>The channel carrying this message.</summary>
+        virtual public byte ChannelId { get { return channelId; } }
 
         /// <summary>The type of message.</summary>
         virtual public MessageType MessageType { get { return type; } }
 
-        protected byte channel;
+        protected byte channelId;
         protected MessageType type;
 
         /// <summary>Creates a new outbound message.</summary>
-        /// <param name="channel">The channel that this message is on.</param>
+        /// <param name="channelId">The channel carrying this message.</param>
         /// <param name="type">The type of message.</param>
-        public Message(byte channel, MessageType type)
+        protected Message(byte channelId, MessageType type)
         {
-            this.channel = channel;
+            this.channelId = channelId;
             this.type = type;
         }
 
         public override string ToString()
         {
-            return GetType().Name + "(type:" + type + " channel:" + channel + ")";
+            return GetType().Name + "(type:" + type + " channel:" + channelId + ")";
         }
     }
 
+    /// <summary>
+    /// A GT message containing byte content.
+    /// </summary>
     public class BinaryMessage : Message
     {
         /// <summary>The binary byte content.</summary>
@@ -41,8 +44,11 @@ namespace GT.Net
 
         protected byte[] bytes;
 
-        public BinaryMessage(byte channel, byte[] bytes)
-            : base(channel, MessageType.Binary)
+        /// <summary>Creates a new outbound message.</summary>
+        /// <param name="channelId">The channel carrying this message.</param>
+        /// <param name="bytes">the contents</param>
+        public BinaryMessage(byte channelId, byte[] bytes)
+            : base(channelId, MessageType.Binary)
         {
             this.bytes = bytes;
         }
@@ -65,6 +71,9 @@ namespace GT.Net
         }
     }
 
+    /// <summary>
+    /// A GT message containing string content.
+    /// </summary>
     public class StringMessage : Message
     {
         /// <summary>The string text.</summary>
@@ -72,19 +81,22 @@ namespace GT.Net
 
         protected string text;
 
-        public StringMessage(byte channel, string text)
-            : base(channel, MessageType.String)
+        public StringMessage(byte channelId, string text)
+            : base(channelId, MessageType.String)
         {
             this.text = text;
         }
 
         public override string ToString()
         {
-            return GetType().Name + "(type:" + type + " channel:" + channel + " text:\"" + text + "\")";
+            return GetType().Name + "(type:" + type + " channel:" + channelId + " text:\"" + text + "\")";
         }
 
     }
 
+    /// <summary>
+    /// A GT message containing an object as content.
+    /// </summary>
     public class ObjectMessage : Message
     {
         /// <summary>The message's object.</summary>
@@ -92,15 +104,15 @@ namespace GT.Net
 
         protected object obj;
 
-        public ObjectMessage(byte channel, object obj)
-            : base(channel, MessageType.Object)
+        public ObjectMessage(byte channelId, object obj)
+            : base(channelId, MessageType.Object)
         {
             this.obj = obj;
         }
 
         public override string ToString()
         {
-            return GetType().Name + "(type:" + type + " channel:" + channel + " object:\"" + obj + "\")";
+            return GetType().Name + "(type:" + type + " channel:" + channelId + " object:\"" + obj + "\")";
         }
     }
 
@@ -117,11 +129,11 @@ namespace GT.Net
         protected int clientId;
 
         /// <summary>Create a new SessionMessage</summary>
-        /// <param name="channel">The channel that this message is on.</param>
+        /// <param name="channelId">The channel carrying this message.</param>
         /// <param name="clientId">The subject of the session action.</param>
         /// <param name="e">The session action.</param>
-        public SessionMessage(byte channel, int clientId, SessionAction e)
-            : base(channel, MessageType.Session)
+        public SessionMessage(byte channelId, int clientId, SessionAction e)
+            : base(channelId, MessageType.Session)
         {
             this.clientId = clientId;
             this.action = e;
@@ -136,7 +148,7 @@ namespace GT.Net
     /// <summary>
     /// A GT control message.  System messages aren't sent
     /// on a channel; the descriptor (the type of system message) is 
-    /// instead encoded as the channel.
+    /// instead encoded as the channelId.
     /// </summary>
     public class SystemMessage : Message
     {
@@ -147,16 +159,16 @@ namespace GT.Net
         }
 
         /// <summary>
-        /// Although system messages don't have a channel, some code assumes
-        /// that all messages have a channel.  So return a valid value.
+        /// System messages aren't carried on a channel.  But some code assumes
+        /// that all messages have a channelId.  So return a valid value.
         /// </summary>
-        public override byte Channel { get { return 0; } }
+        public override byte ChannelId { get { return 0; } }
 
         /// <summary>
         /// Return the system message descriptor.  System messages aren't sent
-        /// on a channel; the descriptor is instead encoded as the channel.
+        /// on a channel; the descriptor is instead encoded as the channelId.
         /// </summary>
-        public SystemMessageType Descriptor { get { return (SystemMessageType)channel; } }
+        public SystemMessageType Descriptor { get { return (SystemMessageType)channelId; } }
 
         public override string ToString()
         {
@@ -203,6 +215,9 @@ namespace GT.Net
         }
     }
 
+    /// <summary>
+    /// A system message carrying a connexion's identity.
+    /// </summary>
     public class SystemIdentityResponseMessage : SystemMessage
     {
         public int Identity { get; set; }
@@ -220,6 +235,10 @@ namespace GT.Net
 
     #endregion
 
+    /// <summary>
+    /// Carries all the details necessary for sending a message.
+    /// Not intended for public use.
+    /// </summary>
     public class PendingMessage
     {
         public PendingMessage() {}

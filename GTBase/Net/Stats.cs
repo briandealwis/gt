@@ -225,12 +225,12 @@ namespace GT.Net
             get { return bytesRecvPerTransport; }
         }
 
-        public IEnumerable<byte> SentChannels
+        public IEnumerable<byte> SentChannelIds
         {
             get { return messagesSentCounts.Keys; }
         }
 
-        public IEnumerable<byte> ReceivedChannels
+        public IEnumerable<byte> ReceivedChannelIds
         {
             get { return messagesSentCounts.Keys; }
         }
@@ -282,9 +282,9 @@ namespace GT.Net
 
             // Record the messages per channel per message-type
             IDictionary<MessageType, IDictionary<string, int>> subdict;
-            if (!messagesReceivedCounts.TryGetValue(m.Channel, out subdict))
+            if (!messagesReceivedCounts.TryGetValue(m.ChannelId, out subdict))
             {
-                subdict = messagesReceivedCounts[m.Channel] =
+                subdict = messagesReceivedCounts[m.ChannelId] =
                     new Dictionary<MessageType, IDictionary<string, int>>();
             }
             IDictionary<string, int> transDict;
@@ -312,9 +312,9 @@ namespace GT.Net
 
             // Record the messages per channel per message-type
             IDictionary<MessageType, IDictionary<string, int>> subdict;
-            if (!messagesSentCounts.TryGetValue(m.Channel, out subdict))
+            if (!messagesSentCounts.TryGetValue(m.ChannelId, out subdict))
             {
-                subdict = messagesSentCounts[m.Channel] =
+                subdict = messagesSentCounts[m.ChannelId] =
                     new Dictionary<MessageType, IDictionary<string, int>>();
             }
             IDictionary<string, int> transDict;
@@ -398,12 +398,12 @@ namespace GT.Net
             return BytesReceivedPerTransport.TryGetValue(tn, out value) ? value : 0;
         }
 
-        public int ComputeMessagesSent(byte channel, MessageType mt)
+        public int ComputeMessagesSent(byte channelId, MessageType mt)
         {
-            //(int)sent.Compute("Sum(" + _stats.IndexMessageCount + ")", _stats.IndexChannel + " = " + channel + " AND " + _stats.IndexMessageType + " = " + t.ToString());
+            //(int)sent.Compute("Sum(" + _stats.IndexMessageCount + ")", _stats.IndexChannel + " = " + channelId + " AND " + _stats.IndexMessageType + " = " + t.ToString());
             int count = 0;
             IDictionary<MessageType, IDictionary<string, int>> subdict;
-            if(messagesSentCounts.TryGetValue(channel, out subdict) && subdict.ContainsKey(mt)) {
+            if(messagesSentCounts.TryGetValue(channelId, out subdict) && subdict.ContainsKey(mt)) {
                 foreach (int value in subdict[mt].Values)
                 {
                     count += value;
@@ -412,12 +412,12 @@ namespace GT.Net
             return count;
         }
 
-        public int ComputeMessagesReceived(byte channel, MessageType mt)
+        public int ComputeMessagesReceived(byte channelId, MessageType mt)
         {
-            //(int)received.Compute("Sum(" + _stats.IndexMessageCount + ")", _stats.IndexChannel + " = " + channel + " AND " + _stats.IndexMessageType + " = " + t.ToString());
+            //(int)received.Compute("Sum(" + _stats.IndexMessageCount + ")", _stats.IndexChannel + " = " + channelId + " AND " + _stats.IndexMessageType + " = " + t.ToString());
             int count = 0;
             IDictionary<MessageType, IDictionary<string, int>> subdict;
-            if (messagesReceivedCounts.TryGetValue(channel, out subdict) && subdict.ContainsKey(mt))
+            if (messagesReceivedCounts.TryGetValue(channelId, out subdict) && subdict.ContainsKey(mt))
             {
                 foreach (int value in subdict[mt].Values)
                 {

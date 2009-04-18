@@ -5,7 +5,15 @@ GT NEWS
 === GT 3.0 ===
 ==============
 
+Welcome to GT 3.0.  This release has introduced some significant
+new functionality, which is described below.  We have also made
+some significant breaks in the API from the previous version 2.0;
+we think they are improvements, but they will necessitate some
+changes to your code.
+
+
 New Functionality:
+------------------
 
   * Millipede-style packet recording and replay: Thanks to a code
     contribution from Adrian Reetz, GT now has a packet recording/replay
@@ -108,7 +116,60 @@ We have made numerous breaks with previous API to streamline GT
 usage and reconcile inconsistencies, hence the bump from GT 2.0 to
 GT 3.0.
 
-  * Delegate changes:
+  * GT.Net.Client and I*Stream changes:  We have made some wide-ranging
+    changes to the Client for obtaining channels (what were formerly
+    called streams).
+
+      * The client stream interface has been revamped due to user confusion
+	in what is a channel, an id, and a stream.
+
+	  * The Client.Get*Stream() methods have been renamed to
+	    Client.Open*Channel(), and the I*Stream interfaces (and
+	    implementing classes) have been renamed too.
+
+	  * We have removed the single-server-per-channel binding behaviour.
+	    Previous versions of GT implicitly bound a channel to a single
+	    particular server, and requesting the same channel with
+	    a different server implicitly replaced the underlying server.
+	    Now channels with the same channel number can be obtained
+	    for multiple servers.  We suggest that clients requiring
+	    this behaviour must take the responsibility for maintaining
+	    and switching such shared instances.
+
+	  * The Open*Channel() methods now return a new instance rather
+	    than a shared instance.  With the previous behaviour, channels
+	    with multiple consumers would have a race for dequeueing
+	    messages.  And the instances were not thread-safe.
+
+	  * The channel objects now implement System.IDisposable, and users of
+	    Open*Channel() should now ensure they dispose of the instances;
+	    note that channels are disposed when their corresponding Client
+	    instance is disposed.
+
+	Client code now looks something like:
+
+	    IStringChannel ch1 = client.OpenStringChannel("localhost", "9999", 0,
+		ChannelDeliveryRequirements.Data);
+	    IStringChannel ch2 = client.OpenStringChannel("localhost", "9999", 0,
+		ChannelDeliveryRequirements.);
+	    IStringChannel ch3 = client.OpenStringChannel("otherhost", "9999", 0,
+		ChannelDeliveryRequirements.CommandsLike);
+
+	Instances ch1 and ch2 are now distinct objects and share the same
+	underlying connexion.  When new string messages are received on
+	channel 0 from localhost:9999, both ch1 and ch2 will receive copies of
+	the message.  The creation of ch3, which is also on channel 0,
+	no longer switches the underlying connexion of ch1 and ch2 as would
+	occur in GT 2.0.  Although ch1 and ch2 share the same connexion, they
+	have different ChannelDeliveryRequirements -- the CDR is specific to
+	the channel instance. 
+
+      * Creating a new Client() no longer implicitly starts the client
+	instance.
+
+  * Delegate changes:  We have tried to reduce the number of delegates
+    defined, replacing them with equivalents or more generalized versions.
+    The delegates add little information to the actual event.
 
       * The delegate GT.Net.ConnexionLifecycleNotification has been
         expanded to include the associated Communicator (Client or Server)
@@ -117,13 +178,16 @@ GT 3.0.
 	with System.Action<Communicator>, whose argument is the
 	Communicator instance.
 
+      * The delegate GT.Net.UpdateEventDelegate has been removed and
+	replaced with Action<HPTimer>.
+
       * Replaced uses of GT.Net.{Session,String,Object,Binary}MessageHandler
         delegates with the equivalent GT.Net.MessageHandler
 
-      * We reworked the IStream implementations to reduce code duplication. 
-	As a result, we replaced the GT.Net.{Session,String,Object,
-	Binary}NewMessageEvent delegates with the equivalent
-	IAction<ST> where ST is the appropriate IStream subinterface.
+      * We reworked the IStream (now IChannel) implementations to reduce code
+        duplication.  As a result, we replaced the
+	GT.Net.{Session,String,Object,Binary}NewMessageEvent delegates with
+	the equivalent IAction<ST> where ST is the appropriate IChannel subinterface.
 
       * The delegate GT.Net.PingReceived's time component now
 	returns the round-trip ping time, and not half of the time.
@@ -135,13 +199,13 @@ GT 3.0.
 
   * Event changes:
 
-      * As part of reworking the IStream implementations, the actual 
+      * As part of reworking the IStream (now IChannel) implementations, the actual 
         new-message events have been renamed to MessagesReceived
 	to be more consistent with similar events defined elsewhere.
 	The Streamed Tuple implementations continue to use
 	StreamedTupleReceived however.
 
-  * ITransport changes:
+  * GT.Net.ITransport changes:
 
       * The ITransport.SendPacket() methods have been consolidated
 	into a single method taking a TransportPacket.  This is a
@@ -158,7 +222,7 @@ GT 3.0.
       * ITransports no longer throw TransportBackloggedWarning, and
         instead provide such warnings through a new ErrorEvent event.
 
-  * IMarshaller changes:
+  * GT.Net.IMarshaller changes:
 
       * IMarshaller.Marshal() now returns an instance of IMarshalledResult,
         and should allocate instances of TransportPacket to record the
@@ -187,6 +251,13 @@ GT 3.0.
 	marshaller and performs the appropriate splitting to and
 	reassembling from multiple packets.
 
+  * GT.Net.IConnexion changes:
+
+      * A subinterface of IConnexion has been added, IAddressableConnexion,
+        to represent connexions that can connect to a remote.
+	GT.Net.ClientConfiguration.CreateServerConnexion() should
+	now return one of these objects.
+
   * The scheduling of messages into packets to be sent has been
     extracted from the connexion implementations into a new type called
     IPacketScheduler.  Two implementations are currently provided:
@@ -195,14 +266,11 @@ GT 3.0.
     on a first-come, first-served basis.  Packet schedulers are
     created by connexion instances.
 
-  * Creating a new Client() no longer implicitly starts the client
-    instance.
-
   * There have been some major renames:
 
-      * Message.Id has been renamed Channel.  The use of 'id' was
+      * Message.Id has been renamed ChannelId.  The use of 'id' was
 	somewhat ambiguous and causing confusion.  All uses of 'id' to
-	mean a channel id or a stream id have been redone to use channel. 
+	mean a channel id or a stream id have been redone to use channelId. 
 	Described in <https://papyrus.usask.ca/trac/gt/ticket/74>.
 
       * The use of UniqueIdentity has been renamed to simply Identity. 
@@ -234,7 +302,7 @@ GT 3.0.
 	instances.  Notable changes include to the Sleep() methods on
 	GT.Net.Client and GT.Net.Server, GT.Net.DefaultServerConfiguration,
 	the tuple stream methods on GT.Net.Client, GT.Net.PingedNotification,
-	GT.Net.DelayedBinaryStream, and GT.Net.AggregatedSharedDictionary.
+	GT.Net.DelayedBinaryChannel, and GT.Net.AggregatedSharedDictionary.
 
       * The Sleep() implementations on GT.Net.Client and GT.Net.Server
 	now return a boolean to indicate whether the sleep executed
@@ -256,6 +324,7 @@ Bugs have been fixed since GT 2.0:
     be removed.
 
   * Add lock() around FlushChannelMessages (called by IStream.Flush())
+    (now FlushChannel() and IChannel.Flush())
     <https://papyrus.usask.ca/trac/gt/ticket/66>.
 
   * ClientRepeater configuration should use TickInterval, not 
@@ -270,10 +339,8 @@ Bugs have been fixed since GT 2.0:
   * Ensure Server and Client are started at the end of
     StartSeparateListeningThread() <https://papyrus.usask.ca/trac/gt/ticket/56>
 
-  * Client.Get*Stream(): check that streams are still active
-    <https://papyrus.usask.ca/trac/gt/ticket/71>
-
-  * Expose an IStream's connexion through a Connexion property
+  * Expose an IStream's connexion through a Connexion property (now
+    IChannel.Connexion)
 
   * UdpAccept and TcpAcceptor should now properly trap and report
     exceptions <https://papyrus.usask.ca/trac/gt/ticket/55>

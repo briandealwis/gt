@@ -20,7 +20,9 @@ namespace LobbyClientTest
             if (name == null)
                 return;
 
-            LobbyClient lobby = new LobbyClient(name, new SimpleSharedDictionary(client.GetBinaryStream("127.0.0.1","9999", 0)));
+            LobbyClient lobby = new LobbyClient(name,
+                new SimpleSharedDictionary(
+                    client.OpenBinaryChannel("127.0.0.1","9999", 0)));
             Console.WriteLine("Lobby started.");
             lobby.ShowDialog();
 

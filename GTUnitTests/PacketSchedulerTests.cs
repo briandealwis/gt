@@ -1,4 +1,5 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 using System.IO;
 using GT.Net;
 using NUnit.Framework;
@@ -40,6 +41,10 @@ namespace GT.UnitTests
             // do nothing
         }
 
+        public void Ping()
+        {
+        }
+
         public void Dispose()
         {
             if (Scheduler != null) { Scheduler.Dispose(); }
@@ -64,19 +69,19 @@ namespace GT.UnitTests
             }
         }
 
-        public void Send(byte[] buffer, byte channel, MessageDeliveryRequirements mdr, ChannelDeliveryRequirements cdr)
+        public void Send(byte[] buffer, byte channelId, MessageDeliveryRequirements mdr, ChannelDeliveryRequirements cdr)
         {
-            Send(new BinaryMessage(channel, buffer), mdr, cdr);
+            Send(new BinaryMessage(channelId, buffer), mdr, cdr);
         }
 
-        public void Send(string s, byte channel, MessageDeliveryRequirements mdr, ChannelDeliveryRequirements cdr)
+        public void Send(string s, byte channelId, MessageDeliveryRequirements mdr, ChannelDeliveryRequirements cdr)
         {
-            Send(new StringMessage(channel, s), mdr, cdr);
+            Send(new StringMessage(channelId, s), mdr, cdr);
         }
 
-        public void Send(object o, byte channel, MessageDeliveryRequirements mdr, ChannelDeliveryRequirements cdr)
+        public void Send(object o, byte channelId, MessageDeliveryRequirements mdr, ChannelDeliveryRequirements cdr)
         {
-            Send(new ObjectMessage(channel, o), mdr, cdr);
+            Send(new ObjectMessage(channelId, o), mdr, cdr);
         }
 
         public void Flush()
@@ -84,9 +89,9 @@ namespace GT.UnitTests
             Scheduler.Flush();
         }
 
-        public void FlushChannel(byte channel)
+        public void FlushChannel(byte channelId)
         {
-            Scheduler.FlushChannelMessages(channel);
+            Scheduler.FlushChannelMessages(channelId);
         }
 
         public IMarshalledResult Marshal(Message m, ITransportDeliveryCharacteristics tdc)
@@ -254,7 +259,7 @@ namespace GT.UnitTests
                     cnx.Marshaller.Unmarshal(tp, t,
                         delegate(object sender, MessageEventArgs mea) {
                             Assert.AreEqual(msgNo, ((ObjectMessage)mea.Message).Object);
-                            Assert.AreEqual(msgNo % 2, ((ObjectMessage)mea.Message).Channel);
+                            Assert.AreEqual(msgNo % 2, ((ObjectMessage)mea.Message).ChannelId);
                         });
                     msgNo++;
                 }

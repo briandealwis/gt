@@ -43,9 +43,9 @@ namespace GT.Net
         void Flush();
 
         /// <summary>
-        /// Flush all remaining messages for the specific channel.
+        /// Flush all remaining messages for the specific channelId.
         /// </summary>
-        void FlushChannelMessages(byte channel);
+        void FlushChannelMessages(byte channelId);
 
         /// <summary>
         /// Reset the instance; throw away all data.
@@ -79,7 +79,7 @@ namespace GT.Net
             ChannelDeliveryRequirements cdr);
         public abstract void Update();
         public abstract void Flush();
-        public abstract void FlushChannelMessages(byte channel);
+        public abstract void FlushChannelMessages(byte channelId);
 
         protected void NotifyMessagesSent(ICollection<Message> messages, ITransport transport)
         {
@@ -174,7 +174,7 @@ namespace GT.Net
             /// In a FIFO, we send 'em as they are scheduled.
         }
 
-        public override void FlushChannelMessages(byte channel)
+        public override void FlushChannelMessages(byte channelId)
         {
             /// In a FIFO, we send 'em as they are scheduled.
         }
@@ -199,7 +199,7 @@ namespace GT.Net
         /// </summary>
         /// <remarks>
         /// nextChannelIndex is an index
-        /// into channels, indicating the channel from which to take the next message.  
+        /// into channels, indicating the channelId from which to take the next message.  
         /// </remarks>
         protected int nextChannelIndex = 0;
         /// <remarks>
@@ -255,7 +255,7 @@ namespace GT.Net
             if (aggr == MessageAggregation.FlushChannel)
             {
                 // make sure ALL other messages on this CHANNEL are sent, and then send <c>msg</c>.
-                FlushChannelMessages(msg.Channel);
+                FlushChannelMessages(msg.ChannelId);
             }
             else if (aggr == MessageAggregation.FlushAll)
             {
@@ -285,14 +285,14 @@ namespace GT.Net
             if (newMsg.MessageType != MessageType.System && cdr != null
                 && cdr.Freshness == Freshness.IncludeLatestOnly)
             {
-                pending.RemoveAll(pendingMsg => pendingMsg.Message.Channel == newMsg.Channel
+                pending.RemoveAll(pendingMsg => pendingMsg.Message.ChannelId == newMsg.ChannelId
                     && pendingMsg.Message.MessageType != MessageType.System);
             }
 
-            if (!channelIndices.ContainsKey(newMsg.Channel))
+            if (!channelIndices.ContainsKey(newMsg.ChannelId))
             {
-                channelIndices[newMsg.Channel] = channels.Count;
-                channels.Add(newMsg.Channel);
+                channelIndices[newMsg.ChannelId] = channels.Count;
+                channels.Add(newMsg.ChannelId);
             }
 
             PendingMessage pm = pmPool.Obtain();
@@ -304,7 +304,7 @@ namespace GT.Net
             if (aggr == MessageAggregation.Immediate)
             {
                 pending.Insert(0, pm);
-                nextChannelIndex = channelIndices[newMsg.Channel];
+                nextChannelIndex = channelIndices[newMsg.ChannelId];
             }
             else
             {
@@ -317,9 +317,9 @@ namespace GT.Net
             CannotSendMessagesError csme = new CannotSendMessagesError(cnx);
             while (channels.Count > 0)
             {
-                byte channel = channels[nextChannelIndex];
+                byte channelId = channels[nextChannelIndex];
 
-                if(ProcessNextPacket(channel, csme) && channels.Count > 0)
+                if(ProcessNextPacket(channelId, csme) && channels.Count > 0)
                 {
                     nextChannelIndex = (nextChannelIndex + 1) % channels.Count;
                 }
@@ -337,16 +337,16 @@ namespace GT.Net
             Debug.Assert(packetsInProgress.Count == 0);
         }
 
-        public override void FlushChannelMessages(byte channel)
+        public override void FlushChannelMessages(byte channelId)
         {
             int channelIndex;
-            if(!channelIndices.TryGetValue(channel, out channelIndex))
+            if(!channelIndices.TryGetValue(channelId, out channelIndex))
             {
                 return;
             }
 
             CannotSendMessagesError csme = new CannotSendMessagesError(cnx);
-            while (ProcessNextPacket(channel, csme));
+            while (ProcessNextPacket(channelId, csme));
 
             FlushPendingPackets(csme);
             if (csme.IsApplicable)
@@ -358,10 +358,10 @@ namespace GT.Net
             Debug.Assert(packetsInProgress.Count == 0);
         }
 
-        protected virtual bool ProcessNextPacket(byte channel, CannotSendMessagesError csme)
+        protected virtual bool ProcessNextPacket(byte channelId, CannotSendMessagesError csme)
         {
             ChannelSendingState cs = default(ChannelSendingState);
-            if (!FindNextPacket(channel, csme, ref cs)) { return false; }
+            if (!FindNextPacket(channelId, csme, ref cs)) { return false; }
             Debug.Assert(cs.MarshalledForm != null && cs.MarshalledForm.HasPackets);
             TransportPacket tp;
             if(!packetsInProgress.TryGetValue(cs.Transport, out tp) || tp == null)
@@ -438,10 +438,10 @@ namespace GT.Net
             packetsInProgress.Clear();
         }
 
-        protected virtual bool FindNextPacket(byte channel, CannotSendMessagesError csme, 
+        protected virtual bool FindNextPacket(byte channelId, CannotSendMessagesError csme, 
             ref ChannelSendingState cs)
         {
-            if (channelSendingStates.TryGetValue(channel, out cs)) {
+            if (channelSendingStates.TryGetValue(channelId, out cs)) {
                 if (cs.MarshalledForm != null)
                 {
                     if(!cs.MarshalledForm.Finished) { return true; }
@@ -452,7 +452,7 @@ namespace GT.Net
                 }
             }
             PendingMessage pm;
-            while (DetermineNextPendingMessage(channel, out pm))
+            while (DetermineNextPendingMessage(channelId, out pm))
             {
                 try
                 {
@@ -481,20 +481,20 @@ namespace GT.Net
                     continue;
                 }
             }
-            channels.Remove(channel);
-            channelIndices.Remove(channel);
-            channelSendingStates.Remove(channel);
+            channels.Remove(channelId);
+            channelIndices.Remove(channelId);
+            channelSendingStates.Remove(channelId);
             if (nextChannelIndex >= channels.Count) { nextChannelIndex = 0; }
             return false;
         }
 
-        protected virtual bool DetermineNextPendingMessage(byte channel, out PendingMessage next)
+        protected virtual bool DetermineNextPendingMessage(byte channelId, out PendingMessage next)
         {
             next = default(PendingMessage);
             for (int index = 0; index < pending.Count; index++) {
                 next = pending[index];
                 if (next.Message.MessageType == MessageType.System
-                    || next.Message.Channel == channel) 
+                    || next.Message.ChannelId == channelId) 
                 {
                     pending.RemoveAt(index);
                     return true;

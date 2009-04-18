@@ -36,7 +36,7 @@ namespace Telepointers
         /// Receives session updates from the client repeater
         /// when clients join or leave the group.
         /// </summary>
-        private ISessionStream updates;
+        private ISessionChannel updates;
 
         /// <summary>
         /// The list of current clients and their respective telepointers.
@@ -95,11 +95,11 @@ namespace Telepointers
             client.ConnexionRemoved += client_ConnexionRemoved;
             client.Start();
 
-            updates = client.GetSessionStream(host, port, SessionUpdatesChannel,
+            updates = client.OpenSessionChannel(host, port, SessionUpdatesChannel,
                 ChannelDeliveryRequirements.SessionLike);
             updates.MessagesReceived += updates_SessionMessagesReceived;
 
-            coords = client.GetStreamedTuple<int, int>(host, port, TelepointersChannel,
+            coords = client.OpenStreamedTuple<int, int>(host, port, TelepointersChannel,
                 TimeSpan.FromMilliseconds(50),
                 ChannelDeliveryRequirements.TelepointerLike);
             coords.StreamedTupleReceived += coords_StreamedTupleReceived;
@@ -132,11 +132,11 @@ namespace Telepointers
         /// <summary>
         /// Process an update about my fellows
         /// </summary>
-        /// <param name="stream"></param>
-        private void updates_SessionMessagesReceived(ISessionStream stream)
+        /// <param name="channel"></param>
+        private void updates_SessionMessagesReceived(ISessionChannel channel)
         {
             SessionMessage m;
-            while ((m = stream.DequeueMessage(0)) != null)
+            while ((m = channel.DequeueMessage(0)) != null)
             {
                 Console.WriteLine("Session: " + m);
                 if (m.Action == SessionAction.Left)

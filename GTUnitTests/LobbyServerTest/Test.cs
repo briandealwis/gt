@@ -21,7 +21,8 @@ namespace LobbyServerTest
             lobbyAddress = "127.0.0.1";
             lobbyPort = "9999";
             lobbySharedDictionary = 
-                new SimpleSharedDictionary(client.GetBinaryStream(lobbyAddress, lobbyPort, 0));
+                new SimpleSharedDictionary(
+                    client.OpenBinaryChannel(lobbyAddress, lobbyPort, 0));
 
             ourAddress = "127.0.0.1";
             ourPort = "9997";

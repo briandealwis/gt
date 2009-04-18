@@ -7,10 +7,10 @@ namespace GT.Net
     /// <summary>
     /// Injects a certain amount of latency into the sending or receiving from this connexion.
     /// </summary>
-    public class DelayedBinaryStream
+    public class DelayedBinaryChannel
     {
         /// <summary>
-        /// The milliseconds of delay injected into messages sent on the stream
+        /// The milliseconds of delay injected into messages sent on the channel
         /// </summary>
         public TimeSpan InjectedDelay { get; set; }
 
@@ -20,7 +20,7 @@ namespace GT.Net
         /// </summary>
         public IList<byte[]> Messages;
 
-        private IBinaryStream bs = null;
+        private IBinaryChannel bs = null;
         private SortedDictionary<long, byte[]> sendQueue;
         private SortedDictionary<long, byte[]> dequeueQueue;
         private HPTimer timer;
@@ -29,7 +29,7 @@ namespace GT.Net
         /// </summary>
         /// <param name="bs">The binary connexion to use to send and receive on.</param>
         /// <param name="injectedDelay">delay time to inject</param>
-        public DelayedBinaryStream(IBinaryStream bs, TimeSpan injectedDelay)
+        public DelayedBinaryChannel(IBinaryChannel bs, TimeSpan injectedDelay)
         {
             sendQueue = new SortedDictionary<long, byte[]>();
             dequeueQueue = new SortedDictionary<long, byte[]>();
@@ -138,7 +138,7 @@ namespace GT.Net
             }
         }
 
-        void BinaryNewMessageEvent(IBinaryStream stream)
+        void BinaryNewMessageEvent(IBinaryChannel channel)
         {
             timer.Update();
             long currentTime = timer.ElapsedInMilliseconds;

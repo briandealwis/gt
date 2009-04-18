@@ -112,6 +112,7 @@ namespace GT.Net
         public virtual void Dispose()
         {
             Dispose(connexions);
+            connexions.Clear();
         }
 
         /// <summary>
@@ -550,13 +551,26 @@ namespace GT.Net
         /// <summary>Triggered when a message is sent.</summary>
         event MessageHandler MessageSent;
 
+        /// <summary>
+        /// Triggered when a new transport is added to this instance.
+        /// </summary>
         event TransportLifecyleNotification TransportAdded;
+
+        /// <summary>
+        /// Triggered when a transport is removed from this instance
+        /// (e.g., because it was disconnected).
+        /// </summary>
         event TransportLifecyleNotification TransportRemoved;
 
+        /// <summary>
+        /// Triggereed when a ping has just been sent.
+        /// </summary>
         event PingingNotification PingRequested;
-        event PingedNotification PingReceived;
 
-        // public StatisticalMoments DelayStatistics { get; }
+        /// <summary>
+        /// Triggered when a ping response has ben received.
+        /// </summary>
+        event PingedNotification PingReceived;
 
         /// <summary>
         /// The list of currently-connected transports.  Transports are ordered as
@@ -570,6 +584,11 @@ namespace GT.Net
         /// re-entrant and should not be called from GT callbacks.
         /// </summary>
         void Update();
+
+        /// <summary>
+        /// Ping the other side to determine delay; also serves as act as a keep-alive.
+        /// </summary>
+        void Ping();
 
         /// <summary>
         /// Close this connexion, while telling the other side.
@@ -597,32 +616,32 @@ namespace GT.Net
         /// <param name="cdr">Requirements for the message's channel.</param>
         void Send(IList<Message> msgs, MessageDeliveryRequirements mdr, ChannelDeliveryRequirements cdr);
 
-        /// <summary>Send a byte array on <see cref="channel"/>.
+        /// <summary>Send a byte array on <see cref="channelId"/>.
         /// At least one of <c>mdr</c> and <c>cdr</c> are expected to be specified 
         /// (i.e., be non-null).</summary>
         /// <param name="buffer">The byte array to send</param>
-        /// <param name="channel">The channel to be sent on</param>
+        /// <param name="channelId">The channel to be sent on</param>
         /// <param name="mdr">Requirements for this particular message; may be null.</param>
         /// <param name="cdr">Requirements for the message's channel.</param>
-        void Send(byte[] buffer, byte channel, MessageDeliveryRequirements mdr, ChannelDeliveryRequirements cdr);
+        void Send(byte[] buffer, byte channelId, MessageDeliveryRequirements mdr, ChannelDeliveryRequirements cdr);
 
-        /// <summary>Send a string on <see cref="channel"/>.
+        /// <summary>Send a string on <see cref="channelId"/>.
         /// At least one of <c>mdr</c> and <c>cdr</c> are expected to be specified 
         /// (i.e., be non-null).</summary>
         /// <param name="s">The string to send</param>
-        /// <param name="channel">The channel to be sent on</param>
+        /// <param name="channelId">The channel to be sent on</param>
         /// <param name="mdr">Requirements for this particular message; may be null.</param>
         /// <param name="cdr">Requirements for the message's channel.</param>
-        void Send(string s, byte channel, MessageDeliveryRequirements mdr, ChannelDeliveryRequirements cdr);
+        void Send(string s, byte channelId, MessageDeliveryRequirements mdr, ChannelDeliveryRequirements cdr);
 
-        /// <summary>Sends an bject on <see cref="channel"/>.
+        /// <summary>Sends an object on <see cref="channelId"/>.
         /// At least one of <c>mdr</c> and <c>cdr</c> are expected to be specified 
         /// (i.e., be non-null).</summary>
         /// <param name="o">The object to send</param>
-        /// <param name="channel">The channel to be sent on</param>
+        /// <param name="channelId">The channel to be sent on</param>
         /// <param name="mdr">Requirements for this particular message; may be null.</param>
         /// <param name="cdr">Requirements for the message's channel.</param>
-        void Send(object o, byte channel, MessageDeliveryRequirements mdr, ChannelDeliveryRequirements cdr);
+        void Send(object o, byte channelId, MessageDeliveryRequirements mdr, ChannelDeliveryRequirements cdr);
 
         /// <summary>
         /// Flush all pending messages on this connexion.
@@ -632,8 +651,8 @@ namespace GT.Net
         /// <summary>
         /// Flush all pending messages for the specified channel on this connexion.
         /// </summary>
-        /// <param name="channel">the channel for flushing</param>
-        void FlushChannel(byte channel);
+        /// <param name="channelId">the channel for flushing</param>
+        void FlushChannel(byte channelId);
 
         #region Internal Use Only
 
@@ -706,7 +725,7 @@ namespace GT.Net
         /// </summary>
         protected int identity;
 
-        public BaseConnexion()
+        protected BaseConnexion()
         {
             log = LogManager.GetLogger(GetType());
             scheduler = CreatePacketScheduler();
@@ -869,9 +888,7 @@ namespace GT.Net
                     try { t.Update(); }
                     catch (TransportError e)
                     {
-                        // FIXME: Log the error
-                        // Console.WriteLine("{0} {1} WARNING: Transport error [{2}]: {3}", 
-                        //    DateTime.Now, this, t, e);
+                        log.Warn(String.Format("Transport error on {0}: {1}", this, e.Message), e);
                         if (toRemove == null) { toRemove = new Dictionary<ITransport,GTException>(); }
                         toRemove[t] = e;
                     }
@@ -897,19 +914,19 @@ namespace GT.Net
 
         public void Flush()
         {
-            // must be locked as is called by AbstractStream implementations
+            // must be locked as is called by AbstractChannel implementations
             lock (this)
             {
                 scheduler.Flush();
             }
         }
 
-        public void FlushChannel(byte channel)
+        public void FlushChannel(byte channelId)
         {
-            // must be locked as is called by AbstractStream implementations
+            // must be locked as is called by AbstractChannel implementations
             lock (this)
             {
-                scheduler.FlushChannelMessages(channel);
+                scheduler.FlushChannelMessages(channelId);
             }
         }
 
@@ -926,7 +943,7 @@ namespace GT.Net
             {
                 log.Trace(String.Format("{0}: added new transport: {1}", this, t));
             }
-            t.PacketReceivedEvent += HandleNewPacket;
+            t.PacketReceivedEvent += NewPacketReceived;
             transports.Add(t);
             transports.Sort(this);
             if (TransportAdded != null) { TransportAdded(this, t); }
@@ -944,7 +961,7 @@ namespace GT.Net
                 log.Trace(String.Format("{0}: removing transport: {1}", this, t));
             }
             bool removed = transports.Remove(t);
-            t.PacketReceivedEvent -= HandleNewPacket;
+            t.PacketReceivedEvent -= NewPacketReceived;
             if (TransportRemoved != null) { TransportRemoved(this, t); }
             t.Dispose();
             return removed;
@@ -977,57 +994,10 @@ namespace GT.Net
             return null;
         }
 
-
-        virtual protected void HandleSystemMessage(SystemMessage message, ITransport transport)
-        {
-            switch (message.Descriptor)
-            {
-            case SystemMessageType.PingRequest:
-                Send(new SystemPingMessage(SystemMessageType.PingResponse, 
-                    ((SystemPingMessage)message).Sequence, ((SystemPingMessage)message).SentTime),
-                        new SpecificTransportRequirement(transport), null);
-                break;
-
-            case SystemMessageType.PingResponse:
-                // record the difference; half of it is the latency between this client and the server
-                // Tickcount is the # milliseconds (fixme: this could wrap...)
-                int endCount = Environment.TickCount;
-                int startCount = ((SystemPingMessage)message).SentTime;
-                int roundtrip = endCount >= startCount ? endCount - startCount 
-                    : (int.MaxValue - startCount) + endCount;
-                // NB: transport.Delay set may (and probably will) scale this value
-                transport.Delay = roundtrip / 2f;
-                if (PingReceived != null)
-                {
-                    uint sequence = ((SystemPingMessage)message).Sequence;
-                    PingReceived(transport, sequence, TimeSpan.FromMilliseconds(roundtrip));
-                }
-                break;
-
-            case SystemMessageType.ConnexionClosing:
-                throw new ConnexionClosedException(this);
-
-            case SystemMessageType.UnknownConnexion:
-                throw new TransportError(SystemMessageType.UnknownConnexion,
-                    "Remote has no record of the connexion using this transport.", message);
-
-            case SystemMessageType.IncompatibleVersion:
-                // Is this the right exception?
-                throw new CannotConnectException("Remote does not speak a compatible protocol");
-
-            case SystemMessageType.Acknowledged:
-                // nothing to do
-                break;
-
-            default:
-                Debug.WriteLine("connexion.HandleSystemMessage(): Unknown message type: " +
-                    message.Descriptor);
-                break;
-            }
-        }
-
-
-        virtual protected void HandleNewPacket(TransportPacket packet, ITransport transport)
+        /// <summary>
+        /// Handles a new packet
+        /// </summary>
+        virtual protected void NewPacketReceived(TransportPacket packet, ITransport transport)
         {
             try
             {
@@ -1038,12 +1008,18 @@ namespace GT.Net
             }
             catch (MarshallingException e) 
             {
-                log.Warn(String.Format("Invalid message received from {0}: {1}",
-                    transport, e.Message));
+                NotifyError(new ErrorSummary(Severity.Information, 
+                    SummaryErrorCode.InvalidIncomingMessage,
+                    String.Format("Invalid message received from {0}: {1}", transport, e.Message), e));
                 // ??? transport.Dispose();
             }
         }
 
+        /// <summary>
+        /// Notification that a completed message was unmarshalled
+        /// </summary>
+        /// <param name="marshaller"></param>
+        /// <param name="mea"></param>
         virtual protected void _marshaller_MessageAvailable(object marshaller, MessageEventArgs mea)
         {
             if (mea.Message.MessageType == MessageType.System)
@@ -1053,17 +1029,94 @@ namespace GT.Net
             }
             else
             {
-                if (MessageReceived == null)
-                {
-                    log.Warn(String.Format("{0}: no MessageReceived listener!", this));
-                }
-                else
-                {
-                    MessageReceived(mea.Message, this, mea.Transport);
-                }
+                HandleNewMessage(mea.Message, mea.Transport);
             }
         }
-        
+
+        /// <summary>
+        /// A new non-system message has been received and unmarshalled.
+        /// Subclasses can override this message; for example, a subclass
+        /// may choose to defer notifying of new messages until a later time.
+        /// </summary>
+        /// <param name="message"></param>
+        /// <param name="transport"></param>
+        virtual protected void HandleNewMessage(Message message, ITransport transport)
+        {
+            NotifyMessageReceived(message, transport);
+        }
+
+        /// <summary>
+        /// Trigger the <see cref="MessageReceived"/> event.
+        /// </summary>
+        /// <param name="message"></param>
+        /// <param name="transport"></param>
+        protected void NotifyMessageReceived(Message message, ITransport transport)
+        {
+            if(MessageReceived == null)
+            {
+                log.Warn(String.Format("{0}: no MessageReceived listener!", this));
+            }
+            else
+            {
+                MessageReceived(message, this, transport);
+            }
+        }
+
+        /// <summary>
+        /// Handle a newly-received system message.
+        /// </summary>
+        /// <param name="message"></param>
+        /// <param name="transport"></param>
+        virtual protected void HandleSystemMessage(SystemMessage message, ITransport transport)
+        {
+            switch (message.Descriptor)
+            {
+                case SystemMessageType.PingRequest:
+                    Send(new SystemPingMessage(SystemMessageType.PingResponse,
+                        ((SystemPingMessage)message).Sequence, ((SystemPingMessage)message).SentTime),
+                            new SpecificTransportRequirement(transport), null);
+                    break;
+
+                case SystemMessageType.PingResponse:
+                    // record the difference; half of it is the latency between this client and the server
+                    // Tickcount is the # milliseconds (fixme: this could wrap...)
+                    int endCount = Environment.TickCount;
+                    int startCount = ((SystemPingMessage)message).SentTime;
+                    int roundtrip = endCount >= startCount ? endCount - startCount
+                        : (int.MaxValue - startCount) + endCount;
+                    // NB: transport.Delay set may (and probably will) scale this value
+                    transport.Delay = roundtrip / 2f;
+                    if (PingReceived != null)
+                    {
+                        uint sequence = ((SystemPingMessage)message).Sequence;
+                        PingReceived(transport, sequence, TimeSpan.FromMilliseconds(roundtrip));
+                    }
+                    break;
+
+                case SystemMessageType.ConnexionClosing:
+                    throw new ConnexionClosedException(this);
+
+                case SystemMessageType.UnknownConnexion:
+                    throw new TransportError(SystemMessageType.UnknownConnexion,
+                        "Remote has no record of the connexion using this transport.", message);
+
+                case SystemMessageType.IncompatibleVersion:
+                    // Is this the right exception?
+                    throw new CannotConnectException("Remote does not speak a compatible protocol");
+
+                case SystemMessageType.Acknowledged:
+                    // nothing to do
+                    break;
+
+                default:
+                    Debug.WriteLine("connexion.HandleSystemMessage(): Unknown message type: " +
+                        message.Descriptor);
+                    break;
+            }
+        }
+
+
+
         /// <remarks>
         /// This implementation effectively delegates the resolving to the MDR and
         /// CDR instances.
@@ -1093,34 +1146,34 @@ namespace GT.Net
 
         #region Sending
 
-        /// <summary>Send a byte array on <see cref="channel"/>.</summary>
+        /// <summary>Send a byte array on <see cref="channelId"/>.</summary>
         /// <param name="buffer">The byte array to send</param>
-        /// <param name="channel">The channel to be sent on</param>
+        /// <param name="channelId">The channel to be sent on</param>
         /// <param name="mdr">Requirements for this particular message; may be null.</param>
         /// <param name="cdr">Requirements for the message's channel.</param>
-        public void Send(byte[] buffer, byte channel, MessageDeliveryRequirements mdr, ChannelDeliveryRequirements cdr)
+        public void Send(byte[] buffer, byte channelId, MessageDeliveryRequirements mdr, ChannelDeliveryRequirements cdr)
         {
-            Send(new BinaryMessage(channel, buffer), mdr, cdr);
+            Send(new BinaryMessage(channelId, buffer), mdr, cdr);
         }
 
-        /// <summary>Send a string on <see cref="channel"/>.</summary>
+        /// <summary>Send a string on <see cref="channelId"/>.</summary>
         /// <param name="s">The string to send</param>
-        /// <param name="channel">The channel to be sent on</param>
+        /// <param name="channelId">The channel to be sent on</param>
         /// <param name="mdr">Requirements for this particular message; may be null.</param>
         /// <param name="cdr">Requirements for the message's channel.</param>
-        public void Send(string s, byte channel, MessageDeliveryRequirements mdr, ChannelDeliveryRequirements cdr)
+        public void Send(string s, byte channelId, MessageDeliveryRequirements mdr, ChannelDeliveryRequirements cdr)
         {
-            Send(new StringMessage(channel, s), mdr, cdr);
+            Send(new StringMessage(channelId, s), mdr, cdr);
         }
 
-        /// <summary>Sends an bject on <see cref="channel"/>.</summary>
+        /// <summary>Sends an bject on <see cref="channelId"/>.</summary>
         /// <param name="o">The object to send</param>
-        /// <param name="channel">The channel to be sent on</param>
+        /// <param name="channelId">The channel to be sent on</param>
         /// <param name="mdr">Requirements for this particular message; may be null.</param>
         /// <param name="cdr">Requirements for the message's channel.</param>
-        public void Send(object o, byte channel, MessageDeliveryRequirements mdr, ChannelDeliveryRequirements cdr)
+        public void Send(object o, byte channelId, MessageDeliveryRequirements mdr, ChannelDeliveryRequirements cdr)
         {
-            Send(new ObjectMessage(channel, o), mdr, cdr);
+            Send(new ObjectMessage(channelId, o), mdr, cdr);
         }
 
         /// <summary>Send a message.</summary>
@@ -1130,7 +1183,7 @@ namespace GT.Net
         public virtual void Send(Message message, MessageDeliveryRequirements mdr, ChannelDeliveryRequirements cdr)
         {
             InvalidStateException.Assert(Active, "Cannot send on a stopped connexion", this);
-            // must be locked as is called by AbstractStream implementations
+            // must be locked as is called by AbstractChannel implementations
             lock(this)
             {
                 scheduler.Schedule(message, mdr, cdr);
@@ -1145,7 +1198,7 @@ namespace GT.Net
             ChannelDeliveryRequirements cdr)
         {
             InvalidStateException.Assert(Active, "Cannot send on a stopped connexion", this);
-            // must be locked as is called by AbstractStream implementations
+            // must be locked as is called by AbstractChannel implementations
             lock (this)
             {
                 foreach(Message m in messages)

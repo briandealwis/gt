@@ -23,13 +23,13 @@ namespace GT.ChatClient
         /// <summary>
         /// Used to send and receive new chat messages.
         /// </summary>
-        private IStringStream chats;
+        private IStringChannel chats;
 
         /// <summary>
         /// Receives session updates from the client repeater
         /// when clients join or leave the group.
         /// </summary>
-        private ISessionStream updates;
+        private ISessionChannel updates;
 
         public Form1()
         {
@@ -45,8 +45,8 @@ namespace GT.ChatClient
             client = new Client();
             client.ConnexionRemoved += client_ConnexionRemoved;
             client.Start();
-            chats = client.GetStringStream(host, port, ChatMessagesChannel, ChannelDeliveryRequirements.ChatLike);
-            updates = client.GetSessionStream(host, port, SessionUpdatesChannel, ChannelDeliveryRequirements.SessionLike);
+            chats = client.OpenStringChannel(host, port, ChatMessagesChannel, ChannelDeliveryRequirements.ChatLike);
+            updates = client.OpenSessionChannel(host, port, SessionUpdatesChannel, ChannelDeliveryRequirements.SessionLike);
             InitializeComponent();
             this.Disposed += Form1_Disposed;
         }

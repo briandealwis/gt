@@ -9,7 +9,7 @@ namespace GT.Net
     /// <summary>Delegate for tuples.</summary>
     public delegate void StreamedTupleReceivedDelegate<T_X, T_Y, T_Z>(RemoteTuple<T_X, T_Y, T_Z> tuple, int clientID);
 
-    public interface IStreamedTuple<T_X> : IStream
+    public interface IStreamedTuple<T_X> : IChannel
         where T_X : IConvertible
     {
         /// <summary>X value</summary>
@@ -24,7 +24,7 @@ namespace GT.Net
         TimeSpan UpdatePeriod { get; set; }
     }
 
-    public interface IStreamedTuple<T_X, T_Y> : IStream
+    public interface IStreamedTuple<T_X, T_Y> : IChannel
         where T_X : IConvertible
         where T_Y: IConvertible
     {
@@ -43,7 +43,7 @@ namespace GT.Net
         TimeSpan UpdatePeriod { get; set; }
     }
 
-    public interface IStreamedTuple<T_X, T_Y, T_Z> : IStream
+    public interface IStreamedTuple<T_X, T_Y, T_Z> : IChannel
         where T_X : IConvertible
         where T_Y : IConvertible
         where T_Z : IConvertible
@@ -67,7 +67,7 @@ namespace GT.Net
     }
 
 
-    internal abstract class AbstractStreamedTuple : AbstractBaseStream
+    internal abstract class AbstractStreamedTuple : AbstractChannel
     {
         protected bool changed;
         protected long updateDelayMS;     // milliseconds
@@ -92,18 +92,18 @@ namespace GT.Net
         /// channel.  This tuple should propagate any changes every <see cref="updateDelay"/>.
         /// </summary>
         /// <param name="s">the given connexion</param>
-        /// <param name="channel">the channel on which to send and receive updates</param>
+        /// <param name="channelId">the channel on which to send and receive updates</param>
         /// <param name="updateDelay">the frequency to send our updates</param>
         /// <param name="cdr">the delivery requirements to be used in sending or updates</param>
-        protected AbstractStreamedTuple(ConnexionToServer s, byte channel, TimeSpan updateDelay,
-                ChannelDeliveryRequirements cdr) 
-            : base(s, channel, cdr)
+        protected AbstractStreamedTuple(IConnexion s, byte channelId,
+                TimeSpan updateDelay, ChannelDeliveryRequirements cdr) 
+            : base(s, channelId, cdr)
         {
             changed = false;
             UpdatePeriod = updateDelay;
         }
 
-        override internal void Update(HPTimer hpTimer)
+        public override void Update(HPTimer hpTimer)
         {
             if (changed && connexion.Identity != 0 
                 && hpTimer.TimeInMilliseconds - lastTimeSentMS > updateDelayMS)
@@ -150,19 +150,21 @@ namespace GT.Net
         public event StreamedTupleReceivedDelegate<T_X, T_Y, T_Z> StreamedTupleReceived;
 
         /// <summary>Creates a streaming tuple</summary>
-        /// <param name="connexion">The stream to send the tuples on</param>
-        /// <param name="channel">the stream's channel</param>
+        /// <param name="connexion">The connexion to send the tuples on</param>
+        /// <param name="channelId">the channel</param>
         /// <param name="updateTime">Update time for changed tuple</param>
         /// <param name="cdr">The delivery requirements for this channel</param>
-        internal StreamedTuple(ConnexionToServer connexion, byte channel,
+        internal StreamedTuple(IConnexion connexion, byte channelId,
             TimeSpan updateTime, ChannelDeliveryRequirements cdr)
-            : base(connexion, channel, updateTime, cdr)
+            : base(connexion, channelId, updateTime, cdr)
         {
         }
 
-        internal override void QueueMessage(Message message)
+        protected override void _cnx_MessageReceived(Message message, IConnexion client, ITransport transport)
         {
-            if (!(message is TupleMessage)) { return; }
+            /// We can't register for fine-grained events, so we have to do the processing 
+            /// ourselves to ensure the message is actually intended for this channel
+            if (message.ChannelId != ChannelId || !(message is TupleMessage)) { return; }
             TupleMessage tm = (TupleMessage)message;
             if (!(tm.Dimension == 3 && tm.X is T_X && tm.Y is T_Y && tm.Z is T_Z)) { return; }
             RemoteTuple<T_X, T_Y, T_Z> tuple = new RemoteTuple<T_X, T_Y, T_Z>();
@@ -170,12 +172,13 @@ namespace GT.Net
             tuple.Y = (T_Y)tm.Y;
             tuple.Z = (T_Z)tm.Z;
 
+            // Perhaps should be done in Update()?
             if (StreamedTupleReceived != null) { StreamedTupleReceived(tuple, tm.ClientId); }
         }
 
         protected override TupleMessage AsTupleMessage()
         {
-            return new TupleMessage(channel, Identity, X, Y, Z);
+            return new TupleMessage(channelId, Identity, X, Y, Z);
         }
     }
 
@@ -198,31 +201,34 @@ namespace GT.Net
         public event StreamedTupleReceivedDelegate<T_X, T_Y> StreamedTupleReceived;
 
         /// <summary>Creates a streaming tuple</summary>
-        /// <param name="connexion">The stream to send the tuples on</param>
-        /// <param name="channel">the stream's channel</param>
+        /// <param name="connexion">The connexion to send the tuples on</param>
+        /// <param name="channelId">the channel</param>
         /// <param name="updateTime">Update time for changed tuple</param>
         /// <param name="cdr">The delivery requirements for this channel</param>
-        internal StreamedTuple(ConnexionToServer connexion, byte channel,
+        internal StreamedTuple(IConnexion connexion, byte channelId,
             TimeSpan updateTime, ChannelDeliveryRequirements cdr)
-            : base(connexion, channel, updateTime, cdr)
+            : base(connexion, channelId, updateTime, cdr)
         {
         }
 
-        internal override void QueueMessage(Message message)
+        protected override void _cnx_MessageReceived(Message message, IConnexion client, ITransport transport)
         {
-            if (!(message is TupleMessage)) { return; }
+            /// We can't register for fine-grained events, so we have to do the processing 
+            /// ourselves to ensure the message is actually intended for this channel
+            if (message.ChannelId != ChannelId || !(message is TupleMessage)) { return; }
             TupleMessage tm = (TupleMessage)message;
             if (!(tm.Dimension == 2 && tm.X is T_X && tm.Y is T_Y)) { return; }
             RemoteTuple<T_X, T_Y> tuple = new RemoteTuple<T_X, T_Y>();
             tuple.X = (T_X)tm.X;
             tuple.Y = (T_Y)tm.Y;
 
+            // Perhaps should be done in Update()?
             if (StreamedTupleReceived != null) { StreamedTupleReceived(tuple, tm.ClientId); }
         }
 
         protected override TupleMessage AsTupleMessage()
         {
-            return new TupleMessage(channel, Identity, X, Y);
+            return new TupleMessage(channelId, Identity, X, Y);
         }
     }
 
@@ -240,30 +246,33 @@ namespace GT.Net
         public event StreamedTupleReceivedDelegate<T_X> StreamedTupleReceived;
 
         /// <summary>Creates a streaming tuple</summary>
-        /// <param name="connexion">The stream to send the tuples on</param>
-        /// <param name="channel">the stream's channel</param>
+        /// <param name="connexion">The connexion to send the tuples on</param>
+        /// <param name="channelId">the channel</param>
         /// <param name="updateTime">Update time for changed tuple</param>
         /// <param name="cdr">The delivery requirements for this channel</param>
-        internal StreamedTuple(ConnexionToServer connexion, byte channel,
+        internal StreamedTuple(IConnexion connexion, byte channelId,
             TimeSpan updateTime, ChannelDeliveryRequirements cdr)
-            : base(connexion, channel, updateTime, cdr)
+            : base(connexion, channelId, updateTime, cdr)
         {
         }
 
-        internal override void QueueMessage(Message message)
+        protected override void _cnx_MessageReceived(Message message, IConnexion client, ITransport transport)
         {
-            if (!(message is TupleMessage)) { return; }
+            /// We can't register for fine-grained events, so we have to do the processing 
+            /// ourselves to ensure the message is actually intended for this channel
+            if (message.ChannelId != ChannelId || !(message is TupleMessage)) { return; }
             TupleMessage tm = (TupleMessage)message;
-            if (!(tm.Dimension == 1 && tm.X is T_X)) { return; }
+            if (tm.Dimension != 1 || !(tm.X is T_X)) { return; }
             RemoteTuple<T_X> tuple = new RemoteTuple<T_X>();
             tuple.X = (T_X)tm.X;
 
+            // Perhaps should be done in Update()?
             if (StreamedTupleReceived != null) { StreamedTupleReceived(tuple, tm.ClientId); }
         }
 
         protected override TupleMessage AsTupleMessage()
         {
-            return new TupleMessage(channel, Identity, X);
+            return new TupleMessage(channelId, Identity, X);
         }
     }
 }

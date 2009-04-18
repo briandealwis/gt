@@ -15,7 +15,7 @@ namespace GT.Net
     /// taken from the array, the latest cached copy is returned.  If there is no
     /// cached copy yet (that is, if the client is relatively new), then null is returned,
     /// but the object is requested from other shared dictionaries on the network and 
-    /// channel.  The emergent behaviour is a very simple shared dictionary that performs
+    /// channelId.  The emergent behaviour is a very simple shared dictionary that performs
     /// extremely fast reads but expensive writes, and is ideal for non-streaming datasets.
     /// Examples of information that would be great to store in this dictionary would be
     /// user information like colour, preferences, avatar appearance, and object descriptions.
@@ -46,11 +46,11 @@ namespace GT.Net
         public IList<string> Master;
 
         /// <summary>Create a new shared dictionary.</summary>
-        /// <param name="s">A networked object stream.</param>
-        public SimpleSharedDictionary(IObjectStream s)
+        /// <param name="s">A networked object channel.</param>
+        public SimpleSharedDictionary(IObjectChannel s)
         {
-            this.stream = s;
-            this.stream.MessagesReceived += stream_NewMessageEvent;
+            this.channel = s;
+            this.channel.MessagesReceived += channel_NewMessageEvent;
             this.Master = new List<string>();
             this.sharedDictionary = new Dictionary<string, object>();
         }
@@ -97,24 +97,24 @@ namespace GT.Net
         /// A unique number that no other client has in relation to this server.
         /// If zero, don't use.  It will be assigned a unique number by the server soon after connecting.
         /// </summary>
-        /// <seealso cref="IStream.Identity"/>
+        /// <seealso cref="IChannel.Identity"/>
         public int Identity
         {
             get
             {
-                return stream.Identity;
+                return channel.Identity;
             }
         }
 
         #region Implementation
 
-        protected IObjectStream stream;
+        protected IObjectChannel channel;
         protected Dictionary<string, object> sharedDictionary;
 
-        private void stream_NewMessageEvent(IObjectStream stream)
+        private void channel_NewMessageEvent(IObjectChannel channel)
         {
             object o;
-            while ((o = stream.DequeueMessage(0)) != null)
+            while ((o = channel.DequeueMessage(0)) != null)
             {
                 if (o is KeyValuePair<string, object>)    // push
                 {
@@ -163,41 +163,41 @@ namespace GT.Net
 
         virtual protected void PullKey(string key)
         {
-            stream.Send(key);   // strings indicate a request
+            channel.Send(key);   // strings indicate a request
         }
 
         virtual protected void PushKey(string key, object obj)
         {
-            stream.Send(new KeyValuePair<string, object>(key, obj));
+            channel.Send(new KeyValuePair<string, object>(key, obj));
         }
 
         #endregion
 
         virtual public void Flush()
         {
-            stream.Flush();
+            channel.Flush();
         }
 
         override public string ToString()
         {
-            return GetType().Name + "(" + stream + ")";
+            return GetType().Name + "(" + channel + ")";
         }
     }
 
     /// <summary>
-    /// FIXME: Question: is this actually necessary?  Can't the stream channel be
+    /// FIXME: Question: is this actually necessary?  Can't the channel be
     /// aggregating?
     /// </summary>
     public class AggregatingSharedDictionary : SimpleSharedDictionary
     {
 
         /// <summary>Create a new shared dictionary.</summary>
-        /// <param name="s">A networked object stream.</param>
+        /// <param name="s">A networked object channel.</param>
         /// <param name="updateTime">Batch updates until this amount of time has passed.</param>
-        public AggregatingSharedDictionary(IObjectStream s, TimeSpan updateTime)
+        public AggregatingSharedDictionary(IObjectChannel s, TimeSpan updateTime)
             : base(s)
         {
-            stream.UpdateEvent += stream_UpdateEvent;
+            channel.UpdateEvent += channel_UpdateEvent;
             lastTimeSent = 0;
             this.updateTime = updateTime;
         }
@@ -207,11 +207,11 @@ namespace GT.Net
         private TimeSpan updateTime; //wait this long between sendings
 
         //flush channel if there are possible updates to send.
-        void stream_UpdateEvent(HPTimer hpTimer)
+        void channel_UpdateEvent(HPTimer hpTimer)
         {
             //check to see if there are possibly incomingMessages to send
             if (!sendsPending) { return; }
-            // One might ask: shouldn't this be better done through the stream aggregation?
+            // One might ask: shouldn't this be better done through the channel aggregation?
             if (lastTimeSent + updateTime.TotalMilliseconds > hpTimer.TimeInMilliseconds) { return; }
             Flush();
             lastTimeSent = hpTimer.TimeInMilliseconds;

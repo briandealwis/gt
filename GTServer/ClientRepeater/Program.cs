@@ -93,14 +93,14 @@ namespace GT.Net
 
         static void Usage()
         {
-            Console.WriteLine("Use: <ClientRepeater.exe> [-v] [-m pktsize] [-s channel] [-M mpede] [port]");
+            Console.WriteLine("Use: <ClientRepeater.exe> [-v] [-m pktsize] [-s channelId] [-M mpede] [port]");
             Console.WriteLine("  -v   be more verbose");
             Console.WriteLine("  -s   cause session announcements to be sent on specified channel");
             Console.WriteLine("       (use -1 to disable session announcements)");
             Console.WriteLine("  -m   set the maximum packet size to <pktsize>");
             Console.WriteLine("  -M   set the GT-Millipede configuration string");
             Console.WriteLine("[port] defaults to {0} if not specified", DefaultPort);
-            Console.WriteLine("[channel] defaults to {0} if not specified", DefaultSessionChannel);
+            Console.WriteLine("[channelId] defaults to {0} if not specified", DefaultSessionChannel);
         }
 
         static void Main(string[] args)

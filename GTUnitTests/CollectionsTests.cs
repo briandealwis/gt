@@ -329,7 +329,7 @@ namespace GT.UnitTests
     }
 
     [TestFixture]
-    public class tWeakKeyDictionaryTests
+    public class AAWeakKeyDictionaryTests
     {
         private WeakKeyDictionary<object, string> PopulateDictionary()
         {
@@ -409,7 +409,7 @@ namespace GT.UnitTests
             GC.Collect();
             GC.WaitForPendingFinalizers();
             dictionary.Flush();
-            Assert.AreEqual(0, dictionary.Keys.Count);
+            Assert.AreEqual(0, dictionary.Count);
             Assert.AreEqual(0, dictionary.Values.Count);
             Assert.AreEqual(0, dictionary.Count);
         }
@@ -423,16 +423,14 @@ namespace GT.UnitTests
             dictionary[new object()] = "foo";
             dictionary[new object()] = "bar";
             Assert.AreEqual(3, dictionary.Count);
-            Assert.AreEqual(3, dictionary.Keys.Count);
 
             object testObject = new object();
             dictionary[testObject] = "blah";
             Assert.AreEqual(4, dictionary.Count);
-            Assert.AreEqual(4, dictionary.Keys.Count);
+            Assert.AreEqual(4, dictionary.Count);
             Assert.IsTrue(dictionary.ContainsKey(testObject));
             Assert.IsTrue(dictionary.Remove(testObject));
             Assert.AreEqual(3, dictionary.Count);
-            Assert.AreEqual(3, dictionary.Keys.Count);
 
             GC.Collect();
             GC.WaitForPendingFinalizers();
@@ -441,7 +439,6 @@ namespace GT.UnitTests
                 Console.WriteLine("gen[{0}] = {1}", key, GC.GetGeneration(key));
             }
             Assert.AreEqual(0, dictionary.Count);
-            Assert.AreEqual(0, dictionary.Keys.Count);
             Assert.AreEqual(0, dictionary.Values.Count);
         }
 
@@ -456,16 +453,53 @@ namespace GT.UnitTests
             object testObject = new object();
             dictionary[testObject] = "blah";
             Assert.AreEqual(4, dictionary.Count);
-            Assert.AreEqual(4, dictionary.Keys.Count);
             Assert.IsTrue(dictionary.ContainsKey(testObject));
 
             GC.Collect();
             GC.WaitForPendingFinalizers();
             Assert.AreEqual(1, dictionary.Count);
-            Assert.AreEqual(1, dictionary.Keys.Count);
             Assert.AreEqual(1, dictionary.Values.Count);
             Assert.IsTrue(dictionary.ContainsKey(testObject));
         }
 
+    }
+
+    [TestFixture]
+    public class AAWeakCollectionTests
+    {
+        [Test]
+        public void TestBasics()
+        {
+            WeakCollection<object> c = new WeakCollection<object>();
+            c.Add(new object());
+            c.Add(new object());
+            c.Add(new object());
+            c.Add(new object());
+            c.Add(this);
+            Assert.AreEqual(5, c.Count);
+            Assert.IsTrue(c.Contains(this));
+            int n = 0;
+            foreach (object o in c)
+            {
+                Assert.IsTrue(o.GetType() == typeof(object) || o.GetType() == this.GetType());
+                n++;
+            }
+            Assert.AreEqual(5, n);
+
+            GC.Collect();
+            GC.WaitForPendingFinalizers();
+
+            Assert.AreEqual(1, c.Count);
+            Assert.IsTrue(c.Contains(this));
+            n = 0;
+            foreach (object o in c)
+            {
+                Assert.IsTrue(o.GetType() == this.GetType());
+                Assert.IsTrue(o == this);
+                n++;
+            }
+            Assert.AreEqual(1, n);
+            c.CopyTo(new object[1], 0);
+        }
     }
 }

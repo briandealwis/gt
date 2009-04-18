@@ -6,7 +6,7 @@ using GMCException = GT.GMC.MissingInformationException;
 
 namespace GT.GMC
 {
-    //public class CompressedStringStream : IStringStream
+    //public class CompressedStringChannel : IStringChannel
     //{
     //    private struct SavedMessage
     //    {
@@ -66,7 +66,7 @@ namespace GT.GMC
     //    }
 
     //    protected GMCMarshaller gmc;
-    //    protected IBinaryStream stream;
+    //    protected IBinaryChannel channel;
     //    private Dictionary<byte[], int> failedIncomingMessages;
     //    private List<SavedMessage> waitingOutOfOrderMessages;
     //    private List<SavedMessage> waitingInOrderMessages;
@@ -82,7 +82,7 @@ namespace GT.GMC
     //    private static int userTimeout = 5000;
     //    private List<string> messages;
 
-    //    public CompressedStringStream(IBinaryStream stream)
+    //    public CompressedStringChannel(IBinaryChannel channel)
     //    {
     //        messages = new List<string>();
     //        failedIncomingMessages = new Dictionary<byte[], int>();
@@ -93,15 +93,15 @@ namespace GT.GMC
     //        ourAnnouncementSendingTimes = new Dictionary<int, Dictionary<int, Dictionary<byte, int>>>();
     //        ourTemplateSendingTimes = new Dictionary<int, Dictionary<int, int>>();
     //        gmc = new GMCMarshaller();
-    //        this.stream = stream;
-    //        stream.BinaryNewMessageEvent += new BinaryNewMessage(stream_BinaryNewMessageEvent);
+    //        this.channel = channel;
+    //        channel.NewMessageEvent += channel_BinaryNewMessageEvent;
     //    }
 
-    //    public float Delay { get { return stream.Delay; } }
+    //    public float Delay { get { return channel.Delay; } }
 
     //    public List<string> Messages { get { return messages; } }
 
-    //    public int Identity { get { return stream.Identity; } }
+    //    public int Identity { get { return channel.Identity; } }
 
     //    public event StringNewMessage StringNewMessageEvent;
 
@@ -136,12 +136,12 @@ namespace GT.GMC
 
     //    public void FlushAllOutgoingMessagesOnChannel(MessageProtocol protocol)
     //    {
-    //        stream.FlushAllOutgoingMessagesOnChannel(protocol);
+    //        channel.FlushAllOutgoingMessagesOnChannel(protocol);
     //    }
 
     //    public bool Dead
     //    {
-    //        get { return stream.Dead; }
+    //        get { return !channel.Active; }
     //    }
 
     //    /// <summary>Checks to see if we've requested these announcements recently.  
@@ -393,13 +393,13 @@ namespace GT.GMC
 
     //        DataConverter.Converter.GetBytes(e.UserID).CopyTo(b, 0);
     //        DataConverter.Converter.GetBytes(e.Template).CopyTo(b, 5);
-    //        DataConverter.Converter.GetBytes(stream.Identity).CopyTo(b, 9);
+    //        DataConverter.Converter.GetBytes(channel.Identity).CopyTo(b, 9);
 
     //        int count = e.IDs.Count;
     //        for (int i = 0; i < count; i++)
     //            b[13 + i] = e.IDs[i];
 
-    //        stream.Send(b);
+    //        channel.Send(b);
     //    }
 
     //    private void HandleNewCompressedMessage(GMCTimeliness timeliness, SavedMessage msg)
@@ -562,7 +562,7 @@ namespace GT.GMC
 
     //    private void ReceiveRequest(int currentTime, GMCMessageType messageType, int userID, int templateID, int requesteeID, byte[] messagePayload)
     //    {
-    //        if (userID != stream.Identity)
+    //        if (userID != channel.Identity)
     //            return;
 
     //        int count;
@@ -605,17 +605,17 @@ namespace GT.GMC
     //        DataConverter.Converter.GetBytes(templateID).CopyTo(reply, 5);
     //        DataConverter.Converter.GetBytes(requesteeID).CopyTo(reply, 8);
 
-    //        stream.Send(reply);
+    //        channel.Send(reply);
     //    }
 
-    //    void stream_BinaryNewMessageEvent(IBinaryStream stream)
+    //    void channel_BinaryNewMessageEvent(IBinaryChannel channel)
     //    {
     //        lock (this)
     //        {
     //            byte[] b;
     //            int currentTime = System.Environment.TickCount;
     //            bool gmcUpdated = false, newMessages = false;
-    //            while ((b = stream.DequeueMessage(0)) != null)
+    //            while ((b = channel.DequeueMessage(0)) != null)
     //            {
     //                try
     //                {
@@ -682,7 +682,7 @@ namespace GT.GMC
     //    protected void SendMessage(String s, MessageProtocol reli, MessageAggregation aggr, MessageOrder ordering, GMCTimeliness timeliness)
     //    {
     //        //don't do a damn thing until we're ready
-    //        if (stream.Identity == 0)
+    //        if (channel.Identity == 0)
     //            throw new Exception("Our Identity for this server equals zero, therefore we have not received our identity from the server yet."+
     //                "  Please do not compress anything until we know our unique identity, so that others know who we are.");
 
@@ -701,7 +701,7 @@ namespace GT.GMC
     //                data[4] |= (byte)GMCMessageType.Template;
     //                data[4] |= (byte)GMCDestinationType.Broadcast;
     //                co.Template.CopyTo(data, 13);
-    //                stream.Send(data, MessageProtocol.Tcp, MessageAggregation.Yes, MessageOrder.AllChannel);
+    //                channel.Send(data, MessageProtocol.Tcp, MessageAggregation.Yes, MessageOrder.AllChannel);
     //                Console.WriteLine(System.Environment.TickCount + " Sending template: " + UTF8Encoding.UTF8.GetString(co.Template));
     //            }
 
@@ -718,7 +718,7 @@ namespace GT.GMC
     //                    co.Announcements[i].CopyTo(data, 13 + i * 7);
     //                    Console.WriteLine(System.Environment.TickCount + " Sending announcement: name:" + DataConverter.Converter.ToInt16(co.Announcements[i], 0) + " longForm: " + DataConverter.Converter.ToInt32(co.Announcements[i], 2) + " shortForm: " + co.Announcements[i][6]);
     //                }
-    //                stream.Send(data, MessageProtocol.Tcp, MessageAggregation.Yes, MessageOrder.AllChannel);
+    //                channel.Send(data, MessageProtocol.Tcp, MessageAggregation.Yes, MessageOrder.AllChannel);
     //            }
 
     //            if (co.FrequencyTable != null)
@@ -728,7 +728,7 @@ namespace GT.GMC
     //                data[4] |= (byte)GMCMessageType.FrequencyTable;
     //                data[4] |= (byte)GMCDestinationType.Broadcast;
     //                co.FrequencyTable.CopyTo(data, 13);
-    //                stream.Send(data, MessageProtocol.Tcp, MessageAggregation.Yes, MessageOrder.AllChannel);
+    //                channel.Send(data, MessageProtocol.Tcp, MessageAggregation.Yes, MessageOrder.AllChannel);
     //            }
 
     //            data = new byte[co.Message.Length + 5];
@@ -739,14 +739,14 @@ namespace GT.GMC
     //                data[4] |= (byte)GMCOrdering.OutOfOrder;
     //            else
     //                data[4] |= (byte)GMCOrdering.InOrder;
-    //            DataConverter.Converter.GetBytes(stream.Identity).CopyTo(data, 0);
+    //            DataConverter.Converter.GetBytes(channel.Identity).CopyTo(data, 0);
     //            co.Message.CopyTo(data, 5);
 
     //            //make sure the announcements and such get sent first
     //            if (reli != MessageProtocol.Tcp || ordering == MessageOrder.None)
-    //                stream.FlushAllOutgoingMessagesOnChannel(MessageProtocol.Tcp);
+    //                channel.FlushAllOutgoingMessagesOnChannel(MessageProtocol.Tcp);
 
-    //            stream.Send(data, reli, aggr, ordering);
+    //            channel.Send(data, reli, aggr, ordering);
     //        }
     //    }
     //}

@@ -203,14 +203,14 @@ namespace GT.StatsGraphs
                     /// Pie charts
                     messagesSentPiechart.OpenData(COD.Values, 1, (int) COD.Unknown);
                     index = 0;
-                    foreach (byte channel in stats.SentChannels)
+                    foreach (byte channelId in stats.SentChannelIds)
                     {
                         foreach (MessageType t in Enum.GetValues(typeof(MessageType)))
                         {
-                            int count = stats.ComputeMessagesSent(channel, t);
+                            int count = stats.ComputeMessagesSent(channelId, t);
                             if (count == 0) { continue; }
                             messagesSentPiechart.Value[0, index] = count;
-                            messagesSentPiechart.Legend[index] = channel + " " + t;
+                            messagesSentPiechart.Legend[index] = channelId + " " + t;
                             index++;
                         }
                     }
@@ -218,14 +218,14 @@ namespace GT.StatsGraphs
 
                     messagesReceivedPiechart.OpenData(COD.Values, 1, (int) COD.Unknown);
                     index = 0;
-                    foreach (byte channel in stats.ReceivedChannels)
+                    foreach (byte channelId in stats.ReceivedChannelIds)
                     {
                         foreach (MessageType t in Enum.GetValues(typeof(MessageType)))
                         {
-                            int count = stats.ComputeMessagesReceived(channel, t);
+                            int count = stats.ComputeMessagesReceived(channelId, t);
                             if (count == 0) { continue; }
                             messagesReceivedPiechart.Value[0, index] = count;
-                            messagesReceivedPiechart.Legend[index] = channel + " " + t;
+                            messagesReceivedPiechart.Legend[index] = channelId + " " + t;
                             index++;
                         }
                     }

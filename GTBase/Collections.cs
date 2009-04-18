@@ -518,7 +518,7 @@ namespace GT.Utils
         }
     }
 
-    #region WeakKeyDictionary
+    #region Weak Collections
 
     /// <summary>
     /// A dictionary whose keys are stored as a weak reference.  These
@@ -646,17 +646,16 @@ namespace GT.Utils
         /// <summary>
         /// Returns a collection of the valid keys.
         /// </summary>
-        public ICollection<TKey> Keys
+        public IEnumerable<TKey> Keys
         {
             get
             {
-                IList<TKey> keys = new List<TKey>(dictionary.Count);
                 IList<WeakReference<TKey>> toRemove = null;
                 foreach (WeakReference<TKey> wr in dictionary.Keys)
                 {
                     if (wr.IsAlive)
                     {
-                        keys.Add(wr.Value);
+                        yield return wr.Value;
                     }
                     else
                     {
@@ -671,7 +670,6 @@ namespace GT.Utils
                         dictionary.Remove(wr);
                     }
                 }
-                return keys;
             }
         }
 
@@ -683,6 +681,100 @@ namespace GT.Utils
                 return dictionary.Values;
             }
         }
+    }
+
+    /// <summary>
+    /// A set whose elements are stored as a weak reference.
+    /// </summary>
+    /// <typeparam name="T">the type of the objects making up this collection</typeparam>
+    public class WeakCollection<T> : ICollection<T>
+    {
+        protected IList<WeakReference<T>> sublist = new List<WeakReference<T>>();
+
+        public IEnumerator<T> GetEnumerator()
+        {
+            foreach (WeakReference<T> wr in sublist)
+            {
+                if(wr.IsAlive)
+                {
+                    yield return wr.Value;
+                }
+            }
+        }
+
+        IEnumerator IEnumerable.GetEnumerator()
+        {
+            return GetEnumerator();
+        }
+
+        public void Add(T item)
+        {
+            for (int i = 0; i < sublist.Count; i++)
+            {
+                if(!sublist[i].IsAlive)
+                {
+                    sublist[i] = new WeakReference<T>(item);
+                    return;
+                }
+            }
+            sublist.Add(new WeakReference<T>(item));
+        }
+
+        public void Clear()
+        {
+            sublist.Clear();
+        }
+
+        public bool Contains(T item)
+        {
+            foreach (WeakReference<T> wr in sublist)
+            {
+                if (wr.IsAlive && wr.Value.Equals(item))
+                {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        public void CopyTo(T[] array, int arrayIndex)
+        {
+            foreach (WeakReference<T> wr in sublist)
+            {
+                if (wr.IsAlive)
+                {
+                    array[arrayIndex++] = wr.Value;
+                }
+            }
+        }
+
+        public bool Remove(T item)
+        {
+            for(int i = 0; i < sublist.Count; i++)
+            {
+                if(sublist[i].IsAlive && sublist[i].Value.Equals(item))
+                {
+                    sublist.RemoveAt(i);
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        public int Count
+        {
+            get
+            {
+                int n = 0;
+                foreach (WeakReference<T> element in sublist)
+                {
+                    if (element.IsAlive) { n++; }
+                }
+                return n;
+            }
+        }
+
+        public bool IsReadOnly { get { return false; } }
     }
 
     /// <summary>

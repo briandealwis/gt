@@ -82,7 +82,7 @@ namespace Ping
             client.ConnexionAdded += _client_ConnexionAdded;
             client.Start();
 
-            ISessionStream stream = client.GetSessionStream(host, port, 0,
+            ISessionChannel channel = client.OpenSessionChannel(host, port, 0,
                 ChannelDeliveryRequirements.SessionLike);
 
             for(int iter = 0; iter < numPings; iter++)
