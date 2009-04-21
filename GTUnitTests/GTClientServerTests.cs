@@ -1124,6 +1124,44 @@ namespace GT.UnitTests
             }
         }
 
+        /// <summary>
+        /// Ensure that there is no bleed-through between different channels
+        /// on the same connexion
+        /// </summary>
+        [Test]
+        public void TestDifferentChannelsNotConfused()
+        {
+            StartExpectedResponseServer(EXPECTED_GREETING, EXPECTED_RESPONSE);
+
+            client = new LocalClientConfiguration().BuildClient(); //this is a client
+            client.ErrorEvent += client_ErrorEvent; //triggers if there is an error
+            client.Start();
+            Assert.IsFalse(errorOccurred);
+            Assert.IsFalse(responseReceived);
+
+            IStringChannel ch1 = client.OpenStringChannel("127.0.0.1", "9999", 0,
+                ChannelDeliveryRequirements.CommandsLike);
+            IStringChannel ch2 = client.OpenStringChannel(ch1.Connexion, 1,
+                ChannelDeliveryRequirements.CommandsLike);
+            Assert.IsTrue(ch1 != ch2);
+            Assert.IsTrue(ch1.Active && ch2.Active);
+            Assert.IsTrue(ch1.Connexion == ch2.Connexion);
+
+            int mr = 0;
+            ch1.MessagesReceived += ClientStringMessageReceivedEvent;
+            ch1.MessagesReceived += delegate { mr++; };
+            ch2.MessagesReceived += delegate { mr++; };
+
+            ch1.Send(EXPECTED_GREETING);
+            CheckForResponse();
+            Assert.AreEqual(1, mr);
+            Assert.AreEqual(1, ch1.Count);
+            Assert.AreEqual(0, ch2.Count);
+
+            ch1.Dispose();
+            ch2.Dispose();
+        }
+
         [Test]
         public void TestRejectAllIncomingConnections()
         {
