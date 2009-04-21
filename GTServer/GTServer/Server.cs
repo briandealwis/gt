@@ -27,6 +27,10 @@ namespace GT.Net
 
     #endregion
 
+    /// <summary>
+    /// Describes the configuration details and defines policy decisions for
+    /// a GT server.
+    /// </summary>
     public abstract class ServerConfiguration : BaseConfiguration
     {
         /// <summary>
@@ -40,6 +44,28 @@ namespace GT.Net
         /// </summary>
         /// <returns>a collection of acceptors</returns>
         abstract public ICollection<IAcceptor> CreateAcceptors();
+
+        /// <summary>
+        /// Check an incoming connection; if the connection is deemed to be
+        /// invalid, then return a descriptive reason.
+        /// </summary>
+        /// <param name="server">the server instance</param>
+        /// <param name="transport">the transport in question</param>
+        /// <param name="capabilities">the capabilities from the remote</param>
+        /// <returns>null if valid, a reason if invalid</returns>
+        public virtual string ValidateIncomingTransport(Server server, ITransport transport,
+            IDictionary<string, string> capabilities)
+        {
+            if(!capabilities.ContainsKey(GTCapabilities.MARSHALLER_DESCRIPTORS))
+            {
+                return "no marshaller capabilities provided";
+            }
+            if(!server.Marshaller.IsCompatible(capabilities[GTCapabilities.MARSHALLER_DESCRIPTORS], transport))
+            {
+                return "incompatible marshaller";
+            }
+            return null;
+        }
 
         /// <summary>
         /// Create a server instance as repreented by this configuration instance.
@@ -437,12 +463,22 @@ namespace GT.Net
             foreach (IAcceptor acc in acceptors)
             {
                 acc.NewTransportAccepted += NewTransport;
+                acc.ValidateTransport += ValidateIncomingTransport;
                 acc.Start();
             }
             marshaller = configuration.CreateMarshaller();
             base.Start();
             running = true;
             log.Trace(this + ": started");
+        }
+
+        protected virtual void ValidateIncomingTransport(object sender, ValidateTransportArgs e)
+        {
+            string rejection = configuration.ValidateIncomingTransport(this, e.Transport, e.Capabilities);
+            if (rejection != null)
+            {
+                e.Reject(rejection);
+            }
         }
 
         public override void Stop()

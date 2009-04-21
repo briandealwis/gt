@@ -19,10 +19,14 @@ namespace GT.Net
     public interface IMarshaller : IDisposable
     {
         /// <summary>
-        /// Return a set of descriptions identifying this marshaller and its capabilities.
-        /// The descriptions should not have any white-space.
+        /// Returns a string identifying this marshaller's capabilities.
+        /// The descriptor should not have any white-space.  This descriptor is
+        /// provided to the remote marshaller to assess whether there is any common
+        /// ground using <see cref="IsCompatible"/>.
+        /// 
+        /// For now, marshallers should only return a single descriptor.
         /// </summary>
-        string[] Descriptors { get; }
+        string Descriptor { get; }
 
         /// <summary>
         /// Marshal the provided message in an appropriate form for the provided transport.
@@ -71,6 +75,16 @@ namespace GT.Net
         /// from the stream.</param>
         void Unmarshal(TransportPacket input, ITransportDeliveryCharacteristics tdc, 
             EventHandler<MessageEventArgs> messageAvailable);
+
+        /// <summary>
+        /// Return true if this marshaller can handle the marshalling format
+        /// defined by the provided marshaller descriptor.
+        /// </summary>
+        /// <param name="marshallingDescriptor"></param>
+        /// <param name="remote">the remote transport</param>
+        /// <returns>true if this marshaller can handle messages marshalled in the
+        /// described format, or false otherwise</returns>
+        bool IsCompatible(string marshallingDescriptor, ITransport remote);
     }
 
     /// <summary>
@@ -215,6 +229,7 @@ namespace GT.Net
         /// </list>
         /// </summary>
         public const string Descriptor = "LWMCF-1.1";
+        public const string DescriptorAsPrefix = Descriptor + ":";
 
         /// <summary>
         /// The # bytes in the v1.1 header.
@@ -266,19 +281,16 @@ namespace GT.Net
     }
 
     /// <summary>
-    /// The lightweight marshaller provides the message payloads as raw 
-    /// uninterpreted byte arrays so as to avoid introducing latency from unneeded processing.
-    /// Should your server need to use the message content, then you server should 
-    /// use a <see cref="DotNetSerializingMarshaller"/>.
-    /// This marshaller adheres to the Lightweight Message Container Format 1.1.
+    /// A basic framework for implementing marshallers adhering to the
+    /// Lightweight Message Container Format v1.1.
     /// </summary>
-    /// <seealso cref="T:GT.Net.DotNetSerializingMarshaller"/>
-    public class LightweightDotNetSerializingMarshaller : IMarshaller
+    public abstract class BaseLWMCFMarshaller : IMarshaller
     {
+        public abstract string Descriptor { get; }
 
-        public virtual string[] Descriptors
+        public virtual bool IsCompatible(string marshallingDescriptor, ITransport remote)
         {
-            get { return new[] { LWMCFv11.Descriptor }; }
+            return Descriptor.Equals(marshallingDescriptor);
         }
 
         public virtual void Dispose()
@@ -301,28 +313,18 @@ namespace GT.Net
             MarshalledResult mr = new MarshalledResult();
             TransportPacket tp = new TransportPacket();
 
-            // NB: SystemMessages use ChannelId to encode the sysmsg descriptor
-            if (msg is RawMessage)
-            {
-                RawMessage rm = (RawMessage)msg;
-                tp.Prepend(LWMCFv11.EncodeHeader(msg.MessageType, msg.ChannelId, (uint)rm.Bytes.Length));
-                tp.Add(rm.Bytes);
-            }
-            else
-            {
-                // We use TransportPacket.Prepend to add the marshalling header in-place
-                // after the marshalling.
-                Stream output = tp.AsWriteStream();
-                Debug.Assert(output.CanSeek);
-                MarshalContents(msg, output, tdc);
-                output.Flush();
-                /// System messages don't have a channelId -- we encode their system message
-                /// type as the channelId instead
-                tp.Prepend(LWMCFv11.EncodeHeader(msg.MessageType, 
-                    msg.MessageType == MessageType.System 
-                        ? (byte)((SystemMessage)msg).Descriptor : msg.ChannelId, 
-                    (uint)output.Position));
-            }
+            // We use TransportPacket.Prepend to add the marshalling header in-place
+            // after the marshalling.
+            Stream output = tp.AsWriteStream();
+            Debug.Assert(output.CanSeek);
+            MarshalContents(msg, output, tdc);
+            output.Flush();
+            /// System messages don't have a channelId -- we encode their system message
+            /// type as the channelId instead
+            tp.Prepend(LWMCFv11.EncodeHeader(msg.MessageType, 
+                msg.MessageType == MessageType.System 
+                    ? (byte)((SystemMessage)msg).Descriptor : msg.ChannelId, 
+                (uint)output.Position));
             mr.AddPacket(tp);
             return mr;
         }
@@ -354,13 +356,13 @@ namespace GT.Net
             }
         }
 
-        protected void MarshalSessionAction(SessionMessage sm, Stream output)
+        protected virtual void MarshalSessionAction(SessionMessage sm, Stream output)
         {
             output.WriteByte((byte)sm.Action);
             output.Write(DataConverter.Converter.GetBytes(sm.ClientId), 0, 4);
         }
 
-        protected void MarshalSystemMessage(SystemMessage msg, Stream output)
+        protected virtual void MarshalSystemMessage(SystemMessage msg, Stream output)
         {
             // SystemMessageType is the channelId
             switch (msg.Descriptor)
@@ -390,7 +392,13 @@ namespace GT.Net
             uint length;
             LWMCFv11.DecodeHeader(out type, out channelId, out length, input);
             Message m = UnmarshalContent(channelId, type, new WrappedStream(input, length), length);
-            messageAvailable(this, new MessageEventArgs(tdc as ITransport, m)); // FIXME!!!
+            if (m == null)
+            {
+                throw new MarshallingException(String.Format(
+                    "Cannot unmarshal the provided content: channel={0}, type={1}, len={2}",
+                    channelId, type, length));
+            }
+            messageAvailable(this, new MessageEventArgs(tdc as ITransport, m));
         }
 
         /// <summary>
@@ -402,7 +410,7 @@ namespace GT.Net
         /// <param name="type">the type of message</param>
         /// <param name="input">the marshalled contents</param>
         /// <param name="length">the number of bytes available</param>
-        /// <returns>the unmarshalled message</returns>
+        /// <returns>the unmarshalled message or null if the contents could not be unmarshalled</returns>
         virtual protected Message UnmarshalContent(byte channelId, MessageType type, Stream input, uint length)
         {
             switch (type)
@@ -412,7 +420,7 @@ namespace GT.Net
             case MessageType.System:
                 return UnmarshalSystemMessage(channelId, type, input, length);
             default:
-                return new RawMessage(channelId, type, ReadBytes(input, length));
+                return null;
             }
         }
 
@@ -454,28 +462,6 @@ namespace GT.Net
             input.Read(result, 0, (int)length);
             return result;
         }
-
-        /// <summary>
-        /// An uninterpreted, length-prefixed message
-        /// </summary>
-        public class RawMessage : Message
-        {
-            /// <summary>The binary byte content.</summary>
-            public byte[] Bytes { get { return bytes; } }
-
-            protected byte[] bytes;
-
-            public RawMessage(byte channelId, MessageType t, byte[] data)
-                : base(channelId, t)
-            {
-                this.bytes = data;
-            }
-
-            public override string ToString()
-            {
-                return "Raw Message (uninterpreted bytes)";
-            }
-        }
     }
 
     /// <summary>
@@ -484,9 +470,14 @@ namespace GT.Net
     /// are marshalled using the .NET Serialization framework.
     /// </summary>
     public class DotNetSerializingMarshaller :
-            LightweightDotNetSerializingMarshaller
+            BaseLWMCFMarshaller
     {
         protected BinaryFormatter formatter = new BinaryFormatter();
+
+        public override string Descriptor
+        {
+            get { return LWMCFv11.DescriptorAsPrefix + ".NET-1.0"; }
+        }
 
         override public void Dispose()
         {
@@ -683,4 +674,72 @@ namespace GT.Net
         #endregion
 
     }
+
+
+    public class LightweightDotNetSerializingMarshaller : BaseLWMCFMarshaller
+    {
+        public override string Descriptor
+        {
+            get { return LWMCFv11.Descriptor; }
+        }
+
+        public override bool IsCompatible(string marshallingDescriptor, ITransport remote)
+        {
+            return marshallingDescriptor.Equals(LWMCFv11.Descriptor)
+                || marshallingDescriptor.StartsWith(LWMCFv11.DescriptorAsPrefix);
+        }
+
+        public override IMarshalledResult Marshal(int senderIdentity, Message msg, ITransportDeliveryCharacteristics tdc)
+        {
+            // This marshaller doesn't use <see cref="senderIdentity"/>.
+            if (msg is RawMessage)
+            {
+                MarshalledResult mr = new MarshalledResult();
+                TransportPacket tp = new TransportPacket();
+
+                // NB: SystemMessages use ChannelId to encode the sysmsg descriptor
+                RawMessage rm = (RawMessage)msg;
+                tp.Prepend(LWMCFv11.EncodeHeader(msg.MessageType, msg.ChannelId, (uint)rm.Bytes.Length));
+                tp.Add(rm.Bytes);
+                mr.AddPacket(tp);
+                return mr;
+            }
+            return base.Marshal(senderIdentity, msg, tdc);
+        }
+
+        protected override Message UnmarshalContent(byte channelId, MessageType type, Stream input, uint length)
+        {
+            Message msg = base.UnmarshalContent(channelId, type, input, length);
+            if (msg == null)
+            {
+                msg = new RawMessage(channelId, type, ReadBytes(input, length));
+            }
+            return msg;
+        }
+
+        /// <summary>
+        /// An uninterpreted, length-prefixed message
+        /// </summary>
+        public class RawMessage : Message
+        {
+            /// <summary>The binary byte content.</summary>
+            public byte[] Bytes { get { return bytes; } }
+
+            protected byte[] bytes;
+
+            public RawMessage(byte channelId, MessageType t, byte[] data)
+                : base(channelId, t)
+            {
+                this.bytes = data;
+            }
+
+            public override string ToString()
+            {
+                return "Raw Message (uninterpreted bytes)";
+            }
+        }
+
+    }
+
+
 }

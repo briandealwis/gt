@@ -11,38 +11,36 @@ namespace GT.Net.Local
     /// Wait for connections across a local pipe.  Local pipes are only addressed 
     /// using the port: do not embed the host (since this is a local anyays).
     /// </summary>
-    public class LocalAcceptor : IAcceptor
+    public class LocalAcceptor : BaseAcceptor
     {
         protected string name;
         protected int connectionNumber = 1;
         protected List<LocalHalfPipe> pending;
         protected List<LocalHalfPipe> toBeRemoved;
        
-        public event NewTransportHandler NewTransportAccepted;
-
         public LocalAcceptor(string name)
         {
             this.name = name;
         }
 
-        public bool Active
+        public override bool Active
         {
             get { return LocalTransport.IsRegistered(name, this); }
         }
 
-        public void Start()
+        public override void Start()
         {
             LocalTransport.RegisterAcceptor(name, this);
             pending = new List<LocalHalfPipe>();
             toBeRemoved = new List<LocalHalfPipe>();
         }
 
-        public void Stop()
+        public override void Stop()
         {
             LocalTransport.RemoveAcceptor(name);
         }
 
-        public void Dispose()
+        public override void Dispose()
         {
             Stop();
         }
@@ -58,7 +56,7 @@ namespace GT.Net.Local
             return client;
         }
 
-        public void Update()
+        public override void Update()
         {
             toBeRemoved.Clear();
             foreach (LocalHalfPipe hp in pending)
@@ -70,7 +68,7 @@ namespace GT.Net.Local
                     {
                         Dictionary<string, string> capabilities =
                              ByteUtils.DecodeDictionary(new MemoryStream(message));
-                        NewTransportAccepted(new LocalTransport(hp), capabilities);
+                        CheckAndNotify(new LocalTransport(hp), capabilities);
                     }
                     catch (Exception e)
                     {
@@ -81,6 +79,14 @@ namespace GT.Net.Local
                 }
             }
             pending.RemoveAll(delegate(LocalHalfPipe o) { return toBeRemoved.Contains(o); });
+        }
+
+        protected override void TransportRejected(ITransport transport, IDictionary<string, string> capabilities)
+        {
+            TransportPacket tp = new TransportPacket(LWMCFv11.EncodeHeader(MessageType.System, 
+                (byte)SystemMessageType.IncompatibleVersion, 0));
+            transport.SendPacket(tp);
+            base.TransportRejected(transport, capabilities);
         }
 
         public override string ToString()
@@ -225,17 +231,29 @@ namespace GT.Net.Local
         public override void Update()
         {
             byte[] packet;
-            while ((packet = handle.Check()) != null)
+            while (handle != null && (packet = handle.Check()) != null)
             {
+                if (packet.Length == 0)
+                {
+                    handle = null;
+                }
                 NotifyPacketReceived(new TransportPacket(packet));
             }
         }
 
         public override uint MaximumPacketSize { get; set; }
 
+        public override void Dispose()
+        {
+            if (handle == null) { return; }
+            handle.Put(new byte[0]);
+            handle = null;
+            base.Dispose();
+        }
+
         public override string ToString()
         {
-            return "Local[" + handle.Identifier + "]";
+            return "Local[" + (handle == null ? "closed" : handle.Identifier.ToString()) + "]";
         }
     }
 

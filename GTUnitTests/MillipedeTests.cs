@@ -364,29 +364,24 @@ namespace GT.UnitTests
         }
     }
 
-    internal class MockAcceptor : IAcceptor
+    internal class MockAcceptor : BaseAcceptor
     {
         public RunningState State { get; private set; }
 
-        public void Dispose() { State = RunningState.Disposed; }
+        public override void Dispose() { State = RunningState.Disposed; }
 
-        public void Start() { State = RunningState.Started; }
+        public override void Start() { State = RunningState.Started; }
 
-        public void Stop() { State = RunningState.Stopped; }
+        public override void Stop() { State = RunningState.Stopped; }
 
-        public bool Active { get { return State == RunningState.Started; } }
+        public override bool Active { get { return State == RunningState.Started; } }
         
-        public event NewTransportHandler NewTransportAccepted;
-
         public void Trigger(ITransport transport, IDictionary<string, string> capabilities)
         {
-            if(NewTransportAccepted != null)
-            {
-                NewTransportAccepted(transport, capabilities);
-            }
+            CheckAndNotify(transport, capabilities);
         }
 
-        public void Update() { }
+        public override void Update() { }
     }
 
     public class MockTransport : ITransport

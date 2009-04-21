@@ -21,12 +21,6 @@ namespace GT.Net
         ConnexionClosing = 6,
 
         /// <summary>
-        /// Intended for unreliable transports where the initial connection handshake
-        /// may never have been received.
-        /// </summary>
-        UnknownConnexion = 7,
-
-        /// <summary>
         /// The remote speaks an incompatible dialect.
         /// </summary>
         IncompatibleVersion = 8,

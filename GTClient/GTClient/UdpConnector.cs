@@ -204,22 +204,36 @@ namespace GT.Net
         }
 
         /// <summary>
-        /// Validate the reply message against our expectations
+        /// Validate the reply message to see if the connection was accepted.
         /// </summary>
         /// <param name="client">the socket on which the message was received</param>
         /// <param name="reply">the reply message received</param>
-        /// <returns>true if valid, false otherwise</returns>
+        /// <returns>true if accepted, false if the reply was incorrect</returns>
+        /// <exception cref="CannotConnectException">if not accepted</exception>
         private bool ValidateHandshakeReply(UdpClient client, byte[] reply)
         {
+            if(reply.Length < 6)
+            {
+                return false;
+            }
             MessageType mt;
             byte sysMessage;
             uint length;
             LWMCFv11.DecodeHeader(out mt, out sysMessage, out length, reply, 0);
-            return mt == MessageType.System 
-                && (SystemMessageType)sysMessage == SystemMessageType.Acknowledged
-                && length == ProtocolDescriptor.Length
-                && reply.Length - LWMCFv11.HeaderSize == length
-                && ByteUtils.Compare(ProtocolDescriptor, 0, reply, (int)LWMCFv11.HeaderSize, (int)length);
+            if (mt == MessageType.System
+                && (SystemMessageType)sysMessage == SystemMessageType.Acknowledged)
+            {
+                return length == ProtocolDescriptor.Length
+                    && reply.Length - LWMCFv11.HeaderSize == length
+                        && ByteUtils.Compare(ProtocolDescriptor, 0, reply, 
+                                (int)LWMCFv11.HeaderSize, (int)length);
+            }
+            if (mt == MessageType.System
+                && (SystemMessageType)sysMessage == SystemMessageType.IncompatibleVersion)
+            {
+                throw new CannotConnectException("connection was rejected by remote");
+            }
+            return false;
         }
 
         public bool Responsible(ITransport transport)

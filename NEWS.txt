@@ -222,7 +222,7 @@ GT 3.0.
       * ITransports no longer throw TransportBackloggedWarning, and
         instead provide such warnings through a new ErrorEvent event.
 
-  * GT.Net.IMarshaller changes:
+  * GT.Net.IMarshaller and changes to the shipped marshallers:
 
       * IMarshaller.Marshal() now returns an instance of IMarshalledResult,
         and should allocate instances of TransportPacket to record the
@@ -250,6 +250,19 @@ GT 3.0.
 	now provide a LargeObjectMarshaller that wraps another
 	marshaller and performs the appropriate splitting to and
 	reassembling from multiple packets.
+
+      * The marshaller descriptors have been solidified a bit further.
+	IMarshaller.Descriptors has been removed and replaced by
+	a single IMarshaller.Descriptor.  There is now support for the
+	marshalling capabilities of a remote client to be validated
+	through IMarshaller.IsCompatible(); see
+	ServerConfiguration.ValidateIncomingTransport() for details.
+
+      * DotNetSerializingMarshaller no longer inherits from 
+        LightweightDotNetSerializingMarshaller; the LWDNSM has been
+	refactored to create a new base class, BaseLWMCFMarshaller.
+	This supports a common message container format, called the
+	Lightweight Message Container Format v1.1.
 
   * GT.Net.IConnexion changes:
 

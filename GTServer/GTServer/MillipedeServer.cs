@@ -15,12 +15,12 @@ namespace GT.Millipede
     /// An wrapper around an acceptor for the millipede packet recorder/replayer.
     /// The acceptor wrapper is created using <see cref="Wrap"/>.
     /// </summary>
-    public class MillipedeAcceptor : IAcceptor
+    public class MillipedeAcceptor : BaseAcceptor
     {
         private readonly IAcceptor underlyingAcceptor = null;
         private object milliDescriptor = null;
         private MillipedeRecorder recorder;
-        public event NewTransportHandler NewTransportAccepted;
+
 
         /// <summary>
         /// Wrap the provided acceptor for use with Millipede.
@@ -75,6 +75,7 @@ namespace GT.Millipede
         protected MillipedeAcceptor(IAcceptor underlyingAcceptor, MillipedeRecorder recorder)
         {
             this.underlyingAcceptor = underlyingAcceptor;
+            this.underlyingAcceptor.ValidateTransport += UnderlyingAcceptor_ValidateTransport;
 
             this.recorder = recorder;
             milliDescriptor = recorder.GenerateDescriptor(underlyingAcceptor);
@@ -83,6 +84,11 @@ namespace GT.Millipede
                 // we only pass-through recorded connections in playback mode
                 this.underlyingAcceptor.NewTransportAccepted += UnderlyingAcceptor_NewTransportEvent;
             }
+        }
+
+        private void UnderlyingAcceptor_ValidateTransport(object sender, ValidateTransportArgs e)
+        {
+            NotifyValidateTransport(sender, e);
         }
 
         /// <summary>
@@ -98,10 +104,7 @@ namespace GT.Millipede
             {
             case MillipedeMode.PassThrough:
             case MillipedeMode.Unconfigured:
-                if(NewTransportAccepted != null)
-                {
-                    NewTransportAccepted(transport, capabilities);
-                }
+                NotifyNewTransport(transport, capabilities);
                 return;
 
             case MillipedeMode.Playback:
@@ -123,12 +126,8 @@ namespace GT.Millipede
 
                 recorder.Record(new MillipedeEvent(milliDescriptor, MillipedeEventType.NewClient,
                     stream.ToArray()));
-                if(NewTransportAccepted != null)
-                {
-                    NewTransportAccepted(
-                        new MillipedeTransport(transport, recorder, milliTransportDescriptor),
+                NotifyNewTransport(new MillipedeTransport(transport, recorder, milliTransportDescriptor),
                         capabilities);
-                }
                 return;
             }
         }
@@ -137,7 +136,7 @@ namespace GT.Millipede
         /// Wraps IAcceptor.Update.
         /// </summary>
         /// <see cref="IAcceptor.Update"/>
-        public void Update()
+        public override void Update()
         {
             switch (recorder.Mode)
             {
@@ -161,10 +160,7 @@ namespace GT.Millipede
                 return;
 
             case MillipedeMode.Playback:
-                if(NewTransportAccepted == null)
-                {
-                    return;
-                } // or if recorder.Mode == MillipedeMode.PassThrough?
+                // or if recorder.Mode == MillipedeMode.PassThrough?
                 // See if there's an event and process it if so
                 MillipedeEvent e = recorder.CheckReplayEvent(milliDescriptor,
                     MillipedeEventType.NewClient, MillipedeEventType.Exception);
@@ -190,7 +186,7 @@ namespace GT.Millipede
 
                 ITransport mockTransport = new MillipedeTransport(recorder, milliTransportDescriptor,
                     transportName, capabilities, reliability, ordering, maxPacketSize);
-                NewTransportAccepted(mockTransport, capabilities);
+                NotifyNewTransport(mockTransport, capabilities);
                 return;
             }
         }
@@ -199,7 +195,7 @@ namespace GT.Millipede
         /// Wraps IAcceptor.Start.
         /// </summary>
         /// <see cref="IStartable.Start"/>
-        public void Start()
+        public override void Start()
         {
             switch (recorder.Mode)
             {
@@ -238,7 +234,7 @@ namespace GT.Millipede
         /// Wraps IAcceptor.Stop.
         /// </summary>
         /// <see cref="IStartable.Stop"/>
-        public void Stop()
+        public override void Stop()
         {
             recorder.Record(new MillipedeEvent(milliDescriptor, MillipedeEventType.Stopped));
             underlyingAcceptor.Stop();
@@ -248,7 +244,7 @@ namespace GT.Millipede
         /// Wraps IAcceptor.Active.
         /// </summary>
         /// <see cref="IStartable.Active"/>
-        public bool Active
+        public override bool Active
         {
             get { return underlyingAcceptor.Active; }
         }
@@ -257,7 +253,7 @@ namespace GT.Millipede
         /// Wraps IAcceptor.Dispose.
         /// </summary>
         /// <see cref="IDisposable.Dispose"/>
-        public void Dispose()
+        public override void Dispose()
         {
             recorder.Record(new MillipedeEvent(milliDescriptor, MillipedeEventType.Disposed));
             underlyingAcceptor.Dispose();

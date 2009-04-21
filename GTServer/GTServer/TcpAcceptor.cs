@@ -113,6 +113,21 @@ namespace GT.Net
         {
             pending.Remove(nip);
         }
+
+        internal void RemoveAndNotify(NegotiationInProgress nip, TcpTransport transport, 
+            Dictionary<string,string> capabilities)
+        {
+            pending.Remove(nip);
+            CheckAndNotify(transport, capabilities);
+        }
+
+        protected override void TransportRejected(ITransport transport, IDictionary<string, string> capabilities)
+        {
+            TransportPacket tp = new TransportPacket(LWMCFv11.EncodeHeader(MessageType.System,
+                (byte)SystemMessageType.IncompatibleVersion, 0));
+            transport.SendPacket(tp);
+            base.TransportRejected(transport, capabilities);
+        }
     }
 
     internal class NegotiationInProgress
@@ -217,8 +232,7 @@ namespace GT.Net
                     {
                         MemoryStream ms = new MemoryStream(data);
                         Dictionary<string, string> dict = ByteUtils.DecodeDictionary(ms);
-                        acceptor.Remove(this);
-                        acceptor.NotifyNewTransport(new TcpTransport(connection), dict);
+                        acceptor.RemoveAndNotify(this, new TcpTransport(connection), dict);
                     }
                     return;
                 }

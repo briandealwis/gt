@@ -459,7 +459,9 @@ namespace GT.Net
             }
             if (Context != null)
             {
+                results.Append(": ");
                 results.Append(Context.GetType());
+                results.Append(": ");
                 results.Append(Context.Message);
             }
             return results.ToString();
@@ -1067,6 +1069,8 @@ namespace GT.Net
         /// </summary>
         /// <param name="message"></param>
         /// <param name="transport"></param>
+        /// <exception cref="ConnexionClosedException">if the connexion is closing</exception>
+        /// <exception cref="TransportError">on some transport problem</exception>
         virtual protected void HandleSystemMessage(SystemMessage message, ITransport transport)
         {
             switch (message.Descriptor)
@@ -1096,13 +1100,9 @@ namespace GT.Net
                 case SystemMessageType.ConnexionClosing:
                     throw new ConnexionClosedException(this);
 
-                case SystemMessageType.UnknownConnexion:
-                    throw new TransportError(SystemMessageType.UnknownConnexion,
-                        "Remote has no record of the connexion using this transport.", message);
-
                 case SystemMessageType.IncompatibleVersion:
-                    // Is this the right exception?
-                    throw new CannotConnectException("Remote does not speak a compatible protocol");
+                    throw new TransportError(transport, 
+                        "Remote does not speak a compatible protocol", message);
 
                 case SystemMessageType.Acknowledged:
                     // nothing to do

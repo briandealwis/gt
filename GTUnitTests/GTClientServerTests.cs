@@ -236,8 +236,7 @@ namespace GT.UnitTests
         /// <summary>This is triggered if something goes wrong</summary>
         void ServerErrorEvent(ErrorSummary es)
         {
-            Console.WriteLine("Server: {0}: {1}[{2}]: {3}: {4}", DateTime.Now, es.Severity, es.ErrorCode,
-                es.Message, es.Context);
+            Console.WriteLine("Server: " + es);
             errorOccurred = true;
         }
     }
@@ -1125,6 +1124,32 @@ namespace GT.UnitTests
             }
         }
 
+        [Test]
+        public void TestRejectAllIncomingConnections()
+        {
+            StartExpectedResponseServer(EXPECTED_GREETING, EXPECTED_RESPONSE);
+            foreach (IAcceptor acc in server.Server.Acceptors)
+            {
+                acc.ValidateTransport += ((sender, e) => e.Reject("because I can"));
+            }
+
+            client = new TestClientConfiguration().BuildClient(); //this is a client
+            client.ErrorEvent += client_ErrorEvent; //triggers if there is an error
+            client.Start();
+            Assert.IsFalse(errorOccurred);
+            Assert.IsFalse(responseReceived);
+
+            IStringChannel ch1 = client.OpenStringChannel("127.0.0.1", "9999", 0,
+                    ChannelDeliveryRequirements.CommandsLike);
+            for (int i = 0; i < 20; i++)
+            {
+                client.Update();
+                Assert.AreEqual(0, server.Server.Connexions.Count);
+                client.Sleep(TimeSpan.FromMilliseconds(100));
+            }
+            Assert.AreEqual(0, client.Connexions.Count);
+        }
+
         #endregion
 
         #region Tests Infrastructure 
@@ -1290,8 +1315,7 @@ namespace GT.UnitTests
         /// <summary>This is triggered if something goes wrong</summary>
         void client_ErrorEvent(ErrorSummary es)
         {
-            Console.WriteLine("Client: {0}[{1}]: {2}: {3}", es.Severity, es.ErrorCode,
-                es.Message, es.Context);
+            Console.WriteLine("Client: " + es);
             errorOccurred = true;
         }
 

@@ -51,6 +51,8 @@ namespace GT.Net
     /// </remarks>
     public class LargeObjectMarshaller : IMarshaller
     {
+        protected ILog log;
+
         public enum DiscardReason
         {
             MissedFragment,
@@ -109,8 +111,6 @@ namespace GT.Net
         private WeakKeyDictionary<ITransportDeliveryCharacteristics, Sequences> accumulatedReceived =
             new WeakKeyDictionary<ITransportDeliveryCharacteristics, Sequences>();
 
-        protected ILog log;
-
         public LargeObjectMarshaller(IMarshaller submarshaller)
             : this(submarshaller, DefaultWindowSize) {}
 
@@ -119,33 +119,34 @@ namespace GT.Net
             log = LogManager.GetLogger(GetType());
 
             this.subMarshaller = submarshaller;
-            subMarshallerIsLwmcf11 = submarshaller.Descriptors.Length > 0 &&
-                LWMCFv11.Descriptor.Equals(submarshaller.Descriptors[0]);
+            subMarshallerIsLwmcf11 = submarshaller.Descriptor.Equals(LWMCFv11.Descriptor)
+                || submarshaller.Descriptor.StartsWith(LWMCFv11.DescriptorAsPrefix);
 
             InvalidStateException.Assert(windowSize >= 2 && windowSize <= MaxWindowSize, 
                 String.Format("Invalid window size: must be on [2,{0}]",  MaxWindowSize), this);
             this.windowSize = windowSize;
         }
 
-        public string[] Descriptors
+        public string Descriptor
         {
             get
             {
-                List<string> descriptors = new List<string>(1 + subMarshaller.Descriptors.Length);
                 // The LOM packages its message content using the 
                 // LightweightDotNet Message Container Format v1.1
-                descriptors.Add(LWMCFv11.Descriptor);
-                foreach (string subdescriptor in subMarshaller.Descriptors)
+                string subdescriptor = subMarshaller.Descriptor;
+                StringBuilder sb = new StringBuilder();
+                sb.Append(LWMCFv11.DescriptorAsPrefix);
+                for (int i = 0; i < subdescriptor.Length; i++)
                 {
-                    StringBuilder sb = new StringBuilder();
-                    for (int i = 0; i < subdescriptor.Length; i++)
-                    {
-                        sb.Append(Char.ConvertFromUtf32(Char.ConvertToUtf32(subdescriptor, i) ^ (int)'L'));
-                    }
-                    descriptors.Add(sb.ToString());
+                    sb.Append(Char.ConvertFromUtf32(Char.ConvertToUtf32(subdescriptor, i) ^ (int)'L'));
                 }
-                return descriptors.ToArray();
+                return sb.ToString();
             }
+        }
+
+        public bool IsCompatible(string marshallingDescriptor, ITransport remote)
+        {
+            return Descriptor.Equals(marshallingDescriptor);
         }
 
         public IMarshalledResult Marshal(int senderIdentity, Message message, ITransportDeliveryCharacteristics tdc)
@@ -266,8 +267,17 @@ namespace GT.Net
             ///     <pre>[byte:message-type'] [byte:channelId] [uint32:packet-size] 
             ///         [byte:seqno'] [bytes:encoded-fragment-#] [bytes:frag]</pre>
 
-            if (subMarshallerIsLwmcf11 && (input.ByteAt(0) & 128) == 0)
+            // Fastpath: if the message-type doesn't have the high-bit set,
+            // then this is a non-fragmented message
+            if ((input.ByteAt(0) & 128) == 0)
             {
+                // If the submarshaller uses LWMCFv1.1 then we would have just
+                // sent the packet as-is; if not, then we'll have prefixed a
+                // LWMCFv1.1 header which must be first removed
+                if (!subMarshallerIsLwmcf11)
+                {
+                    input.RemoveBytes(0, (int)LWMCFv11.HeaderSize);
+                }
                 subMarshaller.Unmarshal(input, tdc, messageAvailable);
                 return;
             }

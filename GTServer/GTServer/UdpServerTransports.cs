@@ -325,22 +325,28 @@ namespace GT.Net
                                 rest.Length, ByteUtils.DumpBytes(rest, 0, rest.Length),
                                 ByteUtils.AsPrintable(rest, 0, rest.Length)));
                         }
-                        // FIXME: don't we want some way of validating the capabilities
-                        // dictionary here?
 
-                        // Send confirmation
-                        response = new TransportPacket();
-                        ms = response.AsWriteStream();
-                        // NB: following uses the format specified by LWMCF v1.1
-                        LWMCFv11.EncodeHeader(MessageType.System,
-                            (byte)SystemMessageType.Acknowledged,
-                            (uint)factory.ProtocolDescriptor.Length, ms);
-                        ms.Write(factory.ProtocolDescriptor, 0, factory.ProtocolDescriptor.Length);
-                        ms.Flush();
-                        udpMultiplexer.Send(response, ep);
+                        ITransport result = factory.CreateTransport(new UdpHandle(ep, udpMultiplexer));
+                        if (ShouldAcceptTransport(result, dict))
+                        {
+                            // Send confirmation
+                            // NB: following uses the format specified by LWMCF v1.1
+                            response = new TransportPacket(LWMCFv11.EncodeHeader(MessageType.System,
+                                (byte)SystemMessageType.Acknowledged,
+                                (uint)factory.ProtocolDescriptor.Length));
+                            response.Add(factory.ProtocolDescriptor);
+                            udpMultiplexer.Send(response, ep);
 
-                        NotifyNewTransport(factory.CreateTransport(new UdpHandle(ep, udpMultiplexer)),
-                            dict);
+                            NotifyNewTransport(result, dict);
+                        }
+                        else 
+                        {
+                            // NB: following follows the format specified by LWMCF v1.1
+                            response = new TransportPacket(LWMCFv11.EncodeHeader(MessageType.System,
+                                (byte)SystemMessageType.IncompatibleVersion, 0));
+                            udpMultiplexer.Send(response, ep);
+                            result.Dispose();
+                        }
                         return;
                     }
                     catch(Exception e)

@@ -10,19 +10,24 @@ namespace GT.UnitTests
     public class LargeObjectMarshallerTests
     {
         IMarshaller dnmarshaller = new DotNetSerializingMarshaller();
+
         [Test]
         public void TestSingleFragments()
         {
-            LargeObjectMarshaller m = new LargeObjectMarshaller(dnmarshaller, 16);
-            uint discarded = 0;
-            //m.MessageDiscarded += delegate { discarded++; };
+            CheckSmallMessage(new LargeObjectMarshaller(dnmarshaller, 16));
+        }
 
-            Assert.AreEqual(0, discarded, "should have not discarded");
+        [Test]
+        public void TestSingleFragmentsNonLWMCFv11()
+        {
+            CheckSmallMessage(new LargeObjectMarshaller(new NonLWMCFWrapper(dnmarshaller), 16));
+        }
 
+        protected void CheckSmallMessage(IMarshaller m)
+        {
             MarshalledResult mr = (MarshalledResult)m.Marshal(0, new BinaryMessage(0, new byte[0]), 
                 new DummyTransportChar(6000));
             Assert.AreEqual(1, mr.Packets.Count);
-            Assert.AreEqual(0, discarded, "should have not discarded");
             
             bool sawResult = false;
             m.Unmarshal(mr.Packets[0], new DummyTransportChar(6000), 
@@ -33,13 +38,22 @@ namespace GT.UnitTests
                     Assert.AreEqual(0, ((BinaryMessage)e.Message).Bytes.Length);
                 });
             Assert.IsTrue(sawResult);
-            Assert.AreEqual(0, discarded, "should have not discarded");
         }
 
         [Test]
         public void TestMultiFragments()
         {
             LargeObjectMarshaller m = new LargeObjectMarshaller(dnmarshaller, 16);
+        }
+
+        [Test]
+        public void TestMultiFragmentsNonLWMCFv11()
+        {
+            LargeObjectMarshaller m = new LargeObjectMarshaller(new NonLWMCFWrapper(dnmarshaller), 16);
+        }
+
+        protected void CheckMultiFragments(IMarshaller m) 
+        {
             ITransportDeliveryCharacteristics tdc = new DummyTransportChar(600);
             byte[] sourceData = new byte[5900];
             for (int i = 0; i < sourceData.Length; i++) { sourceData[i] = (byte)(i % 256); }
@@ -81,7 +95,17 @@ namespace GT.UnitTests
         [Test]
         public void TestMultiRandomizedFragments()
         {
-            LargeObjectMarshaller m = new LargeObjectMarshaller(dnmarshaller, 16);
+            CheckMultiRandomizedFragments(new LargeObjectMarshaller(dnmarshaller, 16));
+        }
+
+        [Test]
+        public void TestMultiRandomizedFragmentsNonLWMCFv11()
+        {
+            CheckMultiRandomizedFragments(new LargeObjectMarshaller(new NonLWMCFWrapper(dnmarshaller), 16));
+        }
+
+        protected void CheckMultiRandomizedFragments(IMarshaller m)
+        {
             ITransportDeliveryCharacteristics tdc = new DummyTransportChar(600);
             byte[] sourceData = new byte[5900];
             for (int i = 0; i < sourceData.Length; i++) { sourceData[i] = (byte)(i % 256); }
@@ -223,7 +247,7 @@ namespace GT.UnitTests
         /// </summary>
         [Test]
         public void TestLWMCFCompatibility() {
-            LightweightDotNetSerializingMarshaller lwmcfm = new LightweightDotNetSerializingMarshaller();
+            BaseLWMCFMarshaller lwmcfm = new LightweightDotNetSerializingMarshaller();
             LargeObjectMarshaller lom = new LargeObjectMarshaller(new DotNetSerializingMarshaller());
 
             ITransportDeliveryCharacteristics tdc = new DummyTransportChar(600);
@@ -276,7 +300,52 @@ namespace GT.UnitTests
         }
         #endregion
     }
-    
+
+    public class NonLWMCFWrapper : IMarshaller
+    {
+        IMarshaller submarshaller;
+        string descriptor;
+
+        public NonLWMCFWrapper(IMarshaller subm)
+        {
+            this.submarshaller = subm;
+            if (subm.Descriptor.Equals(LWMCFv11.Descriptor) ||
+                subm.Descriptor.StartsWith(LWMCFv11.DescriptorAsPrefix))
+            {
+                descriptor = "FOO:" + subm.Descriptor;
+            }
+            else
+            {
+                descriptor = subm.Descriptor;
+            }
+        }
+
+        public void Dispose()
+        {
+            submarshaller.Dispose();
+        }
+
+        public string Descriptor
+        {
+            get { return descriptor; }
+        }
+
+        public IMarshalledResult Marshal(int senderIdentity, Message message, ITransportDeliveryCharacteristics tdc)
+        {
+            return submarshaller.Marshal(senderIdentity, message, tdc);
+        }
+
+        public void Unmarshal(TransportPacket input, ITransportDeliveryCharacteristics tdc, EventHandler<MessageEventArgs> messageAvailable)
+        {
+            submarshaller.Unmarshal(input, tdc, messageAvailable);
+        }
+
+        public bool IsCompatible(string marshallingDescriptor, ITransport remote)
+        {
+            return descriptor.Equals(marshallingDescriptor);
+        }
+    }
+
 
     internal class DummyTransportChar : ITransportDeliveryCharacteristics {
         public Reliability Reliability { get; set; }

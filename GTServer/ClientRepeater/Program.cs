@@ -14,7 +14,7 @@ namespace GT.Net
     /// </summary>
     /// <remarks>
     /// This particular configuration specifies the
-    /// <see cref="LightweightDotNetSerializingMarshaller"/> as the
+    /// <see cref="BaseLWMCFMarshaller"/> as the
     /// marshaller to be used.  This is a lightweight marshaller 
     /// that unmarshals only system messages and session messages, and leaves
     /// all other messages as uninterpreted bytes, passed as instances of 

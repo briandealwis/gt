@@ -442,7 +442,7 @@ namespace GT.UnitTests
     }
 
     [TestFixture]
-    public class TestSequencedUdpTransport
+    public class ZBSequencedUdpTransport
     {
         IAcceptor acceptor;
         IConnector connector;
@@ -606,6 +606,87 @@ namespace GT.UnitTests
                 payload.Prepend(DataConverter.Converter.GetBytes(seqNo));
                 NotifyPacketReceived(payload);
             }
+        }
+
+    }
+
+    [TestFixture]
+    public class ZBUdpInvalidConnectionTests
+    {
+        IAcceptor acceptor;
+        IConnector connector;
+        ITransport serverTransport;
+        ITransport clientTransport;
+
+        [SetUp]
+        public void SetUp()
+        {
+            serverTransport = null;
+            clientTransport = null;
+            acceptor = null;
+            connector = null;
+        }
+
+        [TearDown]
+        public void TearDown()
+        {
+            if(acceptor != null) { acceptor.Dispose(); }
+            acceptor = null;
+            if(connector != null) { connector.Dispose(); }
+            connector = null;
+            if(serverTransport != null) { serverTransport.Dispose(); }
+            serverTransport = null;
+            if(clientTransport != null) { clientTransport.Dispose(); }
+            clientTransport = null;
+        }
+
+
+        [Test]
+        public void TestUdpNonSequenced()
+        {
+            acceptor = new UdpAcceptor(IPAddress.Any, 8765,
+                new TransportFactory<UdpHandle>(BaseUdpTransport.SequencedProtocolDescriptor,
+                    h => new ZBSequencedUdpTransport.UdpSequencedServerTestTransport(h),
+                    t => t is ZBSequencedUdpTransport.UdpSequencedServerTestTransport));
+            connector = new UdpConnector(
+                new TransportFactory<UdpClient>(BaseUdpTransport.UnorderedProtocolDescriptor,
+                    h => new UdpClientTransport(h),
+                    t => t is UdpClientTransport));
+            CheckNonConnection("localhost", "8765");
+        }
+
+        protected void CheckNonConnection(string host, string port)
+        {
+            acceptor.NewTransportAccepted += 
+                ((transport, capabilities) => serverTransport = transport);
+            acceptor.Start();
+            Thread acceptorThread = new Thread(delegate()
+            {
+                for (int i = 0; serverTransport == null && i < 100; i++)
+                {
+                    try
+                    {
+                        acceptor.Update();
+                        Thread.Sleep(50);
+                    }
+                    catch (Exception e)
+                    {
+                        Console.WriteLine("Acceptor Thread: " + e);
+                    }
+                }
+            });
+            acceptorThread.IsBackground = true;
+            acceptorThread.Name = "Acceptor Thread";
+            acceptorThread.Start();
+            Thread.Sleep(50);
+
+            try
+            {
+                clientTransport = connector.Connect("127.0.0.1", "8765",
+                    new Dictionary<string, string>());
+                Assert.Fail("connection should have failed");
+            } catch(CannotConnectException e) { /* expected */ }
+            acceptorThread.Join();
         }
 
     }

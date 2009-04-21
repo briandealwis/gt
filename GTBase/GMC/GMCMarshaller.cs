@@ -106,23 +106,25 @@ namespace GT.GMC
             decompressors = new Dictionary<int, GeneralMessageCompressor>();
         }
 
-        public string[] Descriptors
+        public string Descriptor
         {
             get
             {
-                List<string> descriptors = new List<string>();
-                foreach (string subdescriptor in subMarshaller.Descriptors)
+                string subdescriptor = subMarshaller.Descriptor;
+                StringBuilder sb = new StringBuilder();
+                for (int i = 0; i < subdescriptor.Length; i++)
                 {
-                    StringBuilder sb = new StringBuilder();
-                    for (int i = 0; i < subdescriptor.Length; i++)
-                    {
-                        sb.Append(Char.ConvertFromUtf32(Char.ConvertToUtf32(subdescriptor, i) ^ 71));
-                    }
-                    descriptors.Add(sb.ToString());
+                    sb.Append(Char.ConvertFromUtf32(Char.ConvertToUtf32(subdescriptor, i) ^ 71));
                 }
-                return descriptors.ToArray();
+                return sb.ToString();
             }
         }
+
+        public bool IsCompatible(string marshallingDescriptor, ITransport remote)
+        {
+            return Descriptor.Equals(marshallingDescriptor);
+        }
+
 
         public IMarshalledResult Marshal(int senderIdentity, Message message, ITransportDeliveryCharacteristics tdc)
         {
@@ -158,7 +160,6 @@ namespace GT.GMC
             subMarshaller.Unmarshal(subPacket, tdc,
                 (sender, mea) => messageAvailable(this, mea));
         }
-
 
         public void Dispose()
         {

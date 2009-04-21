@@ -816,11 +816,8 @@ namespace GT.Net
                 caps[GTCapabilities.CLIENT_GUID] = 
                     Guid.ToString("N");  // "N" is the most compact form
                 StringBuilder sb = new StringBuilder();
-                foreach(string d in Marshaller.Descriptors) {
-                    sb.Append(d);
-                    sb.Append(' ');
-                }
-                caps[GTCapabilities.MARSHALLER_DESCRIPTORS] = sb.ToString().Trim();
+
+                caps[GTCapabilities.MARSHALLER_DESCRIPTORS] = Marshaller.Descriptor.Trim();
                 return caps;
             }
         }
