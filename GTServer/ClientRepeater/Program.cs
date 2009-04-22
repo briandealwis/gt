@@ -187,7 +187,7 @@ namespace GT.Net
             serverThread.Name = this.ToString();
             serverThread.IsBackground = true;
             serverThread.Start();
-            Thread.Sleep(0);  // try to give the listening thread a chance to run
+            while (!Active) { Thread.Sleep(20); }
         }
 
         /// <summary>
