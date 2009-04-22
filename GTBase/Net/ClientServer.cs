@@ -62,10 +62,15 @@ namespace GT.Net
         public abstract IMarshaller Marshaller { get; }
 
         /// <summary>
-        /// Returns the interval to wait between calls <see cref="Update"/>
+        /// Returns the interval to wait between calls to <see cref="Update"/>
         /// in <see cref="StartListening"/>.
         /// </summary>
-        protected abstract TimeSpan TickInterval { get; }
+        public abstract TimeSpan TickInterval { get; }
+
+        /// <summary>
+        /// Returns the interval to wait between pings.
+        /// </summary>
+        public abstract TimeSpan PingInterval { get; }
 
         /// <summary>
         /// Return true if the instance has been started (<see cref="Start"/>)

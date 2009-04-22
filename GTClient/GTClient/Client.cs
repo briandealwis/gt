@@ -908,9 +908,14 @@ namespace GT.Net
             get { return started; }
         }
 
-        protected override TimeSpan TickInterval
+        public override TimeSpan TickInterval
         {
             get { return configuration.TickInterval; }
+        }
+
+        public override TimeSpan PingInterval
+        {
+            get { return configuration.PingInterval; }
         }
 
         #region Channels

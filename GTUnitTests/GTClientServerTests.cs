@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Net;
 using System.Net.Sockets;
+using GT.Net.Utils;
 using NUnit.Framework;
 using GT.Net;
 using GT.Utils;
@@ -681,7 +682,6 @@ namespace GT.UnitTests
                 Thread.Sleep(20);
             }
         }
-
     }
 
     [TestFixture]
@@ -1568,8 +1568,97 @@ namespace GT.UnitTests
             CheckUpdates();
             Assert.IsTrue(channel.Count > 0);
             Assert.AreEqual("foo", channel.DequeueMessage(0));
-
-
         }
+    }
+
+    [TestFixture]
+    public class ZTTestPingBasedDisconnect
+    {
+        [Test]
+        public void TestClientBasedDisconnect()
+        {
+            Server server = new TestServerConfiguration(9854).BuildServer();
+            server.Configuration.PingInterval = TimeSpan.FromDays(5);
+            server.StartSeparateListeningThread();
+
+            Client client = new TestClientConfiguration().BuildClient();
+            client.Configuration.PingInterval = TimeSpan.FromDays(5);
+            client.StartSeparateListeningThread();
+
+            IStringChannel ch1 = client.OpenStringChannel("localhost", "9854", 0, ChannelDeliveryRequirements.ChatLike);
+            Assert.AreEqual(1, client.Connexions.Count);
+            Assert.AreEqual(1, server.Connexions.Count);
+            Assert.IsTrue(ch1.Connexion.Transports.Count > 0);
+
+            PingBasedDisconnector pbd = PingBasedDisconnector.Install(client, TimeSpan.FromMilliseconds(500));
+            Thread.Sleep(1000);
+
+            Assert.AreEqual(0, client.Connexions.Count);
+ 
+            client.Dispose(); 
+            server.Dispose();
+        }
+
+        [Test]
+        public void TestServerBasedDisconnect()
+        {
+            Server server = new TestServerConfiguration(9854).BuildServer();
+            server.Configuration.PingInterval = TimeSpan.FromDays(5);
+            server.StartSeparateListeningThread();
+
+            Client client = new TestClientConfiguration().BuildClient();
+            client.Configuration.PingInterval = TimeSpan.FromDays(5);
+            client.StartSeparateListeningThread();
+
+            IStringChannel ch1 = client.OpenStringChannel("localhost", "9854", 0, ChannelDeliveryRequirements.ChatLike);
+            Assert.AreEqual(1, client.Connexions.Count);
+            Assert.AreEqual(1, server.Connexions.Count);
+            Assert.IsTrue(ch1.Connexion.Transports.Count > 0);
+
+            PingBasedDisconnector pbd = PingBasedDisconnector.Install(server, TimeSpan.FromMilliseconds(500));
+            Thread.Sleep(1000);
+
+            Assert.AreEqual(0, server.Connexions.Count);
+
+            client.Dispose();
+            server.Dispose();
+        }
+
+        [Test]
+        public void TestPBDCanBeStoppedAndStarted()
+        {
+            Server server = new TestServerConfiguration(9854).BuildServer();
+            server.Configuration.PingInterval = TimeSpan.FromDays(5);
+            server.StartSeparateListeningThread();
+
+            Client client = new TestClientConfiguration().BuildClient();
+            client.Configuration.PingInterval = TimeSpan.FromDays(5);
+            client.StartSeparateListeningThread();
+
+            IStringChannel ch1 = client.OpenStringChannel("localhost", "9854", 0, ChannelDeliveryRequirements.ChatLike);
+            Assert.AreEqual(1, client.Connexions.Count);
+            Assert.AreEqual(1, server.Connexions.Count);
+            Assert.IsTrue(ch1.Connexion.Transports.Count > 0);
+
+            int removed = 0;
+            ch1.Connexion.TransportRemoved += (c,t) => removed++;
+
+            PingBasedDisconnector pbd = PingBasedDisconnector.Install(client, TimeSpan.FromMilliseconds(500));
+            pbd.Stop();
+            Thread.Sleep(1000);
+
+            Assert.AreEqual(1, client.Connexions.Count);
+            Assert.AreEqual(0, removed);
+
+            pbd.Start();
+            Thread.Sleep(1000);
+            Assert.AreEqual(0, client.Connexions.Count);
+            Assert.IsTrue(removed > 0);
+ 
+            client.Dispose(); 
+            server.Dispose();
+        }
+
+
     }
 }

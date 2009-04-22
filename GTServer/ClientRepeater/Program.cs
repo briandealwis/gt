@@ -4,6 +4,7 @@ using System.Text;
 using System.Threading;
 using Common.Logging;
 using GT.Millipede;
+using GT.Net.Utils;
 using GT.Utils;
 
 namespace GT.Net
@@ -65,18 +66,37 @@ namespace GT.Net
     /// </summary>
     public class ClientRepeater : IStartable
     {
+        /// <summary>
+        /// The default port to be used by ClientRepeater instances.
+        /// </summary>
         public static uint DefaultPort = 9999;
+
+        /// <summary>
+        /// The default session channel to be used by ClientRepeater instances
+        /// for broadcasting session events, such as when clients join or leave.
+        /// </summary>
         public static byte DefaultSessionChannel = 0;
+
+        /// <summary>
+        /// The default timeout period for inactive connections (meaning
+        /// those that do not respond to the GT-level pings); this timeout 
+        /// should be less than the ping interval.  Zero disables
+        /// the behaviour.
+        /// </summary>
+        public static TimeSpan DefaultInactiveTimeout = TimeSpan.FromMinutes(5);  
 
         /// <summary>
         /// Triggered on the occurrence of underlying GT errors.
         /// </summary>
         public event ErrorEventNotication ErrorEvent;
 
+        public TimeSpan InactiveTransportTimeout { get; set; }
+
         protected ILog log;
         protected ServerConfiguration config;
         protected Server server;
         protected Thread serverThread;
+        protected PingBasedDisconnector pbd;
         protected MessageDeliveryRequirements sessionMDR =
             new MessageDeliveryRequirements(Reliability.Reliable,
                 MessageAggregation.Immediate, Ordering.Unordered);
@@ -99,6 +119,7 @@ namespace GT.Net
             Console.WriteLine("       (use -1 to disable session announcements)");
             Console.WriteLine("  -m   set the maximum packet size to <pktsize>");
             Console.WriteLine("  -M   set the GT-Millipede configuration string");
+            Console.WriteLine("  -T   timeout inactive connections (seconds; use 0 to deactivate)");
             Console.WriteLine("[port] defaults to {0} if not specified", DefaultPort);
             Console.WriteLine("[channelId] defaults to {0} if not specified", DefaultSessionChannel);
         }
@@ -109,8 +130,9 @@ namespace GT.Net
             uint verbose = 0;
             uint maxPacketSize = 0;
             int sessionChannel = DefaultSessionChannel;
+            TimeSpan timeout = DefaultInactiveTimeout;
 
-            GetOpt options = new GetOpt(args, "vm:s:M:");
+            GetOpt options = new GetOpt(args, "vm:s:M:T:");
             try
             {
                 Option opt;
@@ -130,6 +152,11 @@ namespace GT.Net
 
                         case 'M':
                             Environment.SetEnvironmentVariable(MillipedeRecorder.ConfigurationEnvironmentVariableName, opt.Argument);
+                            break;
+
+                        case 'T':
+                            int t = int.Parse(opt.Argument);
+                            timeout = t <= 0 ? TimeSpan.Zero : TimeSpan.FromSeconds(t);
                             break;
                     }
                 }
@@ -162,6 +189,7 @@ namespace GT.Net
             ClientRepeater cr = new ClientRepeater(config);
             cr.SessionChangesChannel = sessionChannel;
             cr.Verbose = verbose;
+            cr.InactiveTransportTimeout = timeout;
             cr.StartListening();
             if (verbose > 0) { Console.WriteLine("Server stopped"); }
         }
@@ -177,9 +205,6 @@ namespace GT.Net
 
         /// <summary>
         /// Start an independently running client-repeater instance.
-        /// Note that the new thread may not have started before the
-        /// calling thread has returned: this instance may not yet
-        /// be functional on return.
         /// </summary>
         public void Start()
         {
@@ -203,6 +228,13 @@ namespace GT.Net
             server.ClientsRemoved += s_ClientsRemoved;
             server.ErrorEvent += s_ErrorEvent;
             server.StartListening();
+            if(InactiveTransportTimeout.TotalSeconds > 0)
+            {
+                pbd = PingBasedDisconnector.Install(server,
+                    InactiveTransportTimeout);
+                pbd.ErrorEvent += s_ErrorEvent;
+                pbd.Start();
+            }
         }
 
 
@@ -210,6 +242,7 @@ namespace GT.Net
         {
             if (server != null) { server.Stop(); }
             if (serverThread != null) { serverThread.Abort(); }
+            if (pbd != null) { pbd.Stop(); }
         }
 
         public void Dispose()

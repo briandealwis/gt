@@ -65,6 +65,7 @@
     <Compile Include="Net\Stats.cs" />
     <Compile Include="Net\MillipedeBase.cs" />
     <Compile Include="Net\TransportPacket.cs" />
+    <Compile Include="Net\Utils.cs" />
     <Compile Include="Pool.cs" />
     <Compile Include="SlidingWindowManager.cs" />
     <Compile Include="Statistics.cs" />

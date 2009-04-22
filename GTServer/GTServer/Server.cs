@@ -214,9 +214,14 @@ namespace GT.Net
 	    /// </summary>
         public int ServerIdentity { get { return serverIdentity; } }
 
-        protected override TimeSpan TickInterval
+        public override TimeSpan TickInterval
         {
             get { return configuration.TickInterval; }
+        }
+
+        public override TimeSpan PingInterval
+        {
+            get { return configuration.PingInterval; }
         }
 
         #endregion
