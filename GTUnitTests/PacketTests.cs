@@ -201,9 +201,9 @@ namespace GT.UnitTests
         public void TestToArray()
         {
             TransportPacket packet = new TransportPacket();
-            packet.Add(new byte[] { 0, 1, 2, 3 });
-            packet.Add(new byte[] { 4, 5, 6, 7, 8 });
-            packet.Add(new byte[] { 9 });
+            packet.Append(new byte[] { 0, 1, 2, 3 });
+            packet.Append(new byte[] { 4, 5, 6, 7, 8 });
+            packet.Append(new byte[] { 9 });
 
             byte[] original = new byte[] { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9 };
             Assert.AreEqual(original, packet.ToArray());
@@ -229,9 +229,9 @@ namespace GT.UnitTests
             TransportPacket.MaxSegmentSize = TransportPacket.MinSegmentSize;
 
             TransportPacket packet = new TransportPacket();
-            packet.Add(new byte[] { 0, 1, 2, 3 });
-            packet.Add(new byte[] { 4, 5, 6, 7, 8 });
-            packet.Add(new byte[] { 9 });
+            packet.Append(new byte[] { 0, 1, 2, 3 });
+            packet.Append(new byte[] { 4, 5, 6, 7, 8 });
+            packet.Append(new byte[] { 9 });
 
             // Ensure that new TransportPacket() properly copies out
             TransportPacket copy = new TransportPacket(packet, 1, 8);
@@ -250,7 +250,7 @@ namespace GT.UnitTests
 
             for (int i = 0; i < 10; i++)
             {
-                p.Add(source, 1, 4);
+                p.Append(source, 1, 4);
             }
             Assert.AreEqual(4 * 11, p.Length);
 
@@ -285,7 +285,7 @@ namespace GT.UnitTests
 
                     for (int i = 0; i < 10; i++)
                     {
-                        packet.Add(source, sourceStart, sourceCount);
+                        packet.Append(source, sourceStart, sourceCount);
                     }
                     Assert.AreEqual(sourceCount * 11, packet.Length);
 
@@ -340,7 +340,7 @@ namespace GT.UnitTests
                 {
                     source[j] = (byte)i;
                 }
-                packet.Add(source);
+                packet.Append(source);
             }
             Assert.AreEqual(256, packet.Length);
             Assert.IsTrue(((IList<ArraySegment<byte>>)packet).Count > 1);
@@ -379,7 +379,7 @@ namespace GT.UnitTests
                 {
                     source[j] = (byte)i;
                 }
-                packet.Add(source);
+                packet.Append(source);
             }
             Assert.AreEqual(256, packet.Length);
             Assert.IsTrue(((IList<ArraySegment<byte>>)packet).Count > 1);
@@ -414,9 +414,9 @@ namespace GT.UnitTests
             int sourceStart = 1;
             int sourceCount = 6;
             TransportPacket packet = new TransportPacket();
-            packet.Add(source, sourceStart, sourceCount);
-            packet.Add(source, sourceStart, sourceCount);
-            packet.Add(source, sourceStart, sourceCount);
+            packet.Append(source, sourceStart, sourceCount);
+            packet.Append(source, sourceStart, sourceCount);
+            packet.Append(source, sourceStart, sourceCount);
 
             Stream s = packet.AsReadStream();
             int packetLength = packet.Length;
@@ -471,9 +471,9 @@ namespace GT.UnitTests
         public void TestByteAt()
         {
             TransportPacket packet = new TransportPacket();
-            packet.Add(new byte[] {0, 1, 2, 3});
-            packet.Add(new byte[] {4, 5, 6, 7, 8});
-            packet.Add(new byte[] {9});
+            packet.Append(new byte[] {0, 1, 2, 3});
+            packet.Append(new byte[] {4, 5, 6, 7, 8});
+            packet.Append(new byte[] {9});
 
             for(int i = 0; i < 10; i++)
             {
@@ -683,7 +683,7 @@ namespace GT.UnitTests
             catch (ObjectDisposedException) { /* expected */ }
             try
             {
-                packet.Add(new byte[0]);
+                packet.Append(new byte[0]);
                 Assert.Fail("should have thrown ObjectDisposedException");
             }
             catch (ObjectDisposedException) { /* expected */ }

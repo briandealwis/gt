@@ -700,7 +700,7 @@ namespace GT.Net
                 // NB: SystemMessages use ChannelId to encode the sysmsg descriptor
                 RawMessage rm = (RawMessage)msg;
                 tp.Prepend(LWMCFv11.EncodeHeader(msg.MessageType, msg.ChannelId, (uint)rm.Bytes.Length));
-                tp.Add(rm.Bytes);
+                tp.Append(rm.Bytes);
                 mr.AddPacket(tp);
                 return mr;
             }

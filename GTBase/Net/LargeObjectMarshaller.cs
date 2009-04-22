@@ -229,7 +229,7 @@ namespace GT.Net
                 }
                 newPacket.Prepend(LWMCFv11.EncodeHeader((MessageType)((byte)message.MessageType | 128),
                     message.ChannelId, (uint)(fragSize + s.Length)));
-                newPacket.Add(packet, (int)(fragNo * maxPacketSize), (int)fragSize);
+                newPacket.Append(packet, (int)(fragNo * maxPacketSize), (int)fragSize);
                 mr.AddPacket(newPacket);
             }
             packet.Dispose();
@@ -509,7 +509,7 @@ namespace GT.Net
             TransportPacket packet = new TransportPacket();
             foreach (TransportPacket frag in fragments)
             {
-                packet.Add(frag, 0, frag.Length);
+                packet.Append(frag, 0, frag.Length);
                 frag.Dispose();
             }
             fragments = null;

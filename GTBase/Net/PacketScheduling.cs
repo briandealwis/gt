@@ -393,7 +393,7 @@ namespace GT.Net
             }
             else
             {
-                tp.Add(next, 0, next.Length);
+                tp.Append(next, 0, next.Length);
                 next.Dispose();
             }
             if (cs.MarshalledForm.Finished)

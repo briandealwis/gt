@@ -334,7 +334,7 @@ namespace GT.Net
                             response = new TransportPacket(LWMCFv11.EncodeHeader(MessageType.System,
                                 (byte)SystemMessageType.Acknowledged,
                                 (uint)factory.ProtocolDescriptor.Length));
-                            response.Add(factory.ProtocolDescriptor);
+                            response.Append(factory.ProtocolDescriptor);
                             udpMultiplexer.Send(response, ep);
 
                             NotifyNewTransport(result, dict);

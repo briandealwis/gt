@@ -34,7 +34,7 @@ namespace GT.Net
             TransportPacket packet = new TransportPacket();
             foreach (byte[] byteArray in byteArrays)
             {
-                packet.AddSegment(new ArraySegment<byte>(byteArray));
+                packet.AppendSegment(new ArraySegment<byte>(byteArray));
             }
             return packet;
         }
@@ -110,7 +110,7 @@ namespace GT.Net
                 int segSize = Math.Min(count, (int)_maxSegmentSize);
                 ArraySegment<byte> segment = AllocateSegment((uint)segSize);
                 source.CopyTo(offset, segment.Array, segment.Offset, segSize);
-                AddSegment(segment);
+                AppendSegment(segment);
                 offset += segSize;
                 count -= segSize;
             }
@@ -137,7 +137,7 @@ namespace GT.Net
             list = new List<ArraySegment<byte>>(1);
             if(IsManagedSegment(segment))
             {
-                AddSegment(segment);
+                AppendSegment(segment);
             }
             else
             {
@@ -214,7 +214,7 @@ namespace GT.Net
         {
             ValidateAndSync();
             TransportPacket subset = new TransportPacket();
-            subset.Add(this, subsetStart, count);
+            subset.Append(this, subsetStart, count);
             return subset;
         }
 
@@ -232,7 +232,7 @@ namespace GT.Net
             TransportPacket copy = new TransportPacket();
             foreach (ArraySegment<byte> segment in list)
             {
-                copy.AddSegment(segment);
+                copy.AppendSegment(segment);
             }
             return copy;
         }
@@ -295,12 +295,12 @@ namespace GT.Net
         }
 
         /// <summary>
-        /// Add the appropriate segments of <see cref="source"/> to this instance.
+        /// Append the appropriate segments of <see cref="source"/> to this instance.
         /// </summary>
         /// <param name="source"></param>
         /// <param name="offset"></param>
         /// <param name="count"></param>
-        public void Add(TransportPacket source, int offset, int count) {
+        public void Append(TransportPacket source, int offset, int count) {
             ValidateAndSync();
             int subsetEnd = offset + count - 1;    // index of last byte of interest
             int segmentStart = 0; // index of first byte of current <segment>
@@ -322,13 +322,13 @@ namespace GT.Net
                     }
                     if (offset <= segmentStart && segmentEnd <= subsetEnd)
                     {
-                        AddSegment(segment);  // not subset's responsibility
+                        AppendSegment(segment);  // not subset's responsibility
                     }
                     else
                     {
                         int aoiStart = Math.Max(offset, segmentStart);
                         int aoiEnd = Math.Min(subsetEnd, segmentEnd);
-                        AddSegment(new ArraySegment<byte>(segment.Array,
+                        AppendSegment(new ArraySegment<byte>(segment.Array,
                             segment.Offset + (int)(aoiStart - segmentStart),
                             (int)(aoiEnd - aoiStart + 1)));  // not subset's responsibility
                     }
@@ -341,18 +341,18 @@ namespace GT.Net
         /// Append the contents of <see cref="item"/> to this item.  
         /// </summary>
         /// <param name="item">source array</param>
-        public void Add(ArraySegment<byte> item)
+        public void Append(ArraySegment<byte> item)
         {
-            Add(item.Array, item.Offset, item.Count);
+            Append(item.Array, item.Offset, item.Count);
         }
 
         /// <summary>
         /// Append the contents of <see cref="source"/> to this item.  
         /// </summary>
         /// <param name="source">source array</param>
-        public void Add(byte[] source)
+        public void Append(byte[] source)
         {
-            Add(source, 0, source.Length);
+            Append(source, 0, source.Length);
         }
 
 
@@ -363,24 +363,13 @@ namespace GT.Net
         /// <param name="offset">offset into <see cref="source"/></param>
         /// <param name="count">number of bytes from <see cref="source"/> starting 
         ///     at <see cref="offset"/></param>
-        public void Add(byte[] source, int offset, int count)
+        public void Append(byte[] source, int offset, int count)
         {
             ValidateAndSync();
             if (count < 0 || offset < 0 || offset + count > source.Length) { throw new ArgumentOutOfRangeException(); }
             int l = length;
             Grow(length + count);
             Replace(l, source, offset, count);
-        }
-
-        /// <summary>
-        /// Prepend the provided segment to our segment list.
-        /// </summary>
-        /// <param name="segment">a segment allocated through <see cref="AllocateSegment"/></param>
-        internal void PrependSegment(ArraySegment<byte> segment)
-        {
-            IncrementRefCount(segment);
-            list.Insert(0, segment);
-            length += segment.Count;
         }
 
         /// <summary>
@@ -397,10 +386,21 @@ namespace GT.Net
         }
 
         /// <summary>
+        /// Prepend the provided segment to our segment list.
+        /// </summary>
+        /// <param name="segment">a segment allocated through <see cref="AllocateSegment"/></param>
+        internal void PrependSegment(ArraySegment<byte> segment)
+        {
+            IncrementRefCount(segment);
+            list.Insert(0, segment);
+            length += segment.Count;
+        }
+
+        /// <summary>
         /// Append the provided segment to our segment list.
         /// </summary>
         /// <param name="segment">a segment allocated through <see cref="AllocateSegment"/></param>
-        internal void AddSegment(ArraySegment<byte> segment)
+        internal void AppendSegment(ArraySegment<byte> segment)
         {
             IncrementRefCount(segment);
             list.Add(segment);
@@ -584,14 +584,14 @@ namespace GT.Net
                 ArraySegment<byte> segment = list[segmentIndex];
                 int segCount = splitPosition - segmentOffset;
                 list[segmentIndex++] = new ArraySegment<byte>(segment.Array, segment.Offset, segCount);
-                remainder.AddSegment(new ArraySegment<byte>(segment.Array, segment.Offset + segCount,
+                remainder.AppendSegment(new ArraySegment<byte>(segment.Array, segment.Offset + segCount,
                     segment.Count - segCount));
             }
 
             // Copy the remaining segments to remainder
             for (int i = segmentIndex; i < list.Count; i++)
             {
-                remainder.AddSegment(list[i]);
+                remainder.AppendSegment(list[i]);
                 ReleaseSegment(list[i]);
             }
             list.RemoveRange(segmentIndex, list.Count - segmentIndex);
@@ -626,7 +626,7 @@ namespace GT.Net
             // Copy the remaining segments to remainder
             while(segmentIndex < list.Count && segmentOffset + list[segmentIndex].Count < count)
             {
-                initial.AddSegment(list[segmentIndex]);
+                initial.AppendSegment(list[segmentIndex]);
                 ReleaseSegment(list[segmentIndex]);
                 segmentOffset += list[segmentIndex++].Count;
             }
@@ -639,7 +639,7 @@ namespace GT.Net
                 // split list[segmentIndex] appropriately
                 ArraySegment<byte> segment = list[segmentIndex];
                 int segCount = count - segmentOffset;
-                initial.AddSegment(new ArraySegment<byte>(segment.Array, segment.Offset, segCount));
+                initial.AppendSegment(new ArraySegment<byte>(segment.Array, segment.Offset, segCount));
                 list[segmentIndex] = new ArraySegment<byte>(segment.Array, 
                     segment.Offset + segCount, segment.Count - segCount);
             }
@@ -873,7 +873,7 @@ namespace GT.Net
             }
             while ((need = newLength - length) > 0)
             {
-                AddSegment(AllocateSegment(Math.Min(_maxSegmentSize, (uint)need)));
+                AppendSegment(AllocateSegment(Math.Min(_maxSegmentSize, (uint)need)));
             }
         }
 
@@ -928,7 +928,7 @@ namespace GT.Net
             } while(offset < length);
 
             Clear();    // release all current segments and then add their replacements
-            foreach (ArraySegment<byte> seg in newSegments) { AddSegment(seg); }
+            foreach (ArraySegment<byte> seg in newSegments) { AppendSegment(seg); }
         }
 
         /// <summary>
@@ -1075,7 +1075,7 @@ namespace GT.Net
         /// less than <see cref="MaxSegmentSize"/>.  The actual byte array allocated may be
         /// larger than the requested length.  This segment has a ref
         /// count of 0 -- it must be retained such as through an
-        /// <see cref="AddSegment"/> or explicitly though <see cref="IncrementRefCount"/>.
+        /// <see cref="AppendSegment"/> or explicitly though <see cref="IncrementRefCount"/>.
         /// </summary>
         /// <param name="minimumLength">the minimum number of bytes required</param>
         /// <returns>a suitable byte segment</returns>
@@ -1247,6 +1247,11 @@ namespace GT.Net
         #endregion
 
         #region IList<ArraySegment<byte>> implementation
+
+        void ICollection<ArraySegment<byte>>.Add(ArraySegment<byte> item)
+        {
+            Append(item);
+        }
 
         int IList<ArraySegment<byte>>.IndexOf(ArraySegment<byte> item)
         {
@@ -1518,7 +1523,7 @@ namespace GT.Net
                 Debug.Assert(newLength >= packet.length);
                 if (newLength > packet.length)
                 {
-                    packet.AddSegment(new ArraySegment<byte>(interim.Array, interim.Offset,
+                    packet.AppendSegment(new ArraySegment<byte>(interim.Array, interim.Offset,
                         newLength - packet.length));
                     newLength = -1;
                 }
