@@ -100,7 +100,7 @@ namespace GT.UnitTests
                 Assert.Fail("shouldn't go over array length");
             }
             catch (ArgumentException) { /* expected result */ }
-            
+
             string[] values = new string[2];
             try
             {
@@ -114,7 +114,7 @@ namespace GT.UnitTests
             }
 
             values = new string[] { "", "", "" };
-            try 
+            try
             {
                 b.CopyTo(values, 0);
                 Assert.AreEqual("foo", values[0]);
@@ -128,12 +128,13 @@ namespace GT.UnitTests
         }
 
         [Test]
-        public void TestCopyToOOBI() {
+        public void TestCopyToOOBI()
+        {
             Bag<string> b = new Bag<string>();
             b.Add("foo");
             try { b.CopyTo(new string[0], 0); }
             catch (ArgumentException) { return; }
-            Assert.Fail(); 
+            Assert.Fail();
         }
 
         [Test]
@@ -183,7 +184,7 @@ namespace GT.UnitTests
             {
                 b.Remove("foo");
             }
-            catch(NotSupportedException)
+            catch (NotSupportedException)
             {
                 Assert.Fail("SingleItem should allow the item to be removed");
             }
@@ -264,7 +265,7 @@ namespace GT.UnitTests
             {
                 Assert.AreEqual(counter, set[counter]);
                 Assert.AreEqual(counter++, next);
-            } 
+            }
             Assert.AreEqual(3, counter);
             try
             {
@@ -280,7 +281,7 @@ namespace GT.UnitTests
         [Test]
         public void TestOrderOfConstructorAdds()
         {
-            SequentialSet<int> set = new SequentialSet<int>(new[] { 0, 1, 2});
+            SequentialSet<int> set = new SequentialSet<int>(new[] { 0, 1, 2 });
             int counter = 0;
             Assert.AreEqual(3, set.Count);
             foreach (int next in set)
@@ -318,9 +319,9 @@ namespace GT.UnitTests
         [Test]
         public void TestAddAll()
         {
-            SequentialSet<int> set = new SequentialSet<int>(new[] {0, 1});
+            SequentialSet<int> set = new SequentialSet<int>(new[] { 0, 1 });
             Assert.AreEqual(2, set.Count);
-            set.AddAll(new[] {0, 1, 2});
+            set.AddAll(new[] { 0, 1, 2 });
             Assert.AreEqual(3, set.Count);
             Assert.IsTrue(set[0] == 0);
             Assert.IsTrue(set[1] == 1);
@@ -342,7 +343,7 @@ namespace GT.UnitTests
         }
 
         [Test]
-        public void TestWeakReferenceCollection() 
+        public void TestWeakReferenceCollection()
         {
             // as per <http://msdn.microsoft.com/en-us/library/aa903910(VS.71).aspx>
             WeakReference wr = new WeakReference(new List<object>());
@@ -367,7 +368,7 @@ namespace GT.UnitTests
         [Test]
         public void TestWeakRefsInDictionary()
         {
-            Dictionary<WeakReference<object>, string> dictionary = 
+            Dictionary<WeakReference<object>, string> dictionary =
                 new Dictionary<WeakReference<object>, string>();
             dictionary[new WeakReference<object>(new object())] = "foo";
             dictionary[new WeakReference<object>(new object())] = "bar";
@@ -381,7 +382,7 @@ namespace GT.UnitTests
                     Console.WriteLine("WkRef to obj is in generation {0}", GC.GetGeneration(wr));
                     Assert.Fail("weak reference should not have survived collection");
                 }
-                catch(Exception e)
+                catch (Exception e)
                 {
                     Console.WriteLine("Couldn't get WeakRef generation for {0}", wr);
                     /* ignore: expected */
@@ -500,6 +501,112 @@ namespace GT.UnitTests
             }
             Assert.AreEqual(1, n);
             c.CopyTo(new object[1], 0);
+        }
+    }
+
+    [TestFixture]
+    public class AADelayQueueTests
+    {
+        [Test]
+        public void TestSequentialAdds()
+        {
+            DelayQueue<uint> dq = new DelayQueue<uint>();
+            Assert.AreEqual(0, dq.Count);
+            for (uint i = 0; i < 10; i++)
+            {
+                dq.Enqueue(i, i + 1);
+                Assert.AreEqual(i + 1, dq.Count);
+                Assert.AreEqual(i + 1, dq.MaximumDelay);
+            }
+
+            Assert.IsFalse(dq.Dequeue(0, null));    // nothing at time 0
+            for (uint i = 0; i < 10; i++)
+            {
+                uint expected = i;
+                Assert.AreEqual(10 - i, dq.Count);
+                Assert.AreEqual(10 - i, dq.MaximumDelay);
+                bool dequeued = dq.Dequeue(1, e => Assert.AreEqual(expected, e));
+                Assert.IsTrue(dequeued);
+                Assert.AreEqual(10 - (i + 1), dq.Count);
+                Assert.AreEqual(10 - (i + 1), dq.MaximumDelay);
+                Assert.IsFalse(dq.Dequeue(0, null));
+            }
+            Assert.AreEqual(0, dq.Count);
+            Assert.AreEqual(0, dq.MaximumDelay);
+        }
+
+        [Test]
+        public void TestSequentialAddsButUnequalRemoved()
+        {
+            DelayQueue<uint> dq = new DelayQueue<uint>();
+            Assert.AreEqual(0, dq.Count);
+            Assert.AreEqual(0, dq.MaximumDelay);
+            for (uint i = 0; i < 5; i++)
+            {
+                dq.Enqueue(2 * i, i + 1);
+                dq.Enqueue(2 * i + 1, i + 1);
+                Assert.AreEqual(2 * (i + 1), dq.Count);
+                Assert.AreEqual(i + 1, dq.MaximumDelay);
+            }
+
+            Assert.IsFalse(dq.Dequeue(0, null));    // nothing at time 0
+            uint lastCount = 0;
+            for (uint i = 0; i < 5; i++)
+            {
+                Assert.AreEqual(10 - (2 * i), dq.Count);
+                Assert.AreEqual(5 - i, dq.MaximumDelay);
+                bool dequeued = dq.Dequeue(1, e => Assert.AreEqual(lastCount++, e));
+                Assert.IsTrue(dequeued);
+                Assert.AreEqual(10 - 2 * (i + 1), dq.Count);
+                Assert.AreEqual(5 - i - 1, dq.MaximumDelay);
+                Assert.IsFalse(dq.Dequeue(0, null));
+            }
+            Assert.AreEqual(0, dq.Count);
+        }
+
+        [Test]
+        public void TestReversedAdds()
+        {
+            DelayQueue<uint> dq = new DelayQueue<uint>();
+            Assert.AreEqual(0, dq.Count);
+            for (uint i = 0; i < 10; i++)
+            {
+                dq.Enqueue(10 - i - 1, 10 - i);
+                Assert.AreEqual(i + 1, dq.Count);
+                Assert.AreEqual(10, dq.MaximumDelay);   // MaxDelay shouldn't change
+            }
+            Assert.IsFalse(dq.Dequeue(0, null));    // nothing at time 0
+            for (uint i = 0; i < 10; i++)
+            {
+                Assert.AreEqual(10 - i, dq.Count);
+                Assert.AreEqual(10 - i , dq.MaximumDelay);
+                bool dequeued = dq.Dequeue(1, e => Assert.AreEqual(i, e));
+                Assert.IsTrue(dequeued);
+                Assert.AreEqual(10 - (i + 1), dq.Count);
+                Assert.AreEqual(10 - i - 1, dq.MaximumDelay);
+                Assert.IsFalse(dq.Dequeue(0, null));
+            }
+            Assert.AreEqual(0, dq.Count);
+            Assert.AreEqual(0, dq.MaximumDelay);
+        }
+
+        [Test]
+        public void TestAddsKeptInSequence()
+        {
+            DelayQueue<uint> dq = new DelayQueue<uint>();
+            dq.Enqueue(0, 1);
+            dq.Enqueue(1, 1);
+            dq.Enqueue(2, 1);
+            dq.Enqueue(3, 1);
+            Assert.AreEqual(1, dq.MaximumDelay);
+            Assert.IsFalse(dq.Dequeue(0, null));
+            uint lastSeen = 0;
+            dq.Enqueue(4, 1);
+            Assert.AreEqual(1, dq.MaximumDelay);
+            Assert.IsTrue(dq.Dequeue(1, v => Assert.AreEqual(lastSeen++, v)));
+
+            Assert.AreEqual(0, dq.Count);
+            Assert.AreEqual(0, dq.MaximumDelay);
         }
     }
 }

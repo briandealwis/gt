@@ -821,4 +821,151 @@ namespace GT.Utils
     }
 
     #endregion
+
+    /// <summary>
+    /// A simple delay queue similar in spirit to the java.util.concurrent.DelayQueue class.  
+    /// Elements are inserted with some delay count using
+    /// <see cref="Enqueue"/>.  The delay counts are represented as the relative number 
+    /// of unitless ticks (e.g., could correspond to milliseconds).  Elements can only be
+    /// dequeued when their delay has expired.  Time passing is indicated by periodically
+    /// calling <see cref="Dequeue"/> with the number of ticks that have elapsed since
+    /// the last call; any elements whose delay has expired are then dequeued and
+    /// reported.
+    /// </summary>
+    /// <typeparam name="T">the type of elements</typeparam>
+    public class DelayQueue<T>
+    {
+        /// <summary>
+        /// DelayNode captures the necessary information in the delay
+        /// list.  The delay list is sorted by time remaining; each node
+        /// contains a delta of the number of additional ticks relative to
+        /// its parent.
+        /// </summary>
+        protected class DelayNode
+        {
+            public uint delta;
+            public T element;
+            public DelayNode next;
+
+            public void Clear()
+            {
+                delta = 0;
+                element = default(T);
+                next = null;
+            }
+        }
+
+        // We use a managed pool to minimize memory overhead
+        protected Pool<DelayNode> nodePool = new ManagedPool<DelayNode>(0, 5,
+            () => new DelayNode(), dn => dn.Clear(), dn => dn.Clear());
+
+        // the first element in the delay queue: this is the node that
+        // will expire earliest.
+        protected DelayNode first = null;
+
+        /// <summary>
+        /// The number of elements in this queue
+        /// </summary>
+        public uint Count { get; protected set; }
+
+        /// <summary>
+        /// The maximum delay for any element in this queue.
+        /// </summary>
+        public uint MaximumDelay { get; protected set; }
+
+        public DelayQueue()
+        {
+            Count = 0;
+            MaximumDelay = 0;
+        }
+
+        /// <summary>
+        /// Enqueue the given element for at least <see cref="delay"/> ticks.
+        /// </summary>
+        /// <param name="element">the element to be enqueued</param>
+        /// <param name="delay">the number of ticks the element must be kept for</param>
+        public void Enqueue(T element, uint delay)
+        {
+            DelayNode newNode = nodePool.Obtain();
+            Debug.Assert(newNode.next == null);
+            newNode.element = element;
+
+            Count++;
+            // Handle special case where this element should be the first...
+            if (first == null) {
+                MaximumDelay = newNode.delta = delay;
+                first = newNode;
+                return;
+            }
+            if (delay < first.delta)
+            {
+                // MaximumDelay doesn't change
+                newNode.delta = delay;
+                newNode.next = first;
+                first.delta -= delay;
+                first = newNode;
+                return;
+            }
+
+            Debug.Assert(first.delta <= delay);
+            // Find the right position for the element in the list and adjust
+            // the subsequent element's delta appropriately
+            delay -= first.delta;
+            DelayNode parent = first;
+            while (parent.next != null && parent.next.delta <= delay)
+            {
+                parent = parent.next;
+                delay -= parent.delta;
+            }
+            // MaximumDelay needs only be updated if newNode is the new last node
+            if (parent.next == null)
+            {
+                MaximumDelay += delay;
+            }
+            newNode.delta = delay;
+            newNode.next = parent.next;
+            parent.next = newNode;
+            // and adjust the next node's delta relative newNode
+            if (newNode.next != null)
+            {
+                // should be > since if we're equal, then newNode should go
+                // after it (viz. the condition above)
+                Debug.Assert(newNode.next.delta > delay);
+                newNode.next.delta -= delay;
+            }
+        }
+
+        /// <summary>
+        /// Notify that <see cref="elapsed"/> ticks have elapsed.
+        /// Dequeue any items whose delays have expired, triggering
+        /// the <see cref="dequeue"/> delegate.
+        /// </summary>
+        /// <param name="elapsed">the number of ticks elapsed since the last call</param>
+        /// <param name="dequeued">a delegate triggered with all elements whose delay 
+        /// has expired</param>
+        /// <returns>true if some elements expired, false otherwise</returns>
+        public bool Dequeue(uint elapsed, Action<T> dequeued)
+        {
+            bool hasDequeued = false;
+            while (first != null && first.delta <= elapsed)
+            {
+                dequeued(first.element);
+                hasDequeued = true;
+                Count--;
+                MaximumDelay -= first.delta;
+                elapsed -= first.delta;
+                DelayNode scrap = first;
+                first = first.next;
+                nodePool.Return(scrap);
+            }
+            if (first != null)
+            {
+                Debug.Assert(elapsed < first.delta);
+                MaximumDelay -= elapsed;
+                first.delta -= elapsed;
+            }
+            return hasDequeued;
+        }
+    }
+
 }
