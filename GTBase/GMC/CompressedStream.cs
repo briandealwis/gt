@@ -1,9 +1,3 @@
-using System;
-using System.Collections.Generic;
-using System.Text;
-using GT.Net;
-using GMCException = GT.GMC.MissingInformationException;
-
 namespace GT.GMC
 {
     //public class CompressedStringChannel : IStringChannel

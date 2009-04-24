@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using NUnit.Framework;
-using GT.Net;
 using GT.Utils;
 
 namespace GT.UnitTests

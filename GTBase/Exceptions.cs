@@ -1,7 +1,5 @@
 using System;
-using System.Runtime.Serialization;
 using System.Collections.Generic;
-using GT.Net;
 
 /// <summary>
 /// Fundamental classes and interfaces used throughout GT, including

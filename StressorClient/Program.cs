@@ -1,6 +1,5 @@
 ﻿using System;
 using System.Threading;
-using GT.Net;
 using GT.UnitTests;
 using GT.StatsGraphs;
 

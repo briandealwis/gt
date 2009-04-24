@@ -1,8 +1,6 @@
 using System;
-using GT.Net;
 using System.IO;
 using System.Collections.Generic;
-using System.Threading;
 using GT.Utils;
 
 namespace GT.Net.Local

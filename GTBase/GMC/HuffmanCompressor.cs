@@ -1,6 +1,3 @@
-using System;
-using GT.Utils;
-
 namespace GT.GMC
 {
     public class HuffmanCompressor

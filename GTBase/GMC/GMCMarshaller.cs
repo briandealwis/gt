@@ -1,13 +1,12 @@
 using System;
 using System.Collections.Generic;
 using System.Text;
-using System.Runtime.Serialization;
 using System.IO;
-using Common.Logging;
-using GT.Utils;
 using System.IO.Compression;
 using System.Diagnostics;
+using Common.Logging;
 using GT.Net;
+using GT.Utils;
 
 /// <summary>
 /// An adapative message marshaller.  This marshaller implements

@@ -1,7 +1,3 @@
-using System;
-using System.Collections.Generic;
-using System.Text;
-
 namespace GT.Net
 {
     /// <summary>Used to set a certain event to only occur every so often.  (Thread-safe)</summary>
@@ -46,10 +42,9 @@ namespace GT.Net
                     HitEvent(para);
                 }
             }
-            else
+            else if (MissEvent != null)
             {
-                if (MissEvent != null)
-                    MissEvent(para);
+                MissEvent(para);
             }
         }
     }

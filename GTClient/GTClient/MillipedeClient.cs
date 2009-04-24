@@ -1,11 +1,8 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Diagnostics;
 using System.IO;
 using System.Runtime.Serialization.Formatters.Binary;
-using System.Threading;
 using GT.Net;
-using GT.Utils;
 
 /// Client side of the Millipede debugger
 namespace GT.Millipede

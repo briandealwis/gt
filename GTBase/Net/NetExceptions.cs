@@ -1,7 +1,6 @@
 using System;
 using System.Runtime.Serialization;
 using System.Security.Permissions;
-using GT;
 using System.Collections.Generic;
 
 namespace GT.Net
