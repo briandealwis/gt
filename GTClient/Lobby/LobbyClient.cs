@@ -76,7 +76,7 @@ namespace Lobby
             }
 
             serverView.MouseDoubleClick += new MouseEventHandler(MouseDoubleClick);
-            sharedDictionary.ChangeEvent += new SimpleSharedDictionary.Change(ChangeEvent);
+            sharedDictionary.Changed += new SimpleSharedDictionary.Change(ChangeEvent);
             sharedDictionary["EveryoneIsInformed"] = false;
         }
 
@@ -166,7 +166,7 @@ namespace Lobby
         ~LobbyClient()
         {
             //the dictionary may still be in use.  just remove us.
-            sharedDictionary.ChangeEvent -= new SimpleSharedDictionary.Change(ChangeEvent);
+            sharedDictionary.Changed -= new SimpleSharedDictionary.Change(ChangeEvent);
 
             try
             {

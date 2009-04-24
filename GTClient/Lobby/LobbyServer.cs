@@ -24,7 +24,7 @@ namespace Lobby
             sharedDictionary.Master.Add(myKey);
             sharedDictionary[myKey] = server;
 
-            sharedDictionary.ChangeEvent += new SimpleSharedDictionary.Change(ChangeEvent);
+            sharedDictionary.Changed += new SimpleSharedDictionary.Change(ChangeEvent);
         }
 
         void ChangeEvent(string key)
@@ -63,7 +63,7 @@ namespace Lobby
         ~LobbyServer()
         {
             sharedDictionary.Master.Remove(myKey);
-            sharedDictionary.ChangeEvent -= new SimpleSharedDictionary.Change(ChangeEvent);
+            sharedDictionary.Changed -= new SimpleSharedDictionary.Change(ChangeEvent);
         }
 
         public string[] Participants

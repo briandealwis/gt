@@ -1394,7 +1394,7 @@ namespace GT.UnitTests
                     new AggregatingSharedDictionary(c.OpenObjectChannel("127.0.0.1", "9678", 0,
                         new ChannelDeliveryRequirements(Reliability.Reliable, MessageAggregation.Aggregatable,
                             Ordering.Ordered)), TimeSpan.FromMilliseconds(20));
-                d.ChangeEvent += DictionaryChanged;
+                d.Changed += DictionaryChanged;
                 dictionaries.Add(d);
                 UpdateClients();
             }
