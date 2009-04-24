@@ -1,3 +1,4 @@
+using System;
 using System.Threading;
 using System.Diagnostics;
 using Common.Logging;
@@ -81,6 +82,17 @@ namespace GT
             lastMilliseconds = totalMilliseconds;
             totalTicks = stopwatch.ElapsedTicks;
             totalMilliseconds = stopwatch.ElapsedMilliseconds;
+        }
+
+        /// <summary>
+        /// Create a new, started instance.
+        /// </summary>
+        /// <returns>a new, started instance</returns>
+        public static HPTimer StartNew()
+        {
+            HPTimer t = new HPTimer();
+            t.Start();
+            return t;
         }
     }
 }
