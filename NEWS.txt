@@ -1,6 +1,38 @@
 GT NEWS
 =======
 
+GT is a new groupware toolkit with two goals: to simplify the
+development of real-time distributed groupware, and to improve the
+performance of distributed applications. The toolkit makes it simple
+to build groupware by taking care of networking and by providing
+several high-level programming abstractions to deal with communication
+and distributed data. It is designed to speed the development of
+simple groupware applications by allowing developers to create
+distributed systems without the need to program lower-level networking
+code.
+
+GT is developed against the .NET 2.0 framework.  It makes use of
+generics, but tries to minimize use of more esoteric parts of the
+framework to simplify possible future ports to Compact frameworks.
+
+GT also includes a number of abstractions and classes that are
+useful for general use in applications.  These classes are found
+in the GT.Utils namespace.
+
+There is now a GT users mailing-list: subscribe by sending a message
+to majordomo@cs.usask.ca with the following in the body:
+
+    subscribe gt-users
+    end
+
+and reply to the confirmation.  Please feel free to submit any
+questions to the mailing list.
+
+Please submit any problems or requests via the GT Trac found at:
+
+    https://papyrus.usask.ca/svn/trac/gt/
+
+
 ==============
 === GT 3.0 ===
 ==============
@@ -38,6 +70,13 @@ New Functionality:
     See <https://papyrus.usask.ca/trac/gt/ticket/45> for details
     and pointers for other work.
 
+  * We have introduced new events and rationalized the existing
+    events to provide better symmetry between Client and Server
+    instances.  We have introduced new ping events to provide notification
+    of when a ping is requested and when the response is received.
+    <https://papyrus.usask.ca/trac/gt/ticket/48>
+    <https://papyrus.usask.ca/trac/gt/ticket/29>
+
   * Support for a large-object sending marshaller.  This functionality
     has necessitated some changes to the marshaller APIs; see below
     for details.
@@ -66,6 +105,10 @@ New Functionality:
     new transport instances through a ConfigureTransport() method.
     (see BaseConfiguration.ConfigureTransport()).
 
+  * A new UDP-based transport variant that provides sequenced operation.
+    This new sequenced UDP transport cheerfully co-exists with the existing
+    UDP transports. <https://papyrus.usask.ca/trac/gt/ticket/67>
+
   * New traffic shaping transport wrappers, LeakyBucketTransport and
     TokenBucketTransport, respectively implementing the leaky bucket
     and token bucket traffic shaping algorithms. 
@@ -84,6 +127,27 @@ New Functionality:
     These wrappers are easily configured by overriding the new
     ConfigureTransport() method on the ClientConfiguration and
     ServerConfiguration (see BaseConfiguration).
+
+  * A new network emulation transport wrapper, NetworkEmulationTransport,
+    to simulate different network traffic characteristics such as
+    packet delay, packet loss, and packet reordering.
+    <https://papyrus.usask.ca/trac/gt/ticket/32>
+
+  * A traffic monitor, PingBasedDisconnector, that uses GT's ping events
+    to monitor for inactive transports.  This disconnector is particularly
+    useful for transports that provide no disconnection notification,
+    such as UDP.  The PingBasedDisconnector is now automatically configured
+    as part of the ClientRepeater server.
+    <https://papyrus.usask.ca/trac/gt/ticket/63>
+
+  * The ClientRepeater now updates newly-connected clients with the list
+    of the other connected clients (with SessionAction.Lives)
+    <https://papyrus.usask.ca/trac/gt/ticket/68>
+
+  * We have introduced some high-level debugging views that use GT's
+    hooks to provide graphs and report statistics on messaging behaviours
+    <https://papyrus.usask.ca/trac/gt/ticket/51>
+    <https://papyrus.usask.ca/trac/gt/ticket/52>
 
 
 Interoperability changes:
@@ -109,6 +173,7 @@ Interoperability changes:
     change will only affect communication between BE machines.
     Fixed <https://papyrus.usask.ca/trac/gt/ticket/81>.
 
+
 Developer-visible changes:
 ==========================
 
@@ -116,56 +181,89 @@ We have made numerous breaks with previous API to streamline GT
 usage and reconcile inconsistencies, hence the bump from GT 2.0 to
 GT 3.0.
 
-  * GT.Net.Client and I*Stream changes:  We have made some wide-ranging
-    changes to the Client for obtaining channels (what were formerly
-    called streams).
+  * There have been some major renames:
 
-      * The client stream interface has been revamped due to user confusion
-	in what is a channel, an id, and a stream.
+      * Message.Id has been renamed ChannelId.  The use of 'id' was
+	somewhat ambiguous and causing confusion.  All uses of 'id' to
+	mean a channel id or a stream id have been redone to use channelId. 
+	<https://papyrus.usask.ca/trac/gt/ticket/74>.
 
-	  * The Client.Get*Stream() methods have been renamed to
-	    Client.Open*Channel(), and the I*Stream interfaces (and
-	    implementing classes) have been renamed too.
+      * GT.Net.Client and I*Stream changes:  We have made some wide-ranging
+	changes to the Client for obtaining channels (what were formerly
+	called streams).
 
-	  * We have removed the single-server-per-channel binding behaviour.
-	    Previous versions of GT implicitly bound a channel to a single
-	    particular server, and requesting the same channel with
-	    a different server implicitly replaced the underlying server.
-	    Now channels with the same channel number can be obtained
-	    for multiple servers.  We suggest that clients requiring
-	    this behaviour must take the responsibility for maintaining
-	    and switching such shared instances.
+	  * The client stream interface has been revamped due to user confusion
+	    in what is a channel, an id, and a stream.
+	    <https://papyrus.usask.ca/trac/gt/ticket/27>
+	    <https://papyrus.usask.ca/trac/gt/ticket/74>.
 
-	  * The Open*Channel() methods now return a new instance rather
-	    than a shared instance.  With the previous behaviour, channels
-	    with multiple consumers would have a race for dequeueing
-	    messages.  And the instances were not thread-safe.
+	      * The Client.Get*Stream() methods have been renamed to
+		Client.Open*Channel(), and the I*Stream interfaces (and
+		implementing classes) have been renamed too.
 
-	  * The channel objects now implement System.IDisposable, and users of
-	    Open*Channel() should now ensure they dispose of the instances;
-	    note that channels are disposed when their corresponding Client
-	    instance is disposed.
+	      * We have removed the single-server-per-channel binding behaviour.
+		Previous versions of GT implicitly bound a channel to a single
+		particular server, and requesting the same channel with
+		a different server implicitly replaced the underlying server.
+		Now channels with the same channel number can be obtained
+		for multiple servers.  We suggest that clients requiring
+		this behaviour must take the responsibility for maintaining
+		and switching such shared instances.
 
-	Client code now looks something like:
+	      * The Open*Channel() methods now return a new instance rather
+		than a shared instance.  With the previous behaviour, channels
+		with multiple consumers would have a race for dequeueing
+		messages.  And the instances were not thread-safe.
 
-	    IStringChannel ch1 = client.OpenStringChannel("localhost", "9999", 0,
-		ChannelDeliveryRequirements.Data);
-	    IStringChannel ch2 = client.OpenStringChannel("localhost", "9999", 0,
-		ChannelDeliveryRequirements.);
-	    IStringChannel ch3 = client.OpenStringChannel("otherhost", "9999", 0,
-		ChannelDeliveryRequirements.CommandsLike);
+	      * The channel objects now implement System.IDisposable, and users of
+		Open*Channel() should now ensure they dispose of the instances;
+		note that channels are disposed when their corresponding Client
+		instance is disposed.
 
-	Instances ch1 and ch2 are now distinct objects and share the same
-	underlying connexion.  When new string messages are received on
-	channel 0 from localhost:9999, both ch1 and ch2 will receive copies of
-	the message.  The creation of ch3, which is also on channel 0,
-	no longer switches the underlying connexion of ch1 and ch2 as would
-	occur in GT 2.0.  Although ch1 and ch2 share the same connexion, they
-	have different ChannelDeliveryRequirements -- the CDR is specific to
-	the channel instance. 
+	    Client code now looks something like:
 
-      * Creating a new Client() no longer implicitly starts the client
-	instance.
+		Client client = new Client(new DefaultClientConfiguration());
+		IStringChannel ch1 = client.OpenStringChannel("localhost", "9999",
+		    0, ChannelDeliveryRequirements.Data);
+		IStringChannel ch2 = client.OpenStringChannel("localhost", "9999",
+		    0, ChannelDeliveryRequirements.);
+		IStringChannel ch3 = client.OpenStringChannel("otherhost", "9999",
+		    0, ChannelDeliveryRequirements.CommandsLike);
+
+	    Instances ch1 and ch2 are now distinct objects and share the same
+	    underlying connexion.  When new string messages are received on
+	    channel 0 from localhost:9999, both ch1 and ch2 will receive copies of
+	    the message.  The creation of ch3, which is also on channel 0,
+	    no longer switches the underlying connexion of ch1 and ch2 as would
+	    occur in GT 2.0.  Although ch1 and ch2 share the same connexion, they
+	    have different ChannelDeliveryRequirements -- the CDR is specific to
+	    the channel instance. 
+
+      * The use of UniqueIdentity has been renamed to simply Identity. 
+	  * IConnexion.UniqueIdentity -> Identity
+	  * IStream.UniqueIdentity -> Identity
+	  * GTCapabilities.CLIENT_ID -> CLIENT_GUID
+	Although the identity value is unique between clients
+	attached to the same server, the values are not globally
+	unique.  Clients *do* have a 'Guid' property, however, which
+	is communicated to the server.
+
+      * GT.Net.IAcceptor's NewClientEvent event has been renamed
+	to NewTransportAccepted.
+
+      * GT.Net.BaseAcceptor has been renamed to IPBasedAcceptor,
+	to reflect its IP-centric implementation.
+
+      * GT.Net.ChannelDeliveryRequirements.TelepointerLike has been renamed
+	to AwarenessLike to reflect the expectations of such messages.
+
+      * As part of the renames, some non-API but possibly visible classes
+	have also been renamed for clarity:
+
+	  * To better reflect their intentions:
+	      ClientConnexion -> ConnexionToClient
+	      ServerConnexion -> ConnexionToServer
+		* 'server' field -> 'owner' to match ConnexionToClient
 
   * Delegate changes:  We have tried to reduce the number of delegates
     defined, replacing them with equivalents or more generalized versions.
@@ -250,6 +348,7 @@ GT 3.0.
 	now provide a LargeObjectMarshaller that wraps another
 	marshaller and performs the appropriate splitting to and
 	reassembling from multiple packets.
+	<https://papyrus.usask.ca/trac/gt/ticket/68>
 
       * The marshaller descriptors have been solidified a bit further.
 	IMarshaller.Descriptors has been removed and replaced by
@@ -263,6 +362,12 @@ GT 3.0.
 	refactored to create a new base class, BaseLWMCFMarshaller.
 	This supports a common message container format, called the
 	Lightweight Message Container Format v1.1.
+
+      * The internal protocol of subclasses of
+        LightweightDotNetSerializingMarshaller (now BaseLWMCFMarshaller)
+	was changed such that the Unmarshal*Contents methods are provided
+	the length of the data on the stream.
+	<https://papyrus.usask.ca/trac/gt/ticket/59>
 
   * GT.Net.IConnexion changes:
 
@@ -278,38 +383,12 @@ GT 3.0.
     order, whereas ImmediatePacketScheduler processing messages
     on a first-come, first-served basis.  Packet schedulers are
     created by connexion instances.
-
-  * There have been some major renames:
-
-      * Message.Id has been renamed ChannelId.  The use of 'id' was
-	somewhat ambiguous and causing confusion.  All uses of 'id' to
-	mean a channel id or a stream id have been redone to use channelId. 
-	Described in <https://papyrus.usask.ca/trac/gt/ticket/74>.
-
-      * The use of UniqueIdentity has been renamed to simply Identity. 
-	  * IConnexion.UniqueIdentity -> Identity
-	  * IStream.UniqueIdentity -> Identity
-	  * GTCapabilities.CLIENT_ID -> CLIENT_GUID
-	Although the identity value is unique between clients
-	attached to the same server, the values are not globally
-	unique.  Clients *do* have a 'Guid' property, however, which
-	is communicated to the server.
-
-      * GT.Net.BaseAcceptor has been renamed to IPBasedAcceptor,
-	to reflect its IP-centric implementation.
-
-      * GT.Net.IAcceptor's NewClientEvent event has been renamed
-	to NewTransportAccepted.
-
-      * As part of the renames, some non-API but possibly visible classes
-	have also been renamed for clarity:
-
-	  * To better reflect their intentions:
-	      ClientConnexion -> ConnexionToClient
-	      ServerConnexion -> ConnexionToServer
-		* 'server' field -> 'owner' to match ConnexionToClient
+    <https://papyrus.usask.ca/trac/gt/ticket/44>
 
   * Other changes:
+
+      * Creating a new Client() no longer implicitly starts the client
+	instance.
 
       * Times have been moved to be specified using System.TimeSpan
 	instances.  Notable changes include to the Sleep() methods on
@@ -329,8 +408,8 @@ GT 3.0.
 	ErrorEvent handlers.
 
 
-Bugs have been fixed since GT 2.0:
-==================================
+Bugs fixed since GT 2.0:
+========================
 
   * Server.UpdateAcceptors() threw an NullRefEx as it wasn't properly
     handling case where an acceptor was inactive but the first to 
@@ -349,7 +428,7 @@ Bugs have been fixed since GT 2.0:
   * Wrap TcpTransport.ToString() to avoid throwing exceptions on
     invalid handles.
 
-  * Ensure Server and Client are started at the end of
+  * Server and Client are now guaranteed to be started at the end of
     StartSeparateListeningThread() <https://papyrus.usask.ca/trac/gt/ticket/56>
 
   * Expose an IStream's connexion through a Connexion property (now
@@ -360,6 +439,16 @@ Bugs have been fixed since GT 2.0:
 
   * Ensure IConnexion.MessageSent event is sent for aggregated
     messages.  <https://papyrus.usask.ca/trac/gt/ticket/61>
+
+  * GT APIs perform more rigorous checks that a component is in a
+    started state <https://papyrus.usask.ca/trac/gt/ticket/71>
+
+  * UDP acceptors and connectors now perform a proper two-way handshake
+    <https://papyrus.usask.ca/trac/gt/ticket/38>
+
+  * GMC now supports using deflate to further minimize packet sizes
+    <https://papyrus.usask.ca/trac/gt/ticket/35>
+
 
 
 ==============
