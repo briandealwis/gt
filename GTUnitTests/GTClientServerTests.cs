@@ -860,7 +860,7 @@ namespace GT.UnitTests
                 c.MessageReceived += delegate(Message m, IConnexion conn, ITransport transport) { messageReceived = true; };
                 c.MessageSent += delegate(Message m, IConnexion conn, ITransport transport) { messageSent = true; };
                 c.PingRequested += delegate(ITransport transport, uint sequence) { pingRequested = true; };
-                c.PingReceived += delegate(ITransport transport, uint sequence, TimeSpan roundtrip) { pingReceived = true; };
+                c.PingReplied += delegate(ITransport transport, uint sequence, TimeSpan roundtrip) { pingReceived = true; };
             };
             client.ConnexionRemoved += delegate(Communicator ignored, IConnexion c) { connexionRemoved = true; };
 

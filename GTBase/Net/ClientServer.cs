@@ -576,7 +576,7 @@ namespace GT.Net
         /// <summary>
         /// Triggered when a ping response has ben received.
         /// </summary>
-        event PingedNotification PingReceived;
+        event PingedNotification PingReplied;
 
         /// <summary>
         /// The list of currently-connected transports.  Transports are ordered as
@@ -713,7 +713,7 @@ namespace GT.Net
         public event TransportLifecyleNotification TransportRemoved;
 
         public event PingingNotification PingRequested;
-        public event PingedNotification PingReceived;
+        public event PingedNotification PingReplied;
 
 	    #endregion
 
@@ -949,7 +949,7 @@ namespace GT.Net
             {
                 log.Trace(String.Format("{0}: added new transport: {1}", this, t));
             }
-            t.PacketReceivedEvent += NewPacketReceived;
+            t.PacketReceived += NewPacketReceived;
             transports.Add(t);
             transports.Sort(this);
             if (TransportAdded != null) { TransportAdded(this, t); }
@@ -967,7 +967,7 @@ namespace GT.Net
                 log.Trace(String.Format("{0}: removing transport: {1}", this, t));
             }
             bool removed = transports.Remove(t);
-            t.PacketReceivedEvent -= NewPacketReceived;
+            t.PacketReceived -= NewPacketReceived;
             if (TransportRemoved != null) { TransportRemoved(this, t); }
             t.Dispose();
             return removed;
@@ -1094,10 +1094,10 @@ namespace GT.Net
                         : (int.MaxValue - startCount) + endCount;
                     // NB: transport.Delay set may (and probably will) scale this value
                     transport.Delay = roundtrip / 2f;
-                    if (PingReceived != null)
+                    if (PingReplied != null)
                     {
                         uint sequence = ((SystemPingMessage)message).Sequence;
-                        PingReceived(transport, sequence, TimeSpan.FromMilliseconds(roundtrip));
+                        PingReplied(transport, sequence, TimeSpan.FromMilliseconds(roundtrip));
                     }
                     break;
 

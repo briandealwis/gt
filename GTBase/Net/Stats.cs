@@ -107,8 +107,8 @@ namespace GT.Net
 
         private void connexion_TransportAdded(IConnexion connexion, ITransport newTransport)
         {
-            newTransport.PacketSentEvent += transport_PacketSent;
-            newTransport.PacketReceivedEvent += transport_PacketReceived;
+            newTransport.PacketSent += transport_PacketSent;
+            newTransport.PacketReceived += transport_PacketReceived;
         }
 
         private void transport_PacketReceived(TransportPacket packet, ITransport transport)

@@ -101,7 +101,7 @@ namespace Telepointers
 
             coords = client.OpenStreamedTuple<int, int>(host, port, TelepointersChannel,
                 TimeSpan.FromMilliseconds(50),
-                ChannelDeliveryRequirements.TelepointerLike);
+                ChannelDeliveryRequirements.AwarenessLike);
             coords.StreamedTupleReceived += coords_StreamedTupleReceived;
         }
 

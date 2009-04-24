@@ -502,8 +502,8 @@ namespace GT.Millipede
         private readonly Reliability replayReliability;
         private uint replayMaximumPacketSize;
 
-        public event PacketHandler PacketReceivedEvent;
-        public event PacketHandler PacketSentEvent;
+        public event PacketHandler PacketReceived;
+        public event PacketHandler PacketSent;
         public event ErrorEventNotication ErrorEvent;
 
         /// <summary>
@@ -519,8 +519,8 @@ namespace GT.Millipede
             this.underlyingTransport = underlyingTransport;
             this.recorder = recorder;
             milliDescriptor = milliTransportDescriptor;
-            this.underlyingTransport.PacketReceivedEvent += _underlyingTransports_PacketReceivedEvent;
-            this.underlyingTransport.PacketSentEvent += _underlyingTransports_PacketSentEvent;
+            this.underlyingTransport.PacketReceived += _underlyingTransports_PacketReceivedEvent;
+            this.underlyingTransport.PacketSent += _underlyingTransports_PacketSentEvent;
             this.underlyingTransport.ErrorEvent += _underlyingTransport_ErrorEvent;
             running = true;
         }
@@ -562,11 +562,11 @@ namespace GT.Millipede
         /// there must be a mechanism to forward notifications from the ITransport to other GT2
         /// components.
         /// </summary>
-        /// <see cref="ITransport.PacketSentEvent"/>
+        /// <see cref="ITransport.PacketSent"/>
         private void _underlyingTransports_PacketSentEvent(TransportPacket packet, ITransport transport)
         {
-            if (PacketSentEvent == null) { return; }
-            PacketSentEvent(packet, this);
+            if (PacketSent == null) { return; }
+            PacketSent(packet, this);
         }
 
         /// <summary>
@@ -575,13 +575,13 @@ namespace GT.Millipede
         /// there must be a mechanism to forward notifications from the ITransport to other GT2
         /// components.
         /// </summary>
-        /// <see cref="ITransport.PacketReceivedEvent"/>
+        /// <see cref="ITransport.PacketReceived"/>
         private void _underlyingTransports_PacketReceivedEvent(TransportPacket packet, ITransport transport)
         {
             recorder.Record(new MillipedeEvent(milliDescriptor, MillipedeEventType.PacketReceived, 
                 packet.ToArray()));
-            if (PacketReceivedEvent == null) { return; }
-            PacketReceivedEvent(packet, this);
+            if (PacketReceived == null) { return; }
+            PacketReceived(packet, this);
         }
 
         private void _underlyingTransport_ErrorEvent(ErrorSummary es)
@@ -749,10 +749,10 @@ namespace GT.Millipede
                     running = false;
                 }
                 else if(e.Type == MillipedeEventType.PacketReceived
-                    && PacketReceivedEvent != null)
+                    && PacketReceived != null)
                 {
                     TransportPacket tp = new TransportPacket(e.Message);
-                    PacketReceivedEvent(tp, this);
+                    PacketReceived(tp, this);
                     tp.Dispose();
                 }
                 else if (e.Type == MillipedeEventType.Error && ErrorEvent != null)

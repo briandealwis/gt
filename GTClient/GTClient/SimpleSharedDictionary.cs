@@ -32,7 +32,7 @@ namespace GT.Net
         /// <summary>
         /// Triggered when a key has been updated
         /// </summary>
-        public event Change ChangeEvent;
+        public event Change Changed;
 
         /// <summary>
         /// Keys on this list will not be updated from the network.  This is useful for security
@@ -134,7 +134,7 @@ namespace GT.Net
                     }
 
                     //inform our app that it has been updated
-                    if (ChangeEvent != null) { ChangeEvent(kvp.Key); }
+                    if (Changed != null) { Changed(kvp.Key); }
                 }
                 else if (o is string)
                 {
@@ -193,7 +193,7 @@ namespace GT.Net
         public AggregatingSharedDictionary(IObjectChannel s, TimeSpan updateTime)
             : base(s)
         {
-            channel.UpdateEvent += channel_UpdateEvent;
+            channel.Updated += channel_UpdateEvent;
             lastTimeSent = 0;
             this.updateTime = updateTime;
         }

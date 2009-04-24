@@ -128,7 +128,7 @@ namespace Ping
         private void _client_ConnexionAdded(Communicator c, IConnexion cnx)
         {
             cnx.PingRequested += _cnx_PingRequested;
-            cnx.PingReceived += _cnx_PingReceived;
+            cnx.PingReplied += _cnx_PingReceived;
         }
 
         private void _cnx_PingReceived(ITransport transport, uint sequence, TimeSpan roundtrip)

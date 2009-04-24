@@ -15,14 +15,14 @@ namespace GT.Net
     /// warnings and recovered errors are notified through the <see cref="ErrorEvent"/>.
     /// Transports are responsible for disposing of any <see cref="TransportPacket"/>
     /// instances provided to <see cref="SendPacket"/>.
-    /// <see cref="TransportPacket"/> instances provided through the <see cref="PacketSentEvent"/>
-    /// and <see cref="PacketReceivedEvent"/> are disposed of upon the completion of the
+    /// <see cref="TransportPacket"/> instances provided through the <see cref="PacketSent"/>
+    /// and <see cref="PacketReceived"/> are disposed of upon the completion of the
     /// callback, and thus only have a lifetime of the callback
     /// unless they are first attached to using <see cref="TransportPacket.Retain"/>.
     /// </remarks>
     public interface ITransport : ITransportDeliveryCharacteristics, IDisposable
     {
-        /// <summary>
+        /// <summaryas>
         /// A simple identifier for this transport.  This name should uniquely identify this
         /// transport.
         /// </summary>
@@ -44,7 +44,7 @@ namespace GT.Net
         /// lifetime of the callback; be sure to first call <see cref="TransportPacket.Retain"/>
         /// to reference the packet beyond the callback.
         /// </summary>
-        event PacketHandler PacketReceivedEvent;
+        event PacketHandler PacketReceived;
         
         /// <summary>
         /// An event triggered having sent a packet.
@@ -52,7 +52,7 @@ namespace GT.Net
         /// lifetime of the callback; be sure to first call <see cref="TransportPacket.Retain"/>
         /// to reference the packet beyond the callback.
         /// </summary>
-        event PacketHandler PacketSentEvent;
+        event PacketHandler PacketSent;
 
         /// <summary>
         /// Raised to notify of warnings or recovered errors arising from the use of
@@ -108,8 +108,8 @@ namespace GT.Net
         protected ILog log;
 
         private Dictionary<string, string> capabilities = new Dictionary<string, string>();
-        public event PacketHandler PacketReceivedEvent;
-        public event PacketHandler PacketSentEvent;
+        public event PacketHandler PacketReceived;
+        public event PacketHandler PacketSent;
         public event ErrorEventNotication ErrorEvent;
         public abstract string Name { get; }
         public abstract uint Backlog { get; }
@@ -163,14 +163,14 @@ namespace GT.Net
         protected virtual void NotifyPacketReceived(TransportPacket packet)
         {
             // DebugUtils.DumpMessage(this.ToString() + " notifying of received message", buffer, offset, count);
-            if (PacketReceivedEvent == null)
+            if (PacketReceived == null)
             {
                 NotifyError(new ErrorSummary(Severity.Warning, SummaryErrorCode.Configuration,
                     "transport has no listeners for receiving incoming messages!", this, null));
             } 
             else
             {
-                PacketReceivedEvent(packet, this);
+                PacketReceived(packet, this);
             }
             // event listeners are responsible for calling Retain() if they
             // want to use it for longer.
@@ -179,7 +179,7 @@ namespace GT.Net
 
         protected virtual void NotifyPacketSent(TransportPacket packet)
         {
-            if (PacketSentEvent != null) { PacketSentEvent(packet, this); }
+            if (PacketSent != null) { PacketSent(packet, this); }
             packet.Dispose();
         }
 
@@ -198,8 +198,8 @@ namespace GT.Net
     /// </summary>
     public class WrappedTransport : ITransport
     {
-        public event PacketHandler PacketReceivedEvent;
-        public event PacketHandler PacketSentEvent;
+        public event PacketHandler PacketReceived;
+        public event PacketHandler PacketSent;
         public event ErrorEventNotication ErrorEvent;
 
         protected ILog log;
@@ -219,8 +219,8 @@ namespace GT.Net
 
             Wrapped = wrapped;
 
-            Wrapped.PacketReceivedEvent += _wrapped_PacketReceivedEvent;
-            Wrapped.PacketSentEvent += _wrapped_PacketSentEvent;
+            Wrapped.PacketReceived += _wrapped_PacketReceivedEvent;
+            Wrapped.PacketSent += _wrapped_PacketSentEvent;
             Wrapped.ErrorEvent += NotifyError;
         }
 
@@ -288,9 +288,9 @@ namespace GT.Net
 
         protected void NotifyPacketSent(TransportPacket packet, ITransport transport)
         {
-            if (PacketSentEvent != null)
+            if (PacketSent != null)
             {
-                PacketSentEvent(packet, this);
+                PacketSent(packet, this);
             }
         }
 
@@ -301,14 +301,14 @@ namespace GT.Net
 
         protected void NotifyPacketReceived(TransportPacket packet, ITransport transport)
         {
-            if (PacketReceivedEvent == null)
+            if (PacketReceived == null)
             {
                 NotifyError(new ErrorSummary(Severity.Warning, SummaryErrorCode.Configuration,
                     "transport has no listeners for receiving incoming messages!", this, null));
             }
             else
             {
-                PacketReceivedEvent(packet, this);
+                PacketReceived(packet, this);
             }
         }
 

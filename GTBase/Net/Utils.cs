@@ -100,7 +100,7 @@ namespace GT.Net.Utils
             cnx.TransportAdded += _cnx_TransportAdded;
             cnx.TransportRemoved += _cnx_TransportRemoved;
             cnx.PingRequested += _cnx_PingRequested;
-            cnx.PingReceived += _cnx_PingReceived;
+            cnx.PingReplied += _cnx_PingReceived;
             foreach(ITransport t in cnx.Transports)
             {
                 _cnx_TransportAdded(cnx, t);
@@ -120,7 +120,7 @@ namespace GT.Net.Utils
         private void _comm_ConnexionRemoved(Communicator c, IConnexion conn)
         {
             conn.PingRequested -= _cnx_PingRequested;
-            conn.PingReceived -= _cnx_PingReceived;
+            conn.PingReplied -= _cnx_PingReceived;
         }
 
         private void _cnx_PingReceived(ITransport transport, uint sequence, TimeSpan roundtrip)

@@ -36,8 +36,8 @@ namespace GT.UnitTests
         public bool Active { get; internal set; }
         public uint Backlog { get { return 0; } }
 
-        public event PacketHandler PacketReceivedEvent;
-        public event PacketHandler PacketSentEvent;
+        public event PacketHandler PacketReceived;
+        public event PacketHandler PacketSent;
         public event ErrorEventNotication ErrorEvent;
 
         public NullTransport() : this(Net.Reliability.Unreliable, Net.Ordering.Unordered, 10, 1024)
@@ -61,7 +61,7 @@ namespace GT.UnitTests
         public void SendPacket(TransportPacket packet)
         {
             bytesSent += (uint)packet.Length;
-            if (PacketSentEvent != null) { PacketSentEvent(packet, this); }
+            if (PacketSent != null) { PacketSent(packet, this); }
             packet.Dispose();
         }
 
@@ -262,7 +262,7 @@ namespace GT.UnitTests
 
         protected void RunServer()
         {
-            server.PacketReceivedEvent += ServerReceivedPacket;
+            server.PacketReceived += ServerReceivedPacket;
             while (server.Active)
             {
                 server.Update();
@@ -385,7 +385,7 @@ namespace GT.UnitTests
 
             client = connector.Connect(address, port, new Dictionary<string, string>());
             Assert.IsNotNull(client);
-            client.PacketReceivedEvent += ClientReceivedPacket;
+            client.PacketReceived += ClientReceivedPacket;
 
             for (int i = 0; i < 10; i++)
             {
@@ -517,7 +517,7 @@ namespace GT.UnitTests
         public void TestClientTransport()
         {
             bool packetReceived = false;
-            clientTransport.PacketReceivedEvent += delegate { packetReceived = true; };
+            clientTransport.PacketReceived += delegate { packetReceived = true; };
 
             clientTransport.Inject(0, new TransportPacket());
             Assert.IsTrue(packetReceived);
@@ -550,7 +550,7 @@ namespace GT.UnitTests
         public void TestServerTransport()
         {
             bool packetReceived = false;
-            serverTransport.PacketReceivedEvent += delegate { packetReceived = true; };
+            serverTransport.PacketReceived += delegate { packetReceived = true; };
 
             serverTransport.Inject(0, new TransportPacket());
             Assert.IsTrue(packetReceived);
@@ -852,7 +852,7 @@ namespace GT.UnitTests
         public void SetUp() {
             wrapped = new NullTransport(Reliability.Unreliable, Ordering.Unordered, 0, 1024);
             wrappedPacketsSent = 0;
-            wrapped.PacketSentEvent += delegate { wrappedPacketsSent++; };
+            wrapped.PacketSent += delegate { wrappedPacketsSent++; };
             transport = new NetworkEmulatorTransport(wrapped);
             effects = new Bag<NetworkEmulatorTransport.PacketEffect>();
             transport.PacketDisposition += (mode, effect, packet) => effects.Add(effect);

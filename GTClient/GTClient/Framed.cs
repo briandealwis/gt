@@ -7,10 +7,10 @@ namespace GT.Net
         public delegate void FrameDelegate(object[] para);
 
         /// <summary>Triggered on a hit</summary>
-        public event FrameDelegate HitEvent;
+        public event FrameDelegate FrameHit;
 
         /// <summary>Triggered on a miss</summary>
-        public event FrameDelegate MissEvent;
+        public event FrameDelegate FrameMissed;
 
         private double lastEvent;
         private HPTimer timer;
@@ -36,15 +36,15 @@ namespace GT.Net
 
             if (Interval + lastEvent <= currentTime)
             {
-                if(HitEvent != null)
+                if(FrameHit != null)
                 {
                     lastEvent = currentTime;
-                    HitEvent(para);
+                    FrameHit(para);
                 }
             }
-            else if (MissEvent != null)
+            else if (FrameMissed != null)
             {
-                MissEvent(para);
+                FrameMissed(para);
             }
         }
     }

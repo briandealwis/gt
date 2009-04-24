@@ -117,7 +117,7 @@ namespace GT.UnitTests
             MockTransport mockTransport = new MockTransport("MOCK", new Dictionary<string, string>(),
                 Reliability.Reliable, Ordering.Ordered, 1024);
             uint packetsSent = 0;
-            mockTransport.PacketSentEvent += delegate { packetsSent++; };
+            mockTransport.PacketSent += delegate { packetsSent++; };
             MockConnector mockConnector = new MockConnector();
             mockConnector.CreateTransport = delegate { return mockTransport; };
             mockConnector.Start();
@@ -148,7 +148,7 @@ namespace GT.UnitTests
             connector = (MillipedeConnector)MillipedeConnector.Wrap(mockConnector = new MockConnector(),
                 recorder);
             transport = connector.Connect("localhost", "9999", new Dictionary<string, string>());
-            transport.PacketReceivedEvent += (packet, t) =>
+            transport.PacketReceived += (packet, t) =>
             {
                 Assert.AreEqual(new byte[5], packet.ToArray());
                 Assert.AreEqual(3, recorder.NumberEvents);
@@ -177,7 +177,7 @@ namespace GT.UnitTests
             MockTransport mockTransport = new MockTransport("MOCK", new Dictionary<string, string>(),
                 Reliability.Reliable, Ordering.Ordered, 1024);
             uint packetsSent = 0;
-            mockTransport.PacketSentEvent += delegate { packetsSent++; };
+            mockTransport.PacketSent += delegate { packetsSent++; };
             MockAcceptor mockAcceptor = new MockAcceptor();
             mockAcceptor.Start();
 
@@ -416,17 +416,17 @@ namespace GT.UnitTests
 
         public uint Backlog { get { return 0; } }
 
-        public event PacketHandler PacketReceivedEvent;
-        public event PacketHandler PacketSentEvent;
+        public event PacketHandler PacketReceived;
+        public event PacketHandler PacketSent;
         public event ErrorEventNotication ErrorEvent;
 
         public IDictionary<string, string> Capabilities { get; set; }
 
         public void SendPacket(TransportPacket packet)
         {
-            if (PacketSentEvent != null)
+            if (PacketSent != null)
             {
-                PacketSentEvent(packet, this);
+                PacketSent(packet, this);
             }
         }
 
@@ -439,9 +439,9 @@ namespace GT.UnitTests
 
         public void InjectReceivedPacket(byte[] bytes)
         {
-            if (PacketReceivedEvent != null)
+            if (PacketReceived != null)
             {
-                PacketReceivedEvent(new TransportPacket(bytes), this);
+                PacketReceived(new TransportPacket(bytes), this);
             }
         }
     }

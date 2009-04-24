@@ -25,9 +25,10 @@ namespace GT.Net
     public interface IChannel : IDisposable
     {
         /// <summary>
-        /// Triggered whenever the owning <see cref="Client"/> is updated.
+        /// This instance has been updated; typically triggered whenever the 
+        /// owning <see cref="Client"/> has finished being updated.
         /// </summary>
-        event Action<HPTimer> UpdateEvent;
+        event Action<HPTimer> Updated;
 
         /// <summary>
         /// Return true if this instance is active
@@ -146,7 +147,7 @@ namespace GT.Net
         protected IConnexion connexion;
         protected ChannelDeliveryRequirements deliveryOptions;
 
-        public event Action<HPTimer> UpdateEvent;
+        public event Action<HPTimer> Updated;
 
         /// <summary>
         /// Return true if this instance is active
@@ -230,7 +231,7 @@ namespace GT.Net
 
         public virtual void Update(HPTimer hpTimer)
         {
-            if (connexion != null && UpdateEvent != null) { UpdateEvent(hpTimer); }
+            if (connexion != null && Updated != null) { Updated(hpTimer); }
         }
 
         public virtual void Dispose()

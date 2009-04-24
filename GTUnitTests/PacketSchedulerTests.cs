@@ -12,7 +12,7 @@ namespace GT.UnitTests
         public event TransportLifecyleNotification TransportAdded;
         public event TransportLifecyleNotification TransportRemoved;
         public event PingingNotification PingRequested;
-        public event PingedNotification PingReceived;
+        public event PingedNotification PingReplied;
 
 
         public bool Active { get; set; }

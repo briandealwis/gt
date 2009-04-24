@@ -297,11 +297,12 @@ GT 3.0.
 
   * Event changes:
 
-      * As part of reworking the IStream (now IChannel) implementations, the actual 
-        new-message events have been renamed to MessagesReceived
-	to be more consistent with similar events defined elsewhere.
-	The Streamed Tuple implementations continue to use
-	StreamedTupleReceived however.
+      * As part of reworking the IStream (now IChannel) implementations,
+	the actual new-message events have been renamed to
+	MessagesReceived to be more consistent with similar events
+	defined elsewhere.  The Streamed Tuple implementations
+	continue to use StreamedTupleReceived however.  The UpdateEvent
+	event has been renamed to Updated.
 
   * GT.Net.ITransport changes:
 
@@ -319,6 +320,9 @@ GT 3.0.
 
       * ITransports no longer throw TransportBackloggedWarning, and
         instead provide such warnings through a new ErrorEvent event.
+
+      * The PacketSentEvent and PacketReceivedEvent events have been
+	renamed to PacketSent and PacketReceived respectively.
 
   * GT.Net.IMarshaller and changes to the shipped marshallers:
 
