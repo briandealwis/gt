@@ -113,19 +113,26 @@ namespace GT.Utils
     }
 
     /// <summary>
-    /// A growable list of bits, intended to be compatible with BitArray.
+    /// A growable list of bits, intended to be compatible with <see cref="BitArray"/>.
     /// </summary>
     public class BitTuple
     {
         private List<byte> bytes;
         private int length;
 
+        /// <summary>
+        /// Create a new instance with 0 bits.
+        /// </summary>
         public BitTuple()
         {
             bytes = new List<byte>(4);
             length = 0;
         }
 
+        /// <summary>
+        /// Create a new instance with initial size of <see cref="setBits"/> bits.
+        /// </summary>
+        /// <param name="setBits">the initial size of the bit tuple</param>
         public BitTuple(int setBits) : this(setBits, setBits) { }
 
         /// <summary>
@@ -133,7 +140,7 @@ namespace GT.Utils
         /// and space for <see cref="estimatedBits"/>.
         /// </summary>
         /// <param name="setBits">number of bits to be set</param>
-        /// <param name="estimatedBits">initially allocated space</param>
+        /// <param name="estimatedBits">estimate for initially allocated space</param>
         public BitTuple(int setBits, int estimatedBits)
         {
             bytes = new List<byte>((estimatedBits + 7) / 8);
@@ -141,30 +148,76 @@ namespace GT.Utils
             length = setBits;
         }
 
+        /// <summary>
+        /// Create a new instance based on the provided <see cref="BitArray"/>.
+        /// </summary>
+        /// <param name="bs">the source of bits</param>
         public BitTuple(BitArray bs) : this(bs, bs.Length) { }
 
+        /// <summary>
+        /// Create a new instance based on the first <see cref="numBits"/> bits
+        /// of the provided <see cref="BitArray"/> instance.
+        /// </summary>
+        /// <param name="bs">the source of bits</param>
+        /// <param name="numBits">the number of bits of <see cref="source"/> to be used</param>
         public BitTuple(BitArray bs, int numBits)
             : this(numBits)
         {
             for (int i = 0; i < numBits; i++) { this[i] = bs[i]; }
         }
 
+        /// <summary>
+        /// Create an instance using the provided bools (true = 1, false = 0).
+        /// </summary>
+        /// <param name="bits">the source of bits</param>
         public BitTuple(bool[] bits) : this(bits, bits.Length) { }
-        public BitTuple(bool[] bits, int numBits) : this(numBits)
+
+        /// <summary>
+        /// Create an instance using the first <see cref="numBits"/> bits
+        /// from the provided bools (true = 1, false = 0).
+        /// </summary>
+        /// <param name="source">the source of bits</param>
+        /// <param name="numBits">the number of bits of <see cref="source"/> to be used</param>
+        public BitTuple(bool[] source, int numBits)
+            : this(numBits)
         {
-            for (int i = 0; i < numBits; i++) { this[i] = bits[i]; }
+            for (int i = 0; i < numBits; i++) { this[i] = source[i]; }
         }
 
-        public BitTuple(byte[] bytes) : this(bytes, bytes.Length * 8) {}
-        public BitTuple(byte[] bytes, int numBits) : this(numBits) 
+        /// <summary>
+        /// Create a new instance, initialized using the provided byte array.
+        /// The bytes are interepreted in the same manner as that accepted by
+        /// <see cref="BitArray"/>.
+        /// </summary>
+        /// <param name="source">the source of bits</param>
+        public BitTuple(byte[] source) : this(source, source.Length * 8) {}
+
+        /// <summary>
+        /// Create a new instance, initialized using the first <see cref="numBits"/>
+        /// bits from the provided byte array. The bytes are interepreted in the 
+        /// same manner as that accepted by <see cref="BitArray"/>.
+        /// </summary>
+        /// <param name="source">the source of bits</param>
+        /// <param name="numBits">the number of bits of <see cref="source"/> to be used</param>
+        public BitTuple(byte[] source, int numBits)
+            : this(numBits) 
         {
             for (int i = 0; i < numBits; i++) { 
-                this[i] = (bytes[i / 8] & (byte)(1 << (i % 8))) != 0; 
+                this[i] = (source[i / 8] & (byte)(1 << (i % 8))) != 0; 
             }
         }
 
+        /// <summary>
+        /// Return the number of bits encoded in this instance.
+        /// </summary>
         public int Length { get { return length; } }
 
+        /// <summary>
+        /// Return the bit at the provided index.
+        /// </summary>
+        /// <param name="index">the index</param>
+        /// <returns>the corresponding bit</returns>
+        /// <exception cref="ArgumentException">thrown on an invalid index</exception>
         public bool this[int index]
         {
             get {
@@ -185,25 +238,37 @@ namespace GT.Utils
             }
         }
 
-        public void Add(bool value)
+        /// <summary>
+        /// Append the provided value.
+        /// </summary>
+        /// <param name="bit">the new bit</param>
+        public void Add(bool bit)
         {
             if (length % 8 == 0) { bytes.Add(0); }
-            if (value) { bytes[length / 8] |= (byte)(1 << (length % 8)); }
+            if (bit) { bytes[length / 8] |= (byte)(1 << (length % 8)); }
             length++;
         }
 
+        /// <summary>
+        /// Append the provided bits.
+        /// </summary>
+        /// <param name="bits">the new bits</param>
         public void AddAll(BitArray bits)
         {
             for (int i = 0; i < bits.Length; i++) { Add(bits[i]); }
         }
 
+        /// <summary>
+        /// Append the provided bits.
+        /// </summary>
+        /// <param name="bits">the new bits</param>
         public void AddAll(bool[] bits)
         {
             for (int i = 0; i < bits.Length; i++) { Add(bits[i]); }
         }
 
         /// <summary>
-        /// Return the equivalent BitArray.
+        /// Return the equivalent <see cref="BitArray"/>.
         /// </summary>
         /// <returns></returns>
         public BitArray ToBitArray()
@@ -216,7 +281,7 @@ namespace GT.Utils
         /// <summary>
         /// Return the equivalent byte array; note that any filler bits 
         /// required to meet a full byte are zero.  The format matches the
-        /// bits as encoded by BitArray.
+        /// bits as encoded by <see cref="BitArray"/>.
         /// </summary>
         /// <returns></returns>
         public byte[] ToArray()
