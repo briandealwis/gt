@@ -6,6 +6,7 @@ using System.IO;
 using System.Net;
 using System.Net.Sockets;
 using GT.Net;
+using GT.Net.Utils;
 using GT.Utils;
 using NUnit.Framework;
 using GT.Net.Local;
@@ -698,10 +699,13 @@ namespace GT.UnitTests
         public void TestLeakyBucketTransport()
         {
             NullTransport nt = new NullTransport();
-            // drain at 128 bytes every 10 milliseconds, and buffer up to 
+            // drain at 128 bytes every 100 milliseconds, and buffer up to 
             // 384 bytes (or 3 packets of 128 bytes)
+            // (100ms may seem long, but it seems to help avoid possible 
+            // race conditions in the test such as where the AvailableCapacity
+            // is is suddenly recalcd and available)
             LeakyBucketTransport lbt = new LeakyBucketTransport(nt, 128, 
-                TimeSpan.FromMilliseconds(10), 384);
+                TimeSpan.FromMilliseconds(100), 384);
             bool backlogged = false;
             lbt.ErrorEvent += delegate(ErrorSummary es)
             {
@@ -835,5 +839,76 @@ namespace GT.UnitTests
                 while (tbt.AvailableCapacity < tbt.MaximumCapacity);
             }
         }
+    }
+
+    [TestFixture]
+    public class ZBNetworkEmulatorTransportTests
+    {
+        NullTransport wrapped;
+        uint wrappedPacketsSent;
+        NetworkEmulatorTransport transport;
+        Bag<NetworkEmulatorTransport.PacketEffect> effects;
+
+        [SetUp]
+        public void SetUp() {
+            wrapped = new NullTransport(Reliability.Unreliable, Ordering.Unordered, 0, 1024);
+            wrappedPacketsSent = 0;
+            wrapped.PacketSentEvent += delegate { wrappedPacketsSent++; };
+            transport = new NetworkEmulatorTransport(wrapped);
+            effects = new Bag<NetworkEmulatorTransport.PacketEffect>();
+            transport.PacketDisposition += (mode, effect, packet) => effects.Add(effect);
+        }
+
+        [Test]
+        public void TestNoConfiguredEffects()
+        {
+            for (int i = 0; i < 100; i++)
+            {
+                transport.SendPacket(new TransportPacket(new byte[4]));
+            }
+            Assert.AreEqual(100, effects.Occurrences(NetworkEmulatorTransport.PacketEffect.None));
+            Assert.AreEqual(100, wrappedPacketsSent);
+        }
+
+        [Test]
+        public void TestDelay()
+        {
+            transport.DelayProvider = () => TimeSpan.FromMilliseconds(100);
+            for (int i = 0; i < 100; i++)
+            {
+                transport.SendPacket(new TransportPacket(new byte[4]));
+            }
+            Assert.AreEqual(100, effects.Occurrences(NetworkEmulatorTransport.PacketEffect.Delayed));
+            Thread.Sleep(200);
+            transport.Update();
+            Assert.AreEqual(100, wrappedPacketsSent);
+        }
+
+        [Test]
+        public void TestPacketLoss()
+        {
+            transport.PacketLoss = 100;
+            for (int i = 0; i < 100; i++)
+            {
+                transport.SendPacket(new TransportPacket(new byte[4]));
+            }
+            Assert.AreEqual(100, effects.Occurrences(NetworkEmulatorTransport.PacketEffect.Dropped));
+            Assert.AreEqual(0, wrappedPacketsSent);
+        }
+
+        [Test]
+        public void TestPacketReordering()
+        {
+            transport.PacketReordering = 100;
+            for (int i = 0; i < 100; i++)
+            {
+                transport.SendPacket(new TransportPacket(new byte[4]));
+            }
+            Assert.AreEqual(100, effects.Occurrences(NetworkEmulatorTransport.PacketEffect.Reordered));
+            Thread.Sleep(200);
+            transport.Update();
+            Assert.AreEqual(100, wrappedPacketsSent);
+        }
+
     }
 }
