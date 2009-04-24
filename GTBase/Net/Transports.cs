@@ -287,6 +287,11 @@ namespace GT.Net
 
         virtual protected void _wrapped_PacketSentEvent(TransportPacket packet, ITransport transport)
         {
+            NotifyPacketSent(packet, transport);
+        }
+
+        protected void NotifyPacketSent(TransportPacket packet, ITransport transport)
+        {
             if (PacketSentEvent != null)
             {
                 PacketSentEvent(packet, this);
@@ -294,6 +299,11 @@ namespace GT.Net
         }
 
         virtual protected void _wrapped_PacketReceivedEvent(TransportPacket packet, ITransport transport)
+        {
+            NotifyPacketReceived(packet, transport);
+        }
+
+        protected void NotifyPacketReceived(TransportPacket packet, ITransport transport)
         {
             if (PacketReceivedEvent == null)
             {
@@ -306,12 +316,15 @@ namespace GT.Net
             }
         }
 
-        virtual protected void NotifyError(ErrorSummary summary)
+        protected void NotifyError(ErrorSummary summary)
         {
-            summary.LogTo(log);
             if (ErrorEvent != null)
             {
                 ErrorEvent(summary);
+            }
+            else
+            {
+                summary.LogTo(log);
             }
         }
 
