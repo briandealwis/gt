@@ -140,7 +140,7 @@ namespace GT.Net
         /// <returns>the marshaller</returns>
         public override IMarshaller CreateMarshaller()
         {
-            return new DotNetSerializingMarshaller();
+            return new LargeObjectMarshaller(new DotNetSerializingMarshaller());
         }
 
         /// <summary>

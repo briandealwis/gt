@@ -166,6 +166,14 @@ Interoperability changes:
     the Marshal* methods are no longer responsible for encoding the
     payload length.
 
+  * With the introduction of the LargeObjectMarshaller, both
+    DefaultClientConfiguration and DefaultServerConfiguration have
+    been changed to now use the LargeObjectMarshaller.  Although
+    the on-wire formats will not change except for messages that
+    exceed a single packet, the marshaller descriptors will have
+    changed which **may** cause connection negotiation issues with
+    older clients.
+
   * System.BitConverter is not endian-agnostic.  We have provided a
     new class, GT.Utils.DataConverter, to provide byte-level conversion
     for most primitive types; the default converter is a LittleEndian

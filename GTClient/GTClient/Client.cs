@@ -743,7 +743,7 @@ namespace GT.Net
 
         public override IMarshaller CreateMarshaller()
         {
-            return new DotNetSerializingMarshaller();
+            return new LargeObjectMarshaller(new DotNetSerializingMarshaller());
         }
 
         public override ICollection<IConnector> CreateConnectors()
