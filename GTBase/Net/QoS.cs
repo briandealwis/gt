@@ -1,6 +1,3 @@
-using System;
-using System.Net;
-using GT;
 using System.Collections.Generic;
 using System.Text;
 
@@ -31,7 +28,8 @@ namespace GT.Net
         Ordered = 2,
     }
 
-    /// <summary>Can this message be aggregated?  This ties into latency-sensitivity.</summary>
+    /// <summary>Can this message be aggregated?  This setting ties into 
+    /// latency-sensitivity.</summary>
     public enum MessageAggregation
     {
         /// <summary>This message can be saved, and sent depending on the 
@@ -75,8 +73,8 @@ namespace GT.Net
     /// <see cref="ChannelDeliveryRequirements"/>.
     /// 
     /// Note: users should pay close attention to the aggregation requirements!
-    /// Any use of MessageAggregation.Aggregatable requires periodically <em>manually flushing</em>
-    /// the channel.
+    /// Any use of <see cref="MessageAggregation.Aggregatable"/> requires that the
+    /// appliction <em>manually flush</em> the channel periodically.
     /// </summary>
     public class MessageDeliveryRequirements
     {
@@ -303,9 +301,20 @@ namespace GT.Net
         /// doi:10.1145/1316624.1316669
         /// 
 
-        /// <summary>A descriptor for telepointer data: these should be sent immediately,
-        /// they should not be out-of-order, but it's ok if they're lost (unreliable).</summary>
-        public static ChannelDeliveryRequirements TelepointerLike
+        /// <summary>
+        /// A descriptor for awareness data such as telepointers: such messages can be
+        /// aggregated <b>for short time periods</b>, they should not be received
+        /// out-of-order, but it's ok if they're lost (unreliable).  The application
+        /// should ensure that such channels are either periodically flushed or have
+        /// a lower ping time, to ensure these changes are pushed out.  Only the last 
+        /// item placed in the channel will actually be sent 
+        /// (<see cref="Freshness.IncludeLatestOnly"/>), replacing any previous values.
+        /// </summary>
+        /// <remarks>
+        /// We have changed this definition slightly from Dyck et al. to actually
+        /// recommend aggregation rather than being sent immediately.
+        /// </remarks>
+        public static ChannelDeliveryRequirements AwarenessLike
         {
             get
             {
@@ -319,9 +328,11 @@ namespace GT.Net
             }
         }
 
-        /// <summary>A descriptor for chat messages: such messages should be received in order
-        /// (e.g., after any previous chat messages) and must be received.  They should be
-        /// sent right away.</summary>
+        /// <summary>
+        /// A descriptor for chat messages: such messages should be received in order
+        /// (e.g., after any previous chat messages) and must be received.  
+        /// Such messages should be sent right away.
+        /// </summary>
         public static ChannelDeliveryRequirements ChatLike
         {
             get
@@ -382,8 +393,8 @@ namespace GT.Net
     }
 
     /// <summary>
-    /// This is public only because internal classes cannot be accessed between different
-    /// .DLLs.  Ordinary mortals should beware!
+    /// A special <see cref="MessageDeliveryRequirements"/> variant to
+    /// request a specific transport.
     /// </summary>
     public class SpecificTransportRequirement : MessageDeliveryRequirements
     {
