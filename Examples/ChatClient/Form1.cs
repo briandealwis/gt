@@ -10,13 +10,13 @@ namespace GT.ChatClient
         /// <summary>
         /// Use channel #1 for sending and receiving chat messages
         /// </summary>
-        private const int ChatMessagesChannel = 1;
+        private const int ChatMessagesChannelId = 1;
 
         /// <summary>
         /// The client repeater uses channel #0 by default to send updates
         /// on clients joining or leaving the group.
         /// </summary>
-        private const int SessionUpdatesChannel = 0;
+        private const int SessionUpdatesChannelId = 0;
 
         private Client client;
 
@@ -45,8 +45,8 @@ namespace GT.ChatClient
             client = new Client();
             client.ConnexionRemoved += client_ConnexionRemoved;
             client.Start();
-            chats = client.OpenStringChannel(host, port, ChatMessagesChannel, ChannelDeliveryRequirements.ChatLike);
-            updates = client.OpenSessionChannel(host, port, SessionUpdatesChannel, ChannelDeliveryRequirements.SessionLike);
+            chats = client.OpenStringChannel(host, port, ChatMessagesChannelId, ChannelDeliveryRequirements.ChatLike);
+            updates = client.OpenSessionChannel(host, port, SessionUpdatesChannelId, ChannelDeliveryRequirements.SessionLike);
             InitializeComponent();
             this.Disposed += Form1_Disposed;
         }

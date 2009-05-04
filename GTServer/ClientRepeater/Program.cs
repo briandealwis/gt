@@ -75,7 +75,7 @@ namespace GT.Net
         /// The default session channel to be used by ClientRepeater instances
         /// for broadcasting session events, such as when clients join or leave.
         /// </summary>
-        public static byte DefaultSessionChannel = 0;
+        public static byte DefaultSessionChannelId = 0;
 
         /// <summary>
         /// The default timeout period for inactive connections (meaning
@@ -105,7 +105,7 @@ namespace GT.Net
         /// The channel for automatically broadcasting session changes to client members.  
         /// If &lt; 0, then not sent.
         /// </summary>
-        public int SessionChangesChannel { get; set; }
+        public int SessionChangesChannelId { get; set; }
 
         public uint Verbose { get; set; }
         
@@ -119,9 +119,9 @@ namespace GT.Net
             Console.WriteLine("       (use -1 to disable session announcements)");
             Console.WriteLine("  -m   set the maximum packet size to <pktsize>");
             Console.WriteLine("  -M   set the GT-Millipede configuration string");
-            Console.WriteLine("  -T   timeout inactive connections (seconds; use 0 to deactivate)");
+            Console.WriteLine("  -T   timeout inactive connections (in seconds; use 0 to deactivate)");
             Console.WriteLine("[port] defaults to {0} if not specified", DefaultPort);
-            Console.WriteLine("[channelId] defaults to {0} if not specified", DefaultSessionChannel);
+            Console.WriteLine("[channelId] defaults to {0} if not specified", DefaultSessionChannelId);
         }
 
         static void Main(string[] args)
@@ -129,7 +129,7 @@ namespace GT.Net
             int port = (int)DefaultPort;
             uint verbose = 0;
             uint maxPacketSize = 0;
-            int sessionChannel = DefaultSessionChannel;
+            int sessionChannelId = DefaultSessionChannelId;
             TimeSpan timeout = DefaultInactiveTimeout;
 
             GetOpt options = new GetOpt(args, "vm:s:M:T:");
@@ -147,7 +147,7 @@ namespace GT.Net
                             maxPacketSize = uint.Parse(opt.Argument);
                             break;
                         case 'b':
-                            sessionChannel = int.Parse(opt.Argument);
+                            sessionChannelId = int.Parse(opt.Argument);
                             break;
 
                         case 'M':
@@ -187,7 +187,7 @@ namespace GT.Net
             RepeaterConfiguration config = new RepeaterConfiguration(port);
             config.MaximumPacketSize = maxPacketSize;
             ClientRepeater cr = new ClientRepeater(config);
-            cr.SessionChangesChannel = sessionChannel;
+            cr.SessionChangesChannelId = sessionChannelId;
             cr.Verbose = verbose;
             cr.InactiveTransportTimeout = timeout;
             cr.StartListening();
@@ -294,7 +294,7 @@ namespace GT.Net
                     log.Info(builder.ToString());
                 }
             }
-            if (SessionChangesChannel < 0) { return; }
+            if (SessionChangesChannelId < 0) { return; }
 
             // Update all clients with the new clients
             foreach (IConnexion client in list)
@@ -304,14 +304,14 @@ namespace GT.Net
                 {
                     if (!list.Contains(other))
                     {
-                        client.Send(new SessionMessage((byte)SessionChangesChannel, other.Identity,
+                        client.Send(new SessionMessage((byte)SessionChangesChannelId, other.Identity,
                             SessionAction.Lives), sessionMDR, null);
                     }
                 }
 
                 client.TransportAdded += _client_TransportAdded;
                 client.TransportRemoved += _client_TransportRemoved;
-                server.Send(new SessionMessage((byte)SessionChangesChannel, client.Identity,
+                server.Send(new SessionMessage((byte)SessionChangesChannelId, client.Identity,
                     SessionAction.Joined), null, sessionMDR);
             }
         }
@@ -336,12 +336,12 @@ namespace GT.Net
                     log.Info(builder.ToString());
                 }
             }
-            if (SessionChangesChannel < 0) { return; }
+            if (SessionChangesChannelId < 0) { return; }
 
             foreach (IConnexion client in list)
             {
                 //inform others client is gone
-                server.Send(new SessionMessage((byte)SessionChangesChannel, client.Identity,
+                server.Send(new SessionMessage((byte)SessionChangesChannelId, client.Identity,
                     SessionAction.Left), null, sessionMDR);
             }
         }

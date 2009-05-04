@@ -17,13 +17,13 @@ namespace Telepointers
         /// <summary>
         /// Use channel #1 for sending and receiving telepointer updates
         /// </summary>
-        private const int TelepointersChannel = 1;
+        private const int TelepointersChannelId = 1;
 
         /// <summary>
         /// The client repeater uses channel #0 by default to send updates
         /// on clients joining or leaving the group.
         /// </summary>
-        private const int SessionUpdatesChannel = 0;
+        private const int SessionUpdatesChannelId = 0;
 
         private Client client;
 
@@ -95,11 +95,11 @@ namespace Telepointers
             client.ConnexionRemoved += client_ConnexionRemoved;
             client.Start();
 
-            updates = client.OpenSessionChannel(host, port, SessionUpdatesChannel,
+            updates = client.OpenSessionChannel(host, port, SessionUpdatesChannelId,
                 ChannelDeliveryRequirements.SessionLike);
             updates.MessagesReceived += updates_SessionMessagesReceived;
 
-            coords = client.OpenStreamedTuple<int, int>(host, port, TelepointersChannel,
+            coords = client.OpenStreamedTuple<int, int>(host, port, TelepointersChannelId,
                 TimeSpan.FromMilliseconds(50),
                 ChannelDeliveryRequirements.AwarenessLike);
             coords.StreamedTupleReceived += coords_StreamedTupleReceived;
