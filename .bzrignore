@@ -15,5 +15,6 @@ Setup/*.msi
 Setup/setup.exe
 Setup/Release
 Setup/Debug
-_ReSharper.gt-all
+_ReSharper.*
 gt-all.*.resharper*
+doc/arch/*.pdf
