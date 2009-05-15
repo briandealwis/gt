@@ -23,6 +23,7 @@ using System;
 using System.Windows.Forms;
 using GT.Net;
 using GT.Utils;
+using SoftwareFX.ChartFX.Lite;
 
 namespace StatsGraphs
 {

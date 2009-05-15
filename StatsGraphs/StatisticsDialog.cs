@@ -23,6 +23,7 @@ using System;
 using System.Threading;
 using System.Windows.Forms;
 using GT.Net;
+using SoftwareFX.ChartFX.Lite;
 using StatsGraphs;
 
 namespace GT.StatsGraphs
