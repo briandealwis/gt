@@ -15,19 +15,49 @@
     {
         "Entry"
         {
-        "MsmKey" = "8:_1563A8AE8C1F733DD883F2D270B13DA4"
+        "MsmKey" = "8:_267A2449983C433CA6DA90A31761B764"
+        "OwnerKey" = "8:_UNDEFINED"
+        "MsmSig" = "8:_UNDEFINED"
+        }
+        "Entry"
+        {
+        "MsmKey" = "8:_3E1E5CB384D2F3D3CF1A6432E2870840"
         "OwnerKey" = "8:_267A2449983C433CA6DA90A31761B764"
         "MsmSig" = "8:_UNDEFINED"
         }
         "Entry"
         {
-        "MsmKey" = "8:_1563A8AE8C1F733DD883F2D270B13DA4"
+        "MsmKey" = "8:_3E1E5CB384D2F3D3CF1A6432E2870840"
         "OwnerKey" = "8:_B52FB3AE918649C08865AEED5E0966C8"
         "MsmSig" = "8:_UNDEFINED"
         }
         "Entry"
         {
-        "MsmKey" = "8:_267A2449983C433CA6DA90A31761B764"
+        "MsmKey" = "8:_3E1E5CB384D2F3D3CF1A6432E2870840"
+        "OwnerKey" = "8:_741C27A4D4EF438CAE616B14530763ED"
+        "MsmSig" = "8:_UNDEFINED"
+        }
+        "Entry"
+        {
+        "MsmKey" = "8:_3E1E5CB384D2F3D3CF1A6432E2870840"
+        "OwnerKey" = "8:_6ED2A065C7AF042F5D20C9DF7408E32F"
+        "MsmSig" = "8:_UNDEFINED"
+        }
+        "Entry"
+        {
+        "MsmKey" = "8:_6ED2A065C7AF042F5D20C9DF7408E32F"
+        "OwnerKey" = "8:_267A2449983C433CA6DA90A31761B764"
+        "MsmSig" = "8:_UNDEFINED"
+        }
+        "Entry"
+        {
+        "MsmKey" = "8:_6ED2A065C7AF042F5D20C9DF7408E32F"
+        "OwnerKey" = "8:_B52FB3AE918649C08865AEED5E0966C8"
+        "MsmSig" = "8:_UNDEFINED"
+        }
+        "Entry"
+        {
+        "MsmKey" = "8:_741C27A4D4EF438CAE616B14530763ED"
         "OwnerKey" = "8:_UNDEFINED"
         "MsmSig" = "8:_UNDEFINED"
         }
@@ -46,7 +76,19 @@
         "Entry"
         {
         "MsmKey" = "8:_UNDEFINED"
-        "OwnerKey" = "8:_1563A8AE8C1F733DD883F2D270B13DA4"
+        "OwnerKey" = "8:_741C27A4D4EF438CAE616B14530763ED"
+        "MsmSig" = "8:_UNDEFINED"
+        }
+        "Entry"
+        {
+        "MsmKey" = "8:_UNDEFINED"
+        "OwnerKey" = "8:_6ED2A065C7AF042F5D20C9DF7408E32F"
+        "MsmSig" = "8:_UNDEFINED"
+        }
+        "Entry"
+        {
+        "MsmKey" = "8:_UNDEFINED"
+        "OwnerKey" = "8:_3E1E5CB384D2F3D3CF1A6432E2870840"
         "MsmSig" = "8:_UNDEFINED"
         }
         "Entry"
@@ -63,7 +105,7 @@
         "DisplayName" = "8:Debug"
         "IsDebugOnly" = "11:TRUE"
         "IsReleaseOnly" = "11:FALSE"
-        "OutputFilename" = "8:GT-2.0.1.msm"
+        "OutputFilename" = "8:GT-3.0.0.msm"
         "PackageFilesAs" = "3:2"
         "PackageFileSize" = "3:-2147483648"
         "CabType" = "3:1"
@@ -146,14 +188,45 @@
         }
         "File"
         {
-            "{9F6F8455-1EF1-4B85-886A-4223BCC8E7F7}:_1563A8AE8C1F733DD883F2D270B13DA4"
+            "{9F6F8455-1EF1-4B85-886A-4223BCC8E7F7}:_3E1E5CB384D2F3D3CF1A6432E2870840"
             {
             "AssemblyRegister" = "3:1"
             "AssemblyIsInGAC" = "11:FALSE"
-            "AssemblyAsmDisplayName" = "8:GTBase, Version=2.0.1.32526, Culture=neutral, PublicKeyToken=6a4d186fa821c042, processorArchitecture=MSIL"
+            "AssemblyAsmDisplayName" = "8:Common.Logging, Version=1.2.0.0, Culture=neutral, PublicKeyToken=af08829b84f0328e"
                 "ScatterAssemblies"
                 {
-                    "_1563A8AE8C1F733DD883F2D270B13DA4"
+                    "_3E1E5CB384D2F3D3CF1A6432E2870840"
+                    {
+                    "Name" = "8:Common.Logging.dll"
+                    "Attributes" = "3:512"
+                    }
+                }
+            "SourcePath" = "8:Common.Logging.dll"
+            "TargetName" = "8:"
+            "Tag" = "8:"
+            "Folder" = "8:_34F27D0A044D4857A05958AF56E3CD13"
+            "Condition" = "8:"
+            "Transitive" = "11:FALSE"
+            "Vital" = "11:TRUE"
+            "ReadOnly" = "11:FALSE"
+            "Hidden" = "11:FALSE"
+            "System" = "11:FALSE"
+            "Permanent" = "11:FALSE"
+            "SharedLegacy" = "11:FALSE"
+            "PackageAs" = "3:1"
+            "Register" = "3:1"
+            "Exclude" = "11:FALSE"
+            "IsDependency" = "11:TRUE"
+            "IsolateTo" = "8:"
+            }
+            "{9F6F8455-1EF1-4B85-886A-4223BCC8E7F7}:_6ED2A065C7AF042F5D20C9DF7408E32F"
+            {
+            "AssemblyRegister" = "3:1"
+            "AssemblyIsInGAC" = "11:FALSE"
+            "AssemblyAsmDisplayName" = "8:GTBase, Version=2.0.1.32196, Culture=neutral, PublicKeyToken=6a4d186fa821c042, processorArchitecture=MSIL"
+                "ScatterAssemblies"
+                {
+                    "_6ED2A065C7AF042F5D20C9DF7408E32F"
                     {
                     "Name" = "8:GTBase.dll"
                     "Attributes" = "3:512"
@@ -173,7 +246,7 @@
             "SharedLegacy" = "11:FALSE"
             "PackageAs" = "3:1"
             "Register" = "3:1"
-            "Exclude" = "11:FALSE"
+            "Exclude" = "11:TRUE"
             "IsDependency" = "11:TRUE"
             "IsolateTo" = "8:"
             }
@@ -207,12 +280,12 @@
         "Module"
         {
         "ModuleSignature" = "8:MergeModule.21394EE09B314621B11A7E5F7181325C"
-        "Version" = "8:2.0.1.0"
-        "Title" = "8:GT.MergeModule"
+        "Version" = "8:3.0.0.0"
+        "Title" = "8:GT 3.0 MergeModule"
         "Subject" = "8:"
         "Author" = "8:HCI Lab, University of Saskatchewan"
         "Keywords" = "8:groupware, toolkits, client-server, prototyping"
-        "Comments" = "8:GT: The Groupware Toolkit"
+        "Comments" = "8:GT 3.0: The Groupware Toolkit"
         "SearchPath" = "8:"
         "UseSystemSearchPath" = "11:TRUE"
         "TargetPlatform" = "3:0"
@@ -246,6 +319,34 @@
             "OutputGroupCanonicalName" = "8:Built"
             "OutputProjectGuid" = "8:{709C5E40-E732-4196-A2F0-5B72206B7179}"
             "ShowKeyOutput" = "11:FALSE"
+                "ExcludeFilters"
+                {
+                }
+            }
+            "{5259A561-127C-4D43-A0A1-72F10C7B3BF8}:_741C27A4D4EF438CAE616B14530763ED"
+            {
+            "SourcePath" = "8:..\\GTBase\\obj\\Debug\\GTBase.dll"
+            "TargetName" = "8:"
+            "Tag" = "8:"
+            "Folder" = "8:_34F27D0A044D4857A05958AF56E3CD13"
+            "Condition" = "8:"
+            "Transitive" = "11:FALSE"
+            "Vital" = "11:TRUE"
+            "ReadOnly" = "11:FALSE"
+            "Hidden" = "11:FALSE"
+            "System" = "11:FALSE"
+            "Permanent" = "11:FALSE"
+            "SharedLegacy" = "11:FALSE"
+            "PackageAs" = "3:1"
+            "Register" = "3:1"
+            "Exclude" = "11:FALSE"
+            "IsDependency" = "11:FALSE"
+            "IsolateTo" = "8:"
+            "ProjectOutputGroupRegister" = "3:1"
+            "OutputConfiguration" = "8:"
+            "OutputGroupCanonicalName" = "8:Built"
+            "OutputProjectGuid" = "8:{EEC385BF-261C-4F5B-A602-D3ECDFC2AC30}"
+            "ShowKeyOutput" = "11:TRUE"
                 "ExcludeFilters"
                 {
                 }
