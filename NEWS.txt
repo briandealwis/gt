@@ -149,6 +149,9 @@ New Functionality:
     <https://papyrus.usask.ca/trac/gt/ticket/51>
     <https://papyrus.usask.ca/trac/gt/ticket/52>
 
+  * Both Client and Server instances now have a Guid property.  This value
+    can be updated but only when the instance is inactive (e.g., stopped or
+    not yet started).  <https://papyrus.usask.ca/trac/gt/ticket/83>
 
 Interoperability changes:
 =========================

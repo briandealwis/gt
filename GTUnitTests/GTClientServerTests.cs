@@ -268,10 +268,19 @@ namespace GT.UnitTests
     [TestFixture]
     public class ZAServerBasics
     {
+        private Server s;
+
+        [TearDown]
+        public void TearDown()
+        {
+            if (s != null) { s.Dispose(); }
+            s = null;
+        }
+
         [Test]
         public void TestRestartingServer()
         {
-            Server s = new Server(9876);
+            s = new Server(9876);
             s.Start();
             s.StartSeparateListeningThread();
             Thread.Sleep(200);
@@ -295,7 +304,7 @@ namespace GT.UnitTests
 
         [Test]
         public void TestSendingOnUnstartedServer() {
-            Server s = new Server(9876);
+            s = new Server(9876);
             try
             {
                 s.Send(new byte[5], 0, null, MessageDeliveryRequirements.MostStrict);
@@ -313,7 +322,7 @@ namespace GT.UnitTests
 
         [Test]
         public void TestSendingOnStoppedServer() {
-            Server s = new Server(9876);
+            s = new Server(9876);
             s.Start();
             s.StartSeparateListeningThread();
             Thread.Sleep(200);
@@ -332,15 +341,43 @@ namespace GT.UnitTests
                 s.Dispose();
             }
         }
+
+        [Test]
+        public void TestSettingGuid()
+        {
+            s = new Server(new DefaultServerConfiguration(9876));
+            Assert.AreNotEqual(Guid.Empty, s.Guid);
+            s.Guid = Guid.Empty;
+            Assert.AreEqual(Guid.Empty, s.Guid);
+            s.Start();
+            try
+            {
+                s.Guid = Guid.Empty;
+                Assert.Fail("should not be able to set the guid when active");
+            }
+            catch (InvalidStateException) { /* expected */ }
+            s.Dispose();
+        }
+
     }
 
     [TestFixture]
     public class ZAClientBasics
     {
+        private Client c;
+
+        [TearDown]
+        public void TearDown()
+        {
+            if (c != null) { c.Dispose(); }
+            c = null;
+        }
+
+
         [Test]
         public void TestSendingOnUnstartedClient()
         {
-            Client c = new Client();
+            c = new Client();
             try
             {
                 c.OpenStringChannel("localhost", "9999", 0, ChannelDeliveryRequirements.Data);
@@ -359,7 +396,7 @@ namespace GT.UnitTests
         [Test]
         public void TestSendingOnStoppedClient()
         {
-            Client c = new Client();
+            c = new Client();
             c.Start();
             c.StartSeparateListeningThread();
             Thread.Sleep(200);
@@ -377,6 +414,21 @@ namespace GT.UnitTests
             {
                 c.Dispose();
             }
+        }
+
+        [Test]
+        public void TestSettingGuid()
+        {
+            c = new Client();
+            Assert.AreNotEqual(Guid.Empty, c.Guid);
+            c.Guid = Guid.Empty;
+            Assert.AreEqual(Guid.Empty, c.Guid);
+            c.Start();
+            try
+            {
+                c.Guid = Guid.Empty;
+                Assert.Fail("should not be able to set the guid when active");
+            } catch(InvalidStateException) { /* expected */ }
         }
     }
 

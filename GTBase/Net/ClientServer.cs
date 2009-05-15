@@ -99,7 +99,26 @@ namespace GT.Net
         /// </summary>
         public abstract bool Active { get; }
 
-        public Communicator()
+        protected Guid guid = Guid.NewGuid();
+
+        /// <summary>
+        /// Return this instance's globally unique identifier (GUID).
+        /// The GUID can be changed only when the instance is inactive.
+        /// </summary>
+        public Guid Guid
+        {
+            get { return guid; }
+            set
+            {
+                InvalidStateException.Assert(!Active, "Cannot change instance GUID while active", this);
+                guid = value;
+            }
+        }
+
+        /// <summary>
+        /// Create a new instance.
+        /// </summary>
+        protected Communicator()
         {
             log = LogManager.GetLogger(GetType());
         }

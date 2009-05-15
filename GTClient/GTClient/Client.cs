@@ -783,8 +783,6 @@ namespace GT.Net
     {
         protected ClientConfiguration configuration;
 
-        protected Guid guid = Guid.NewGuid();
-
         /// <summary>
         /// The currently opened channels.
         /// </summary>
@@ -851,11 +849,6 @@ namespace GT.Net
         {
             get { return connectors; }
         }
-
-        /// <summary>
-        /// Return this client's globally unique identifier (GUID).
-        /// </summary>
-        public Guid Guid { get { return guid; } }
 
         /// <summary>
         /// Start the instance.  Starting an instance may throw an exception on error.
