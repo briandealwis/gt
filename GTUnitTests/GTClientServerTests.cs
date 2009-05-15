@@ -1223,10 +1223,10 @@ namespace GT.UnitTests
             if (serverSetup != null) { serverSetup(server.Server); }
             Assert.IsTrue(client.Active);
             {
-                DebugUtils.WriteLine("Client: sending greeting: " + EXPECTED_GREETING);
-                IStringStream strStream = client.GetStringStream("127.0.0.1", "9999", 0,
-                    new TestChannelDeliveryRequirements(typeof (TcpTransport))); //connect here
-                strStream.StringNewMessageEvent += ClientStringMessageReceivedEvent;
+                // Console.WriteLine("Client: sending greeting: " + EXPECTED_GREETING);
+                IStringChannel strStream = client.OpenStringChannel("127.0.0.1", "9999", 0,
+                    new SpecificTransportChannelDeliveryRequirements(typeof (TcpTransport))); //connect here
+                strStream.MessagesReceived += ClientStringMessageReceivedEvent;
                 try
                 {
                     strStream.Send(EXPECTED_GREETING); //send a string
@@ -1246,7 +1246,7 @@ namespace GT.UnitTests
                     Assert.IsNotNull(s);
                     Assert.AreEqual(EXPECTED_RESPONSE, s);
                 }
-                strStream.StringNewMessageEvent -= ClientStringMessageReceivedEvent;
+                strStream.MessagesReceived -= ClientStringMessageReceivedEvent;
             }
 
             client.Stop();
@@ -1256,7 +1256,7 @@ namespace GT.UnitTests
         public void TestClientMessageReceived()
         {
             ReentrantFramework(c => c.ConnexionAdded +=
-                delegate(IConnexion cnx) { cnx.MessageReceived += delegate { c.Dispose(); }; }, null);
+                delegate(Communicator comm, IConnexion cnx) { cnx.MessageReceived += delegate { c.Dispose(); }; }, null);
         }
 
         [Test]
@@ -1269,7 +1269,7 @@ namespace GT.UnitTests
         public void TestClientMessageSent()
         {
             ReentrantFramework(c => c.ConnexionAdded +=
-                delegate(IConnexion cnx) { cnx.MessageSent += delegate { c.Dispose(); }; }, null);
+                delegate(Communicator comm, IConnexion cnx) { cnx.MessageSent += delegate { c.Dispose(); }; }, null);
         }
 
         [Test]
@@ -1306,7 +1306,7 @@ namespace GT.UnitTests
         public void TestClientTransportAdded()
         {
             ReentrantFramework(c => c.ConnexionAdded +=
-                delegate(IConnexion cnx) { cnx.TransportAdded += delegate { c.Dispose(); }; }, null);
+                delegate(Communicator comm, IConnexion cnx) { cnx.TransportAdded += delegate { c.Dispose(); }; }, null);
         }
 
         [Test]
@@ -1322,8 +1322,8 @@ namespace GT.UnitTests
         [Test]
         public void TestClientTransportRemoved()
         {
-            ReentrantFramework(c => c.ConnexionAdded += 
-                delegate(IConnexion cnx) { cnx.TransportRemoved += delegate { c.Dispose(); }; }, null);
+            ReentrantFramework(c => c.ConnexionAdded +=
+                delegate(Communicator comm, IConnexion cnx) { cnx.TransportRemoved += delegate { c.Dispose(); }; }, null);
         }
 
         [Test]
