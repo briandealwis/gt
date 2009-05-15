@@ -1262,6 +1262,7 @@ namespace GT.Net
                     foreach (IAddressableConnexion s in connexions)
                     {
                         s.Ping();
+                        if (!Active) { return; }    // necc in case Dispose() or Stop() called from event
                     }
                 }
 
@@ -1271,6 +1272,7 @@ namespace GT.Net
                     try
                     {
                         s.Update();
+                        if (!Active) { return; }    // necc in case Dispose() or Stop() called from event
                     }
                     catch (ConnexionClosedException) { s.Dispose(); }
                     catch (GTException e)
@@ -1281,9 +1283,11 @@ namespace GT.Net
                             SummaryErrorCode.RemoteUnavailable,
                             message, e));
                     }
+                    if (!Active) { return; }    // necc in case Dispose() or Stop() called from event
                 }
 
                 // let each channel have a chance to update itself
+                if (!Active) { return; }    // necc in case Dispose() or Stop() called from event
                 foreach (IChannel mq in channels)
                 {
                     if (mq is IUpdatableChannel)

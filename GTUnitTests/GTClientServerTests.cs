@@ -1208,7 +1208,137 @@ namespace GT.UnitTests
 
         #endregion
 
-        #region Tests Infrastructure 
+        #region Test Reentrancy
+
+        public void ReentrantFramework(Action<Client> clientSetup, Action<Server> serverSetup)
+        {
+            StartExpectedResponseServer(EXPECTED_GREETING, EXPECTED_RESPONSE);
+
+            client = new TestClientConfiguration().BuildClient();  //this is a client
+            client.ErrorEvent += client_ErrorEvent;  //triggers if there is an error
+            client.Start();
+            Assert.IsFalse(errorOccurred);
+            Assert.IsFalse(responseReceived);
+            if (clientSetup != null) { clientSetup(client); }
+            if (serverSetup != null) { serverSetup(server.Server); }
+            Assert.IsTrue(client.Active);
+            {
+                DebugUtils.WriteLine("Client: sending greeting: " + EXPECTED_GREETING);
+                IStringStream strStream = client.GetStringStream("127.0.0.1", "9999", 0,
+                    new TestChannelDeliveryRequirements(typeof (TcpTransport))); //connect here
+                strStream.StringNewMessageEvent += ClientStringMessageReceivedEvent;
+                try
+                {
+                    strStream.Send(EXPECTED_GREETING); //send a string
+                } catch(InvalidStateException e) {
+                    // this is ok
+                    return;
+                }
+                int repeats = 10;
+                while (client.Active && !responseReceived && repeats-- > 0)
+                {
+                    client.Update(); // let the client check the network
+                    client.Sleep(ClientSleepTime);
+                }
+                while (strStream.Count > 0)
+                {
+                    string s = strStream.DequeueMessage(0);
+                    Assert.IsNotNull(s);
+                    Assert.AreEqual(EXPECTED_RESPONSE, s);
+                }
+                strStream.StringNewMessageEvent -= ClientStringMessageReceivedEvent;
+            }
+
+            client.Stop();
+        }
+
+        [Test]
+        public void TestClientMessageReceived()
+        {
+            ReentrantFramework(c => c.ConnexionAdded +=
+                delegate(IConnexion cnx) { cnx.MessageReceived += delegate { c.Dispose(); }; }, null);
+        }
+
+        [Test]
+        public void TestServerMessageReceived()
+        {
+            ReentrantFramework(null, s => s.MessageReceived += delegate { s.Dispose(); });
+        }
+
+        [Test]
+        public void TestClientMessageSent()
+        {
+            ReentrantFramework(c => c.ConnexionAdded +=
+                delegate(IConnexion cnx) { cnx.MessageSent += delegate { c.Dispose(); }; }, null);
+        }
+
+        [Test]
+        public void TestServerMessageSent()
+        {
+            ReentrantFramework(null, s => s.MessagesSent += delegate { s.Dispose(); });
+        }
+
+        [Test]
+        public void TestClientConnexionAdded()
+        {
+            ReentrantFramework(c => c.ConnexionAdded += delegate { c.Dispose(); }, null);
+        }
+
+        [Test]
+        public void TestServerConnexionAdded()
+        {
+            ReentrantFramework(null, s => s.ClientsJoined += delegate { s.Dispose(); });
+        }
+
+        [Test]
+        public void TestClientConnexionRemoved()
+        {
+            ReentrantFramework(c => c.ConnexionRemoved += delegate { c.Dispose(); }, null);
+        }
+
+        [Test]
+        public void TestServerConnexionRemoved()
+        {
+            ReentrantFramework(null, s => s.ClientsRemoved += delegate { s.Dispose(); });
+        }
+
+        [Test]
+        public void TestClientTransportAdded()
+        {
+            ReentrantFramework(c => c.ConnexionAdded +=
+                delegate(IConnexion cnx) { cnx.TransportAdded += delegate { c.Dispose(); }; }, null);
+        }
+
+        [Test]
+        public void TestServerTransportAdded()
+        {
+            ReentrantFramework(null, s => s.ClientsJoined +=
+                delegate(ICollection<IConnexion> list)
+                {
+                    foreach (IConnexion cnx in list) { cnx.TransportAdded += delegate { s.Dispose(); }; }
+                });
+        }
+
+        [Test]
+        public void TestClientTransportRemoved()
+        {
+            ReentrantFramework(c => c.ConnexionAdded += 
+                delegate(IConnexion cnx) { cnx.TransportRemoved += delegate { c.Dispose(); }; }, null);
+        }
+
+        [Test]
+        public void TestServerTransportRemoved()
+        {
+            ReentrantFramework(null, s => s.ClientsJoined +=
+                delegate(ICollection<IConnexion> list)
+                {
+                    foreach(IConnexion cnx in list) { cnx.TransportRemoved += delegate { s.Dispose(); };}
+                });
+        }
+
+        #endregion
+
+        #region Tests Infrastructure
 
         protected void CheckForResponse()
         {
@@ -1679,4 +1809,6 @@ namespace GT.UnitTests
 
 
     }
+
+
 }

@@ -425,42 +425,45 @@ Bugs fixed since GT 2.0:
 
   * Server.UpdateAcceptors() threw an NullRefEx as it wasn't properly
     handling case where an acceptor was inactive but the first to 
-    be removed.
+    be removed. [2.0.1]
 
   * Add lock() around FlushChannelMessages (called by IStream.Flush())
-    (now FlushChannel() and IChannel.Flush())
+    (now FlushChannel() and IChannel.Flush()) [2.0.1]
     <https://papyrus.usask.ca/trac/gt/ticket/66>.
 
   * ClientRepeater configuration should use TickInterval, not 
-    PingInterval!  <https://papyrus.usask.ca/trac/gt/ticket/64>
+    PingInterval!  [2.0.1] <https://papyrus.usask.ca/trac/gt/ticket/64>
 
   * Allow Server instances to be stopped and restarted by not nilling
-    clientIDs in KillAll()  <https://papyrus.usask.ca/trac/gt/ticket/60>
+    clientIDs in KillAll() [2.0.1] <https://papyrus.usask.ca/trac/gt/ticket/60>
 
   * Wrap TcpTransport.ToString() to avoid throwing exceptions on
-    invalid handles.
+    invalid handles. [2.0.1]
 
   * Server and Client are now guaranteed to be started at the end of
-    StartSeparateListeningThread() <https://papyrus.usask.ca/trac/gt/ticket/56>
+    StartSeparateListeningThread() [2.0.1]
+    <https://papyrus.usask.ca/trac/gt/ticket/56>
 
   * Expose an IStream's connexion through a Connexion property (now
-    IChannel.Connexion)
+    IChannel.Connexion) [2.0.1]
 
   * UdpAccept and TcpAcceptor should now properly trap and report
-    exceptions <https://papyrus.usask.ca/trac/gt/ticket/55>
+    exceptions [2.0.1] <https://papyrus.usask.ca/trac/gt/ticket/55>
 
   * Ensure IConnexion.MessageSent event is sent for aggregated
-    messages.  <https://papyrus.usask.ca/trac/gt/ticket/61>
+    messages. [2.0.1] <https://papyrus.usask.ca/trac/gt/ticket/61>
 
   * GT APIs perform more rigorous checks that a component is in a
-    started state <https://papyrus.usask.ca/trac/gt/ticket/71>
+    started state [2.0.1] <https://papyrus.usask.ca/trac/gt/ticket/71>
 
   * UDP acceptors and connectors now perform a proper two-way handshake
-    <https://papyrus.usask.ca/trac/gt/ticket/38>
+    [2.0.1] <https://papyrus.usask.ca/trac/gt/ticket/38>
 
   * GMC now supports using deflate to further minimize packet sizes
-    <https://papyrus.usask.ca/trac/gt/ticket/35>
+    [2.0.1] <https://papyrus.usask.ca/trac/gt/ticket/35>
 
+  * GT attempts to be safely re-entrant, particularly to cope with
+    being stopped or disposed from within GT event handlers. [2.0.2]
 
 
 ==============
