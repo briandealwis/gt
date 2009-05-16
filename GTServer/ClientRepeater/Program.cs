@@ -21,9 +21,11 @@
 
 using System;
 using System.Collections.Generic;
+using System.Collections.Specialized;
 using System.Text;
 using System.Threading;
 using Common.Logging;
+using Common.Logging.Simple;
 using GT.Millipede;
 using GT.Net.Utils;
 using GT.Utils;
@@ -104,7 +106,12 @@ namespace GT.Net
         /// should be less than the ping interval.  Zero disables
         /// the behaviour.
         /// </summary>
-        public static TimeSpan DefaultInactiveTimeout = TimeSpan.FromMinutes(5);  
+        public static TimeSpan DefaultInactiveTimeout = TimeSpan.FromMinutes(5);
+
+        /// <summary>
+        /// The default verbosity of ClientRepeater instances.
+        /// </summary>
+        public static uint DefaultVerbosity = 1;
 
         /// <summary>
         /// Triggered on the occurrence of underlying GT errors.
@@ -128,14 +135,29 @@ namespace GT.Net
         /// </summary>
         public int SessionChangesChannelId { get; set; }
 
+        /// <summary>
+        /// Sets the verbosity of the ClientRepeater's logging detail.
+        /// </summary>
         public uint Verbose { get; set; }
-        
+
         public Server Server { get { return server; } }
 
         static void Usage()
         {
-            Console.WriteLine("Use: <ClientRepeater.exe> [-v] [-m pktsize] [-s channelId] [-M mpede] [port]");
-            Console.WriteLine("  -v   be more verbose");
+            Console.WriteLine("Use: <ClientRepeater.exe> [-q] [-v] [-l level] [-m pktsize] [-s channelId] [-M mpede] [port]");
+            Console.WriteLine("  -q   be very very quiet (use NoOpLogger)");
+            Console.WriteLine("  -l   use a console logger at the specified level");
+            Console.Write("       levels: ");
+            foreach (string value in Enum.GetNames(typeof(LogLevel)))
+            {
+                Console.Write(value + ", ");
+            }
+            Console.WriteLine();
+            Console.WriteLine("  -v   increase the verbosity (default: {0})", DefaultVerbosity);
+            Console.WriteLine("         0: warnings/errors only");
+            Console.WriteLine("         1: clients joining and leaving");
+            Console.WriteLine("         2: transport details");
+            Console.WriteLine("         3: incoming messages");
             Console.WriteLine("  -s   cause session announcements to be sent on specified channel");
             Console.WriteLine("       (use -1 to disable session announcements)");
             Console.WriteLine("  -m   set the maximum packet size to <pktsize>");
@@ -148,12 +170,12 @@ namespace GT.Net
         static void Main(string[] args)
         {
             int port = (int)DefaultPort;
-            uint verbose = 0;
+            uint verbose = DefaultVerbosity;
             uint maxPacketSize = 0;
             int sessionChannelId = DefaultSessionChannelId;
             TimeSpan timeout = DefaultInactiveTimeout;
 
-            GetOpt options = new GetOpt(args, "vm:s:M:T:");
+            GetOpt options = new GetOpt(args, "ql:vm:s:M:T:");
             try
             {
                 Option opt;
@@ -161,8 +183,16 @@ namespace GT.Net
                 {
                     switch (opt.Character)
                     {
+                        case 'q':
+                            LogManager.Adapter = new NoOpLoggerFactoryAdapter();
+                            break;
                         case 'v':
                             verbose++;
+                            break;
+                        case 'l':
+                            NameValueCollection prop = new NameValueCollection();
+                            prop["level"] = opt.Argument;
+                            LogManager.Adapter = new ConsoleOutLoggerFactoryAdapter(prop);
                             break;
                         case 'm':
                             maxPacketSize = uint.Parse(opt.Argument);
@@ -204,7 +234,10 @@ namespace GT.Net
                 }
             }
 
-            if (verbose > 0) { Console.WriteLine("Starting server on port {0}", port); }
+            if (verbose > 0)
+            {
+                LogManager.GetLogger(typeof (ClientRepeater)).Info(String.Format("Starting server on port {0}", port));
+            }
             RepeaterConfiguration config = new RepeaterConfiguration(port);
             config.MaximumPacketSize = maxPacketSize;
             ClientRepeater cr = new ClientRepeater(config);
@@ -212,7 +245,10 @@ namespace GT.Net
             cr.Verbose = verbose;
             cr.InactiveTransportTimeout = timeout;
             cr.StartListening();
-            if (verbose > 0) { Console.WriteLine("Server stopped"); }
+            if (verbose > 0)
+            {
+                LogManager.GetLogger(typeof (ClientRepeater)).Info("Server stopped");
+            }
         }
 
         public ClientRepeater(int port) : this(new RepeaterConfiguration(port)) { }
@@ -297,7 +333,7 @@ namespace GT.Net
 
         private void s_ClientsJoined(ICollection<IConnexion> list)
         {
-            if (log.IsInfoEnabled)
+            if (Verbose > 0 && log.IsInfoEnabled)
             {
                 foreach(ConnexionToClient client in list)
                 {
@@ -339,7 +375,7 @@ namespace GT.Net
 
         private void s_ClientsRemoved(ICollection<IConnexion> list)
         {
-            if (log.IsInfoEnabled)
+            if (Verbose > 0 && log.IsInfoEnabled)
             {
                 foreach(ConnexionToClient client in list)
                 {
@@ -369,28 +405,28 @@ namespace GT.Net
 
         private void _client_TransportAdded(IConnexion client, ITransport newTransport)
         {
-            if (Verbose > 0)
+            if (Verbose > 1 && log.IsInfoEnabled)
             {
-                Console.WriteLine(String.Format("{0}: Client {1}: transport added: {2}",
-                    DateTime.Now, client.Identity, newTransport));
+                log.Info(String.Format("Client {0}: transport added: {1}",
+                                       client.Identity, newTransport));
             }
         }
 
         private void _client_TransportRemoved(IConnexion client, ITransport newTransport)
         {
-            if (Verbose > 0)
+            if (Verbose > 1 && log.IsInfoEnabled)
             {
-                Console.WriteLine(String.Format("{0}: Client {1}: transport removed: {2}",
-                    DateTime.Now, client.Identity, newTransport));
+                log.Info(String.Format("Client {0}: transport removed: {1}",
+                                       client.Identity, newTransport));
             }
         }
 
         private void s_MessageReceived(Message m, IConnexion client, ITransport transport)
         {
-            if (Verbose > 1)
+            if (Verbose > 2 && log.IsInfoEnabled)
             {
-                Console.WriteLine("{0}: received message: {1} from Client {2} via {3}", 
-                    DateTime.Now, m, client.Identity, transport);
+                log.Info(String.Format("received message: {0} from Client {1} via {2}",
+                                        m, client.Identity, transport));
             }
             //repeat whatever we receive to everyone else
             server.Send(m, null, new MessageDeliveryRequirements(transport.Reliability, 

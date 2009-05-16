@@ -84,7 +84,7 @@ New Functionality:
   * GT now uses the open-source Common.Logging package (v1.2.0) for
     logging messages.  Control-flow information is reported at the
     "Trace" level, and informational, warning, and errors are
-    reported via the "Info", "Warn", and "Error" levels. 
+    reported via the "Info", "Warn", and "Error" levels (respectively). 
     Common.Logging provides a simple abstraction to allow selecting
     a logging implementation at runtime (either programmatically
     or via the .NET App.Config mechanism).  For details on use, see
@@ -99,6 +99,10 @@ New Functionality:
 
     As a result of this change, GT is now much quieter with respect
     to messages written to the system console.
+
+    The ClientRepeater now logs messages using the new Common.Logging
+    functionality.  It is shipped with an App.Config configuring
+    it to use the ConsoleOutLoggerFactoryAdapter.
 
   * The ClientConfiguration and ServerConfiguration classes are now
     afforded the opportunity to configure (or even wrap or replace)
