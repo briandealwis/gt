@@ -321,7 +321,7 @@ namespace GT.Net
         /// </summary>
         public override void Update()
         {
-            log.Trace("Server.Update(): started");
+            //log.Trace("Server.Update(): started");
 
             lock (this)
             {
@@ -370,7 +370,7 @@ namespace GT.Net
                 //remove dead clients (includes disposed and clients with no transports)
                 RemoveDeadConnexions();
             }
-            log.Trace("Server.Update(): finished");
+            //log.Trace("Server.Update(): finished");
 
             //if anyone is listening, tell them we're done one cycle
             NotifyTick();
@@ -453,18 +453,18 @@ namespace GT.Net
             ConnexionToClient c = GetConnexionForClientGuid(clientGuid);
             if (c == null)
             {
-                if (log.IsInfoEnabled)
-                {
-                    log.Info(String.Format("{0}: new client {1} via {2}", this, clientGuid, t));
-                }
+                //if (log.IsInfoEnabled)
+                //{
+                //    log.Info(String.Format("{0}: new client {1} via {2}", this, clientGuid, t));
+                //}
                 c = CreateNewConnexion(clientGuid);
             }
             else
             {
-                if (log.IsInfoEnabled)
-                {
-                    log.Info(String.Format("{0}: for client {1} via {2}", this, clientGuid, t));
-                }
+                //if (log.IsInfoEnabled)
+                //{
+                //    log.Info(String.Format("{0}: for client {1} via {2}", this, clientGuid, t));
+                //}
             }
             t = Configuration.ConfigureTransport(t);
             c.AddTransport(t);

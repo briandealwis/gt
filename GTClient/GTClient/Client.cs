@@ -1243,7 +1243,7 @@ namespace GT.Net
         public override void Update()
         {
             if (!Active) { return; }
-            log.Trace("Client.Update(): Starting");
+            //log.Trace("Client.Update(): Starting");
             lock (this)
             {
                 timer.Update();
@@ -1292,7 +1292,7 @@ namespace GT.Net
                 // Remove any dead connexions
                 RemoveDeadConnexions();
             }
-            log.Trace("Client.Update(): Finished");
+            //log.Trace("Client.Update(): Finished");
             NotifyTick();
         }
 
