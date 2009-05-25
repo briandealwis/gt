@@ -61,7 +61,12 @@ namespace GT.Net.Utils
         protected WeakKeyDictionary<ITransport, Stopwatch> timers =
             new WeakKeyDictionary<ITransport, Stopwatch>();
 
-        protected PingBasedDisconnector(Communicator c, TimeSpan timeout)
+        /// <summary>
+        /// Create a new disconnector instance; this instance must still be started.
+        /// </summary>
+        /// <param name="c">the communicator to be installed against</param>
+        /// <param name="timeout">the inactivity timeout period</param>
+        public PingBasedDisconnector(Communicator c, TimeSpan timeout)
         {
             log = LogManager.GetLogger(GetType());
 
@@ -107,10 +112,11 @@ namespace GT.Net.Utils
             foreach (ITransport t in timers.Keys) 
             {
                 Stopwatch sw = timers[t];
-                if (timeout.CompareTo(sw.Elapsed) >= 0)
+                TimeSpan elapsed = sw.Elapsed;
+                if (elapsed.CompareTo(timeout) >= 0)
                 {
                     log.Warn(String.Format("Stopped transport {0}: no ping received in {1}",
-                        t, sw.Elapsed));
+                        t, elapsed));
                     t.Dispose();
                 }
             }

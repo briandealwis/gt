@@ -20,6 +20,7 @@
 // 
 
 using System;
+using System.Diagnostics;
 using System.Threading;
 using System.Collections.Generic;
 using GT.Net.Utils;
@@ -1774,15 +1775,29 @@ namespace GT.UnitTests
     [TestFixture]
     public class ZTTestPingBasedDisconnect
     {
+        private Client client;
+        private Server server;
+
+        [TearDown]
+        public void TearDown()
+        {
+            if (client != null) { client.Dispose(); }
+            client = null;
+            if (server != null) { server.Dispose(); }
+            server = null;
+        }
+
         [Test]
         public void TestClientBasedDisconnect()
         {
-            Server server = new TestServerConfiguration(9854).BuildServer();
+            server = new TestServerConfiguration(9854).BuildServer();
             server.Configuration.PingInterval = TimeSpan.FromDays(5);
+            server.Configuration.TickInterval = TimeSpan.FromMilliseconds(10);
             server.StartSeparateListeningThread();
 
-            Client client = new TestClientConfiguration().BuildClient();
+            client = new TestClientConfiguration().BuildClient();
             client.Configuration.PingInterval = TimeSpan.FromDays(5);
+            client.Configuration.TickInterval = TimeSpan.FromMilliseconds(10);
             client.StartSeparateListeningThread();
 
             IStringChannel ch1 = client.OpenStringChannel("localhost", "9854", 0, ChannelDeliveryRequirements.ChatLike);
@@ -1790,24 +1805,32 @@ namespace GT.UnitTests
             Assert.AreEqual(1, server.Connexions.Count);
             Assert.IsTrue(ch1.Connexion.Transports.Count > 0);
 
-            PingBasedDisconnector pbd = PingBasedDisconnector.Install(client, TimeSpan.FromMilliseconds(500));
+            PingBasedDisconnector pbd = PingBasedDisconnector.Install(client, TimeSpan.FromSeconds(2));
+            Stopwatch sw = Stopwatch.StartNew();
+            while (sw.ElapsedMilliseconds < 1500)
+            {
+                Assert.AreEqual(1, client.Connexions.Count);
+                Assert.AreEqual(1, server.Connexions.Count);
+                Assert.IsTrue(ch1.Connexion.Transports.Count > 0);
+                Thread.Sleep(100);
+            }
             Thread.Sleep(1000);
+            Assert.IsTrue(sw.ElapsedMilliseconds > 2000);
 
             Assert.AreEqual(0, client.Connexions.Count);
- 
-            client.Dispose(); 
-            server.Dispose();
-        }
+         }
 
         [Test]
         public void TestServerBasedDisconnect()
         {
-            Server server = new TestServerConfiguration(9854).BuildServer();
+            server = new TestServerConfiguration(9854).BuildServer();
             server.Configuration.PingInterval = TimeSpan.FromDays(5);
+            server.Configuration.TickInterval = TimeSpan.FromMilliseconds(10);
             server.StartSeparateListeningThread();
 
-            Client client = new TestClientConfiguration().BuildClient();
+            client = new TestClientConfiguration().BuildClient();
             client.Configuration.PingInterval = TimeSpan.FromDays(5);
+            client.Configuration.TickInterval = TimeSpan.FromMilliseconds(10);
             client.StartSeparateListeningThread();
 
             IStringChannel ch1 = client.OpenStringChannel("localhost", "9854", 0, ChannelDeliveryRequirements.ChatLike);
@@ -1815,23 +1838,29 @@ namespace GT.UnitTests
             Assert.AreEqual(1, server.Connexions.Count);
             Assert.IsTrue(ch1.Connexion.Transports.Count > 0);
 
-            PingBasedDisconnector pbd = PingBasedDisconnector.Install(server, TimeSpan.FromMilliseconds(500));
+            PingBasedDisconnector pbd = PingBasedDisconnector.Install(server, TimeSpan.FromSeconds(2));
+            Stopwatch sw = Stopwatch.StartNew();
+            while (sw.ElapsedMilliseconds < 1500)
+            {
+                Assert.AreEqual(1, client.Connexions.Count);
+                Assert.AreEqual(1, server.Connexions.Count);
+                Assert.IsTrue(ch1.Connexion.Transports.Count > 0);
+                Thread.Sleep(100);
+            }
             Thread.Sleep(1000);
+            Assert.IsTrue(sw.ElapsedMilliseconds > 2000);
 
             Assert.AreEqual(0, server.Connexions.Count);
-
-            client.Dispose();
-            server.Dispose();
         }
 
         [Test]
         public void TestPBDCanBeStoppedAndStarted()
         {
-            Server server = new TestServerConfiguration(9854).BuildServer();
+            server = new TestServerConfiguration(9854).BuildServer();
             server.Configuration.PingInterval = TimeSpan.FromDays(5);
             server.StartSeparateListeningThread();
 
-            Client client = new TestClientConfiguration().BuildClient();
+            client = new TestClientConfiguration().BuildClient();
             client.Configuration.PingInterval = TimeSpan.FromDays(5);
             client.StartSeparateListeningThread();
 
@@ -1854,9 +1883,6 @@ namespace GT.UnitTests
             Thread.Sleep(1000);
             Assert.AreEqual(0, client.Connexions.Count);
             Assert.IsTrue(removed > 0);
- 
-            client.Dispose(); 
-            server.Dispose();
         }
 
 
