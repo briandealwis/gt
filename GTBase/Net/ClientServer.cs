@@ -869,13 +869,16 @@ namespace GT.Net
 
         public virtual void Dispose()
         {
-            active = false;
-            if (transports != null)
+            lock (this)
             {
-                foreach (ITransport t in transports) { t.Dispose(); }
+                active = false;
+                if (transports != null)
+                {
+                    foreach (ITransport t in transports) { t.Dispose(); }
+                }
+                if (scheduler != null) { scheduler.Dispose(); }
+                scheduler = null;
             }
-            if (scheduler != null) { scheduler.Dispose(); }
-            scheduler = null;
         }
 
         /// <summary>Occurs when there is an error.</summary>
