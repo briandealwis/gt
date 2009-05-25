@@ -208,6 +208,8 @@ namespace GT.Net
     /// </summary>
     public class RoundRobinPacketScheduler : AbstractPacketScheduler
     {
+        protected bool disposed = false;
+
         protected Pool<PendingMessage> pmPool = new Pool<PendingMessage>(1, 5,
             () => new PendingMessage(), m => m.Clear(), null);
 
@@ -455,6 +457,7 @@ namespace GT.Net
                     csme.AddAll(e, sentMessages[t]);
                     csme.AddAll(e, messagesInProgress[t]);
                 }
+                if (disposed) { return; }
             }
             packetsInProgress.Clear();
         }
@@ -526,6 +529,7 @@ namespace GT.Net
 
         public override void Dispose()
         {
+            disposed = true;
             Reset();
         }
 
