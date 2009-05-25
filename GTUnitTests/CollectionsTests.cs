@@ -404,7 +404,7 @@ namespace GT.UnitTests
                 }
                 catch (Exception e)
                 {
-                    Console.WriteLine("Couldn't get WeakRef generation for {0}", wr);
+                    //Console.WriteLine("Couldn't get WeakRef generation for {0}", wr);
                     /* ignore: expected */
                 }
                 Assert.IsFalse(wr.IsAlive);
