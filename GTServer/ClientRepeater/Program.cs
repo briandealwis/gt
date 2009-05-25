@@ -87,6 +87,13 @@ namespace GT.Net
     /// messages to all the clients that have connected to it.  The
     /// ClientRepeater also sends Joined and Left session messages too.
     /// </summary>
+    /// <remarks>
+    /// This ClientRepeater serves as an example of creating a server using
+    /// GT.  ClientRepeater can act as a threaded server, where a separate
+    /// thread is launched to handle incoming messages, or as a polled server,
+    /// where <see cref="Update"/> is called from some other event loop
+    /// (e.g., from a timer loop).
+    /// </remarks>
     public class ClientRepeater : IStartable
     {
         /// <summary>
@@ -123,7 +130,6 @@ namespace GT.Net
         protected ILog log;
         protected ServerConfiguration config;
         protected Server server;
-        protected Thread serverThread;
         protected PingBasedDisconnector pbd;
         protected MessageDeliveryRequirements sessionMDR =
             new MessageDeliveryRequirements(Reliability.Reliable,
@@ -256,20 +262,59 @@ namespace GT.Net
         public ClientRepeater(ServerConfiguration sc) {
             log = LogManager.GetLogger(GetType());
             config = sc;
+            InactiveTransportTimeout = DefaultInactiveTimeout;
         }
 
         public bool Active { get { return server != null && server.Active; } }
 
         /// <summary>
-        /// Start an independently running client-repeater instance.
+        /// Start the client-repeater instance.
         /// </summary>
+        /// <remarks>
+        /// Note: the behaviour of this method was changed with GT 3.0
+        /// such that a new thread is no longer launched for handling incoming
+        /// messages.  Callers desiring this behaviour should call <see cref="StartSeparateListeningThread"/>
+        /// instead.
+        /// </remarks>
         public void Start()
         {
-            serverThread = new Thread(StartListening);
-            serverThread.Name = this.ToString();
-            serverThread.IsBackground = true;
-            serverThread.Start();
-            while (!Active) { Thread.Sleep(20); }
+            if (server == null)
+            {
+                server = config.BuildServer();
+                server.MessageReceived += s_MessageReceived;
+                server.ClientsJoined += s_ClientsJoined;
+                server.ClientsRemoved += s_ClientsRemoved;
+                server.ErrorEvent += s_ErrorEvent;
+
+                // Some transports are unreliable, meaning that we cannot tell whether
+                // a remote has stopped communicating because they have shutdown ungracefully
+                // (e.g., crashed), because the network is down, or because they haven't
+                // sent a reply.  The PingBasedDisconnector uses the ping response time
+                // to automatically drop inactive connections.
+                if (InactiveTransportTimeout.TotalSeconds > 0)
+                {
+                    pbd = new PingBasedDisconnector(server, InactiveTransportTimeout);
+                    pbd.ErrorEvent += s_ErrorEvent;
+                }
+            }
+            if(!server.Active)
+            {
+                server.Start();
+                if (pbd != null) { pbd.Start(); }
+            }
+        }
+
+        /// <summary>
+        /// Starts a new thread that listens to periodically call 
+        /// <see cref="Update"/>.  This thread instance will be stopped
+        /// on <see cref="Stop"/> or <see cref="Dispose"/>.
+        /// The frequency between calls to <see cref="Update"/> is controlled
+        /// by the configuration's <see cref="BaseConfiguration.TickInterval"/>.
+        /// </summary>
+        public void StartSeparateListeningThread()
+        {
+            if (!Active) { Start(); }
+            server.StartSeparateListeningThread();
         }
 
         /// <summary>
@@ -279,26 +324,23 @@ namespace GT.Net
         /// </summary>
         public void StartListening()
         {
-            server = config.BuildServer();
-            server.MessageReceived += s_MessageReceived;
-            server.ClientsJoined += s_ClientsJoined;
-            server.ClientsRemoved += s_ClientsRemoved;
-            server.ErrorEvent += s_ErrorEvent;
+            if (!Active) { Start(); }
             server.StartListening();
-            if(InactiveTransportTimeout.TotalSeconds > 0)
-            {
-                pbd = PingBasedDisconnector.Install(server,
-                    InactiveTransportTimeout);
-                pbd.ErrorEvent += s_ErrorEvent;
-                pbd.Start();
-            }
         }
 
+        /// <summary>
+        /// Run a cycle to process any pending events for the connexions or
+        /// other related objects for this instance.  This method is <strong>not</strong> 
+        /// re-entrant and should not be called from GT callbacks.
+        /// </summary>
+        public void Update()
+        {
+            server.Update();
+        }
 
         public void Stop()
         {
             if (server != null) { server.Stop(); }
-            if (serverThread != null) { serverThread.Abort(); }
             if (pbd != null) { pbd.Stop(); }
         }
 
@@ -307,7 +349,6 @@ namespace GT.Net
             Stop();
             if (server != null) { server.Dispose(); }
             server = null;
-            serverThread = null;
         }
 
         private void s_ErrorEvent(ErrorSummary es)

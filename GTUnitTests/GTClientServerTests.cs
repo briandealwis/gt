@@ -773,7 +773,7 @@ namespace GT.UnitTests
                 Console.WriteLine("SERVER ERROR: " + es);
                 errorOccurred = true;
             };
-            server.Start();
+            server.StartSeparateListeningThread();
         }
 
         [TearDown]
@@ -1579,7 +1579,7 @@ namespace GT.UnitTests
             ServerConfiguration sc = new DefaultServerConfiguration(9678);
             sc.PingInterval = TimeSpan.FromMinutes(60);
             server = new ClientRepeater(sc);
-            server.Start();
+            server.StartSeparateListeningThread();
             clients = new List<Client>();
             dictionaries = new List<AggregatingSharedDictionary>();
 
@@ -1717,7 +1717,7 @@ namespace GT.UnitTests
         public void SetUp()
         {
             cr = new ClientRepeater(9999);
-            cr.Start();
+            cr.StartSeparateListeningThread();
         }
 
         [TearDown]
