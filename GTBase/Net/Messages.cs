@@ -79,7 +79,7 @@ namespace GT.Net
             result.Append(": ");
             result.Append(bytes.LongLength);
             result.Append(" bytes");
-            for (int i = 0; i < bytes.Length; i += 16)
+            for (int i = 0; i < Math.Min(bytes.Length, 128); i += 16)
             {
                 result.Append("\n  ");
                 result.Append(i.ToString("X3"));
@@ -87,6 +87,7 @@ namespace GT.Net
                 result.Append(ByteUtils.DumpBytes(bytes, i, 16));
                 result.Append(ByteUtils.AsPrintable(bytes, i, 16));
             }
+            if (bytes.Length > 128) { result.Append("\n..."); }
             return result.ToString();
         }
     }
