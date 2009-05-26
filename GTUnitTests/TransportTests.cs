@@ -81,6 +81,7 @@ namespace GT.UnitTests
 
         public void SendPacket(TransportPacket packet)
         {
+            Debug.Assert(packet.Length != 0, "Shouldn't send zero-length packets!");
             bytesSent += (uint)packet.Length;
             if (PacketSent != null) { PacketSent(packet, this); }
             packet.Dispose();
