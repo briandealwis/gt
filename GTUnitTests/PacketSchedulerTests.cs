@@ -204,9 +204,11 @@ namespace GT.UnitTests
             {
                 cnx.Scheduler.Schedule(new ObjectMessage(0, i), MessageDeliveryRequirements.LeastStrict, null);
                 Assert.AreEqual(0, t.BytesSent);
+                Assert.AreEqual(0, cnx.SentPackets.Count);
             }
             cnx.Flush();
             Assert.IsTrue(t.BytesSent > 0);
+            Assert.IsTrue(cnx.SentPackets.Count > 0);
         }
 
         [Test]
@@ -221,9 +223,11 @@ namespace GT.UnitTests
             {
                 cnx.Scheduler.Schedule(new ObjectMessage(0, i), MessageDeliveryRequirements.LeastStrict, null);
                 Assert.AreEqual(0, t.BytesSent);
+                Assert.AreEqual(0, cnx.SentPackets.Count);
             }
             cnx.Flush();
             Assert.IsTrue(t.BytesSent > 0);
+            Assert.IsTrue(cnx.SentPackets.Count > 0);
 
             int msgNo = 0;
             foreach (TransportPacket tp in cnx.SentPackets)
@@ -254,11 +258,13 @@ namespace GT.UnitTests
             {
                 cnx.Scheduler.Schedule(new ObjectMessage((byte)(i % 2), i), MessageDeliveryRequirements.LeastStrict, null);
                 Assert.AreEqual(0, t.BytesSent);
+                Assert.AreEqual(0, cnx.SentPackets.Count);
             }
             cnx.Scheduler.Schedule(new StringMessage(0, "foo"), 
                 new MessageDeliveryRequirements(Reliability.Unreliable,
                     MessageAggregation.Immediate, Ordering.Unordered), null);
             Assert.IsTrue(t.BytesSent > 0);
+            Assert.IsTrue(cnx.SentPackets.Count > 0);
 
             int msgNo = 0;
             foreach (TransportPacket tp in cnx.SentPackets)
@@ -284,6 +290,50 @@ namespace GT.UnitTests
                 }
             }
         }
+
+
+        [Test]
+        public void TestSendFragmentedPacket()
+        {
+            NullTransport t = new NullTransport();
+            t.MaximumPacketSize = 100;
+            t.Reliability = Reliability.Reliable;
+            t.Ordering = Ordering.Ordered;
+            MockConnexion cnx = new MockConnexion();
+            cnx.Marshaller = new LargeObjectMarshaller(new DotNetSerializingMarshaller());
+            cnx.Scheduler = new RoundRobinPacketScheduler(cnx);
+            cnx.Transports.Add(t);
+
+            cnx.ErrorEvents += delegate(ErrorSummary es) { Assert.Fail(es.ToString()); };
+
+            byte[] sentData = new byte[500];
+            for (int i = 0; i < 6; i++)
+            {
+                uint bytesSent = t.BytesSent;
+                cnx.Scheduler.Schedule(new BinaryMessage(0, sentData), MessageDeliveryRequirements.MostStrict, null);
+                Assert.IsTrue(cnx.SentPackets.Count > 0);
+                Assert.IsTrue(t.BytesSent - bytesSent > 500); // should be 500 + message headers
+            }
+            int lastSentPacketsCount = cnx.SentPackets.Count;
+            cnx.Flush();
+            Assert.IsTrue(cnx.SentPackets.Count == lastSentPacketsCount, "there should not be any data remaining");
+
+            int msgNo = 0;
+            foreach (TransportPacket tp in cnx.SentPackets)
+            {
+                while (tp.Length > 0)
+                {
+                    cnx.Marshaller.Unmarshal(tp, t, delegate(object sender, MessageEventArgs mea)
+                    {
+                        Assert.IsInstanceOfType(typeof(BinaryMessage), mea.Message);
+                        Assert.AreEqual(sentData, ((BinaryMessage)mea.Message).Bytes);
+                        msgNo++;
+                    });
+                }
+            }
+            Assert.AreEqual(6, msgNo);
+        }
+
 
     }
 }

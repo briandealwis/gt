@@ -296,6 +296,9 @@ namespace GT.Net
         {
             // we could check whether there are too many messages pending and
             // call an interim flush, I suppose?
+            // Note: we should do this only if we cease sending messages on transport backlog
+            // Otherwise there should be no messages backed up at this point.
+            // Leave this for GT 3.1
         }
 
         /// <summary>Adds the message to a list, waiting to be sent out.</summary>
@@ -369,7 +372,8 @@ namespace GT.Net
             }
 
             CannotSendMessagesError csme = new CannotSendMessagesError(cnx);
-            while (ProcessNextPacket(channelId, csme));
+            // Process all the packets on the channel
+            while (ProcessNextPacket(channelId, csme)) { /* keep going */ }
 
             FlushPendingPackets(csme);
             if (csme.IsApplicable)
@@ -381,11 +385,20 @@ namespace GT.Net
             Debug.Assert(packetsInProgress.Count == 0);
         }
 
+        /// <summary>
+        /// Process the next packet to be sent on <see cref="channelId"/>.  Return true
+        /// if there was a packet to be processed on the channel, or false otherwise.
+        /// </summary>
+        /// <param name="channelId">the channel to process</param>
+        /// <param name="csme">accumulated errors/exceptions</param>
+        /// <returns>true if a packet was processed on the channel, or false if there are no packets
+        /// to process or some error/exception arose</returns>
         protected virtual bool ProcessNextPacket(byte channelId, CannotSendMessagesError csme)
         {
             ChannelSendingState cs = default(ChannelSendingState);
             if (!FindNextPacket(channelId, csme, ref cs)) { return false; }
             Debug.Assert(cs.MarshalledForm != null && cs.MarshalledForm.HasPackets);
+            // we could do something here to check if the transport was backlogged...
             TransportPacket tp;
             if(!packetsInProgress.TryGetValue(cs.Transport, out tp) || tp == null)
             {
@@ -424,8 +437,8 @@ namespace GT.Net
                 messagesInProgress[cs.Transport].Remove(cs.PendingMessage.Message);
                 sentMessages[cs.Transport].Add(cs.PendingMessage.Message);
                 pmPool.Return(cs.PendingMessage);
-                cs.MarshalledForm.Dispose();
                 cs.PendingMessage = null;
+                cs.MarshalledForm.Dispose();
                 cs.MarshalledForm = null;
             }
             else
@@ -462,6 +475,14 @@ namespace GT.Net
             packetsInProgress.Clear();
         }
 
+        /// <summary>
+        /// Find the next packet to be processed; return true if there are packets to 
+        /// process on channelId.  The channel sending state is returned in <see cref="cs"/>.
+        /// </summary>
+        /// <param name="channelId"></param>
+        /// <param name="csme"></param>
+        /// <param name="cs"></param>
+        /// <returns></returns>
         protected virtual bool FindNextPacket(byte channelId, CannotSendMessagesError csme, 
             ref ChannelSendingState cs)
         {
@@ -475,6 +496,10 @@ namespace GT.Net
                     cs.MarshalledForm = null;
                 }
             }
+            else
+            {
+                channelSendingStates[channelId] = cs = new ChannelSendingState();
+            }
             PendingMessage pm;
             while (DetermineNextPendingMessage(channelId, out pm))
             {
@@ -482,6 +507,7 @@ namespace GT.Net
                 {
                     ITransport transport = cnx.FindTransport(pm.MDR, pm.CDR);
                     IMarshalledResult mr = cnx.Marshal(pm.Message, transport);
+                    Debug.Assert(!mr.Finished, "Marshallers shouldn't produce an empty result");
                     if (mr.Finished)
                     {
                         // this shouldn't happen
@@ -505,16 +531,21 @@ namespace GT.Net
                     continue;
                 }
             }
+            // There were no messages for channelId.  So remove it from contention
+            // and advance the nextChannelIndex to the next channel (actually, by
+            // virtue of removing this channel, nextChannelIndex does point to the
+            // next channel, so we only need to check for wrapping)
             channels.Remove(channelId);
             channelIndices.Remove(channelId);
             channelSendingStates.Remove(channelId);
+            cs = null;
             if (nextChannelIndex >= channels.Count) { nextChannelIndex = 0; }
             return false;
         }
 
         protected virtual bool DetermineNextPendingMessage(byte channelId, out PendingMessage next)
         {
-            next = default(PendingMessage);
+            next = null;
             for (int index = 0; index < pending.Count; index++) {
                 next = pending[index];
                 if (next.Message.MessageType == MessageType.System
@@ -559,7 +590,7 @@ namespace GT.Net
         }
     }
 
-    public struct ChannelSendingState {
+    public class ChannelSendingState {
         public IMarshalledResult MarshalledForm;
         public PendingMessage PendingMessage;
         public ITransport Transport;

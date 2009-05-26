@@ -767,7 +767,7 @@ namespace GT.UnitTests
         public void SetUp()
         {
             errorOccurred = false;
-            server = new ClientRepeater(new LocalServerConfiguration(9999));
+            server = new ClientRepeater(new RepeaterConfiguration(9999));
             server.ErrorEvent += delegate(ErrorSummary es)
             {
                 Console.WriteLine("SERVER ERROR: " + es);
@@ -840,6 +840,122 @@ namespace GT.UnitTests
             }
         }
 
+        /// <summary>
+        /// Ensure the ClientRepeater can send small messages.
+        /// </summary>
+        [Test]
+        public void TestSimpleRepeating()
+        {
+            IList<int> orderedIdentities = new List<int>();
+            Client client = new DefaultClientConfiguration().BuildClient();
+            client.ErrorEvent += delegate(ErrorSummary es)
+            {
+                Console.WriteLine("CLIENT ERROR: " + es);
+                errorOccurred = true;
+            };
+            clients.Add(client);
+
+            client.Start();
+
+            uint messageCount = 0;
+            IStringChannel bc = client.OpenStringChannel("localhost", "9999", 0,
+                ChannelDeliveryRequirements.MostStrict);
+
+            bc.MessagesReceived += delegate(IStringChannel channel)
+            {
+                string dq;
+                while ((dq = channel.DequeueMessage(0)) != null)
+                {
+                    Assert.AreEqual("hello!", dq);
+                    messageCount++;
+                }
+            };
+            Assert.IsFalse(errorOccurred);
+            Assert.AreEqual(0, messageCount);
+            bc.Send("hello!");
+            bc.Flush();
+
+            Stopwatch sm = Stopwatch.StartNew();
+            while (sm.ElapsedMilliseconds < 2000 && messageCount < 1)
+            {
+                client.Update();
+                Thread.Sleep(100);
+            }
+
+            Assert.IsFalse(errorOccurred);
+            Assert.AreEqual(1, messageCount);
+        }
+
+
+        /// <summary>
+        /// Ensure the ClientRepeater can interoperate with marshallers using the 
+        /// <see cref="LargeObjectMarshaller"/>.
+        /// </summary>
+        [Test]
+        public void TestLOMInteroperability()
+        {
+            IList<int> orderedIdentities = new List<int>();
+            Client client = new DefaultClientConfiguration().BuildClient();
+            client.ErrorEvent += delegate(ErrorSummary es) {
+                Console.WriteLine("CLIENT ERROR: " + es);
+                errorOccurred = true;
+            };
+            clients.Add(client);
+
+            client.Start();
+            Assert.IsInstanceOfType(typeof(LargeObjectMarshaller), client.Marshaller);
+            Assert.IsNotInstanceOfType(typeof(LargeObjectMarshaller), server.Server.Marshaller);
+            Assert.IsTrue(server.Server.Marshaller.IsCompatible(client.Marshaller.Descriptor, null));
+
+            uint messageCount = 0;
+            IBinaryChannel bc = client.OpenBinaryChannel("localhost", "9999", 0,
+                ChannelDeliveryRequirements.MostStrict);
+
+            server.Server.MessageReceived += delegate(Message m, IConnexion cnx, ITransport transport)
+                     {
+                         Console.WriteLine("CR: received {0}", m);
+                     };
+            server.Server.MessagesSent += delegate(IList<Message> ms, ICollection<IConnexion> cnx, MessageDeliveryRequirements transport)
+            {
+                Console.WriteLine("CR: sent {0}", ms);
+            };
+            bc.Connexion.MessageReceived += delegate(Message m, IConnexion cnx, ITransport transport)
+            {
+                Console.WriteLine("client: received {0}", m);
+            };
+            bc.Connexion.MessageSent += delegate(Message m, IConnexion cnx, ITransport transport)
+            {
+                Console.WriteLine("client: sent {0}", m);
+            };
+            foreach(ITransport t in bc.Connexion.Transports)
+            {
+                t.PacketSent +=
+                    delegate(TransportPacket tp, ITransport transport)
+                        { Console.WriteLine("client: sending {0}: {1}", transport, tp); };
+            }
+
+
+            bc.MessagesReceived += delegate(IBinaryChannel channel) {
+                while(channel.DequeueMessage(0) != null)
+                {
+                    messageCount++;
+                }
+            };
+            Assert.IsFalse(errorOccurred);
+            Assert.AreEqual(0, messageCount);
+            bc.Send(new byte[65536]);
+            bc.Flush();
+
+            Stopwatch sm = Stopwatch.StartNew();
+            while(sm.ElapsedMilliseconds < 2000 && messageCount < 1)
+            {
+                client.Update();
+                Thread.Sleep(100);    
+            }
+            
+            Assert.IsFalse(errorOccurred);
+            Assert.AreEqual(1, messageCount);
+        }
     }
 
     /// <summary>
