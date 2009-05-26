@@ -148,6 +148,7 @@ namespace GT.Net
         public virtual ITransport SelectTransport(IList<ITransport> transports) 
         {
             foreach(ITransport t in transports) {
+                // wouldn't it be cool to check if the transport is backlogged?
                 if (MeetsRequirements(t)) { return t; }
             }
             return null;
@@ -269,6 +270,7 @@ namespace GT.Net
         /// <param name="transports">the sorted list of available transports</param>
         public virtual ITransport SelectTransport(IList<ITransport> transports)
         {
+            // wouldn't it be cool to check if the transport is backlogged?
             foreach (ITransport t in transports)
             {
                 if (MeetsRequirements(t)) { return t; }
