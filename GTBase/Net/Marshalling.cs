@@ -756,7 +756,8 @@ namespace GT.Net
 
             public override string ToString()
             {
-                return "Raw Message (uninterpreted bytes)";
+                return String.Format("Raw Message (id:{0} type:{1}, {2} uninterpreted bytes)", 
+                    ChannelId, MessageType, bytes.Length);
             }
         }
 
