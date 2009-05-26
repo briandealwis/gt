@@ -23,7 +23,6 @@ using System;
 using System.Collections.Generic;
 using System.Collections.Specialized;
 using System.Text;
-using System.Threading;
 using Common.Logging;
 using Common.Logging.Simple;
 using GT.Millipede;
