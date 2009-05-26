@@ -281,5 +281,10 @@ namespace GT.Net
             MDR = null;
             CDR = null;
         }
+
+        public override string ToString()
+        {
+            return "PM{" + GetHashCode() + "}: " + Message;
+        }
     }
 }
