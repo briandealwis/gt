@@ -1,3 +1,64 @@
+GT 3.0 introduced a number of breaking changes to simplify the API.
+We highly recommend perusing the changes in CHANGES.txt to see the
+full list.
+
+Steps to port typical code from using GT 2.0 to GT 3.0; deeper users
+of the framework, such as those creating transports or marshallers,
+should be sure to carefully read through the changes in CHANGES.txt.
+
+ 1. Correct all renamed classes, interfaces, and methods:
+
+      - Streams have been renamed to Channels:
+	  - I{String,Object,Session,Binary}Stream have been renamed to
+	    I{String,Object,Session,Binary}Channel. 
+	    The Client.Get{String,Object,Session,Binary}Stream() methods
+	    have been renamed to Open{String,Object,Session,Binary}Channel()
+	  - the New*MessageEvent have been renamed to simply
+	    MessagesReceived.  The UpdateEvent has been renamed to
+	    Updated.
+
+      - the {IConnexion,IStream}.UniqueIdentity property has been 
+        renamed to simply Identity.
+
+      - ChannelDeliveryRequirements.TelepointerLike has been renamed
+        to AwarenessLike
+
+      - although not intended as public API, ClientConnexion has been
+	renamed to ConnexionToClient, and ServerConnexion to
+	ConnexionToServer.
+
+ 2. Correct all removed or renamed delegates.  We recommend never
+    specifying the delegate name explicitly.  For example, instead of
+
+	server.ErrorEvents += new ErrorEventNotification(s_ErrorEvent);
+
+    simply use:
+
+	server.ErrorEvents += s_ErrorEvent;
+
+    The following changes have been made:
+
+      - Change any users of GT.Net.ConnexionLifecycleNotification to
+	now take a Communicator, the base class of Client and Server
+
+      - Replace uses of {String,Object,Session,Binary}MessageHandler
+	with MessageHandler
+
+ 3. Correct all renamed fields:
+
+      - *Message.Id has been renamed to ChannelId
+
+ 4. If using ClientRepeater, change calls to ClientRepeater.Start()
+    to ClientRepeater.StartSeparateListeningThread().  Start() no
+    longer launches a listening thread.
+
+ 4. If creating your own client or server configuration classes,
+    you may wish to wrap the marshaller with a LargeObjectMarshaller
+    to allow sending large messages.  See CHANGES.txt and the
+    comments for LargeObjectMarshaller.
+
+
+
 Simple steps to port code using the "classic" GT to GT 2.0:
 
  1. Replace the old GT .DLLs (e.g., GTClient.dll, GTServer.dll); add

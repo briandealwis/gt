@@ -198,7 +198,7 @@ GT 3.0.
 
   * There have been some major renames:
 
-      * Message.Id has been renamed ChannelId.  The use of 'id' was
+      * Message.Id has been renamed to ChannelId.  The use of 'id' was
 	somewhat ambiguous and causing confusion.  All uses of 'id' to
 	mean a channel id or a stream id have been redone to use channelId. 
 	<https://papyrus.usask.ca/trac/gt/ticket/74>.
@@ -247,12 +247,12 @@ GT 3.0.
 
 	    Instances ch1 and ch2 are now distinct objects and share the same
 	    underlying connexion.  When new string messages are received on
-	    channel 0 from localhost:9999, both ch1 and ch2 will receive copies of
-	    the message.  The creation of ch3, which is also on channel 0,
-	    no longer switches the underlying connexion of ch1 and ch2 as would
-	    occur in GT 2.0.  Although ch1 and ch2 share the same connexion, they
-	    have different ChannelDeliveryRequirements -- the CDR is specific to
-	    the channel instance. 
+	    channel 0 from localhost:9999, both ch1 and ch2 will receive
+	    copies of the message.  The creation of ch3, which is also on
+	    channel 0, no longer switches the underlying connexion of ch1 and
+	    ch2 as would occur in GT 2.0.  Although ch1 and ch2 share the
+	    same connexion, they have different ChannelDeliveryRequirements
+	    -- the CDR is specific to the channel instance. 
 
       * The use of UniqueIdentity has been renamed to simply Identity. 
 	  * IConnexion.UniqueIdentity -> Identity
@@ -300,7 +300,8 @@ GT 3.0.
       * We reworked the IStream (now IChannel) implementations to reduce code
         duplication.  As a result, we replaced the
 	GT.Net.{Session,String,Object,Binary}NewMessageEvent delegates with
-	the equivalent IAction<ST> where ST is the appropriate IChannel subinterface.
+	the equivalent IAction<ST> where ST is the appropriate IChannel
+	subinterface.
 
       * The delegate GT.Net.PingReceived's time component now
 	returns the round-trip ping time, and not half of the time.
@@ -425,6 +426,14 @@ GT 3.0.
 
       * Clients and Servers now log a warning when there are no registered
 	ErrorEvent handlers.
+
+      * ClientRepeater's API has been tweaked to more closely resemble
+        GT.Net.Server, and now allows using the ClientRepeater in a polling
+	mode.  ClientRepeater.Start() no longer launches an independent
+	thread to handle incoming events; developers must now instead
+	call StartSeparateListeningThread().  Developers wishing to
+	use ClientRepeater in a polling manner should call Start() and
+	then periodically call Update() from an event timer.
 
 
 Bugs fixed since GT 2.0:

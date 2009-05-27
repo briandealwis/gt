@@ -1,0 +1,6 @@
+To generate the Doxygen docs, run the following command in the
+current (doc/) directory:
+
+    $ doxygen gt.dox
+
+The results will be placed in the doc/html/ directory.
