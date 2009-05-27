@@ -790,7 +790,7 @@ namespace GT.UnitTests
             IList<int> orderedIdentities = new List<int>();
             for (int i = 0; i < 5; i++)
             {
-                Client client = new LocalClientConfiguration().BuildClient();
+                Client client = new DefaultClientConfiguration().BuildClient();
                 client.Start();
                 client.ErrorEvent += delegate(ErrorSummary es) {
                     Console.WriteLine("CLIENT ERROR: " + es);
