@@ -211,7 +211,7 @@ namespace GT.Net
         {
             lock (this)
             {
-                while (handle.Available > 0)
+                while (handle != null && handle.Available > 0)
                 {
                     // This is a simple state machine: we're either:
                     // (a) reading a packet header (incomingInProgress.IsMessageHeader())
