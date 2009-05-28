@@ -1,0 +1,16 @@
+Deployment & Building the MSI installer
+=======================================
+
+The deployment project (GT.Setup) assumes the manual has been PDF'd
+and the Doxygen documentation has been generated.
+
+  * To build the PDF of the manual, use Adobe Distiller.
+    (Actually, Word for the Mac is much faster and seems to produce
+    a better quality PDF to boot.)
+
+  * To generate the Doxygen docs, run the following command in the doc/
+    directory:
+
+	$ doxygen gt.dox
+
+    The results will be placed in the doc/html/ directory.
