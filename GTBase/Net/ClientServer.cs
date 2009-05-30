@@ -1033,12 +1033,11 @@ namespace GT.Net
         }
 
         /// <summary>
-        /// A transport has been disconnected.  Provide an opportunity to reconnect.
-        /// The implementation should *not* call AddTransport().
+        /// Provide an opportunity to reconnect the provided transport.
         /// </summary>
         /// <param name="transport">the disconnected transport</param>
         /// <returns>the replacement transport if successful, null otherwise.</returns>
-        virtual protected ITransport AttemptReconnect(ITransport transport) 
+        virtual public ITransport AttemptReconnect(ITransport transport) 
         {
             return null;
         }

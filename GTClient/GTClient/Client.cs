@@ -667,7 +667,7 @@ namespace GT.Net
             get { return Identity; }
         }
 
-        protected override ITransport AttemptReconnect(ITransport transport)
+        public override ITransport AttemptReconnect(ITransport transport)
         {
             // find the connector responsible for having connected this transport and
             // try to reconnect.
