@@ -281,7 +281,9 @@ namespace GT.Net
         /// The byte segment is now assumed to belong to this packet instance
         /// and should not be used elsewhere!
         /// </summary>
-        /// <param name="source"></param>
+        /// <param name="source">the source of the bytes</param>
+        /// <param name="offset">the starting point into the source</param>
+        /// <param name="count">the number of bytes to copy out from the source</param>
         public void Prepend(byte[] source, int offset, int count)
         {
             ValidateAndSync();
@@ -483,7 +485,6 @@ namespace GT.Net
         /// Copy the specified portion of this packet to the provided byte array.
         /// </summary>
         /// <param name="sourceStart">the starting offset into this packet</param>
-        /// <param name="count">the number of bytes to copy</param>
         /// <param name="destination">the destination byte array</param>
         /// <param name="destIndex">the starting offset into the destination byte array</param>
         /// <param name="count">the number of bytes to copy</param>
@@ -835,6 +836,8 @@ namespace GT.Net
         /// It's actually intended more for debugging.
         /// </summary>
         /// <param name="offset">the offset into this packet</param>
+        /// <param name="count">the number of bytes to return</param>
+        /// <param name="block">the action block to receive the bytes.</param>
         /// <returns>the byte at the provided offset</returns>
         /// <exception cref="ArgumentOutOfRangeException">thrown if the offset is
         /// out of the range of this object</exception>

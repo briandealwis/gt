@@ -43,14 +43,18 @@ namespace GT.UnitTests
             _OriginalMinSegSize = TransportPacket.MinSegmentSize;
             _OriginalMaxSegSize = TransportPacket.MaxSegmentSize;
             _OriginalReservedInitialBytes = TransportPacket.ReservedInitialBytes;
+#if DEBUG
             TransportPacket.TestingDiscardPools();
+#endif
             TransportPacket.MinSegmentSize = 4;
         }
 
         [TearDown]
         public void TearDown()
         {
+#if DEBUG
             TransportPacket.TestingDiscardPools();
+#endif
             TransportPacket.MaxSegmentSize = _OriginalMaxSegSize;
             TransportPacket.MinSegmentSize = _OriginalMinSegSize;
             TransportPacket.ReservedInitialBytes = _OriginalReservedInitialBytes;
@@ -58,6 +62,7 @@ namespace GT.UnitTests
 
         public static void CheckForUndisposedSegments()
         {
+#if DEBUG
             Pool<byte[]>[] pools = TransportPacket.TestingDiscardPools();
             if (pools != null)
             {
@@ -67,6 +72,7 @@ namespace GT.UnitTests
                         "there are non-disposed segments: some TransportPackets remain undisposed");
                 }
             }
+#endif
         }
 
 
@@ -100,6 +106,7 @@ namespace GT.UnitTests
             }
         }
 
+#if DEBUG
         [Test]
         public void TestPoolIndexCalculations()
         {
@@ -139,6 +146,7 @@ namespace GT.UnitTests
                 Assert.AreEqual(i, TransportPacket.TestingPoolIndex(stop));
             }
         }
+#endif
 
         [Test]
         public void TestAllocation() {

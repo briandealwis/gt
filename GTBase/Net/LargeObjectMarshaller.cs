@@ -42,7 +42,7 @@ namespace GT.Net
     /// The LOM uses the high bit of the MessageType byte to encode whether 
     /// a message has been fragmented.
     /// 
-    /// The LOM uses the <see cref="LWMCFv11.Descriptor"/>
+    /// The LOM uses the <see cref="LWMCFv11.Descriptor">
     /// LWMCF v1.1 message container format</see>, regardless of the primitive message 
     /// container format used by the sub-marshaller.  When used with a LWMCF v1.1
     /// sub-marshaller, the LOM is able to optimize packet layout
@@ -185,9 +185,9 @@ namespace GT.Net
                 // then we don't have to fragment it.
                 if (LWMCFv11.HeaderSize + contentLength < tdc.MaximumPacketSize)
                 {
-                    /// Message fits within the transport packet length, so sent unmodified
-                    ///     <pre>[byte:message-type] [byte:channelId] [uint32:packet-size] 
-                    ///         [bytes:content]</pre>
+                    // Message fits within the transport packet length, so sent unmodified
+                    //     <pre>[byte:message-type] [byte:channelId] [uint32:packet-size] 
+                    //         [bytes:content]</pre>
                     if (!subMarshallerIsLwmcf11) 
                     {
                         // need to prefix the LWMCFv1.1 header
@@ -208,17 +208,17 @@ namespace GT.Net
         private void FragmentMessage(Message message, ITransportDeliveryCharacteristics tdc, 
             TransportPacket packet, MarshalledResult mr)
         {
-            /// <item> if the message is the first fragment, then the high-bit is
-            ///     set on the message-type; the number of fragments is encoded using
-            ///     the adaptive <see cref="ByteUtils.EncodeLength(int)"/> format.
-            ///     <pre>[byte:message-type'] [byte:channelId] [uint32:packet-size] 
-            ///         [byte:seqno] [bytes:encoded-#-fragments] [bytes:frag]</pre>
-            /// </item>
-            /// <item> for all subsequent fragments; seqno' = seqno | 128;
-            ///     the number of fragments is encoded using the adaptive 
-            ///     <see cref="ByteUtils.EncodeLength(int)"/> format.
-            ///     <pre>[byte:message-type'] [byte:channelId] [uint32:packet-size] 
-            ///         [byte:seqno'] [bytes:encoded-fragment-#] [bytes:frag]</pre>
+            // <item> if the message is the first fragment, then the high-bit is
+            //     set on the message-type; the number of fragments is encoded using
+            //     the adaptive <see cref="ByteUtils.EncodeLength(int)"/> format.
+            //     <pre>[byte:message-type'] [byte:channelId] [uint32:packet-size] 
+            //         [byte:seqno] [bytes:encoded-#-fragments] [bytes:frag]</pre>
+            // </item>
+            // <item> for all subsequent fragments; seqno' = seqno | 128;
+            //     the number of fragments is encoded using the adaptive 
+            //     <see cref="ByteUtils.EncodeLength(int)"/> format.
+            //     <pre>[byte:message-type'] [byte:channelId] [uint32:packet-size] 
+            //         [byte:seqno'] [bytes:encoded-fragment-#] [bytes:frag]</pre>
 
             // Although we use an adaptive scheme for encoding the number,
             // we assume a maximum of 4 bytes for encoding # frags
@@ -271,21 +271,21 @@ namespace GT.Net
 
         public void Unmarshal(TransportPacket input, ITransportDeliveryCharacteristics tdc, EventHandler<MessageEventArgs> messageAvailable)
         {
-            /// <item>Message fits within the transport packet length, so sent unmodified
-            ///     <pre>[byte:message-type] [byte:channelId] [uint32:packet-size] 
-            ///         [bytes:content]</pre>
-            /// </item>
-            /// <item> if the message is the first fragment, then the high-bit is
-            ///     set on the message-type; the number of fragments is encoded using
-            ///     the adaptive <see cref="ByteUtils.EncodeLength(int)"/> format.
-            ///     <pre>[byte:message-type'] [byte:channelId] [uint32:packet-size] 
-            ///         [byte:seqno] [bytes:encoded-#-fragments] [bytes:frag]</pre>
-            /// </item>
-            /// <item> for all subsequent fragments; seqno' = seqno | 128;
-            ///     the number of fragments is encoded using the adaptive 
-            ///     <see cref="ByteUtils.EncodeLength(int)"/> format.
-            ///     <pre>[byte:message-type'] [byte:channelId] [uint32:packet-size] 
-            ///         [byte:seqno'] [bytes:encoded-fragment-#] [bytes:frag]</pre>
+            // <item>Message fits within the transport packet length, so sent unmodified
+            //     <pre>[byte:message-type] [byte:channelId] [uint32:packet-size] 
+            //         [bytes:content]</pre>
+            // </item>
+            // <item> if the message is the first fragment, then the high-bit is
+            //     set on the message-type; the number of fragments is encoded using
+            //     the adaptive <see cref="ByteUtils.EncodeLength(int)"/> format.
+            //     <pre>[byte:message-type'] [byte:channelId] [uint32:packet-size] 
+            //         [byte:seqno] [bytes:encoded-#-fragments] [bytes:frag]</pre>
+            // </item>
+            // <item> for all subsequent fragments; seqno' = seqno | 128;
+            //     the number of fragments is encoded using the adaptive 
+            //     <see cref="ByteUtils.EncodeLength(int)"/> format.
+            //     <pre>[byte:message-type'] [byte:channelId] [uint32:packet-size] 
+            //         [byte:seqno'] [bytes:encoded-fragment-#] [bytes:frag]</pre>
 
             // Fastpath: if the message-type doesn't have the high-bit set,
             // then this is a non-fragmented message

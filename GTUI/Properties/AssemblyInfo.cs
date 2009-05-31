@@ -25,11 +25,11 @@ using System.Runtime.InteropServices;
 // General Information about an assembly is controlled through the following 
 // set of attributes. Change these attribute values to modify the information
 // associated with an assembly.
-[assembly: AssemblyTitle("GT-Millipede UI")]
-[assembly: AssemblyDescription("Useful UI configuration items for GT-Millipede")]
+[assembly: AssemblyTitle("GT User Interface Components")]
+[assembly: AssemblyDescription("Useful UI configuration items for GT-based applications")]
 [assembly: AssemblyConfiguration("")]
 [assembly: AssemblyCompany("HCI Lab, University of Saskatchewan")]
-[assembly: AssemblyProduct("GTMillipedeUI")]
+[assembly: AssemblyProduct("GTUI")]
 [assembly: AssemblyCopyright("Copyright © 2009")]
 [assembly: AssemblyTrademark("")]
 [assembly: AssemblyCulture("")]

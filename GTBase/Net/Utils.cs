@@ -31,8 +31,8 @@ namespace GT.Net.Utils
     /// A simple utility class that drops transports that do not respond to
     /// GT's periodic heart-beat within a certain time.  This utility uses
     /// GT's events to automatically become aware of new connexions and
-    /// transports.  The utility is installed onto a <see cref="Client"/> 
-    /// or <see cref="Server"/> through <see cref="Install(GT.Net.Communicator,System.TimeSpan)"/>.
+    /// transports.  The utility is installed onto a <see cref="GT.Net.Client"/> 
+    /// or <see cref="GT.Net.Server"/> through <see cref="Install(GT.Net.Communicator,System.TimeSpan)"/>.
     /// </summary>
     public class PingBasedDisconnector
     {
@@ -216,7 +216,14 @@ namespace GT.Net.Utils
     /// </summary>
     public class NetworkEmulatorTransport : WrappedTransport
     {
+        /// <summary>
+        /// Encode the transport mode of a packet, whether it is being sent or received.
+        /// </summary>
         public enum PacketMode { Sent, Received };
+
+        /// <summary>
+        /// Encode the transform to be effected on the packet.
+        /// </summary>
         public enum PacketEffect { None, Dropped, Delayed, Reordered };
 
         /// <summary>
@@ -312,14 +319,13 @@ namespace GT.Net.Utils
         protected double packetLoss;    // set by PacketLoss
         protected double packetLossCorrelation;    // set by PacketLossCorrelation
         protected double packetReordering;    // set by PacketReordering
+
         /// <summary>
         /// The probability that the last packet was dropped, kept for
         /// statistical correlation of packet loss.
         /// </summary>
         /// <seealso cref="PacketLossCorrelation"/>
         protected double pLastDropped = 0d;
-
-
 
         public override uint Backlog
         {
@@ -353,7 +359,7 @@ namespace GT.Net.Utils
         private void CheckDelayedPackets(uint millisecondsElapsed)
         {
             delayedSendQueue.Dequeue(millisecondsElapsed, 
-                p => base.SendPacket(p));
+                p => Wrapped.SendPacket(p));
             delayedReceiveQueue.Dequeue(millisecondsElapsed,
                 p => NotifyPacketReceived(p, this));
         }

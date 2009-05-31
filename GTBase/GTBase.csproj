@@ -26,6 +26,7 @@
     <ErrorReport>prompt</ErrorReport>
     <WarningLevel>4</WarningLevel>
     <DocumentationFile>bin\Debug\GTBase.XML</DocumentationFile>
+    <NoWarn>1574 1591</NoWarn>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
     <DebugType>pdbonly</DebugType>
@@ -34,6 +35,7 @@
     <DefineConstants>TRACE</DefineConstants>
     <ErrorReport>prompt</ErrorReport>
     <WarningLevel>4</WarningLevel>
+    <NoWarn>1574 1591</NoWarn>
   </PropertyGroup>
   <ItemGroup>
     <Reference Include="Common.Logging, Version=1.2.0.0, Culture=neutral, PublicKeyToken=af08829b84f0328e">
@@ -56,7 +58,6 @@
     <Compile Include="GMC\GeneralMessageCompressor.cs" />
     <Compile Include="GMC\GMCMarshaller.cs" />
     <Compile Include="GMC\HuffmanEncodingTree.cs" />
-    <Compile Include="GMC\SkipCompressor.cs" />
     <Compile Include="GMC\SuffixTrie.cs" />
     <Compile Include="GMC\TrieCompressor.cs" />
     <Compile Include="HPTimer.cs" />

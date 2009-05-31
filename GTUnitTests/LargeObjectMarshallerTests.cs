@@ -169,7 +169,9 @@ namespace GT.UnitTests
         [Test]
         public void TestDroppedPackets()
         {
+#if DEBUG
             TransportPacket.TestingDiscardPools();
+#endif
             ITransport[] transports = new[] {
                 new NullTransport(Reliability.Reliable, Ordering.Ordered, 10, 100),
                 new NullTransport(Reliability.Reliable, Ordering.Unordered, 10, 100),

@@ -30,7 +30,7 @@ using Common.Logging;
 using GT.Net;
 using GT.Utils;
 
-/// General (client & server) part of the Millipede debugger
+// General (client and server) part of the Millipede debugger
 namespace GT.Millipede
 {
     /// <summary>
@@ -578,7 +578,7 @@ namespace GT.Millipede
         }
 
         /// <summary>
-        /// ITransports use a observer-pattern (implemented with events & callbacks) to notify
+        /// ITransports use a observer-pattern (implemented with events and callbacks) to notify
         /// other GT2 components. Since these other componets register to the MillipedeTransport,
         /// there must be a mechanism to forward notifications from the ITransport to other GT2
         /// components.
@@ -591,7 +591,7 @@ namespace GT.Millipede
         }
 
         /// <summary>
-        /// ITransports use a observer-pattern (implemented with events & callbacks) to notify
+        /// ITransports use a observer-pattern (implemented with events and callbacks) to notify
         /// other GT2 components. Since these other componets register to the MillipedeTransport,
         /// there must be a mechanism to forward notifications from the ITransport to other GT2
         /// components.

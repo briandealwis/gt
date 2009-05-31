@@ -136,6 +136,10 @@ namespace GT.Net
             while (FetchIncomingPacket()) { /* do nothing */ }
         }
 
+        /// <summary>
+        /// Fetch a new incoming packet, triggering any applicable events
+        /// </summary>
+        /// <returns>true if a packet was available, false otherwise</returns>
         virtual protected bool FetchIncomingPacket()
         {
             lock (this)
@@ -198,6 +202,10 @@ namespace GT.Net
         /// </summary>
         protected uint nextOutgoingPacketSeqNo = 0;
 
+        /// <summary>
+        /// Create a new instance using the provided handle
+        /// </summary>
+        /// <param name="udpc"></param>
         public UdpSequencedClientTransport(UdpClient udpc)
             : base(4, udpc) // we use the first four bytes to encode the sequence 
         {

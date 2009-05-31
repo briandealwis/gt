@@ -236,6 +236,12 @@ namespace GT.Net
             internal set { deliveryOptions = value; }
         }
 
+        /// <summary>
+        /// Create a new instance
+        /// </summary>
+        /// <param name="cnx">the connexion</param>
+        /// <param name="channelId">the channel's id</param>
+        /// <param name="cdr">the default delivery requirements for this channel</param>
         protected AbstractChannel(IConnexion cnx, byte channelId, ChannelDeliveryRequirements cdr)
         {
             connexion = cnx;
@@ -344,7 +350,7 @@ namespace GT.Net
         /// Extract the appropriate typed object from the provided message.
         /// </summary>
         /// <param name="m">the message</param>
-        /// <param name="contents">the appropriately-typed object content from <s
+        /// <param name="contents">the appropriately-typed object content from the message</param>
         /// <returns>true if the contents was successfully extracted</returns>
         abstract protected bool GetMessageContents(Message m, out RI contents);
 
@@ -358,8 +364,8 @@ namespace GT.Net
         protected override void _cnx_MessageReceived(Message message, IConnexion client, ITransport transport)
         {
             if (!Active) { return; }
-            /// We can't register for fine-grained events, so we have to do the processing 
-            /// ourselves to ensure the message is actually intended for this channel
+            // We can't register for fine-grained events, so we have to do the processing 
+            // ourselves to ensure the message is actually intended for this channel
             if (message.ChannelId != ChannelId) { return; }
             RI content;
             if (!GetMessageContents(message, out content)) { return; }
@@ -715,6 +721,10 @@ namespace GT.Net
         }
     }
 
+    /// <summary>
+    /// This class specifies the policy choices required for
+    /// <see cref="Client"/> instances.
+    /// </summary>
     public abstract class ClientConfiguration : BaseConfiguration
     {
         /// <summary>
@@ -760,6 +770,9 @@ namespace GT.Net
     /// </summary>
     public class DefaultClientConfiguration : ClientConfiguration
     {
+        /// <summary>
+        /// The default port used when connecting
+        /// </summary>
         protected int port = 9999;
 
         public override IMarshaller CreateMarshaller()
@@ -795,12 +808,18 @@ namespace GT.Net
         protected long lastPingTime = 0;
         protected bool started = false;
 
-        /// <summary>Creates a Client object using the default configuration.</summary>
+        /// <summary>
+        /// Creates a Client object using the default configuration.
+        /// </summary>
         public Client()
             : this(new DefaultClientConfiguration())
         {
         }
 
+        /// <summary>
+        /// Create a new client instance using the provided configuration
+        /// </summary>
+        /// <param name="cc">the configuration object</param>
         public Client(ClientConfiguration cc)
         {
             configuration = cc;
@@ -934,9 +953,14 @@ namespace GT.Net
 
         #region Channels
 
-        protected void RecordChannel(byte channelId, IChannel cnx)
+        /// <summary>
+        /// Associate the provided channel object with the provided channel id.
+        /// </summary>
+        /// <param name="channelId">the channel id</param>
+        /// <param name="channel">the channel object</param>
+        protected void RecordChannel(byte channelId, IChannel channel)
         {
-            channels.Add(cnx);
+            channels.Add(channel);
         }
 
         /// <summary>

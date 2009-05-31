@@ -23,13 +23,27 @@ using System;
 using System.Net.Sockets;
 using System.Net;
 using System.Collections.Generic;
-using System.Diagnostics;
 using Common.Logging;
 
 namespace GT.Net
 {
-    public delegate void NetPacketReceivedHandler(EndPoint ep, TransportPacket packet);
+    /// <summary>
+    /// A delegate for notifying of the reception of a new packet from some remote
+    /// endpoint.
+    /// </summary>
+    /// <param name="remote">the remote endpoint</param>
+    /// <param name="packet">the packet received</param>
+    public delegate void NetPacketReceivedHandler(EndPoint remote, TransportPacket packet);
 
+    /// <summary>
+    /// The UdpMultiplexor demultiplexes traffic from a UDP socket configured on 
+    /// a particular address/port pair.  <see cref="UdpHandle"/> instances generally
+    /// register to receive messages received from a particular endpoint.  There is a 
+    /// default handler that is triggered for messages received from previously-unknown
+    /// remote endpoints (e.g., a new connection); the default handler generally creates
+    /// a new <see cref="UdpHandle"/> to handle subsequent messages from that remote
+    /// endpoint.
+    /// </summary>
     public class UdpMultiplexer : IStartable
     {
         protected ILog log;
@@ -40,6 +54,11 @@ namespace GT.Net
             new Dictionary<EndPoint,NetPacketReceivedHandler>();
         protected NetPacketReceivedHandler defaultHandler;
 
+        /// <summary>
+        /// Create a new instance listening on the specified address/port combination.
+        /// </summary>
+        /// <param name="address"></param>
+        /// <param name="port"></param>
         public UdpMultiplexer(IPAddress address, int port)
         {
             log = LogManager.GetLogger(GetType());
@@ -48,10 +67,16 @@ namespace GT.Net
             this.port = port;
         }
 
+        /// <summary>
+        /// Return the maximum packet size that can be sent via this multiplexor
+        /// </summary>
         public int MaximumPacketSize {
             get { return udpClient.Client.SendBufferSize; }
         }
 
+        /// <summary>
+        /// Return the description of this local endpoint.
+        /// </summary>
         public IPEndPoint LocalEndPoint
         {
             get { return new IPEndPoint(address, port); }
@@ -83,7 +108,7 @@ namespace GT.Net
         /// in <a href="https://papyrus.usask.ca/trac/gt/ticket/41">bug 41</a>.</summary>
         private void DisableUdpConnectionResetBehaviour()
         {
-            /// Code from http://www.devnewsgroups.net/group/microsoft.public.dotnet.framework/topic47566.aspx
+            // Code from http://www.devnewsgroups.net/group/microsoft.public.dotnet.framework/topic47566.aspx
             try
             {
                 const int SIO_UDP_CONNRESET = -1744830452;
@@ -111,23 +136,43 @@ namespace GT.Net
             udpClient = null;
         }
 
-        public void SetDefaultMessageHandler(NetPacketReceivedHandler handler)
+        /// <summary>
+        /// Configure a default message handler, called for packets received
+        /// from remote endpoints that have not been sent previously.
+        /// </summary>
+        /// <param name="handler">the message handler</param>
+        public void SetDefaultPacketHandler(NetPacketReceivedHandler handler)
         {
             defaultHandler = handler;
         }
 
-        public NetPacketReceivedHandler RemoveDefaultMessageHandler() {
+        /// <summary>
+        /// Discard the default message handler.
+        /// </summary>
+        /// <returns>the message handler, or null if there was no handler previously</returns>
+        public NetPacketReceivedHandler RemoveDefaultPacketHandler() {
             NetPacketReceivedHandler old = defaultHandler;
             defaultHandler = null;
             return old;
         }
 
-        public void SetMessageHandler(EndPoint ep, NetPacketReceivedHandler handler)
+        /// <summary>
+        /// Associate a message handler for packets received from the specified 
+        /// remote endpoint.
+        /// </summary>
+        /// <param name="ep">the remote endpoint</param>
+        /// <param name="handler">the packet handler</param>
+        public void SetPacketHandler(EndPoint ep, NetPacketReceivedHandler handler)
         {
             handlers[ep] = handler;
         }
 
-        public NetPacketReceivedHandler RemoveMessageHandler(EndPoint ep) {
+        /// <summary>
+        /// Discard the message handler configured for the specified remote endpoint
+        /// </summary>
+        /// <param name="ep">the remote endpoint</param>
+        /// <returns>the old handler, or null if none</returns>
+        public NetPacketReceivedHandler RemovePacketHandler(EndPoint ep) {
             NetPacketReceivedHandler hdl;
             if (handlers == null || !handlers.TryGetValue(ep, out hdl)) { return null; }
             handlers.Remove(ep);
@@ -194,21 +239,44 @@ namespace GT.Net
 
     }
 
+    /// <summary>
+    /// A simple class to send and receive packets to/from a remote endpoint.
+    /// Works in cooperation with the <see cref="UdpMultiplexer"/>.
+    /// </summary>
     public class UdpHandle : IDisposable
     {
         protected EndPoint remote;
         protected UdpMultiplexer mux;
-        protected Stopwatch lastMessage;
         protected Queue<TransportPacket> messages;
 
-        public UdpHandle(EndPoint ep, UdpMultiplexer udpMux)
+        /// <summary>
+        /// Create and configure a UDP handle for the specified demultiplexor.
+        /// </summary>
+        /// <param name="mux"></param>
+        /// <param name="ep"></param>
+        /// <returns></returns>
+        public static UdpHandle Bind(UdpMultiplexer mux, EndPoint ep)
+        {
+            UdpHandle h = new UdpHandle(ep);
+            h.Bind(mux);
+            return h;
+        }
+
+        /// <summary>
+        /// Create a new instance to send and receive messages from the specified 
+        /// remote endpoint.  This instance is unbound.
+        /// </summary>
+        /// <param name="ep">the remote endpoint to be associated with</param>
+        protected UdpHandle(EndPoint ep)
         {
             remote = ep;
-            mux = udpMux;
-            lastMessage = new Stopwatch();
             messages = new Queue<TransportPacket>();
+        }
 
-            mux.SetMessageHandler(ep, ReceivedMessage);
+        protected void Bind(UdpMultiplexer udpMux)
+        {
+            mux = udpMux;
+            mux.SetPacketHandler(remote, ReceivedMessage);
         }
 
         override public string ToString()
@@ -216,11 +284,17 @@ namespace GT.Net
             return "UDP[" + RemoteEndPoint + "]";
         }
 
+        /// <summary>
+        /// Return the remote's address information
+        /// </summary>
         public IPEndPoint RemoteEndPoint
         {
             get { return (IPEndPoint)remote; }
         }
 
+        /// <summary>
+        /// Return the maximum packet size supported
+        /// </summary>
         public int MaximumPacketSize
         {
             get { return mux.MaximumPacketSize; }
@@ -228,14 +302,12 @@ namespace GT.Net
 
         public void Dispose()
         {
-            mux.RemoveMessageHandler(remote);
+            mux.RemovePacketHandler(remote);
             messages = null;
         }
 
         protected void ReceivedMessage(EndPoint ep, TransportPacket packet)
         {
-            lastMessage.Reset();
-            lastMessage.Start();
             messages.Enqueue(packet);
         }
 
@@ -248,8 +320,15 @@ namespace GT.Net
             mux.Send(packet, remote);
         }
 
+        /// <summary>
+        /// Return the number of messages available to be received.
+        /// </summary>
         public int Available { get { return messages.Count; } }
 
+        /// <summary>
+        /// Pull out a received packet
+        /// </summary>
+        /// <returns></returns>
         public TransportPacket Receive()
         {
             return messages.Dequeue();

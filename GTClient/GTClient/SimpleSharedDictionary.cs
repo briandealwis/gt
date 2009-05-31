@@ -178,11 +178,20 @@ namespace GT.Net
             }
         }
 
+        /// <summary>
+        /// Request the value for a particular key.
+        /// </summary>
+        /// <param name="key">the requested key</param>
         virtual protected void PullKey(string key)
         {
             channel.Send(key);   // strings indicate a request
         }
 
+        /// <summary>
+        /// Push a change to the specified key.
+        /// </summary>
+        /// <param name="key">the revised key</param>
+        /// <param name="obj">the new value</param>
         virtual protected void PushKey(string key, object obj)
         {
             channel.Send(new KeyValuePair<string, object>(key, obj));
@@ -190,6 +199,9 @@ namespace GT.Net
 
         #endregion
 
+        /// <summary>
+        /// Flush out any changes.
+        /// </summary>
         virtual public void Flush()
         {
             channel.Flush();
@@ -202,8 +214,8 @@ namespace GT.Net
     }
 
     /// <summary>
-    /// FIXME: Question: is this actually necessary?  Can't the channel be
-    /// aggregating?
+    /// A simple aggregating shared dictionary.  The same effect can
+    /// be obtained providing the object channel is aggregating.
     /// </summary>
     public class AggregatingSharedDictionary : SimpleSharedDictionary
     {

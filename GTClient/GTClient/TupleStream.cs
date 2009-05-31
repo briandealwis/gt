@@ -30,6 +30,11 @@ namespace GT.Net
     /// <summary>Delegate for tuples.</summary>
     public delegate void StreamedTupleReceivedDelegate<T_X, T_Y, T_Z>(RemoteTuple<T_X, T_Y, T_Z> tuple, int clientID);
 
+    /// <summary>
+    /// A channel carrying a streaming tuple.  Such tuples automatically stream
+    /// out changes to the tuple at a fixed interval.
+    /// </summary>
+    /// <typeparam name="T_X">the type of the first component of the tuple</typeparam>
     public interface IStreamedTuple<T_X> : IChannel
         where T_X : IConvertible
     {
@@ -45,6 +50,12 @@ namespace GT.Net
         TimeSpan UpdatePeriod { get; set; }
     }
 
+    /// <summary>
+    /// A channel carrying a streaming tuple.  Such tuples automatically stream
+    /// out changes to the tuple at a fixed interval.
+    /// </summary>
+    /// <typeparam name="T_X">the type of the first component of the tuple</typeparam>
+    /// <typeparam name="T_Y">the type of the second component of the tuple</typeparam>
     public interface IStreamedTuple<T_X, T_Y> : IChannel
         where T_X : IConvertible
         where T_Y: IConvertible
@@ -64,6 +75,13 @@ namespace GT.Net
         TimeSpan UpdatePeriod { get; set; }
     }
 
+    /// <summary>
+    /// A channel carrying a streaming tuple.  Such tuples automatically stream
+    /// out changes to the tuple at a fixed interval.
+    /// </summary>
+    /// <typeparam name="T_X">the type of the first component of the tuple</typeparam>
+    /// <typeparam name="T_Y">the type of the second component of the tuple</typeparam>
+    /// <typeparam name="T_Z">the type of the third component of the tuple</typeparam>
     public interface IStreamedTuple<T_X, T_Y, T_Z> : IChannel
         where T_X : IConvertible
         where T_Y : IConvertible
@@ -183,8 +201,8 @@ namespace GT.Net
 
         protected override void _cnx_MessageReceived(Message message, IConnexion client, ITransport transport)
         {
-            /// We can't register for fine-grained events, so we have to do the processing 
-            /// ourselves to ensure the message is actually intended for this channel
+            // We can't register for fine-grained events, so we have to do the processing 
+            // ourselves to ensure the message is actually intended for this channel
             if (message.ChannelId != ChannelId || !(message is TupleMessage)) { return; }
             TupleMessage tm = (TupleMessage)message;
             if (!(tm.Dimension == 3 && tm.X is T_X && tm.Y is T_Y && tm.Z is T_Z)) { return; }
@@ -234,8 +252,8 @@ namespace GT.Net
 
         protected override void _cnx_MessageReceived(Message message, IConnexion client, ITransport transport)
         {
-            /// We can't register for fine-grained events, so we have to do the processing 
-            /// ourselves to ensure the message is actually intended for this channel
+            // We can't register for fine-grained events, so we have to do the processing 
+            // ourselves to ensure the message is actually intended for this channel
             if (message.ChannelId != ChannelId || !(message is TupleMessage)) { return; }
             TupleMessage tm = (TupleMessage)message;
             if (!(tm.Dimension == 2 && tm.X is T_X && tm.Y is T_Y)) { return; }
@@ -279,8 +297,8 @@ namespace GT.Net
 
         protected override void _cnx_MessageReceived(Message message, IConnexion client, ITransport transport)
         {
-            /// We can't register for fine-grained events, so we have to do the processing 
-            /// ourselves to ensure the message is actually intended for this channel
+            // We can't register for fine-grained events, so we have to do the processing 
+            // ourselves to ensure the message is actually intended for this channel
             if (message.ChannelId != ChannelId || !(message is TupleMessage)) { return; }
             TupleMessage tm = (TupleMessage)message;
             if (tm.Dimension != 1 || !(tm.X is T_X)) { return; }

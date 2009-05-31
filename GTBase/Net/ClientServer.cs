@@ -26,9 +26,7 @@ using Common.Logging;
 using System;
 using System.Diagnostics;
 
-/// <summary>
-/// Networking-related parts of GT.
-/// </summary>
+// Networking-related parts of GT.
 namespace GT.Net 
 {
     /// <summary>
@@ -383,6 +381,11 @@ namespace GT.Net
         }
     }
 
+    /// <summary>
+    /// The configuration objects are used to encode the user's policy choices 
+    /// and classes implementing those choices, separating them from the mechanisms 
+    /// required to implement the different policies.
+    /// </summary>
     public abstract class BaseConfiguration : IComparer<ITransport> 
     {
         public BaseConfiguration()
@@ -406,7 +409,7 @@ namespace GT.Net
         /// </summary>
         /// <param name="x">first transport</param>
         /// <param name="y">second transport</param>
-        /// <returns>-1 if x < y, 0 if they're equivalent, and 1 if x > y</returns>
+        /// <returns>-1 if x &lt; y, 0 if they're equivalent, and 1 if x &gt; y</returns>
         public virtual int Compare(ITransport x, ITransport y)
         {
             if (x.Reliability < y.Reliability) { return -1; }
@@ -621,6 +624,8 @@ namespace GT.Net
         /// <summary>
         /// The list of currently-connected transports.  Transports are ordered as
         /// determined by this connexion's owner (see <c>BaseConfguration</c>).
+        /// Callers should not modify this list, and use <see cref="AddTransport"/>
+        /// and <see cref="RemoveTransport"/> instead.
         /// </summary>
         IList<ITransport> Transports { get; }
 
@@ -642,10 +647,10 @@ namespace GT.Net
         void ShutDown();
 
         /// <summary>
-        /// Close this connection immediately.  See <c>ShutDown()</c> for a kinder
-        /// variant that notifies the other side.
+        /// Close this connection immediately.  See <see cref="ShutDown"/>
+        /// for a kinder variant that notifies the other side.
         /// </summary>
-        //void Dispose();
+        new void Dispose();
 
         /// <summary>Send a message using these parameters.  At least one of <c>mdr</c> and
         /// <c>cdr</c> are expected to be specified (i.e., be non-null).</summary>
@@ -699,6 +704,20 @@ namespace GT.Net
         /// </summary>
         /// <param name="channelId">the channel for flushing</param>
         void FlushChannel(byte channelId);
+
+        /// <summary>
+        /// Add the provided transport to this connexion.
+        /// </summary>
+        /// <param name="t">the transport to add</param>
+        void AddTransport(ITransport t);
+
+        /// <summary>
+        /// Remove the provided transport from this connexion's list.
+        /// </summary>
+        /// <param name="t">the transport to remove</param>
+        /// <returns>true if the transport was found, false if the specified
+        /// transport was not registered with this instance</returns>
+        bool RemoveTransport(ITransport t);
 
         #region Internal Use Only
 
@@ -956,7 +975,7 @@ namespace GT.Net
                     }
                 }
 
-                /// And give the scheduler an opportunity to do something too
+                // And give the scheduler an opportunity to do something too
                 if (scheduler != null) { scheduler.Update(); }
             }
         }
@@ -982,10 +1001,6 @@ namespace GT.Net
 
         protected abstract IPacketScheduler CreatePacketScheduler();
  
-        /// <summary>
-        /// Add the provided transport to this connexion.
-        /// </summary>
-        /// <param name="t">the transport to add</param>
         public virtual void AddTransport(ITransport t)
         {
             if (log.IsTraceEnabled)
@@ -998,11 +1013,6 @@ namespace GT.Net
             if (TransportAdded != null) { TransportAdded(this, t); }
         }
 
-        /// <summary>
-        /// Remove the provided transport from this connexion's list.
-        /// </summary>
-        /// <param name="t">the transport to remove</param>
-        /// <returns></returns>
         public virtual bool RemoveTransport(ITransport t) 
         {
             if (log.IsTraceEnabled)

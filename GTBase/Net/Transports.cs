@@ -43,7 +43,7 @@ namespace GT.Net
     /// </remarks>
     public interface ITransport : ITransportDeliveryCharacteristics, IDisposable
     {
-        /// <summaryas>
+        /// <summary>
         /// A simple identifier for this transport.  This name should uniquely identify this
         /// transport.
         /// </summary>
@@ -112,7 +112,7 @@ namespace GT.Net
         /// The maximum packet size supported by this transport instance (in bytes).
         /// Particular transports may enforce a cap on this value.
         /// </summary>
-        uint MaximumPacketSize { get; set; }
+        new uint MaximumPacketSize { get; set; }
     }
 
     /// <summary>

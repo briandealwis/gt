@@ -111,7 +111,7 @@ namespace GT.GMC
         /// of bytes found in this instance's template by an index into the template-trie.
         /// These indices are remapped to a byte shortcut.
         /// </summary>
-        /// <param name="input">the message to encode</param>
+        /// <param name="message">the message to encode</param>
         /// <returns>the byte-encoded variant</returns>
         public byte[] Encode(byte[] message)
         {
@@ -146,10 +146,10 @@ namespace GT.GMC
                 int escapedIndex = -1;
                 int startIndex = endIndex;
 
-                /// After GetCode(), endIndex should point to the *next* character to consider.
-                /// So message[startIndex..endIndex-1] will have been encoded.
-                /// If there are characters that must be escaped, then escapedIndex > endIndex
-                /// and message[endIndex..escapedIndex-1] should be escaped
+                // After GetCode(), endIndex should point to the *next* character to consider.
+                // So message[startIndex..endIndex-1] will have been encoded.
+                // If there are characters that must be escaped, then escapedIndex > endIndex
+                // and message[endIndex..escapedIndex-1] should be escaped
                 uint code = encodingTrie.GetCode(message, ref endIndex, out escapedIndex);
                 if (startIndex < endIndex)
                 {
@@ -244,11 +244,12 @@ namespace GT.GMC
 
 
         /// <summary>
-        /// Get the asoociated byte shortcut for an integer (used to map a trie code to a byte)
+        /// Write the associated byte shortcut for an integer (used to map a trie code 
+        /// to a byte)
         /// </summary>
         /// <param name="longForm">The full name of the trie</param>
-        /// <param name="cmp">The cmp in which to put any new announcements</param>
-        /// <returns></returns>
+        /// <param name="output">the destination for the byte</param>
+        /// <returns>the associated byte shortcut</returns>
         public byte WriteShortcut(uint longForm, Stream output)
         {
             byte shortForm;
@@ -351,10 +352,10 @@ namespace GT.GMC
                 int escapedIndex = -1;
                 int startIndex = endIndex;
 
-                /// After GetCode(), endIndex should point to the *next* character to consider.
-                /// So message[startIndex..endIndex-1] will have been encoded.
-                /// If there are characters that must be escaped, then escapedIndex > endIndex
-                /// and message[endIndex..escapedIndex-1] should be escaped
+                // After GetCode(), endIndex should point to the *next* character to consider.
+                // So message[startIndex..endIndex-1] will have been encoded.
+                // If there are characters that must be escaped, then escapedIndex > endIndex
+                // and message[endIndex..escapedIndex-1] should be escaped
                 uint code = encodingTrie.GetCode(message, ref endIndex, out escapedIndex);
                 if (startIndex < endIndex)
                 {

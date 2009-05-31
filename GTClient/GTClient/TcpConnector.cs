@@ -31,17 +31,28 @@ using GT.Utils;
 
 namespace GT.Net
 {
+    /// <summary>
+    /// A connector for initiating and negotiation a new
+    /// transport connection across TCP.  
+    /// See also GT.Net.TcpAcceptor.
+    /// </summary>
     public class TcpConnector : IConnector
     {
         protected ILog log;
 
         protected bool active = false;
 
+        /// <summary>
+        /// Create a new instance
+        /// </summary>
         public TcpConnector()
         {
             log = LogManager.GetLogger(GetType());
         }
 
+        /// <summary>
+        /// The on-wire protocol version used by this connector
+        /// </summary>
         public byte[] ProtocolDescriptor
         {
             get { return ASCIIEncoding.ASCII.GetBytes("GT10"); }

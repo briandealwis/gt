@@ -36,9 +36,10 @@
     <UseVSHostingProcess>false</UseVSHostingProcess>
     <DocumentationFile>bin\Debug\GTClient.xml</DocumentationFile>
     <RegisterForComInterop>false</RegisterForComInterop>
+    <NoWarn>1574 1591</NoWarn>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
-    <DebugType>none</DebugType>
+    <DebugType>pdbonly</DebugType>
     <Optimize>true</Optimize>
     <OutputPath>bin\Release\</OutputPath>
     <DefineConstants>
@@ -47,6 +48,8 @@
     <WarningLevel>4</WarningLevel>
     <DocumentationFile>bin\Release\GTClient.xml</DocumentationFile>
     <RegisterForComInterop>false</RegisterForComInterop>
+    <DebugSymbols>true</DebugSymbols>
+    <NoWarn>1574 1591</NoWarn>
   </PropertyGroup>
   <ItemGroup>
     <Reference Include="Common.Logging, Version=1.2.0.0, Culture=neutral, PublicKeyToken=af08829b84f0328e">

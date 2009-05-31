@@ -783,6 +783,9 @@ namespace GT.Utils
             return false;
         }
 
+        /// <summary>
+        /// Return the number of still-alive target objects in the collection
+        /// </summary>
         public int Count
         {
             get
@@ -802,17 +805,27 @@ namespace GT.Utils
     /// <summary>
     /// A simple type-safe wrapper of <see cref="WeakReference"/>
     /// </summary>
-    /// <typeparam name="T"></typeparam>
+    /// <typeparam name="T">the type of the target object</typeparam>
     public class WeakReference<T> : WeakReference
     {
+        /// <summary>
+        /// The hash value for the target (stored in case the target disappears)
+        /// </summary>
         protected readonly int hash;
 
+        /// <summary>
+        /// Create a new type-safe weak reference object
+        /// </summary>
+        /// <param name="target">the referenced target object</param>
         public WeakReference(T target)
             : base(target)
         {
             hash = target.GetHashCode();
         }
 
+        /// <summary>
+        /// Get/set the value of the weak reference.
+        /// </summary>
         public T Value
         {
             get { return (T)Target; }
@@ -863,10 +876,13 @@ namespace GT.Utils
         /// </summary>
         protected class DelayNode
         {
-            public uint delta;
-            public T element;
-            public DelayNode next;
+            internal uint delta;
+            internal T element;
+            internal DelayNode next;
 
+            /// <summary>
+            /// Clear the contents of this node
+            /// </summary>
             public void Clear()
             {
                 delta = 0;
@@ -875,12 +891,16 @@ namespace GT.Utils
             }
         }
 
-        // We use a managed pool to minimize memory overhead
+        /// <summary>
+        /// We use a managed pool to minimize memory overhead
+        /// </summary>
         protected Pool<DelayNode> nodePool = new ManagedPool<DelayNode>(0, 5,
             () => new DelayNode(), dn => dn.Clear(), dn => dn.Clear());
 
-        // the first element in the delay queue: this is the node that
-        // will expire earliest.
+        /// <summary>
+        /// the first element in the delay queue: this is the node that
+        /// will expire earliest.
+        /// </summary>
         protected DelayNode first = null;
 
         /// <summary>
@@ -893,6 +913,9 @@ namespace GT.Utils
         /// </summary>
         public uint MaximumDelay { get; protected set; }
 
+        /// <summary>
+        /// Create a new delay queue instance
+        /// </summary>
         public DelayQueue()
         {
             Count = 0;
@@ -958,7 +981,7 @@ namespace GT.Utils
         /// <summary>
         /// Notify that <see cref="elapsed"/> ticks have elapsed.
         /// Dequeue any items whose delays have expired, triggering
-        /// the <see cref="dequeue"/> delegate.
+        /// the <see cref="dequeued"/> delegate.
         /// </summary>
         /// <param name="elapsed">the number of ticks elapsed since the last call</param>
         /// <param name="dequeued">a delegate triggered with all elements whose delay 

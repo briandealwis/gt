@@ -113,6 +113,16 @@ namespace GT.UnitTests
             Scheduler.FlushChannelMessages(channelId);
         }
 
+        public void AddTransport(ITransport t)
+        {
+            Transports.Add(t);
+        }
+
+        public bool RemoveTransport(ITransport t)
+        {
+            return Transports.Remove(t);
+        }
+
         public IMarshalledResult Marshal(Message m, ITransportDeliveryCharacteristics tdc)
         {
             return Marshaller.Marshal(0, m, tdc);

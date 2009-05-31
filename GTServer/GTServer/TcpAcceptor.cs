@@ -48,11 +48,19 @@ namespace GT.Net
 
         private List<NegotiationInProgress> pending;
 
+        /// <summary>
+        /// Create a new instance to listen on the specified address and port.
+        /// </summary>
+        /// <param name="address"></param>
+        /// <param name="port"></param>
         public TcpAcceptor(IPAddress address, int port)
             : base(address, port)
         {
         }
 
+        /// <summary>
+        /// Describe the on-wire protocol version spoken by this instance
+        /// </summary>
         public byte[] ProtocolDescriptor
         {
             get { return ASCIIEncoding.ASCII.GetBytes("GT10"); }

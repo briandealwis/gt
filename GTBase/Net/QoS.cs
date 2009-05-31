@@ -99,69 +99,80 @@ namespace GT.Net
     /// </summary>
     public class MessageDeliveryRequirements
     {
-        // NOTE: default values should be for the *LEAST* stringent possible.
-        protected Reliability reliability = Reliability.Unreliable;
-        protected Ordering ordering = Ordering.Unordered;
-        protected MessageAggregation aggregation = MessageAggregation.Aggregatable;
-
-        public Reliability Reliability
+        /// <summary>
+        /// A default constructor that uses the minimum requirements possible.
+        /// </summary>
+        protected MessageDeliveryRequirements()
         {
-            get { return reliability; }
-            set { reliability = value; }
-        }
-        public Ordering Ordering
-        {
-            get { return ordering; }
-            set { ordering = value; }
-        }
-        public MessageAggregation Aggregation 
-        {
-            get { return aggregation; }
-            set { aggregation = value; }
+            Reliability = Reliability.Unreliable;
+            Ordering = Ordering.Unordered;
+            Aggregation = MessageAggregation.Aggregatable;
         }
 
+        /// <summary>
+        /// A constructor for specifying the most common requirements.
+        /// </summary>
+        /// <param name="d">the minimum reliability requirement</param>
+        /// <param name="a">the minimum aggregation requirement</param>
+        /// <param name="o">the minimum ordering requirement</param>
         public MessageDeliveryRequirements(Reliability d, MessageAggregation a, Ordering o)
         {
-            reliability = d;
-            aggregation = a;
-            ordering = o;
+            Reliability = d;
+            Aggregation = a;
+            Ordering = o;
         }
 
-        protected MessageDeliveryRequirements() {}
+        /// <summary>
+        /// Get/set the minimum reliability requirement
+        /// </summary>
+        /// <seealso cref="Reliability"/>
+        public Reliability Reliability {get; set; }
+
+        /// <summary>
+        /// Get/set the minimum ordering requirement
+        /// </summary>
+        /// <seealso cref="Ordering"/>
+        public Ordering Ordering { get; set; }
+
+        /// <summary>
+        /// Get/set the minimum aggregation requirement
+        /// </summary>
+        /// <seealso cref="Aggregation"/>
+        public MessageAggregation Aggregation { get; set; }
 
         public override string ToString()
         {
             StringBuilder sb = new StringBuilder();
-            sb.Append(reliability);
+            sb.Append(Reliability);
             sb.Append(',');
-            sb.Append(ordering);
+            sb.Append(Ordering);
             sb.Append(',');
-            sb.Append(aggregation);
+            sb.Append(Aggregation);
             return sb.ToString();
         }
 
         /// <summary>
         /// Select a transport meeting the requirements as specified by this instance.
-        /// Assume that <c>transports</c> is in a sorted order.
+        /// Assume that <see cref="candidates"/> is in a sorted order.
         /// </summary>
-        /// <param name="transports">the sorted list of available transports</param>
-        public virtual ITransport SelectTransport(IList<ITransport> transports) 
+        /// <param name="candidates">the sorted list of available transports</param>
+        public virtual ITransport SelectTransport(IList<ITransport> candidates) 
         {
-            foreach(ITransport t in transports) {
+            foreach(ITransport candidate in candidates) {
                 // wouldn't it be cool to check if the transport is backlogged?
-                if (MeetsRequirements(t)) { return t; }
+                if (MeetsRequirements(candidate)) { return candidate; }
             }
             return null;
         }
 
         /// <summary>
-        /// Test whether a transport meets the requirements as specified by this instance.
+        /// Test whether a candidate meets the requirements as specified by this instance.
         /// </summary>
-        /// <param name="transport">the transport to test</param>
-        public virtual bool MeetsRequirements(ITransport transport)
+        /// <param name="candidate">the transport to test</param>
+        public virtual bool MeetsRequirements(ITransport candidate)
         {
-            if (transport.Reliability < Reliability) { return false; }
-            if (transport.Ordering < Ordering) { return false; }
+            if (candidate.Reliability < Reliability) { return false; }
+            if (candidate.Ordering < Ordering) { return false; }
             return true;    // passed our test: go for gold!
         }
 
@@ -202,38 +213,44 @@ namespace GT.Net
     public class ChannelDeliveryRequirements
     {
         // FIXME: minimum delay, flow rates (min, max), maximum jitter
-        // NOTE: default values should be for the *LEAST* stringent possible.
 
-        protected Reliability reliability = Reliability.Unreliable;
-        protected Ordering ordering = Ordering.Unordered;
-        protected MessageAggregation aggregation = MessageAggregation.Aggregatable;
-        //protected int aggregationTimeout = -1;
-        protected Freshness freshness = Freshness.IncludeAll;
+        /// <summary>
+        /// A default constructor that specific the *LEAST* stringent possible values.
+        /// </summary>
+        protected ChannelDeliveryRequirements()
+        {
+            Reliability = Reliability.Unreliable;
+            Ordering = Ordering.Unordered;
+            Aggregation = MessageAggregation.Aggregatable;
+            //aggregationTimeout = -1;
+            Freshness = Freshness.IncludeAll;
+        }
 
-        public Reliability Reliability
-        {
-            get { return reliability; }
-            set { reliability = value; }
-        }
-        public Ordering Ordering
-        {
-            get { return ordering; }
-            set { ordering = value; }
-        }
-        public MessageAggregation Aggregation 
-        {
-            get { return aggregation; }
-            set { aggregation = value; }
-        }
-        //public int AggregationTimeout
-        //{
-        //    get { return aggregationTimeout; }
-        //    set { aggregationTimeout = value; }
-        //}
-        public Freshness Freshness { 
-            get { return freshness; }
-            set { freshness = value; }
-        }
+        /// <summary>
+        /// Get/set the reliability
+        /// </summary>
+        /// <seealso cref="Reliability"/>
+        public Reliability Reliability { get; set; }
+
+        /// <summary>
+        /// Get/set the ordering value.
+        /// </summary>
+        /// <seealso cref="Ordering"/>
+        public Ordering Ordering { get; set; }
+
+        /// <summary>
+        /// Get/set the aggregation value.
+        /// </summary>
+        /// <seealso cref="Aggregation"/>
+        public MessageAggregation Aggregation { get; set; }
+
+        //public int AggregationTimeout { get; set; }
+
+        /// <summary>
+        /// Get/set the freshness value.
+        /// </summary>
+        /// <seealso cref="Freshness"/>
+        public Freshness Freshness { get; set; }
 
         /// <summary>
         /// Constructor to set the 3 most common value
@@ -243,23 +260,22 @@ namespace GT.Net
         /// <param name="o">the required ordered</param>
         public ChannelDeliveryRequirements(Reliability d, MessageAggregation a, Ordering o)
         {
-            reliability = d;
-            aggregation = a;
-            ordering = o;
+            Reliability = d;
+            Aggregation = a;
+            Ordering = o;
+            Freshness = Freshness.IncludeAll;
         }
-
-        protected ChannelDeliveryRequirements() {}
 
         public override string ToString()
         {
             StringBuilder sb = new StringBuilder();
-            sb.Append(reliability);
+            sb.Append(Reliability);
             sb.Append(',');
-            sb.Append(ordering);
+            sb.Append(Ordering);
             sb.Append(',');
-            sb.Append(aggregation);
+            sb.Append(Aggregation);
             sb.Append(',');
-            sb.Append(freshness);
+            sb.Append(Freshness);
             return sb.ToString();
         }
 
@@ -291,12 +307,12 @@ namespace GT.Net
         }
 
         #region Preconfigured QoS Channel Descriptors
-        /// 
-        /// This region defines some general examples of channel descriptors.
-        /// Note: users should pay close attention to the aggregation requirements!
-        /// Any use of MessageAggregation.Aggregatable requires periodically <em>manually flushing</em>
-        /// the channel.
-        /// 
+        // 
+        // This region defines some general examples of channel descriptors.
+        // Note: users should pay close attention to the aggregation requirements!
+        // Any use of MessageAggregation.Aggregatable requires periodically <em>manually flushing</em>
+        // the channel.
+        // 
 
         /// <summary>A descriptor with the strictest possible requirements.</summary>
         public static ChannelDeliveryRequirements MostStrict
@@ -317,12 +333,12 @@ namespace GT.Net
             get { return new ChannelDeliveryRequirements(); }
         }
 
-        /// 
-        /// These examples are taken from J Dyck, C Gutwin, TCN Graham, D Pinelle (2007). 
-        /// Beyond the LAN: Techniques from network games for improving groupware performance. 
-        /// In Proc. Int. Conf. on Supporting Group Work (GROUP), 291–300. New York, USA: ACM. 
-        /// doi:10.1145/1316624.1316669
-        /// 
+        // 
+        // These examples are taken from J Dyck, C Gutwin, TCN Graham, D Pinelle (2007). 
+        // Beyond the LAN: Techniques from network games for improving groupware performance. 
+        // In Proc. Int. Conf. on Supporting Group Work (GROUP), 291–300. New York, USA: ACM. 
+        // doi:10.1145/1316624.1316669
+        // 
 
         /// <summary>
         /// A descriptor for awareness data such as telepointers: such messages can be
@@ -331,7 +347,7 @@ namespace GT.Net
         /// should ensure that such channels are either periodically flushed or have
         /// a lower ping time, to ensure these changes are pushed out.  Only the last 
         /// item placed in the channel will actually be sent 
-        /// (<see cref="Freshness.IncludeLatestOnly"/>), replacing any previous values.
+        /// (Freshness.IncludeLatestOnly), replacing any previous values.
         /// </summary>
         /// <remarks>
         /// We have changed this definition slightly from Dyck et al. to actually
@@ -421,22 +437,40 @@ namespace GT.Net
     /// </summary>
     public class SpecificTransportRequirement : MessageDeliveryRequirements
     {
+        /// <summary>
+        /// The specific transport requestd
+        /// </summary>
         protected ITransport transport;
 
+        /// <summary>
+        /// Create an instance of an MDR that requires a specific transport.
+        /// </summary>
+        /// <param name="t">the specific transport to require</param>
         public SpecificTransportRequirement(ITransport t) 
             : this(t, MessageAggregation.Immediate)
         {
         }
 
+        /// <summary>
+        /// Create an instance of an MDR that requires a specific transport.
+        /// </summary>
+        /// <param name="t">the specific transport to require</param>
+        /// <param name="aggr">the aggregation required</param>
         public SpecificTransportRequirement(ITransport t, MessageAggregation aggr)
             : base(t.Reliability, aggr, t.Ordering)
         {
             transport = t;
         }
 
-        public override bool MeetsRequirements(ITransport t)
+        /// <summary>
+        /// Verify whether the provided transport is the specific transport
+        /// as required by this instance.
+        /// </summary>
+        /// <param name="candidate">the candidate transport</param>
+        /// <returns>true if the candidate is the specific transport</returns>
+        public override bool MeetsRequirements(ITransport candidate)
         {
-            return transport == t;
+            return transport == candidate;
         }
     }
 

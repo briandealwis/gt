@@ -27,6 +27,12 @@ using Common.Logging;
 
 namespace GT.Net
 {
+    /// <summary>
+    /// A delegate specification for methods wishing to be notified of a new
+    /// transport having been accepted.
+    /// </summary>
+    /// <param name="transport">the new transport</param>
+    /// <param name="capabilities">the capabilities as described by the remote side</param>
     public delegate void NewTransportHandler(ITransport transport, IDictionary<string,string> capabilities);
 
     /// <summary>
@@ -99,6 +105,11 @@ namespace GT.Net
         /// </summary>
         public IList<string> Reasons { get; protected set; }
 
+        /// <summary>
+        /// Create a new instance
+        /// </summary>
+        /// <param name="t"></param>
+        /// <param name="capabilities"></param>
         public ValidateTransportArgs(ITransport t, IDictionary<string,string> capabilities) {
             Valid = true;
             Transport = t;
@@ -121,7 +132,7 @@ namespace GT.Net
         }
     }
 
-        /// <summary>
+    /// <summary>
     /// A base class for acceptor implementations.
     /// </summary>
     public abstract class BaseAcceptor : IAcceptor
@@ -205,7 +216,7 @@ namespace GT.Net
         /// additional checks.  This method will log a false result with any accompanying
         /// reasons as to why the connection was rejected.
         /// </summary>
-        /// <param name="transportw incoming transport</param>
+        /// <param name="transport">the incoming transport</param>
         /// <param name="capabilities">the capabilities from the remote</param>
         /// <returns>true if the new transport passes muster, false otherwise</returns>
         protected virtual bool ShouldAcceptTransport(ITransport transport, 

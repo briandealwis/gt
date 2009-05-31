@@ -38,10 +38,10 @@ namespace GT.Net
  
         public C Observed { get; protected set; }
 
-        public static CommunicationStatisticsObserver<C> On<C>(C communicator)
-            where C: Communicator
+        public static CommunicationStatisticsObserver<TC> On<TC>(TC communicator)
+            where TC: Communicator
         {
-            CommunicationStatisticsObserver<C> sd = new CommunicationStatisticsObserver<C>();
+            CommunicationStatisticsObserver<TC> sd = new CommunicationStatisticsObserver<TC>();
             sd.Observe(communicator);
             return sd;
         }

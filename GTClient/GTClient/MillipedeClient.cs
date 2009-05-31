@@ -25,7 +25,7 @@ using System.IO;
 using System.Runtime.Serialization.Formatters.Binary;
 using GT.Net;
 
-/// Client side of the Millipede debugger
+// Client side of the Millipede debugger
 namespace GT.Millipede
 {
     /// <summary>
@@ -100,7 +100,8 @@ namespace GT.Millipede
         /// Wraps IConnector.Connect. In addition, writes data to a sink if MillipedeConnector is
         /// initialized with Mode.Record. The returning ITransport is wrapped in a
         /// MillipedeTransport.
-        /// <see cref="IConnector.Connect"/>
+        /// </summary>
+        /// <seealso cref="IConnector.Connect"/>
         public ITransport Connect(string address, string port, IDictionary<string, string> capabilities)
         {
             switch (recorder.Mode)

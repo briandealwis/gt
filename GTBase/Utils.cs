@@ -24,9 +24,7 @@ using System.Collections.Generic;
 using System.Text;
 using System.IO;
 
-/// <summary>
-/// A set of useful utility classes for building applications.
-/// </summary>
+// A set of useful utility classes for building applications.
 namespace GT.Utils
 {
     // These exist in .NET 3.0 apparently///
@@ -337,13 +335,13 @@ namespace GT.Utils
 
         #region String-String Dictionary Encoding and Decoding
 
-        /// A simple string-string dictionary that is simply encoded as a stream of bytes.
-        /// This uses an encoding *similar* to bencoding (http://en.wikipedia.org/wiki/Bencoding).
-        /// Encoding of numbers is done with <see cref="EncodeLength"/> and <see cref="DecodeLength"/>.
-        /// First is the number of key-value pairs.  Followed are the list of the n key-value pairs.  
-        /// Each string is prefixed by its encoded length (in bytes as encoded in UTF-8) and then 
-        /// the UTF-8 encoded string.
-
+        // A simple string-string dictionary that is simply encoded as a stream of bytes.
+        // This uses an encoding *similar* to bencoding (http://en.wikipedia.org/wiki/Bencoding).
+        // Encoding of numbers is done with <see cref="EncodeLength"/> and <see cref="DecodeLength"/>.
+        // First is the number of key-value pairs.  Followed are the list of the n key-value pairs.  
+        // Each string is prefixed by its encoded length (in bytes as encoded in UTF-8) and then 
+        // the UTF-8 encoded string.
+        
         /// <summary>
         /// Figure out how many bytes would be necessary to encode the provided dictionary
         /// using our bencoding-like format.

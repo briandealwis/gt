@@ -28,6 +28,11 @@ using GT.Utils;
 
 namespace GT.Net
 {
+    /// <summary>
+    /// A server-side UDP transport that uses a <see cref="UdpHandle"/> for sending
+    /// and receiving packets.  Server-side UDP transports must use the 
+    /// <see cref="UdpMultiplexer"/> to share access to the common UDP socket.
+    /// </summary>
     public class UdpServerTransport : BaseUdpTransport
     {
         private UdpHandle handle;
@@ -95,7 +100,7 @@ namespace GT.Net
                         case SocketError.WouldBlock:
                             //don't die, but try again next time; not clear if this does (can) happen with UDP
                             // NotifyError(null, error, this, "The UDP write buffer is full now, but the data will be saved and " +
-                            ///    "sent soon.  Send less data to reduce perceived latency.");
+                            //    "sent soon.  Send less data to reduce perceived latency.");
                             return;
                         default:
                             //something terrible happened, but this is only UDP, so stick around.
@@ -275,7 +280,7 @@ namespace GT.Net
         {
             if (Active) { return; }
             if (udpMultiplexer == null) { udpMultiplexer = new UdpMultiplexer(address, port); }
-            udpMultiplexer.SetDefaultMessageHandler(PreviouslyUnseenUdpEndpoint);
+            udpMultiplexer.SetDefaultPacketHandler(PreviouslyUnseenUdpEndpoint);
             udpMultiplexer.Start();
         }
 
@@ -312,6 +317,13 @@ namespace GT.Net
             }
         }
 
+        /// <summary>
+        /// Handle incoming packets from previously-unknown remote endpoints.
+        /// We check if the packet indicates a handshake and, if so, negotiate.
+        /// Otherwise we send a GT error message and disregard the packet.
+        /// </summary>
+        /// <param name="ep">the remote endpoint</param>
+        /// <param name="packet">the first packet</param>
         protected void PreviouslyUnseenUdpEndpoint(EndPoint ep, TransportPacket packet)
         {
             TransportPacket response;
@@ -344,7 +356,7 @@ namespace GT.Net
                                 ByteUtils.AsPrintable(rest, 0, rest.Length)));
                         }
 
-                        ITransport result = factory.CreateTransport(new UdpHandle(ep, udpMultiplexer));
+                        ITransport result = factory.CreateTransport(UdpHandle.Bind(udpMultiplexer, ep));
                         if (ShouldAcceptTransport(result, dict))
                         {
                             // Send confirmation

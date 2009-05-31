@@ -104,7 +104,7 @@ namespace GT.Net
         /// <param name="clientGuid">the client's GUID</param>
         /// <param name="clientIdentity">the server-unique identity for the client</param>
         /// <returns>the client connexion</returns>
-        virtual public ConnexionToClient CreateClientConnexion(Server owner, 
+        virtual public IConnexion CreateClientConnexion(Server owner, 
             Guid clientGuid, int clientIdentity)
         {
             return new ConnexionToClient(owner, clientGuid, clientIdentity);
@@ -129,8 +129,14 @@ namespace GT.Net
     /// </summary>
     public class DefaultServerConfiguration : ServerConfiguration
     {
+        /// <summary>
+        /// The default configuration uses this port.
+        /// </summary>
         protected int port = 9999;
 
+        /// <summary>
+        /// Create a new instance
+        /// </summary>
         public DefaultServerConfiguration() { }
 
         /// <summary>
@@ -189,7 +195,6 @@ namespace GT.Net
 
         private bool running = false;
         private int serverIdentity;
-        protected ILog log;
 
         /// <summary>
         /// A factory-like object responsible for providing the server's runtime
@@ -424,11 +429,11 @@ namespace GT.Net
             base.RemovedConnexion(cnx);
         }
 
-        protected virtual ConnexionToClient CreateNewConnexion(Guid clientGuid)
+        protected virtual IConnexion CreateNewConnexion(Guid clientGuid)
         {
-            ConnexionToClient cnx = configuration.CreateClientConnexion(this, clientGuid, GenerateIdentity());
+            IConnexion cnx = configuration.CreateClientConnexion(this, clientGuid, GenerateIdentity());
             cnx.MessageReceived += ReceivedClientMessage;
-            cnx.ErrorEvent += NotifyError;
+            cnx.ErrorEvents += NotifyError;
             AddConnexion(cnx);
             return cnx;
         }
@@ -450,7 +455,7 @@ namespace GT.Net
 
             // FIXME: Hmmm, how do we check the GTCapabilities.MARSHALLER_DESCRIPTORS?
 
-            ConnexionToClient c = GetConnexionForClientGuid(clientGuid);
+            IConnexion c = GetConnexionForClientGuid(clientGuid);
             if (c == null)
             {
                 //if (log.IsInfoEnabled)
@@ -473,9 +478,9 @@ namespace GT.Net
         /// <summary>Returns the client matching the provided GUID.</summary>
         /// <param name="clientGuid">The remote client GUID.</param>
         /// <returns>The client with that GUID.  If no match, then return null.</returns>
-        virtual protected ConnexionToClient GetConnexionForClientGuid(Guid clientGuid)
+        virtual protected BaseConnexion GetConnexionForClientGuid(Guid clientGuid)
         {
-            foreach (ConnexionToClient c in Clients)
+            foreach (BaseConnexion c in Clients)
             {
                 if (c.ClientGuid.Equals(clientGuid)) { return c; }
             }
@@ -545,6 +550,9 @@ namespace GT.Net
             get { return running; }
         }
 
+        /// <summary>
+        /// Return the instance's acceptors
+        /// </summary>
         public ICollection<IAcceptor> Acceptors
         {
             get { return acceptors; }
@@ -706,9 +714,6 @@ namespace GT.Net
     {
         #region Variables and Properties
 
-        /// <summary>Triggered when an error occurs in this client.</summary>
-        public event ErrorEventNotication ErrorEvent;
-
         /// <summary>
         /// The client's globally unique identifier (vs <see cref="IConnexion.Identity"/>,
         /// which is only unique to the clients connected to <see cref="owner"/>).
@@ -758,7 +763,7 @@ namespace GT.Net
         /// <summary>Is this ClientConnexion dead?  This function is intended for use as a predicate
         /// such as in <c>List.FindAll()</c>.</summary>
         /// <param name="c">The client to check.</param>
-        /// <returns>True if the client <c>c</c> </c>is dead.</returns>
+        /// <returns>True if the client <c>c</c> is dead.</returns>
         internal static bool IsDead(ConnexionToClient c)
         {
             return !c.Active || c.Transports.Count == 0;

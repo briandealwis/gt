@@ -93,43 +93,82 @@ namespace GT.Net
         }
     }
 
+    /// <summary>
+    /// A message containing a revised tuple from a particular client.
+    /// </summary>
     public class TupleMessage : Message
     {
-        protected int clientId;
-        protected int tupleDimension;
-        protected IConvertible x, y, z;
-
-        public TupleMessage(byte id, int clientId, IConvertible x)
-            : base(id, MessageType.Tuple1D)
+        /// <summary>
+        /// Encode a 1D tuple
+        /// </summary>
+        /// <param name="channelId">the channel</param>
+        /// <param name="clientId">the client sending the tuple</param>
+        /// <param name="x">the tuple value</param>
+        public TupleMessage(byte channelId, int clientId, IConvertible x)
+            : base(channelId, MessageType.Tuple1D)
         {
-            this.clientId = clientId;
-            tupleDimension = 1;
-            this.x = x;
+            ClientId = clientId;
+            Dimension = 1;
+            X = x;
         }
 
-        public TupleMessage(byte id, int clientId, IConvertible x, IConvertible y)
-            : base(id, MessageType.Tuple2D)
+        /// <summary>
+        /// Encode a 2D tuple
+        /// </summary>
+        /// <param name="channelId">the channel</param>
+        /// <param name="clientId">the client sending the tuple</param>
+        /// <param name="x">the first tuple component</param>
+        /// <param name="y">the second tuple component</param>
+        public TupleMessage(byte channelId, int clientId, IConvertible x, IConvertible y)
+            : base(channelId, MessageType.Tuple2D)
         {
-            this.clientId = clientId;
-            tupleDimension = 2;
-            this.x = x;
-            this.y = y;
+            ClientId = clientId;
+            Dimension = 2;
+            X = x;
+            Y = y;
         }
 
-        public TupleMessage(byte id, int clientId, IConvertible x, IConvertible y, IConvertible z)
-            : base(id, MessageType.Tuple3D)
+        /// <summary>
+        /// Encode a 3D tuple
+        /// </summary>
+        /// <param name="channelId">the channel</param>
+        /// <param name="clientId">the client sending the tuple</param>
+        /// <param name="x">the first tuple component</param>
+        /// <param name="y">the second tuple component</param>
+        /// <param name="z">the third tuple component</param>
+        public TupleMessage(byte channelId, int clientId, IConvertible x, IConvertible y, IConvertible z)
+            : base(channelId, MessageType.Tuple3D)
         {
-            this.clientId = clientId;
-            tupleDimension = 3;
-            this.x = x;
-            this.y = y;
-            this.z = z;
+            ClientId = clientId;
+            Dimension = 3;
+            X = x;
+            Y = y;
+            Z = z;
         }
 
-        public int ClientId { get { return clientId; } }
-        public int Dimension { get { return tupleDimension; } }
-        public IConvertible X { get { return x; } }
-        public IConvertible Y { get { return y; } }
-        public IConvertible Z { get { return z; } }
+        /// <summary>
+        /// Return the id of the client that sent this tuple
+        /// </summary>
+        public int ClientId { get; protected set; }
+
+        /// <summary>
+        /// Return the number of components in this tuple
+        /// </summary>
+        public int Dimension { get; protected set; }
+
+        /// <summary>
+        /// Return the tuple's X component
+        /// </summary>
+        public IConvertible X { get; protected set; }
+
+        /// <summary>
+        /// Return the tuple's Y component
+        /// </summary>
+        public IConvertible Y { get; protected set; }
+
+        /// <summary>
+        /// Return the tuple's Z component
+        /// </summary>
+        public IConvertible Z { get; protected set; }
     }
 }

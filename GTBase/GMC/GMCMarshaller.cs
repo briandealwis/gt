@@ -29,18 +29,16 @@ using Common.Logging;
 using GT.Net;
 using GT.Utils;
 
-/// <summary>
-/// An adapative message marshaller.  This marshaller implements
-/// the general message compressor as described in:
-/// <blockquote>
-/// C Gutwin, C Fedak, M Watson, J Dyck, T Bell (2006).  Improving
-/// network efficiency in real-time groupware with general message
-/// compression.  In Proc of the Conference on Computer Supported
-/// Cooperative Work (CSCW), 119--128.
-/// &lt;doi:10.1145/1180875.1180894&gt;
-/// &lt;http://hci.usask.ca/publications/2006/compression.pdf&gt;
-/// </blockquote>
-/// </summary>
+// An adapative message marshaller.  This marshaller implements
+// the general message compressor as described in:
+// <blockquote>
+// C Gutwin, C Fedak, M Watson, J Dyck, T Bell (2006).  Improving
+// network efficiency in real-time groupware with general message
+// compression.  In Proc of the Conference on Computer Supported
+// Cooperative Work (CSCW), 119--128.
+// &lt;doi:10.1145/1180875.1180894&gt;
+// &lt;http://hci.usask.ca/publications/2006/compression.pdf&gt;
+// </blockquote>
 namespace GT.GMC
 {
 

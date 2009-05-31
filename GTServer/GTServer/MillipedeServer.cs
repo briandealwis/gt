@@ -26,12 +26,12 @@ using System.IO;
 using System.Runtime.Serialization.Formatters.Binary;
 using GT.Net;
 
-/// Server side of the Millipede debugger
+// Server side of the Millipede debugger
 namespace GT.Millipede
 {
     /// <summary>
     /// An wrapper around an acceptor for the millipede packet recorder/replayer.
-    /// The acceptor wrapper is created using <see cref="Wrap"/>.
+    /// The acceptor wrapper is created using one of the Wrap() methods.
     /// </summary>
     public class MillipedeAcceptor : BaseAcceptor
     {
@@ -110,7 +110,7 @@ namespace GT.Millipede
         }
 
         /// <summary>
-        /// ITransports use a observer-pattern (implemented with events & callbacks) to notify
+        /// ITransports use a observer-pattern (implemented with events and callbacks) to notify
         /// other GT2 components. Since these other componets register to the MillipedeAcceptor,
         /// there must be a mechanism to forward notifications from the IAcceptor to other GT2
         /// components.

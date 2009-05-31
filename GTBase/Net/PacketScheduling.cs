@@ -187,17 +187,17 @@ namespace GT.Net
 
         public override void Update()
         {
-            /// In a FIFO, we send 'em as they are scheduled.
+            // In a FIFO, we send 'em as they are scheduled.
         }
 
         public override void Flush()
         {
-            /// In a FIFO, we send 'em as they are scheduled.
+            // In a FIFO, we send 'em as they are scheduled.
         }
 
         public override void FlushChannelMessages(byte channelId)
         {
-            /// In a FIFO, we send 'em as they are scheduled.
+            // In a FIFO, we send 'em as they are scheduled.
         }
     }
 
@@ -238,7 +238,7 @@ namespace GT.Net
         protected IDictionary<byte, int> channelIndices = 
             new Dictionary<byte, int>();
 
-        /// <summary></summary>
+        /// <summary>
         /// These dictionaries record the current sending state during the
         /// execution of Schedule() and Flush*().  They should otherwise be empty.
         /// </summary>
@@ -450,7 +450,7 @@ namespace GT.Net
 
         protected virtual void FlushPendingPackets(CannotSendMessagesError csme)
         {
-            /// And send any pending stuff
+            // And send any pending stuff
             foreach (ITransport t in packetsInProgress.Keys)
             {
                 TransportPacket tp;

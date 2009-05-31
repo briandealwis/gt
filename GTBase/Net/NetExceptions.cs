@@ -141,7 +141,7 @@ namespace GT.Net
         }
 
         [SecurityPermissionAttribute(SecurityAction.Demand, SerializationFormatter = true)]
-        public virtual void GetObjectData(SerializationInfo info, StreamingContext context)
+        public override void GetObjectData(SerializationInfo info, StreamingContext context)
         {
             info.AddValue("source", Source);
             info.AddValue("severity", Severity);
@@ -216,7 +216,7 @@ namespace GT.Net
         }
 
         [SecurityPermissionAttribute(SecurityAction.Demand, SerializationFormatter = true)]
-        public virtual void GetObjectData(SerializationInfo info, StreamingContext context)
+        public override void GetObjectData(SerializationInfo info, StreamingContext context)
         {
             info.AddValue("source", Source);
             info.AddValue("sourcecomponent", 

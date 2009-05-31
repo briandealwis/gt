@@ -52,6 +52,11 @@ namespace GT.Net
         /// </summary>
         public UdpConnector() : this(Ordering.Unordered) {}
 
+        /// <summary>
+        /// Create a new instance for handling UDP connections providing
+        /// specified ordering requirements.
+        /// </summary>
+        /// <param name="ordering"></param>
         public UdpConnector(Ordering ordering)
         {
             log = LogManager.GetLogger(GetType());
@@ -74,6 +79,10 @@ namespace GT.Net
             }
         }
 
+        /// <summary>
+        /// Create a new instance using the provided transport factory
+        /// </summary>
+        /// <param name="factory"></param>
         public UdpConnector(TransportFactory<UdpClient> factory)
         {
             log = LogManager.GetLogger(GetType());
@@ -81,6 +90,9 @@ namespace GT.Net
             this.factory = factory;
         }
 
+        /// <summary>
+        /// Return the protocol descriptor talked by this instance.
+        /// </summary>
         public byte[] ProtocolDescriptor
         {
             get { return factory.ProtocolDescriptor; }
@@ -95,8 +107,6 @@ namespace GT.Net
         /// Amount of time to wait for a return on negotiation.
         /// </summary>
         protected virtual TimeSpan NegotiationTimeout { get { return TimeSpan.FromMilliseconds(500); } }
-
-
 
         public void Start() { active = true; }
         public void Stop() { active = false; }

@@ -148,7 +148,7 @@ namespace GT.Utils
         /// different in subclasses.
         /// Callers are requested to return the element when finished via
         /// <see cref="Return"/> or <see cref="Ruined"/>.
-        /// <summary>
+        /// </summary>
         /// <returns>an element from the pool</returns>
         public virtual T Obtain()
         {
@@ -309,7 +309,7 @@ namespace GT.Utils
         /// different in subclasses.
         /// Callers are *required* to return the element when finished via
         /// <see cref="Return"/> or <see cref="Ruined"/>.
-        /// <summary>
+        /// </summary>
         /// <returns>an element from the pool</returns>
         public override T Obtain()
         {

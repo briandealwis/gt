@@ -30,9 +30,25 @@ namespace GT
     /// </summary>
     public class GaussianRandomNumberGenerator
     {
+        /// <summary>
+        /// The generator of uniform random values
+        /// </summary>
         protected Random uniformGenerator;
+
+        /// <summary>
+        /// Track the usage status of the n1 and n2 values.  If true, then
+        /// they must be regenerated; if false, then n2 is still valid.
+        /// </summary>
         protected bool mustGenerate = true;
+
+        /// <summary>
+        /// The mean and standard deviations
+        /// </summary>
         protected double mean, deviation;
+
+        /// <summary>
+        /// The two sample values.
+        /// </summary>
         protected double n1, n2;
 
         /// <summary>
@@ -43,6 +59,13 @@ namespace GT
         public GaussianRandomNumberGenerator(double mean, double deviation) 
             : this(mean, deviation, new Random()) { }
 
+        /// <summary>
+        /// Create a new instance with specified mean and standard deviation
+        /// using a configured generator of uniform random values.
+        /// </summary>
+        /// <param name="mean">the mean</param>
+        /// <param name="deviation">the standard deviation</param>
+        /// <param name="uniformGenerator">a generator of uniform random values</param>
         public GaussianRandomNumberGenerator(double mean, double deviation, 
             Random uniformGenerator)
         {
@@ -67,6 +90,9 @@ namespace GT
             return n2;
         }
 
+        /// <summary>
+        /// Gnerate two gaussian samples.
+        /// </summary>
         protected void GenerateGaussianSamples()
         {
             // NB: System.Random.NextDouble() returns [0,1), not [0,1]

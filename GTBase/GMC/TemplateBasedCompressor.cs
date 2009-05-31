@@ -93,9 +93,8 @@ namespace GT.GMC
         }
 
         /// <summary>
-        /// Set whether huffman encoding should be used.
+        /// Return true if data should be huffman-encoded, false otherwise.
         /// </summary>
-        /// <param name="setting">true if data should be huffman-encoded, false otherwise.</param>
         public bool HuffmanEncoding
         {
             get { return hc.HuffmanEncoding; }
@@ -268,9 +267,9 @@ namespace GT.GMC
             Debug.Assert(message != null);
             if (cmp.Huffed) { message = hc.Decode(message); }
             Debug.Assert(message != null);
-            /// if(cmp.Gmced) { 
+            // if(cmp.Gmced) { 
             message = tc.Decode(message);
-            /// }
+            // }
 
             return message;
         }

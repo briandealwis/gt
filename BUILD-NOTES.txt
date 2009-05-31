@@ -1,16 +1,48 @@
 Deployment & Building the MSI installer
 =======================================
 
-The deployment project (GT.Setup) assumes the manual has been PDF'd
-and the Doxygen documentation has been generated.
+These instructions are specifically for building the MSI installer
+for GT using VisualStudio 2008, and are intended to complement the
+instructions documented on the GT Trac.
+
+The deployment project (GT.Setup) assumes the manual has been PDF'd:
 
   * To build the PDF of the manual, use Adobe Distiller.
     (Actually, Word for the Mac is much faster and seems to produce
-    a better quality PDF to boot.)
+    a better quality PDF.)
 
-  * To generate the Doxygen docs, run the following command in the doc/
-    directory:
+  * We currently don't package the Doxygen files (I couldn't figure out
+    a nice way to pull them in).  To generate the Doxygen docs, run
+    the following command in the doc/ directory:
 
 	$ doxygen gt.dox
 
     The results will be placed in the doc/html/ directory.
+
+To build the MSI: first decide if you want to distribute using a
+Release configuration or the Debug configuration.  We've been releasing
+the Debug configuration as people have been more focussed on being able
+to debug their apps at the expense of a slight performance problem.
+
+  * Clean the solution (Build -> Clean Solution) to remove all any
+    previously generated stuff.
+
+ [* Change your active solution's build type to "Release" (toolbar near
+    the green play arrow, or use Build -> Configuration Manager).]
+
+  * Rebuild the solution (Build -> Rebuild).  It's helpful to have
+    the "Output" window open.  Ensure there are no failures.
+
+     [* You may want to re-run the unit tests to be sure there is
+	no code depends on the debug behaviour.]
+
+  * Build the GT.MergeModule to build the merge module.
+    Don't "Rebuild" as otherwise the AssemblyVersions will be bumped
+    in GTBase.dll, GTClient.dll, GTServer.dll, GTUI.dll and no longer
+    match the versions specified in any of the other projects.
+
+  * Build the GT.Setup to build the MSI installer.
+    Ditto for the rebuild.
+    There should be no warnings.
+
+Install the GT MSI and ensure the ClientRepeater and all examples work.

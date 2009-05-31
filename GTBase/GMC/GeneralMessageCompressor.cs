@@ -86,6 +86,10 @@ namespace GT.GMC
         public uint[] FrequencyTable = null; // the updated byte frequency counts
         public Dictionary<uint, byte> Announcements;    // dictionary replacements
 
+        /// <summary>
+        /// Return the estimated length in bytes for encoding purposes.
+        /// </summary>
+        /// <returns>number of estimated bytes required</returns>
         public int EstimatedMessageLength()
         {
             int length = 2;     // templateId
@@ -117,6 +121,9 @@ namespace GT.GMC
 
         private ILog log;
 
+        /// <summary>
+        /// Create a new instance
+        /// </summary>
         public GeneralMessageCompressor()
         {
             log = LogManager.GetLogger(GetType());
@@ -180,9 +187,9 @@ namespace GT.GMC
 
 
         /// <summary>
-        /// Set whether huffman encoding should be used.  Enabled by default.
+        /// Return true if data should be huffman-encoded, false otherwise.whether huffman encoding should be used.
+        /// Enabled by default.
         /// </summary>
-        /// <param name="setting">true if data should be huffman-encoded, false otherwise.</param>
         public bool HuffmanEncoding
         {
             get { return useHuff; }
@@ -228,8 +235,8 @@ namespace GT.GMC
                 // message and then encode this message with itself.
                 short templateId = ConstructTemplate(message);
                 cmp = EncodeWith(templateId, message);
-                /// FIXME: GMC currently assumes that messages are sent reliably.
-                /// This should be changed -- not clear how yet though.
+                // FIXME: GMC currently assumes that messages are sent reliably.
+                // This should be changed -- not clear how yet though.
                 compressors[templateId].UpdatesAccepted();
                 return cmp;
             }
@@ -237,7 +244,7 @@ namespace GT.GMC
             float compression = (float)cmp.EstimatedMessageLength() / (float)message.Length;
             if (compression > targetRatio)
             { 
-                /// we need to run the template generator now as it is awful.
+                // we need to run the template generator now as it is awful.
                 // also, run the huffman encoding, for good measure.
                 // ct.GetFastCompressor().generateTree();
                 savedMessages.AddLast(message);
@@ -268,9 +275,9 @@ namespace GT.GMC
                 targetRatio = Math.Max(0.2, targetRatio - .005);
             }
 
-            /// FIXME: GMC currently assumes that messages are sent reliably.
-            /// This should be changed -- not clear how yet though.
-            /// Perhaps it should be transactional?  I.e., Commit()/Abort()?
+            // FIXME: GMC currently assumes that messages are sent reliably.
+            // This should be changed -- not clear how yet though.
+            // Perhaps it should be transactional?  I.e., Commit()/Abort()?
             if (cmp.Gmced)
             {
                 foreach (TemplateBasedCompressor ct in compressors)
@@ -427,7 +434,7 @@ namespace GT.GMC
             }
         }
 
-        /** Print all the encodings of a Huffed template*/
+        /* Print all the encodings of a Huffed template */
         //public void DumpEncodings() 
         //{
         //    int i = 0;
@@ -442,7 +449,7 @@ namespace GT.GMC
         //    }
         //}
 
-        /** Print the usage of every value of a huffed Template*/
+        /* Print the usage of every value of a huffed Template */
         //public void PrintUsages()
         //{
         //    for(int i=0;i<compressors.Count;i++){

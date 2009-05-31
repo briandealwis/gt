@@ -60,9 +60,8 @@ namespace GT.GMC
         public int huffedTrees = 0;
 
         /// <summary>
-        /// Set whether huffman encoding should be used.
+        /// Returns true if data should be huffman-encoded, false otherwise.
         /// </summary>
-        /// <param name="setting">true if data should be huffman-encoded, false otherwise.</param>
         public bool HuffmanEncoding
         {
             get { return useHuff; }

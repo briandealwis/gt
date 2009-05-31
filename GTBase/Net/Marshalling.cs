@@ -143,11 +143,6 @@ namespace GT.Net
         /// </summary>
         /// <returns></returns>
         TransportPacket RemovePacket();
-
-        /// <summary>
-        /// Dispose of this instance.
-        /// </summary>
-        void Dispose();
     }
 
     /// <summary>
@@ -241,7 +236,6 @@ namespace GT.Net
         /// <summary>
         /// Descriptor for the Lightweight Message Container Format v1.1:
         /// This format prefix each marshaller with a 6 byte header where:
-        /// </para>
         /// <list>
         /// <item> byte 0 is the message type</item>
         /// <item> byte 1 is the channelId</item>
@@ -340,8 +334,8 @@ namespace GT.Net
             Debug.Assert(output.CanSeek);
             MarshalContents(msg, output, tdc);
             output.Flush();
-            /// System messages don't have a channelId -- we encode their system message
-            /// type as the channelId instead
+            // System messages don't have a channelId -- we encode their system message
+            // type as the channelId instead
             tp.Prepend(LWMCFv11.EncodeHeader(msg.MessageType, 
                 msg.MessageType == MessageType.System 
                     ? (byte)((SystemMessage)msg).Descriptor : msg.ChannelId, 

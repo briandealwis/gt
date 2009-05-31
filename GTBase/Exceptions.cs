@@ -22,10 +22,8 @@
 using System;
 using System.Collections.Generic;
 
-/// <summary>
-/// Fundamental classes and interfaces used throughout GT, including
-/// for reporting errors.
-/// <summary>
+// Fundamental classes and interfaces used throughout GT, including
+// for reporting errors.
 namespace GT
 {
     /// <summary>
@@ -88,7 +86,8 @@ namespace GT
         /// <summary>
         /// Initializes a new instance of the System.Exception class with a specified error message.
         /// </summary>
-        /// <param name="message">The message that describes the error.</parameter>
+        /// <param name="sev">the severity of the exception</param>
+        /// <param name="message">The message that describes the error.</param>
         public GTException(Severity sev, string message)
             : base(message)
         {
@@ -99,7 +98,9 @@ namespace GT
         /// Initializes a new instance of the System.Exception class with a specified error message
         /// and inner exception.
         /// </summary>
-        /// <param name="message">The message that describes the error.</parameter>
+        /// <param name="sev">the severity of the exception</param>
+        /// <param name="message">The message that describes the error.</param>
+        /// <param name="inner">the cause of the exception, if any</param>
         public GTException(Severity sev, string message, Exception inner)
             : base(message, inner)
         {
@@ -120,6 +121,11 @@ namespace GT
     /// </summary>
     public class ContractViolation : GTException
     {
+        /// <summary>
+        /// Create an instance documenting a contract violation
+        /// </summary>
+        /// <param name="sev">the associate severity of the violation</param>
+        /// <param name="message">text describing the violation</param>
         public ContractViolation(Severity sev, string message)
             : base(sev, message)
         { }
