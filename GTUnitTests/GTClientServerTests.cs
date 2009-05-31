@@ -915,9 +915,9 @@ namespace GT.UnitTests
                      {
                          Console.WriteLine("CR: received {0}", m);
                      };
-            server.Server.MessagesSent += delegate(IList<Message> ms, ICollection<IConnexion> cnx, MessageDeliveryRequirements transport)
+            server.Server.MessageSent += delegate(Message msg, IConnexion cnx, ITransport transport)
             {
-                Console.WriteLine("CR: sent {0}", ms);
+                Console.WriteLine("CR: sent {0}", msg);
             };
             bc.Connexion.MessageReceived += delegate(Message m, IConnexion cnx, ITransport transport)
             {
@@ -970,6 +970,11 @@ namespace GT.UnitTests
         private Client client;
         private EchoingServer server;
 
+        private uint clientMessagesSent = 0;
+        private uint clientMessagesReceived = 0;
+        private uint serverMessagesSent = 0;
+        private uint serverMessagesReceived = 0;
+
         private static TimeSpan ServerSleepTime = TimeSpan.FromMilliseconds(20);
         private static TimeSpan ClientSleepTime = TimeSpan.FromMilliseconds(25);
         private static string EXPECTED_GREETING = "Hello!";
@@ -988,6 +993,10 @@ namespace GT.UnitTests
         {
             errorOccurred = false;
             responseReceived = false;
+            clientMessagesSent = 0;
+            clientMessagesReceived = 0;
+            serverMessagesSent = 0;
+            serverMessagesReceived = 0;
         }
 
         [TearDown]
@@ -1012,6 +1021,8 @@ namespace GT.UnitTests
             server = new EchoingServer(9999, expected, response);
             server.ServerSleepTime = ServerSleepTime;
             server.Start();
+            server.Server.MessageSent += delegate(Message m, IConnexion client1, ITransport transport) { serverMessagesSent++; };
+            server.Server.MessageReceived += delegate(Message m, IConnexion client1, ITransport transport) { serverMessagesReceived++; };
         }
 
         #region "Tests"
@@ -1385,6 +1396,10 @@ namespace GT.UnitTests
 
             client = new TestClientConfiguration().BuildClient();  //this is a client
             client.ErrorEvent += client_ErrorEvent;  //triggers if there is an error
+            client.MessageSent += delegate { clientMessagesSent++; };
+            client.MessageReceived += delegate { clientMessagesReceived++; };
+
+
             client.Start();
             Assert.IsFalse(errorOccurred);
             Assert.IsFalse(responseReceived);
@@ -1422,64 +1437,75 @@ namespace GT.UnitTests
         }
 
         [Test]
-        public void TestClientMessageReceived()
+        public void TestNormal()
+        {
+            ReentrantFramework(c => c.ConnexionAdded +=
+                delegate(Communicator comm, IConnexion cnx) { cnx.MessageReceived += delegate { c.Dispose(); }; }, null);
+            Assert.AreEqual(1, clientMessagesSent);
+            Assert.AreEqual(1, serverMessagesReceived);
+            Assert.AreEqual(1, serverMessagesSent);
+            Assert.AreEqual(1, clientMessagesReceived);
+        }
+
+        [Test]
+        public void TestDisposeInClientMessageReceived()
         {
             ReentrantFramework(c => c.ConnexionAdded +=
                 delegate(Communicator comm, IConnexion cnx) { cnx.MessageReceived += delegate { c.Dispose(); }; }, null);
         }
 
         [Test]
-        public void TestServerMessageReceived()
+        public void TestDisposeInServerMessageReceived()
         {
             ReentrantFramework(null, s => s.MessageReceived += delegate { s.Dispose(); });
         }
 
         [Test]
-        public void TestClientMessageSent()
+        public void TestDisposeInClientMessageSent()
         {
             ReentrantFramework(c => c.ConnexionAdded +=
                 delegate(Communicator comm, IConnexion cnx) { cnx.MessageSent += delegate { c.Dispose(); }; }, null);
         }
 
         [Test]
-        public void TestServerMessageSent()
+        public void TestDisposeInServerMessageSent()
         {
-            ReentrantFramework(null, s => s.MessagesSent += delegate { s.Dispose(); });
+            ReentrantFramework(null, s => s.MessageSent += delegate { s.Dispose(); });
         }
 
         [Test]
-        public void TestClientConnexionAdded()
+        public void TestDisposeInClientConnexionAdded()
         {
             ReentrantFramework(c => c.ConnexionAdded += delegate { c.Dispose(); }, null);
         }
 
         [Test]
-        public void TestServerConnexionAdded()
+        public void TestDisposeInServerConnexionAdded()
         {
             ReentrantFramework(null, s => s.ClientsJoined += delegate { s.Dispose(); });
         }
 
         [Test]
-        public void TestClientConnexionRemoved()
+        public void TestDisposeInClientConnexionRemoved()
         {
             ReentrantFramework(c => c.ConnexionRemoved += delegate { c.Dispose(); }, null);
         }
 
         [Test]
-        public void TestServerConnexionRemoved()
+        public void TestDisposeInServerConnexionRemoved()
         {
             ReentrantFramework(null, s => s.ClientsRemoved += delegate { s.Dispose(); });
         }
 
         [Test]
-        public void TestClientTransportAdded()
+        public void TestDisposeInClientTransportAdded()
         {
             ReentrantFramework(c => c.ConnexionAdded +=
                 delegate(Communicator comm, IConnexion cnx) { cnx.TransportAdded += delegate { c.Dispose(); }; }, null);
         }
 
         [Test]
-        public void TestServerTransportAdded()
+        public void TestDisposeInServerTransportAdded()
         {
             ReentrantFramework(null, s => s.ClientsJoined +=
                 delegate(ICollection<IConnexion> list)
@@ -1489,14 +1515,14 @@ namespace GT.UnitTests
         }
 
         [Test]
-        public void TestClientTransportRemoved()
+        public void TestDisposeInClientTransportRemoved()
         {
             ReentrantFramework(c => c.ConnexionAdded +=
                 delegate(Communicator comm, IConnexion cnx) { cnx.TransportRemoved += delegate { c.Dispose(); }; }, null);
         }
 
         [Test]
-        public void TestServerTransportRemoved()
+        public void TestDisposeInServerTransportRemoved()
         {
             ReentrantFramework(null, s => s.ClientsJoined +=
                 delegate(ICollection<IConnexion> list)

@@ -37,6 +37,12 @@ namespace GT.Net
     /// <param name="conn">the actual connexion</param>
     public delegate void ConnexionLifecycleNotification(Communicator c, IConnexion conn);
 
+    /// <summary>Notification of outgoing messages</summary>
+    /// <param name="msgs">The outgoing messages.</param>
+    /// <param name="list">The destinations for the messages</param>
+    /// <param name="mdr">How the message is to be sent</param>
+    public delegate void MessagesSentNotification(IList<Message> msgs, ICollection<IConnexion> list, MessageDeliveryRequirements mdr);
+
     /// <summary>
     /// A base-level class encompassing the commonalities between GT Client
     /// and GT Server instances.
@@ -53,11 +59,38 @@ namespace GT.Net
         /// <summary>Occurs when there are errors on the network.</summary>
         public event ErrorEventNotication ErrorEvent;
 
+        /// <summary>
+        /// Triggered whenever a new connexion is added to this instance.
+        /// </summary>
         public event ConnexionLifecycleNotification ConnexionAdded;
+
+        /// <summary>
+        /// Triggered whenever a new connexion is removed from this
+        /// instance (e.g., all of the connexion's transports have been
+        /// removed, rendering the remote incommunicable).
+        /// </summary>
         public event ConnexionLifecycleNotification ConnexionRemoved;
 
         /// <summary>Invoked each cycle of the server.</summary>
         public event Action<Communicator> Tick;
+
+        /// <summary>Invoked each time a message is sent.</summary>
+        public event MessageHandler MessageSent;
+
+        /// <summary>Invoked each time a message is received.</summary>
+        public event MessageHandler MessageReceived;
+
+        /// <summary>Invoked each time a session message is received.</summary>
+        public event MessageHandler SessionMessageReceived;
+
+        /// <summary>Invoked each time a string message is received.</summary>
+        public event MessageHandler StringMessageReceived;
+
+        /// <summary>Invoked each time a object message is received.</summary>
+        public event MessageHandler ObjectMessageReceived;
+
+        /// <summary>Invoked each time a binary mesage is received.</summary>
+        public event MessageHandler BinaryMessageReceived;
 
         #endregion
 
@@ -308,6 +341,10 @@ namespace GT.Net
 
         protected virtual void AddConnexion(IConnexion cnx)
         {
+            cnx.ErrorEvents += NotifyError;
+            cnx.MessageSent += NotifyMessageSent;
+            cnx.MessageReceived += NotifyMessageReceived;
+            if (cnx is IStartable) { ((IStartable)cnx).Start(); }
             connexions.Add(cnx);
             if(ConnexionAdded != null)
             {
@@ -378,6 +415,44 @@ namespace GT.Net
                 ErrorEvent(new ErrorSummary(Severity.Information, SummaryErrorCode.UserException,
                     "Exception occurred when processing application ErrorEvent handlers", e));
             }
+        }
+
+
+        /// <summary>Handle a message that was received from some connexion.</summary>
+        /// <param name="m">The message.</param>
+        /// <param name="cnx">Which client sent it.</param>
+        /// <param name="t">How the message was sent</param>
+        virtual protected void NotifyMessageReceived(Message m, IConnexion cnx, ITransport t)
+        {
+            if (log.IsTraceEnabled)
+            {
+                log.Trace("Received from " + cnx + ": " + m);
+            }
+            if (MessageReceived != null) { MessageReceived(m, cnx, t); }
+
+            //sort to the correct type
+            switch (m.MessageType)
+            {
+                case MessageType.Binary:
+                    if (BinaryMessageReceived != null) BinaryMessageReceived(m, cnx, t); break;
+                case MessageType.Object:
+                    if (ObjectMessageReceived != null) ObjectMessageReceived(m, cnx, t); break;
+                case MessageType.Session:
+                    if (SessionMessageReceived != null) SessionMessageReceived(m, cnx, t); break;
+                case MessageType.String:
+                    if (StringMessageReceived != null) StringMessageReceived(m, cnx, t); break;
+                default:
+                    break;
+            }
+        }
+
+        virtual protected void NotifyMessageSent(Message m, IConnexion cnx, ITransport t)
+        {
+            if (log.IsTraceEnabled)
+            {
+                log.Trace("Sent to " + cnx + ": " + m);
+            }
+            if (MessageSent != null) { MessageSent(m, cnx, t); } 
         }
     }
 
@@ -1313,10 +1388,17 @@ namespace GT.Net
 
         public void NotifyMessagesSent(ICollection<Message> messages, ITransport t)
         {
-            if(MessageSent == null) return;
+            if (MessageSent == null) { return; }
             try
             {
-                foreach (Message msg in messages) { MessageSent(msg, this, t); }
+                foreach (Message msg in messages)
+                {
+                    // as per _marshaller_MessageAvailable, we don't notify of system messages
+                    if (msg.MessageType != MessageType.System)
+                    {
+                        MessageSent(msg, this, t);
+                    }
+                }
             }
             catch (Exception e)
             {
@@ -1328,7 +1410,8 @@ namespace GT.Net
         }
 
         protected void NotifyMessageSent(Message message, ITransport t) {
-            if (MessageSent == null) return;
+            // as per _marshaller_MessageAvailable, we don't notify of system messages
+            if (MessageSent == null || message.MessageType == MessageType.System) { return; }
             try
             {
                 MessageSent(message, this, t);

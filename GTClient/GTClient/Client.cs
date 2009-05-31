@@ -1250,11 +1250,6 @@ namespace GT.Net
                 }
             }
             IConnexion mySC = configuration.CreateServerConnexion(this, address, port);
-            mySC.ErrorEvents += NotifyError;
-            if(mySC is IStartable)
-            {
-                ((IStartable)mySC).Start();
-            }
             AddConnexion(mySC);
             return mySC;
         }

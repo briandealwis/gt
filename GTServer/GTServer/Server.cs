@@ -36,7 +36,8 @@ namespace GT.Net
     /// <param name="msgs">The outgoing messages.</param>
     /// <param name="list">The destinations for the messages</param>
     /// <param name="mdr">How the message is to be sent</param>
-    public delegate void MessagesSentNotification(IList<Message> msgs, ICollection<IConnexion> list, MessageDeliveryRequirements mdr);
+    public delegate void MessagesSentNotification(IList<Message> msgs, 
+        ICollection<IConnexion> list, MessageDeliveryRequirements mdr);
 
     /// <summary>Handles when clients leave the server.</summary>
     /// <param name="list">The clients who've left.</param>
@@ -263,21 +264,6 @@ namespace GT.Net
         /// <summary>Invoked each time a client connects.</summary>
         public event ClientsJoinedHandler ClientsJoined;
 
-        /// <summary>Invoked each time a message is received.</summary>
-        public event MessageHandler MessageReceived;
-
-        /// <summary>Invoked each time a session message is received.</summary>
-        public event MessageHandler SessionMessageReceived;
-
-        /// <summary>Invoked each time a string message is received.</summary>
-        public event MessageHandler StringMessageReceived;
-
-        /// <summary>Invoked each time a object message is received.</summary>
-        public event MessageHandler ObjectMessageReceived;
-
-        /// <summary>Invoked each time a binary mesage is received.</summary>
-        public event MessageHandler BinaryMessageReceived;
-
         #endregion
 
 
@@ -405,7 +391,8 @@ namespace GT.Net
                     }
                 }
             }
-            if (toRemove == null) { return; }
+            // acceptors could be null if the instance is disposed of from a callback
+            if (toRemove == null || acceptors == null) { return; }  
             foreach (IAcceptor acc in toRemove) { acceptors.Remove(acc); }
         }
 
@@ -429,8 +416,6 @@ namespace GT.Net
         protected virtual IConnexion CreateNewConnexion(Guid clientGuid)
         {
             IConnexion cnx = configuration.CreateClientConnexion(this, clientGuid, GenerateIdentity());
-            cnx.MessageReceived += ReceivedClientMessage;
-            cnx.ErrorEvents += NotifyError;
             AddConnexion(cnx);
             return cnx;
         }
@@ -641,6 +626,7 @@ namespace GT.Net
                         "Exception when sending messages", e));
                 }
             }
+
             if (MessagesSent != null) { MessagesSent(messages, list, mdr); }
         }
 
@@ -676,34 +662,6 @@ namespace GT.Net
 
         #endregion
 
-        /// <summary>Handle a message that was received by a client.</summary>
-        /// <param name="m">The message.</param>
-        /// <param name="client">Which client sent it.</param>
-        /// <param name="t">How the message was sent</param>
-        virtual protected void ReceivedClientMessage(Message m, IConnexion client, ITransport t)
-        {
-            if (log.IsTraceEnabled)
-            {
-                log.Trace("Received from " + client + ": " + m);
-            }
-            //send to this
-            if (MessageReceived != null) { MessageReceived(m, client, t); }
-
-            //sort to the correct type
-            switch (m.MessageType)
-            {
-            case MessageType.Binary:
-                if (BinaryMessageReceived != null) BinaryMessageReceived(m, client, t); break;
-            case MessageType.Object:
-                if (ObjectMessageReceived != null) ObjectMessageReceived(m, client, t); break;
-            case MessageType.Session:
-                if (SessionMessageReceived != null) SessionMessageReceived(m, client, t); break;
-            case MessageType.String:
-                if (StringMessageReceived != null) StringMessageReceived(m, client, t); break;
-            default:
-                break;
-            }
-        }
     }
 
     /// <summary>Represents a logical connexion to a client, suitable for use of the server.</summary>
