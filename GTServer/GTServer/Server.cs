@@ -212,8 +212,8 @@ namespace GT.Net
         /// <summary>
         /// All of the client identities that this server knows about.  
         /// </summary>
-        private readonly Dictionary<int, ConnexionToClient> clientIDs =
-            new Dictionary<int, ConnexionToClient>();
+        private readonly Dictionary<int, IConnexion> clientIDs =
+            new Dictionary<int, IConnexion>();
         private readonly ICollection<IConnexion> newlyAddedClients =
             new List<IConnexion>();
 
@@ -348,22 +348,19 @@ namespace GT.Net
                     // DebugUtils.WriteLine("Server.Update(): pinging clients");
                     lastPingTime = System.Environment.TickCount;
                     log.Debug("Pinging");
-                    foreach (ConnexionToClient c in clientIDs.Values)
+                    foreach (IConnexion c in clientIDs.Values)
                     {
-                        if (c.Active)
-                        {
-                            c.Ping();
-                        }
+                        if (c.Active) { c.Ping(); }
                     }
                 }
 
                 // DebugUtils.WriteLine("Server.Update(): Clients.Update()");
                 //update all clients, reading from the network
-                foreach (ConnexionToClient c in clientIDs.Values)
+                foreach (IConnexion c in clientIDs.Values)
                 {
                     try
                     {
-                        c.Update();
+                        if (c.Active) { c.Update(); }
                     }
                     catch (ConnexionClosedException e)
                     {
@@ -416,7 +413,7 @@ namespace GT.Net
         {
             base.AddConnexion(cnx);
             newlyAddedClients.Add(cnx); // used for ClientsJoined event
-            clientIDs.Add(cnx.Identity, (ConnexionToClient)cnx);
+            clientIDs.Add(cnx.Identity, cnx);
         }
 
         protected override void RemovedConnexion(IConnexion cnx)
@@ -754,19 +751,6 @@ namespace GT.Net
             this.clientGuid = clientGuid;
             identity = clientIdentity;
             active = true;
-        }
-
-        #endregion
-
-        #region Predicates
-
-        /// <summary>Is this ClientConnexion dead?  This function is intended for use as a predicate
-        /// such as in <c>List.FindAll()</c>.</summary>
-        /// <param name="c">The client to check.</param>
-        /// <returns>True if the client <c>c</c> is dead.</returns>
-        internal static bool IsDead(ConnexionToClient c)
-        {
-            return !c.Active || c.Transports.Count == 0;
         }
 
         #endregion

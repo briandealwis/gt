@@ -375,13 +375,16 @@ namespace GT.Net
         {
             if (Verbose > 0 && log.IsInfoEnabled)
             {
-                foreach(ConnexionToClient client in list)
+                foreach(IConnexion client in list)
                 {
                     StringBuilder builder = new StringBuilder("Client joined: ");
                     builder.Append(client.Identity);
                     builder.Append(':');
-                    builder.Append(client.ClientGuid);
-                    builder.Append(":");
+                    if (client is BaseConnexion)
+                    {
+                        builder.Append(((BaseConnexion)client).ClientGuid);
+                        builder.Append(":");
+                    }
                     foreach(ITransport t in client.Transports)
                     {
                         builder.Append(" {");
@@ -417,13 +420,16 @@ namespace GT.Net
         {
             if (Verbose > 0 && log.IsInfoEnabled)
             {
-                foreach(ConnexionToClient client in list)
+                foreach(IConnexion client in list)
                 {
                     StringBuilder builder = new StringBuilder("Client left: ");
                     builder.Append(client.Identity);
                     builder.Append(':');
-                    builder.Append(client.ClientGuid);
-                    builder.Append(":");
+                    if (client is BaseConnexion)
+                    {
+                        builder.Append(((BaseConnexion)client).ClientGuid);
+                        builder.Append(":");
+                    }
                     foreach(ITransport t in client.Transports)
                     {
                         builder.Append(" {");
