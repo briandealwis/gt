@@ -161,7 +161,7 @@ namespace GT.Net
                 {
                     if (e.SocketErrorCode != SocketError.WouldBlock)
                     {
-                        throw new TransportError(this, "Error sending UDP packet", e);
+                        throw new TransportError(this, "Error fetching UDP packet", e);
                     }
                 }
             }
