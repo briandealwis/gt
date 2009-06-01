@@ -992,7 +992,7 @@ namespace GT.Utils
             bool hasDequeued = false;
             while (first != null && first.delta <= elapsed)
             {
-                dequeued(first.element);
+                T element = first.element;
                 hasDequeued = true;
                 Count--;
                 MaximumDelay -= first.delta;
@@ -1000,6 +1000,7 @@ namespace GT.Utils
                 DelayNode scrap = first;
                 first = first.next;
                 nodePool.Return(scrap);
+                dequeued(element);
             }
             if (first != null)
             {
@@ -1010,5 +1011,4 @@ namespace GT.Utils
             return hasDequeued;
         }
     }
-
 }
