@@ -197,8 +197,17 @@ namespace GT.Net.Utils
     /// Packet reordering is only done for transports that are unordered.
     /// 
     /// <para>
-    /// Packet delay is calculated from a delay provider; this provider could be
-    /// calculated from a probability distribution, such as a Gaussian or Poisson.
+    /// The packet delay can be set either as a fixed quantity through the <see cref="PacketFixedDelay"/> 
+    /// property, or as calculated from a delay provider.  The fixed quantity is used
+    /// like:
+    /// </para>
+    /// <code>
+    ///     // introduce fixed packet delay
+    ///     transport.PacketDelay = TimeSpan.FromMilliseconds(30);
+    /// </code>
+    /// <para>
+    /// The delay provider can be used to sample delay from a probability distribution, 
+    /// such as a Gaussian or Poisson.
     /// For example:
     /// </para>
     /// <code>
@@ -231,9 +240,16 @@ namespace GT.Net.Utils
         /// </summary>
         public event Action<PacketMode, PacketEffect, TransportPacket> PacketDisposition;
 
+        private TimeSpan fixedDelay;
+        private Returning<TimeSpan> delayProvider;
+
+        /// <summary>
+        /// Create a new instance.  See the class comments for details.
+        /// </summary>
+        /// <param name="wrapped">the transport to be wrapped</param>
         public NetworkEmulatorTransport(ITransport wrapped) : base(wrapped)
         {
-            DelayProvider = () => TimeSpan.Zero;
+            PacketFixedDelay = TimeSpan.Zero;
             PacketLoss = 0;
             PacketLossCorrelation = 0;
             PacketReordering = 0;
@@ -246,11 +262,6 @@ namespace GT.Net.Utils
                 lastPacketTime[mode] = timer.TimeInMilliseconds;
             }
         }
-        
-        /// <summary>
-        /// A delegate for calculating a delay to be applied to a packet.
-        /// </summary>
-        public Returning<TimeSpan> DelayProvider { get; set; }
 
         /// <summary>
         /// The probability that a packet is dropped.
@@ -420,9 +431,44 @@ namespace GT.Net.Utils
             }
         }
 
+        /// <summary>
+        /// Get/set the fixed delay to be imposed on every packet.
+        /// If there is a delay provider, then return a value &lt;= 0.
+        /// </summary>
+        /// <seealso cref="DelayProvider"/>
+        public TimeSpan PacketFixedDelay
+        {
+            get { return delayProvider == null ? fixedDelay : TimeSpan.MinValue; }
+            set
+            {
+                if (TimeSpan.Zero.CompareTo(value) < 0)
+                {
+                    throw new ArgumentException("delay cannot be < 0");
+                }
+                fixedDelay = value;
+                delayProvider = null;
+            }
+        }
+
+        /// <summary>
+        /// Get/set a delegate for sampling a delay to be applied to each packet.
+        /// Such a delegate is useful for sampling from a random process.
+        /// If null, then we use the <see cref="PacketFixedDelay"/>.
+        /// </summary>
+        /// <seealso cref="PacketFixedDelay"/>
+        public Returning<TimeSpan> DelayProvider
+        {
+            get { return delayProvider; }
+            set
+            {
+                fixedDelay = TimeSpan.Zero;
+                delayProvider = value;
+            }
+        }
+
         private double CalculateDelay()
         {
-            if (DelayProvider == null) { return 0; }
+            if (DelayProvider == null) { return fixedDelay.TotalMilliseconds; }
             return DelayProvider().TotalMilliseconds;
         }
     }

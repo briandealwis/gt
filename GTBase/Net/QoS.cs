@@ -490,7 +490,9 @@ namespace GT.Net
         Ordering Ordering { get; }
 
         /// <summary>
-        /// Delay on the transport in milliseconds.
+        /// Return or update the observed delay on the transport (in milliseconds).
+        /// When setting, the implementation may smooth the value.
+        /// This property does not introduce nor control introduced delay.
         /// </summary>
         float Delay { get; set; }
 
