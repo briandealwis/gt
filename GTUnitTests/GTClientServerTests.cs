@@ -1439,8 +1439,7 @@ namespace GT.UnitTests
         [Test]
         public void TestNormal()
         {
-            ReentrantFramework(c => c.ConnexionAdded +=
-                delegate(Communicator comm, IConnexion cnx) { cnx.MessageReceived += delegate { c.Dispose(); }; }, null);
+            ReentrantFramework(null, null);
             Assert.AreEqual(1, clientMessagesSent);
             Assert.AreEqual(1, serverMessagesReceived);
             Assert.AreEqual(1, serverMessagesSent);
