@@ -132,9 +132,11 @@ New Functionality:
     ConfigureTransport() method on the ClientConfiguration and
     ServerConfiguration (see BaseConfiguration).
 
-  * A new network emulation transport wrapper, NetworkEmulationTransport,
+  * A new network emulation transport wrapper, NetworkEmulatorTransport,
     to simulate different network traffic characteristics such as
-    packet delay, packet loss, and packet reordering.
+    packet delay, packet loss, and packet reordering.  Note that the
+    NetworkEmulatorTransport is not cost-free and does impose some
+    minimum latency due to its implementation. 
     <https://papyrus.usask.ca/trac/gt/ticket/32>
 
   * A traffic monitor, PingBasedDisconnector, that uses GT's ping events
@@ -230,20 +232,20 @@ GT 3.0.
 		with multiple consumers would have a race for dequeueing
 		messages.  And the instances were not thread-safe.
 
-	      * The channel objects now implement System.IDisposable, and users of
-		Open*Channel() should now ensure they dispose of the instances;
-		note that channels are disposed when their corresponding Client
-		instance is disposed.
+	      * The channel objects now implement System.IDisposable, and
+		users of Open*Channel() should now ensure they dispose of the
+		instances; note that channels are disposed when their
+		corresponding Client instance is disposed.
 
 	    Client code now looks something like:
 
 		Client client = new Client(new DefaultClientConfiguration());
-		IStringChannel ch1 = client.OpenStringChannel("localhost", "9999",
-		    0, ChannelDeliveryRequirements.Data);
-		IStringChannel ch2 = client.OpenStringChannel("localhost", "9999",
-		    0, ChannelDeliveryRequirements.);
-		IStringChannel ch3 = client.OpenStringChannel("otherhost", "9999",
-		    0, ChannelDeliveryRequirements.CommandsLike);
+		IStringChannel ch1 = client.OpenStringChannel("localhost",
+		    "9999", 0, ChannelDeliveryRequirements.Data);
+		IStringChannel ch2 = client.OpenStringChannel("localhost",
+		    "9999", 0, ChannelDeliveryRequirements.);
+		IStringChannel ch3 = client.OpenStringChannel("otherhost",
+		    "9999", 0, ChannelDeliveryRequirements.CommandsLike);
 
 	    Instances ch1 and ch2 are now distinct objects and share the same
 	    underlying connexion.  When new string messages are received on
@@ -395,6 +397,8 @@ GT 3.0.
         to represent connexions that can connect to a remote.
 	GT.Net.ClientConfiguration.CreateServerConnexion() should
 	now return one of these objects.
+
+      * IConnexion.RemoveTransport() no longer disposes of the transport.
 
   * The scheduling of messages into packets to be sent has been
     extracted from the connexion implementations into a new type called

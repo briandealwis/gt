@@ -192,6 +192,7 @@ namespace GT.Net.Utils
     /// <summary>
     /// A simple class for simulating certain network transmission characteristics
     /// onto a transport.  This class was inspired by the Linux WanEm network emulator.
+    /// The implementation of this transport does induce some minimum latency on every call.
     /// Please note that this interface is likely to change in subsequent releases.  
     /// Packet loss is only done for those transports that either unreliable or not ordered.
     /// Packet reordering is only done for transports that are unordered.
@@ -369,10 +370,20 @@ namespace GT.Net.Utils
 
         private void CheckDelayedPackets(uint millisecondsElapsed)
         {
-            delayedSendQueue.Dequeue(millisecondsElapsed, 
-                p => Wrapped.SendPacket(p));
-            delayedReceiveQueue.Dequeue(millisecondsElapsed,
-                p => NotifyPacketReceived(p, this));
+            delayedSendQueue.Dequeue(millisecondsElapsed, ReallySendPacket);
+            delayedReceiveQueue.Dequeue(millisecondsElapsed, ReallyReceivePacket);
+        }
+
+        private void ReallySendPacket(TransportPacket p)
+        {
+            Wrapped.SendPacket(p);
+            p.Dispose();    // counter the Retain in ProcessPacket
+        }
+
+        private void ReallyReceivePacket(TransportPacket p)
+        {
+            NotifyPacketReceived(p, this);
+            p.Dispose();    // counter the Retain in ProcessPacket
         }
 
         private void ProcessPacket(PacketMode mode, TransportPacket packet, DelayQueue<TransportPacket> queue)
@@ -420,6 +431,7 @@ namespace GT.Net.Utils
             {
                 NotifyPacketDisposition(mode, PacketEffect.None, packet);
             }
+            packet.Retain();    // countered in Really{Send,Receive}Packet
             queue.Enqueue(packet, delay);
         }
 
