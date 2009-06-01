@@ -1097,7 +1097,6 @@ namespace GT.Net
             bool removed = transports.Remove(t);
             t.PacketReceived -= NewPacketReceived;
             if (TransportRemoved != null) { TransportRemoved(this, t); }
-            t.Dispose();
             return removed;
         }
 
@@ -1114,6 +1113,7 @@ namespace GT.Net
             //    AddTransport(transport);
             //    return transport;
             //}
+            transport.Dispose();
             return null;    // we don't find a replacement
         }
 
