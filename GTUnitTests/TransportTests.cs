@@ -891,6 +891,25 @@ namespace GT.UnitTests
             Assert.AreEqual(100, wrappedPacketsSent);
         }
 
+
+        [Test]
+        public void TestSettingInvalidFixedDelay()
+        {
+            transport.PacketFixedDelay = TimeSpan.Zero;
+            Assert.AreEqual(TimeSpan.Zero, transport.PacketFixedDelay);
+            transport.PacketFixedDelay = TimeSpan.FromMilliseconds(500);
+            Assert.AreEqual(TimeSpan.FromMilliseconds(500), transport.PacketFixedDelay);
+            try
+            {
+                transport.PacketFixedDelay = TimeSpan.FromMilliseconds(-500);
+                Assert.Fail("should not allow delays < 0");
+            }
+            catch (ArgumentException) { /* expected */ }
+            transport.DelayProvider = () => TimeSpan.Zero;
+            Assert.IsTrue(transport.PacketFixedDelay.CompareTo(TimeSpan.Zero) < 0);
+        }
+
+
         [Test]
         public void TestDelay()
         {

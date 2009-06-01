@@ -441,7 +441,7 @@ namespace GT.Net.Utils
             get { return delayProvider == null ? fixedDelay : TimeSpan.MinValue; }
             set
             {
-                if (TimeSpan.Zero.CompareTo(value) < 0)
+                if (value.CompareTo(TimeSpan.Zero) < 0)
                 {
                     throw new ArgumentException("delay cannot be < 0");
                 }
