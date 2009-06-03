@@ -296,8 +296,11 @@ namespace GT.Net
         public override void Dispose()
         {
             Stop();
-            try { udpMultiplexer.Dispose(); }
-            catch (Exception e) { log.Warn("exception disposing UDP listener", e); }
+            if(udpMultiplexer != null)
+            {
+                try { udpMultiplexer.Dispose(); }
+                catch (Exception e) { log.Warn("exception disposing UDP listener", e); }
+            }
             udpMultiplexer = null;
         }
         #endregion
