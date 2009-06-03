@@ -1229,9 +1229,11 @@ namespace GT.Net
                     break;
 
                 case SystemMessageType.ConnexionClosing:
+                    log.Trace("HandleSystemMessage: Received ConnexionClosing");
                     throw new ConnexionClosedException(this);
 
                 case SystemMessageType.IncompatibleVersion:
+                    log.Warn("HandleSystemMessage: Remote claims IncompatibleVersion");
                     throw new TransportError(transport, 
                         "Remote does not speak a compatible protocol", message);
 
@@ -1240,7 +1242,7 @@ namespace GT.Net
                     break;
 
                 default:
-                    Debug.WriteLine("connexion.HandleSystemMessage(): Unknown message type: " +
+                    log.Warn("HandleSystemMessage: Unknown message type: " +
                         message.Descriptor);
                     break;
             }
