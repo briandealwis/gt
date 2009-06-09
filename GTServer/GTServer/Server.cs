@@ -208,7 +208,8 @@ namespace GT.Net
         private readonly Dictionary<byte, ChannelDeliveryRequirements> channelRequirements
             = new Dictionary<byte,ChannelDeliveryRequirements>();
 
-        private int lastPingTime = 0;
+        protected HPTimer timer;
+        protected long lastPingTime = 0;
 
         /// <summary>
         /// All of the client identities that this server knows about.  
@@ -290,6 +291,7 @@ namespace GT.Net
             log = LogManager.GetLogger(GetType());
             configuration = sc;
             serverIdentity = GenerateIdentity();
+            timer = new HPTimer();
         }
 
 
@@ -316,6 +318,8 @@ namespace GT.Net
 
             lock (this)
             {
+                timer.Update();
+
                 if (!Active)
                 {
                     Start();
@@ -328,12 +332,11 @@ namespace GT.Net
                     ClientsJoined(newlyAddedClients);
                 }
 
-                //ping, if needed
-                if (Environment.TickCount - lastPingTime >= configuration.PingInterval.Ticks)
+                if (timer.TimeInMilliseconds - lastPingTime
+                    > configuration.PingInterval.TotalMilliseconds)
                 {
-                    // DebugUtils.WriteLine("Server.Update(): pinging clients");
-                    lastPingTime = System.Environment.TickCount;
                     log.Debug("Pinging");
+                    lastPingTime = timer.TimeInMilliseconds;
                     foreach (IConnexion c in clientIDs.Values)
                     {
                         if (c.Active) { c.Ping(); }
@@ -472,6 +475,7 @@ namespace GT.Net
         public override void Start()
         {
             if (Active) { return; }
+            timer.Start();
             acceptors = configuration.CreateAcceptors();
             foreach (IAcceptor acc in acceptors)
             {
@@ -523,6 +527,7 @@ namespace GT.Net
 
             Dispose(acceptors);
             acceptors = null;
+            timer = null;
             base.Dispose();
 
         }
