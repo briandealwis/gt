@@ -43,6 +43,10 @@
   </Target>
   -->
   <ItemGroup>
+    <Reference Include="Common.Logging, Version=2.0.0.0, Culture=neutral, PublicKeyToken=af08829b84f0328e, processorArchitecture=MSIL">
+      <SpecificVersion>False</SpecificVersion>
+      <HintPath>..\Common.Logging\bin\net\2.0\release\Common.Logging.dll</HintPath>
+    </Reference>
     <Reference Include="nunit-console-runner, Version=2.4.7.0, Culture=neutral, PublicKeyToken=96d09a1eb7f44a77, processorArchitecture=MSIL">
       <SpecificVersion>False</SpecificVersion>
       <HintPath>nunit\nunit-console-runner.dll</HintPath>
