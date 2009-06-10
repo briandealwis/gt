@@ -74,7 +74,7 @@ namespace GT.Net
         /// <param name="count">the number of bytes of the subset to include</param>
         public static TransportPacket CopyOf(TransportPacket source, int offset, int count)
         {
-            if (count <= MaxSegmentSize) {
+            if (count <= _maxSegmentSize) {
                 ArraySegment<byte> segment = AllocateSegment((uint)count);
                 source.CopyTo(offset, segment.Array, segment.Offset, count);
                 return new TransportPacket(segment);
@@ -931,7 +931,7 @@ namespace GT.Net
             int segmentOffset = 0;  // offset into segment under consideration
             do
             {
-                consolidated = AllocateSegment((uint)Math.Min(MaxSegmentSize, length - offset));
+                consolidated = AllocateSegment((uint)Math.Min(_maxSegmentSize, length - offset));
                 int consolidatedOffset = 0;
                 while (segmentIndex < list.Count && consolidatedOffset < consolidated.Count)
                 {
@@ -1558,6 +1558,7 @@ namespace GT.Net
                 Flush();
                 packet = null;
             }
+
             public override long Seek(long offset, SeekOrigin origin)
             {
                 if (packet == null) { throw new ObjectDisposedException("stream was closed"); }
@@ -1638,37 +1639,35 @@ namespace GT.Net
                 }
                 Debug.Assert(position <= Length);
                 Debug.Assert(count == 0 || packet.length == 0 || position >= packet.length);
+
                 while (count > 0)
                 {
                     // if position < packet.length then a Flush() has happened out of turn
                     Debug.Assert(position >= packet.length && position <= Length);
                     if (newLength < 0)
                     {
-                        interim = AllocateSegment((uint)count);
-                        newLength = packet.length + interim.Count;
+                        uint desiredSize = (uint)Math.Min(count, _maxSegmentSize);
+                        interim = AllocateSegment(desiredSize);
+                        newLength = packet.length;
                     }
                     Debug.Assert(newLength >= 0);
+                    Debug.Assert(position >= packet.length);
                     int interimPosition = position - packet.length;
                     Debug.Assert(interimPosition >= 0);
+
                     int interimAvailable = interim.Array.Length - interim.Offset - interimPosition;
-                    Debug.Assert(interimAvailable > 0); 
                     // There must be space available: if there was no space, then end of loop 
                     // causes a Flush, meaning that new space is allocated at the top of the loop.
+                    Debug.Assert(interimAvailable > 0);
 
-                    // if necessary, add whatever extra space is available
-                    // (since this is our own private segment, we don't have to worry like Grow()
-                    // about clashes with other packets attached to this segment)
-                    if (position + count > newLength)
-                    {
-                        newLength += Math.Min(count, interimAvailable);
-                    }
-                    int numBytes = Math.Min(count, newLength - position);
+                    int numBytes = Math.Min(count, interimAvailable);
                     Buffer.BlockCopy(buffer, offset, interim.Array,
                         interim.Offset + interimPosition, numBytes);
                     position += numBytes;
                     offset += numBytes;
                     count -= numBytes;
                     interimPosition += numBytes;
+                    newLength += numBytes;
                     // if no more available space, then flush the interim buffer so
                     // that a new interim buffer will be allocated at the top of the loop
                     if (interim.Array.Length == interim.Offset + interimPosition) { Flush(); }

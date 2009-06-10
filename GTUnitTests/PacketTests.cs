@@ -541,7 +541,7 @@ namespace GT.UnitTests
         public void TestWriteStream()
         {
             /// This tests ReplaceBytes too.
-            byte[] bytes = new byte[255];
+            byte[] bytes = new byte[271];	// so it doesn't align with a segment size
             for (int i = 0; i < bytes.Length; i++) { bytes[i] = (byte)(i % 256); }
 
             TransportPacket tp = new TransportPacket();
@@ -576,7 +576,27 @@ namespace GT.UnitTests
         }
 
         [Test]
-        public void TestRemoveBytes() {
+        public void TestWriteStreamLargeWrite()
+        {
+                byte[] bytes = new byte[TransportPacket.MaxSegmentSize * 3 + 13];
+                for (int i = 0; i < bytes.Length; i++)
+                {
+                        bytes[i] = (byte) (i%256);
+                }
+
+                TransportPacket tp = new TransportPacket();
+                Stream stream = tp.AsWriteStream();
+                Assert.AreEqual(0, stream.Position);
+                stream.Write(bytes, 0, bytes.Length);
+                stream.Flush();
+
+                Assert.AreEqual(bytes.Length, tp.Length);
+                Assert.AreEqual(bytes, tp.ToArray());
+        }
+
+        [Test]
+        public void TestRemoveBytes()
+        {
             byte[] bytes = new byte[256];
             for (int i = 0; i < bytes.Length; i++) { bytes[i] = (byte)(i % 256); }
             byte[] reversed = new byte[bytes.Length];
