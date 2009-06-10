@@ -33,6 +33,18 @@ Please submit any problems or requests via the GT Trac found at:
     https://papyrus.usask.ca/svn/trac/gt/
 
 
+================
+=== GT 3.0.1 ===
+================
+
+GT 3.0.1 is a bug fix release:
+
+  * TransportPacket.WriteStream.Write() fails when provided a
+    buffer whose size is greater than TransportPacket.MaxSegmentSize
+    <https://papyrus.usask.ca/trac/gt/ticket/86>
+
+  * GT servers do not ping <https://papyrus.usask.ca/trac/gt/ticket/84>
+
 ==============
 === GT 3.0 ===
 ==============
