@@ -470,6 +470,26 @@ namespace GT.UnitTests
         }
 
         [Test]
+        public void TestPingTimes()
+        {
+            client.Configuration.PingInterval = TimeSpan.FromMilliseconds(20);
+            server.Configuration.PingInterval = TimeSpan.FromMilliseconds(20);
+            uint clientRequests = 0;
+            uint serverRequests = 0;
+            foreach(IConnexion cnx in client.Connexions)
+            {
+                cnx.PingReplied += delegate { clientRequests++; };
+            }
+            foreach (IConnexion cnx in server.Connexions)
+            {
+                cnx.PingReplied += delegate { serverRequests++; };
+            }
+            Thread.Sleep(219);
+            Assert.GreaterOrEqual(10, clientRequests);
+            Assert.GreaterOrEqual(10, serverRequests);
+        }
+
+        [Test]
         public void TestObjectMessageMishandling()
         {
             IObjectChannel objChannel = client.OpenObjectChannel("127.0.0.1", "9999", 0, ChannelDeliveryRequirements.LeastStrict);
