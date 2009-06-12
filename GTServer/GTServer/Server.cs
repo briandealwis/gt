@@ -227,19 +227,23 @@ namespace GT.Net
             get { return Connexions; } 
         }
 
-	    /// <summary>
-	    /// Return the associated marshaller
-	    /// </summary>
-        public override IMarshaller Marshaller { get { return marshaller; } }
+    	/// <summary>
+    	/// Return the associated marshaller
+    	/// </summary>
+    	public override IMarshaller Marshaller
+    	{
+            get { return marshaller; }
+            protected set { marshaller = value; }
+    	}
 
-	    /// <summary>
-	    /// Return the server configuration object.
-	    /// </summary>
+        /// <summary>
+        /// Return the server configuration object.
+        /// </summary>
         public ServerConfiguration Configuration { get { return configuration; } }
 
-	    /// <summary>
-	    /// Return this server's unique identity.
-	    /// </summary>
+        /// <summary>
+        /// Return this server's unique identity.
+        /// </summary>
         public int ServerIdentity { get { return serverIdentity; } }
 
         public override TimeSpan TickInterval

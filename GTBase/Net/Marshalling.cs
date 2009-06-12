@@ -181,7 +181,7 @@ namespace GT.Net
         public void Dispose()
         {
             if (Disposed != null) { Disposed(this); }
-            // this instance doesn't actually do anything
+            while(HasPackets) { RemovePacket().Dispose(); }
             packets.Clear();
         }
     }
