@@ -770,11 +770,6 @@ namespace GT.Net
     /// </summary>
     public class DefaultClientConfiguration : ClientConfiguration
     {
-        /// <summary>
-        /// The default port used when connecting
-        /// </summary>
-        protected int port = 9999;
-
         public override IMarshaller CreateMarshaller()
         {
             return new LargeObjectMarshaller(new DotNetSerializingMarshaller());

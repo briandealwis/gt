@@ -1,4 +1,4 @@
-﻿namespace NetEmTestClient
+﻿namespace BBall.UI
 {
     partial class Form1
     {
@@ -28,15 +28,8 @@
         /// </summary>
         private void InitializeComponent()
         {
-            this.components = new System.ComponentModel.Container();
-            this.timer1 = new System.Windows.Forms.Timer(this.components);
-            this.bouncyBall1 = new NetEmTestClient.BouncyBall();
+            this.bouncyBall1 = new BBall.UI.BouncyBall();
             this.SuspendLayout();
-            // 
-            // timer1
-            // 
-            this.timer1.Enabled = true;
-            this.timer1.Tick += new System.EventHandler(this.timer1_Tick);
             // 
             // bouncyBall1
             // 
@@ -45,13 +38,14 @@
                         | System.Windows.Forms.AnchorStyles.Right)));
             this.bouncyBall1.BackColor = System.Drawing.Color.White;
             this.bouncyBall1.BallRadius = ((uint)(6u));
-            this.bouncyBall1.BallX = ((uint)(6u));
-            this.bouncyBall1.BallY = ((uint)(6u));
+            this.bouncyBall1.BallX = 6;
+            this.bouncyBall1.BallY = 6;
             this.bouncyBall1.ForeColor = System.Drawing.Color.Red;
             this.bouncyBall1.Location = new System.Drawing.Point(12, 12);
             this.bouncyBall1.Name = "bouncyBall1";
             this.bouncyBall1.Size = new System.Drawing.Size(197, 161);
             this.bouncyBall1.TabIndex = 0;
+            this.bouncyBall1.Resize += new System.EventHandler(this.bouncyBall1_Resize);
             // 
             // Form1
             // 
@@ -63,13 +57,13 @@
             this.Name = "Form1";
             this.Text = "Bouncing Ball";
             this.Load += new System.EventHandler(this.Form1_Load);
+            this.FormClosed += new System.Windows.Forms.FormClosedEventHandler(this.Form1_FormClosed);
             this.ResumeLayout(false);
 
         }
 
         #endregion
 
-        private System.Windows.Forms.Timer timer1;
         private BouncyBall bouncyBall1;
     }
 }

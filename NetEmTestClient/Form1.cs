@@ -7,14 +7,16 @@ using System.Linq;
 using System.Text;
 using System.Windows.Forms;
 using System.Diagnostics;
+using BBall.Client;
+using BBall.Server;
+using GT.Net;
 
-namespace NetEmTestClient
+namespace BBall.UI
 {
     public partial class Form1 : Form
     {
-        Stopwatch sw = new Stopwatch();
-        private double velX = 50;  // 5 pixels / second
-        private double velY = 50;  // 5 pixels / second
+        private BBClient client;
+        private BBServer server;
 
         public Form1()
         {
@@ -23,53 +25,42 @@ namespace NetEmTestClient
 
         private void Form1_Load(object sender, EventArgs e)
         {
-            sw.Start();
             StartServer(9876);
             StartClient("localhost", 9876);
         }
 
-        private void StartClient(string p, int p_2)
+        private void StartClient(string host, ushort port)
         {
+            client = new BBClient(host, port);
+            client.Start();
         }
 
-        private void StartServer(int p)
+        private void StartServer(ushort port)
         {
+            server = new BBServer(port);
+            server.PositionUpdates += _server_PositionUpdated;
+            server.Start();
+            server.UpdateWindowSize((uint)bouncyBall1.Width, (uint)bouncyBall1.Height, 
+                bouncyBall1.BallRadius);
         }
 
-        private void timer1_Tick(object sender, EventArgs e)
+        private void _server_PositionUpdated(double x, double y)
         {
-            double x = bouncyBall1.BallX;
-            double y = bouncyBall1.BallY;
-            double elapsed = sw.Elapsed.TotalSeconds;
-            x += velX*elapsed;
-            y += velY*elapsed;
-            if(x < bouncyBall1.BallRadius)
-            {
-                velX = Math.Abs(velX);
-                x = bouncyBall1.BallRadius;
-            } else if(x > bouncyBall1.Width - bouncyBall1.BallRadius)
-            {
-                velX = -Math.Abs(velX);
-                x = bouncyBall1.Width - bouncyBall1.BallRadius;
-            }
-
-            if (y < bouncyBall1.BallRadius)
-            {
-                velY = Math.Abs(velY);
-                y = bouncyBall1.BallRadius;
-            }
-            else if (y > bouncyBall1.Height - bouncyBall1.BallRadius)
-            {
-                velY = -Math.Abs(velY);
-                y = bouncyBall1.Height - bouncyBall1.BallRadius;
-            }
             bouncyBall1.BallX = x;
             bouncyBall1.BallY = y;
             bouncyBall1.Repaint();
-            sw.Reset();
-            sw.Start();
         }
 
+        private void Form1_FormClosed(object sender, FormClosedEventArgs e)
+        {
+            client.Dispose();
+            server.Dispose();
+        }
 
+        private void bouncyBall1_Resize(object sender, EventArgs e)
+        {
+            server.UpdateWindowSize((uint)bouncyBall1.Width, (uint)bouncyBall1.Height,
+                bouncyBall1.BallRadius);
+        }
     }
 }

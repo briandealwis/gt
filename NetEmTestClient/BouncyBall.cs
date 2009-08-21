@@ -7,7 +7,7 @@ using System.Linq;
 using System.Text;
 using System.Windows.Forms;
 
-namespace NetEmTestClient
+namespace BBall.UI
 {
     public partial class BouncyBall : UserControl
     {
@@ -45,8 +45,8 @@ namespace NetEmTestClient
 
             e.Graphics.FillRectangle(backgroundBrush, 0, 0, Width, Height);
             e.Graphics.FillEllipse(ballBrush, 
-                (uint)(BallX - BallRadius), 
-                (uint)(BallY - BallRadius), 
+                (uint)Math.Max(0, BallX - BallRadius), 
+                (uint)Math.Max(0, BallY - BallRadius), 
                 BallRadius * 2, BallRadius * 2);
 
             ballBrush.Dispose();

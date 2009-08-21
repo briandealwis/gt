@@ -1,4 +1,4 @@
-﻿namespace NetEmTestClient
+﻿namespace BBall.UI
 {
     partial class BouncyBall
     {
