@@ -31,6 +31,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "GTUI", "GTUI\GTUI.csproj", 
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Ping", "Examples\Ping\Ping.csproj", "{B740CF78-5A47-4DC5-9339-ACFF547B04A4}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "NetEmTestClient", "NetEmTestClient\NetEmTestClient.csproj", "{02C9A72E-F506-47EF-8DD7-C506D293C45A}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -95,6 +97,10 @@ Global
 		{B740CF78-5A47-4DC5-9339-ACFF547B04A4}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{B740CF78-5A47-4DC5-9339-ACFF547B04A4}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{B740CF78-5A47-4DC5-9339-ACFF547B04A4}.Release|Any CPU.Build.0 = Release|Any CPU
+		{02C9A72E-F506-47EF-8DD7-C506D293C45A}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{02C9A72E-F506-47EF-8DD7-C506D293C45A}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{02C9A72E-F506-47EF-8DD7-C506D293C45A}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{02C9A72E-F506-47EF-8DD7-C506D293C45A}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

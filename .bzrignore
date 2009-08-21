@@ -18,3 +18,5 @@ Setup/Debug
 _ReSharper.*
 gt-all.*.resharper*
 doc/arch/*.pdf
+NetEmTestClient/bin
+NetEmTestClient/obj
