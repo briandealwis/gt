@@ -1,15 +1,7 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.ComponentModel;
-using System.Data;
-using System.Drawing;
-using System.Linq;
-using System.Text;
 using System.Windows.Forms;
-using System.Diagnostics;
 using BBall.Client;
 using BBall.Server;
-using GT.Net;
 
 namespace BBall.UI
 {
@@ -17,6 +9,7 @@ namespace BBall.UI
     {
         private BBClient client;
         private BBServer server;
+        private DelayForm clientDelayForm;
 
         public Form1()
         {
@@ -33,6 +26,14 @@ namespace BBall.UI
         {
             client = new BBClient(host, port);
             client.Start();
+            clientDelayForm = new DelayForm();
+            clientDelayForm.Changed += _delayForm_Changed;
+            clientDelayForm.Show();
+        }
+
+        private void _delayForm_Changed(uint value)
+        {
+            client.Delay = value;
         }
 
         private void StartServer(ushort port)
@@ -55,6 +56,7 @@ namespace BBall.UI
         {
             client.Dispose();
             server.Dispose();
+            if(clientDelayForm != null) { clientDelayForm.Dispose(); }
         }
 
         private void bouncyBall1_Resize(object sender, EventArgs e)

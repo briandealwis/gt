@@ -43,15 +43,16 @@
             this.bouncyBall1.ForeColor = System.Drawing.Color.Red;
             this.bouncyBall1.Location = new System.Drawing.Point(12, 12);
             this.bouncyBall1.Name = "bouncyBall1";
-            this.bouncyBall1.Size = new System.Drawing.Size(197, 161);
+            this.bouncyBall1.Size = new System.Drawing.Size(272, 231);
             this.bouncyBall1.TabIndex = 0;
+            this.bouncyBall1.TabStop = false;
             this.bouncyBall1.Resize += new System.EventHandler(this.bouncyBall1_Resize);
             // 
             // Form1
             // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 13F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
-            this.ClientSize = new System.Drawing.Size(221, 185);
+            this.ClientSize = new System.Drawing.Size(296, 255);
             this.Controls.Add(this.bouncyBall1);
             this.DoubleBuffered = true;
             this.Name = "Form1";

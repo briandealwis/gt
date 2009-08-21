@@ -8,7 +8,7 @@
 // </auto-generated>
 //------------------------------------------------------------------------------
 
-namespace NetEmTestClient.Properties
+namespace BBall.UI.Properties
 {
 
 
