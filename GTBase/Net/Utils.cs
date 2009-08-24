@@ -346,10 +346,12 @@ namespace GT.Net.Utils
 
         public override void SendPacket(TransportPacket packet)
         {
+            ContractViolation.Assert(packet.Length > 0, "Cannot send 0-byte messages!");
+
             timer.Update();
-            CheckDelayedPackets((uint)timer.ElapsedInMilliseconds);
+            CheckSendDelayedPackets((uint)timer.ElapsedInMilliseconds);
             ProcessPacket(PacketMode.Sent, packet, delayedSendQueue);
-            CheckDelayedPackets(0);  // in case of any 0-delayed packets
+            CheckSendDelayedPackets(0);  // in case of any 0-delayed packets
         }
 
         public override void Update()
@@ -363,15 +365,25 @@ namespace GT.Net.Utils
         protected override void _wrapped_PacketReceivedEvent(TransportPacket packet, ITransport transport)
         {
             timer.Update();
-            CheckDelayedPackets((uint)timer.ElapsedInMilliseconds);
+            CheckReceiveDelayedPackets((uint)timer.ElapsedInMilliseconds);
             ProcessPacket(PacketMode.Received, packet, delayedReceiveQueue);
-            CheckDelayedPackets(0);  // in case of any 0-delayed packets
+            CheckReceiveDelayedPackets(0);  // in case of any 0-delayed packets
         }
 
         private void CheckDelayedPackets(uint millisecondsElapsed)
         {
             delayedSendQueue.Dequeue(millisecondsElapsed, ReallySendPacket);
             delayedReceiveQueue.Dequeue(millisecondsElapsed, ReallyReceivePacket);
+        }
+
+        private void CheckReceiveDelayedPackets(uint millisecondsElapsed)
+        {
+            delayedReceiveQueue.Dequeue(millisecondsElapsed, ReallyReceivePacket);
+        }
+
+        private void CheckSendDelayedPackets(uint millisecondsElapsed)
+        {
+            delayedSendQueue.Dequeue(millisecondsElapsed, ReallySendPacket);
         }
 
         private void ReallySendPacket(TransportPacket p)
