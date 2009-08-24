@@ -148,14 +148,12 @@ namespace GT
         /// </summary>
         /// <param name="condition">the result of a test</param>
         /// <param name="text">descriptive text if the test fails</param>
-        public static void Assert(bool condition, params string[] text)
+        public static void Assert(bool condition, string text, params string[] parms)
         {
             if (condition) { return; }
 
-            if(text.Length == 1) { throw new ContractViolation(Severity.Warning, text[0]); }
-            string[] remainder = new string[text.Length - 1];
-            Array.Copy(text, 1, remainder, 0, remainder.Length);
-            throw new ContractViolation(Severity.Warning, String.Format(text[0], remainder));
+            if(parms.Length == 0 ) { throw new ContractViolation(Severity.Warning, text); }
+            throw new ContractViolation(Severity.Warning, String.Format(text, parms));
         }
     }
 
