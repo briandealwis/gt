@@ -10,7 +10,6 @@ namespace BBall.Server
         public event GT.Utils.Action<double, double> PositionUpdates;
 
         private GT.Net.Server server;
-        private readonly uint port;
 
         public BBServer(ushort port)
         {

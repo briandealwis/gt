@@ -2,7 +2,6 @@
 using BBall.Common;
 using GT.Net;
 using GT.Net.Utils;
-using System.Timers;
 using System;
 
 namespace BBall.Client
@@ -22,7 +21,7 @@ namespace BBall.Client
         private readonly string host;
         private readonly uint port;
         private Stopwatch sw;
-        private Timer timer;
+        private System.Windows.Forms.Timer timer;
         private IObjectChannel updates;
 
         private double x = 6;
@@ -40,13 +39,12 @@ namespace BBall.Client
             client = new GT.Net.Client(new BBClientConfiguration());
             this.host = host;
             this.port = port;
-            Interval = 10;  // 10 Hz
+            Interval = TimeSpan.FromMilliseconds(50);
         }
 
-        // In hertz
-        public uint Interval { get; set; }
+        public TimeSpan Interval { get; set; }
 
-        public float Delay
+        public TimeSpan Delay
         {
             set
             {
@@ -57,7 +55,7 @@ namespace BBall.Client
                         if(t is NetworkEmulatorTransport)
                         {
                             NetworkEmulatorTransport net = (NetworkEmulatorTransport) t;
-                            net.Delay = value;
+                            net.PacketFixedDelay = value;
                         }
                     }
                 }
@@ -76,9 +74,9 @@ namespace BBall.Client
                 ChannelDeliveryRequirements.MostStrict);
             updates.MessagesReceived += _updates_Received;
 
-            timer = new Timer(1.0 / (double)Interval);
-            timer.AutoReset = true;
-            timer.Elapsed += _timer_Tick;
+            timer = new System.Windows.Forms.Timer();
+            timer.Interval = (int)Interval.TotalMilliseconds;
+            timer.Tick += _timer_Tick;
             timer.Start();
             sw.Start();
         }
@@ -100,10 +98,19 @@ namespace BBall.Client
             }
         }
 
-        private void _timer_Tick(object sender, ElapsedEventArgs e)
+        private void _timer_Tick(object sender, EventArgs e1)
         {
             UpdatePosition();
             updates.Send(new PositionChanged { X = x, Y = y });   
+        }
+
+        public void Reset()
+        {
+            x = width / 2;
+            y = height/2;
+            updates.Send(new PositionChanged { X = x, Y = y });
+            sw.Reset();
+            sw.Start();
         }
 
         private void UpdatePosition()

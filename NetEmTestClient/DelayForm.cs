@@ -62,5 +62,12 @@ namespace BBall.UI
 
 
         public event Action<uint> Changed;
+
+        public event MethodInvoker Reset;
+
+        private void resetButton_Click(object sender, EventArgs e)
+        {
+            if (Reset != null) { Reset(); }
+        }
     }
 }
