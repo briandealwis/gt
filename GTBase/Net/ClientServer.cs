@@ -110,7 +110,7 @@ namespace GT.Net
         /// <summary>
         /// Return the marshaller configured for this client.
         /// </summary>
-        public abstract IMarshaller Marshaller { get; }
+        public abstract IMarshaller Marshaller { get; protected set; }
 
         /// <summary>
         /// Returns the interval to wait between calls to <see cref="Update"/>
@@ -830,7 +830,7 @@ namespace GT.Net
 
     public abstract class BaseConnexion : IConnexion, IComparer<ITransport>
     {
-	    #region Events
+        #region Events
 
         /// <summary>
         /// Notification of fatal errors occurring on the connexion.
@@ -849,7 +849,7 @@ namespace GT.Net
         public event PingingNotification PingRequested;
         public event PingedNotification PingReplied;
 
-	    #endregion
+        #endregion
 
         protected ILog log;
         
@@ -860,8 +860,8 @@ namespace GT.Net
 
         /// <summary>
         /// The server's unique identifier for this connexion; this
-	    /// identifier is only unique within the server's client
-	    /// group and is not globally unique.
+        /// identifier is only unique within the server's client
+        /// group and is not globally unique.
         /// </summary>
         protected int identity;
 
@@ -874,14 +874,14 @@ namespace GT.Net
         }
 
         /// <summary>
-	    /// Return the appropriate marshaller for this connexion.
-	    /// </summary>
+        /// Return the appropriate marshaller for this connexion.
+        /// </summary>
         abstract public IMarshaller Marshaller { get; }
 
-	    /// <summary>
-	    /// Retrieve the transports associated with this connexion.
-	    /// Intended only for statistical use.
-	    /// </summary>
+        /// <summary>
+        /// Retrieve the transports associated with this connexion.
+        /// Intended only for statistical use.
+        /// </summary>
         public IList<ITransport> Transports { get { return transports; } }
 
         /// <summary>
