@@ -56,6 +56,7 @@
       <HintPath>nunit\nunit.framework.dll</HintPath>
     </Reference>
     <Reference Include="System" />
+    <Reference Include="System.Windows.Forms" />
   </ItemGroup>
   <ItemGroup>
     <Compile Include="CollectionsTests.cs" />
@@ -71,6 +72,7 @@
     <Compile Include="PacketTests.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="StressTests.cs" />
+    <Compile Include="TextTests.cs" />
     <Compile Include="TransportTests.cs" />
   </ItemGroup>
   <ItemGroup>
@@ -89,6 +91,10 @@
     <ProjectReference Include="..\GTServer\GTServer\GTServer.csproj">
       <Project>{709C5E40-E732-4196-A2F0-5B72206B7179}</Project>
       <Name>GTServer</Name>
+    </ProjectReference>
+    <ProjectReference Include="..\GTUI\GTUI.csproj">
+      <Project>{4EA5345C-EB1F-440A-8EFB-9EFF40AAF66F}</Project>
+      <Name>GTUI</Name>
     </ProjectReference>
   </ItemGroup>
   <ItemGroup>
