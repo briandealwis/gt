@@ -26,6 +26,11 @@ using System.Collections.Generic;
 
 namespace GT.Net
 {
+    /// <summary>
+    /// A set of messages could not be sent for a variety of reasons.
+    /// See <see cref="SubExceptions"/> and <see cref="Messages"/> for
+    /// detailed problems.
+    /// </summary>
     public class CannotSendMessagesError : GTCompositeException
     {
         protected IDictionary<Exception, IList<PendingMessage>> messages;

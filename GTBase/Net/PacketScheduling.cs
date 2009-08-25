@@ -136,6 +136,14 @@ namespace GT.Net
                 TransportPacket tp;
                 while ((tp = mr.RemovePacket()) != null)
                 {
+                    if (tp.Length > t.MaximumPacketSize)
+                    {
+                            NotifyError(new ErrorSummary(Severity.Warning,
+                                SummaryErrorCode.MessagesCannotBeSent,
+                                "Unable to send messages", m, null));
+                            tp.Dispose();
+                            return;
+                    }
                     cnx.SendPacket(t, tp);
                 }
                 NotifyMessageSent(m, t);
@@ -395,6 +403,7 @@ namespace GT.Net
         /// to process or some error/exception arose</returns>
         protected virtual bool ProcessNextPacket(byte channelId, CannotSendMessagesError csme)
         {
+            // FIXME: This handling of state is painful to reason through.
             ChannelSendingState cs = default(ChannelSendingState);
             if (!FindNextPacket(channelId, csme, ref cs)) { return false; }
             Debug.Assert(cs.MarshalledForm != null && cs.MarshalledForm.HasPackets);
@@ -408,6 +417,18 @@ namespace GT.Net
             if (!messagesInProgress.ContainsKey(cs.Transport)) { messagesInProgress[cs.Transport] = new List<Message>(); }
 
             TransportPacket next = cs.MarshalledForm.RemovePacket();
+            if(next.Length > cs.Transport.MaximumPacketSize)
+            {
+                csme.AddAll(new MarshallingException("Marshalled form of message is too large for transport"), 
+                        new SingleItem<Message>(cs.PendingMessage.Message));
+
+                pmPool.Return(cs.PendingMessage);
+                cs.PendingMessage = null;
+                cs.MarshalledForm.Dispose();
+                cs.MarshalledForm = null;
+                return true;
+            }
+
             if (tp.Length + next.Length >= cs.Transport.MaximumPacketSize)
             {
                 try 
@@ -421,6 +442,12 @@ namespace GT.Net
                     sentMessages[cs.Transport].Clear();
                     messagesInProgress[cs.Transport].Clear();
                     packetsInProgress.Remove(cs.Transport);
+
+                    pmPool.Return(cs.PendingMessage);
+                    cs.PendingMessage = null;
+                    cs.MarshalledForm.Dispose();
+                    cs.MarshalledForm = null;
+
                     return true;
                 }
                 NotifyMessagesSent(sentMessages[cs.Transport], cs.Transport);

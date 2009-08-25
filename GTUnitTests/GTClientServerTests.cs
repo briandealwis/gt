@@ -32,14 +32,36 @@ using GT.Net.Local;
 namespace GT.UnitTests
 {
 
-    #region Useful Client and Server testing configurations
+    #region Useful Client and Server testing Stuff
     #region Transport-specific configurations
+
+    public class TestClient : Client
+    {
+        public TestClient(ClientConfiguration cc) : base(cc) { }
+
+        public void SetMarshaller(IMarshaller marshaller)
+        {
+            Marshaller = marshaller;
+        }
+    }
+
+    public class TestServer : Server
+    {
+        public TestServer(ServerConfiguration sc) : base(sc) { }
+
+        public void SetMarshaller(IMarshaller marshaller)
+        {
+            Marshaller = marshaller;
+        }
+    }
 
     public class TestServerConfiguration : DefaultServerConfiguration
     {
-        public TestServerConfiguration(int port)
-            : base(port)
+        public TestServerConfiguration(int port) : base(port) { }
+
+        public override Server BuildServer()
         {
+            return new TestServer(this);
         }
 
         public override ICollection<IAcceptor> CreateAcceptors()
@@ -57,6 +79,11 @@ namespace GT.UnitTests
             ICollection<IConnector> connectors = base.CreateConnectors();
             connectors.Add(new LocalConnector());
             return connectors;
+        }
+
+        public override Client BuildClient()
+        {
+            return new TestClient(this);
         }
     }
 
@@ -98,6 +125,10 @@ namespace GT.UnitTests
             return acceptors;
         }
 
+        public override Server BuildServer()
+        {
+            return new TestServer(this);
+        }
     }
 
     public class LocalClientConfiguration : DefaultClientConfiguration
@@ -107,6 +138,11 @@ namespace GT.UnitTests
             ICollection<IConnector> connectors = new List<IConnector>();
             connectors.Add(new LocalConnector());
             return connectors;
+        }
+
+        public override Client BuildClient()
+        {
+            return new TestClient(this);
         }
     }
     #endregion
@@ -764,7 +800,33 @@ namespace GT.UnitTests
             Assert.IsTrue(received);
         }
 
-        private void UpdateClient(Returning<bool> condition)
+        [Test]
+        public void TestTooLargeObjects()
+        {
+            ((TestServer)server).SetMarshaller(new DotNetSerializingMarshaller());
+            ((TestClient)client).SetMarshaller(new DotNetSerializingMarshaller());
+
+            IBinaryChannel binChannel = client.OpenBinaryChannel("127.0.0.1", "9999", 0, ChannelDeliveryRequirements.MostStrict);
+            for (int i = 0; server.Connexions.Count < 1 && i < 10; i++) { Thread.Sleep(200); }
+            Assert.IsNotNull(binChannel);
+            Assert.AreEqual(1, server.Connexions.Count);
+
+            bool somethingSent = false;
+            foreach (IConnexion c in client.Connexions)
+            {
+                    c.MessageSent += delegate { somethingSent = true; };
+            }
+            Assert.IsFalse(somethingSent);
+            bool csmeSeen = false;
+            client.ErrorEvent += (es) => csmeSeen = es.ErrorCode == SummaryErrorCode.MessagesCannotBeSent;
+            
+            binChannel.Send(new byte[128000]);
+            
+            Assert.IsFalse(somethingSent, "a message should not have been sent");
+            Assert.IsTrue(csmeSeen, "a cannot-send-messages error should have been reported");
+        }
+
+    	private void UpdateClient(Returning<bool> condition)
         {
             for (int i = 0; !condition() && i < 10; i++)
             {

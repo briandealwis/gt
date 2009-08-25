@@ -913,15 +913,24 @@ namespace GT.UnitTests
         [Test]
         public void TestDelay()
         {
-            transport.DelayProvider = () => TimeSpan.FromMilliseconds(100);
+            transport.PacketFixedDelay = TimeSpan.FromSeconds(2);
+        	uint packetNumber = 0;
+        	transport.PacketSent += (packet, t) =>
+        	                            	{
+												Assert.AreEqual(packetNumber, packet.ByteAt(0));
+												packetNumber++;
+        	                            	};
             for (int i = 0; i < 100; i++)
             {
-                transport.SendPacket(new TransportPacket(new byte[4]));
+                transport.SendPacket(new TransportPacket(new[] { (byte)i }));
+				if(i % 5 == 0) { Thread.Sleep(1); }
             }
+			Assert.AreEqual(0, packetNumber);
             Assert.AreEqual(100, effects.Occurrences(NetworkEmulatorTransport.PacketEffect.Delayed));
-            Thread.Sleep(200);
+			Thread.Sleep(transport.PacketFixedDelay);
             transport.Update();
-            Assert.AreEqual(100, wrappedPacketsSent);
+			Assert.AreEqual(100, packetNumber);
+			Assert.AreEqual(100, wrappedPacketsSent);
         }
 
         [Test]

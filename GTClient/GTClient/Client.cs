@@ -827,6 +827,7 @@ namespace GT.Net
         public override IMarshaller Marshaller
         {
             get { return marshaller; }
+            protected set { marshaller = value; }
         }
 
         /// <summary>
