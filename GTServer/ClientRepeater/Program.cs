@@ -62,6 +62,13 @@ namespace GT.Net
         {
             // Sleep at most 1 ms between updates
             this.TickInterval = TimeSpan.FromMilliseconds(1);
+
+            // default to a large default packet size: although this value doesn't 
+            // prevent the CR from *receiving* large messages from other systems, 
+            // it does put a cap on what size packets it can *send* (i.e., relay 
+            // in the CR's case)
+            this.MaximumPacketSize = 4 * 1024 * 1024;
+
         }
 
         override public Server BuildServer()
@@ -176,7 +183,7 @@ namespace GT.Net
         {
             int port = (int)DefaultPort;
             uint verbose = DefaultVerbosity;
-            uint maxPacketSize = 0;
+            int maxPacketSize = -1;
             int sessionChannelId = DefaultSessionChannelId;
             TimeSpan timeout = DefaultInactiveTimeout;
 
@@ -199,8 +206,8 @@ namespace GT.Net
                             prop["level"] = opt.Argument;
                             LogManager.Adapter = new ConsoleOutLoggerFactoryAdapter(prop);
                             break;
-                        case 'm':
-                            maxPacketSize = uint.Parse(opt.Argument);
+                        case 'm':   // use uint as it shouldn't be negative
+                            maxPacketSize = (int)uint.Parse(opt.Argument);
                             break;
                         case 'b':
                             sessionChannelId = int.Parse(opt.Argument);
@@ -244,7 +251,10 @@ namespace GT.Net
                 LogManager.GetLogger(typeof (ClientRepeater)).Info(String.Format("Starting server on port {0}", port));
             }
             RepeaterConfiguration config = new RepeaterConfiguration(port);
-            config.MaximumPacketSize = maxPacketSize;
+            if (maxPacketSize >= 0)
+            {
+                config.MaximumPacketSize = (uint)maxPacketSize;
+            }
             ClientRepeater cr = new ClientRepeater(config);
             cr.SessionChangesChannelId = sessionChannelId;
             cr.Verbose = verbose;
