@@ -5,65 +5,53 @@ namespace BBall.UI
 {
     public partial class DelayForm : Form
     {
+        public event Action<TimeSpan> DelayChanged;
+        public event Action<TimeSpan> UpdateIntervalChanged;
+        public event MethodInvoker Reset;
+
         public DelayForm()
         {
             InitializeComponent();
+            delaySlider.ValueChanged += _delaySlider_ValueChanged;
+            updatetimeSlider.ValueChanged += _updatetimeSlider_ValueChanged;
         }
 
         public TimeSpan Delay
         {
-            get { return TimeSpan.FromMilliseconds(float.Parse(textValue.Text)); }
+            get { return TimeSpan.FromMilliseconds(delaySlider.Value); }
             set
             {
                 if (value.CompareTo(TimeSpan.Zero) < 0) { throw new ArgumentException("value must be >= 0"); }
-                SetTrackBar(value.TotalMilliseconds);
-                SetTextValue(value.TotalMilliseconds);
+                delaySlider.Value = (float)value.TotalMilliseconds;
             }
         }
 
-        protected int ToTrackBar(double v)
+        public TimeSpan UpdateInterval
         {
-            return (int)Math.Min(trackBar1.Maximum, Math.Max(trackBar1.Minimum, v));
-        }
-
-        protected double FromTrackBar(int tb)
-        {
-            return tb;
-        }
-
-        protected void SetTrackBar(double v)
-        {
-            trackBar1.Value = ToTrackBar(v);
-        }
-
-        protected void SetTextValue(double v)
-        {
-            textValue.Text = String.Format("{0:0.0}", v);
-        }
-
-        private void trackBar1_Scroll(object sender, EventArgs e)
-        {
-            SetTextValue(FromTrackBar(trackBar1.Value));
-            if (Changed != null) { Changed((uint)trackBar1.Value); }
-        }
-
-        private void textValue_TextChanged(object sender, EventArgs e)
-        {
-            try
+            get { return TimeSpan.FromMilliseconds(updatetimeSlider.Value); }
+            set
             {
-                SetTrackBar(float.Parse(textValue.Text));
+                if (value.CompareTo(TimeSpan.Zero) < 0) { throw new ArgumentException("value must be >= 0"); }
+                updatetimeSlider.Value = (float)value.TotalMilliseconds;
             }
-            catch (FormatException)
-            {
-                SetTextValue(FromTrackBar(trackBar1.Value));
-            }
-            if (Changed != null) { Changed((uint)trackBar1.Value); }
         }
 
+        private void _delaySlider_ValueChanged(object sender, EventArgs e)
+        {
+            if (DelayChanged != null)
+            {
+                DelayChanged(TimeSpan.FromMilliseconds(delaySlider.Value));
+            }
+        }
 
-        public event Action<uint> Changed;
+        private void _updatetimeSlider_ValueChanged(object sender, EventArgs e)
+        {
+            if (UpdateIntervalChanged != null)
+            {
+                UpdateIntervalChanged(TimeSpan.FromMilliseconds(updatetimeSlider.Value));
+            }
+        }
 
-        public event MethodInvoker Reset;
 
         private void resetButton_Click(object sender, EventArgs e)
         {

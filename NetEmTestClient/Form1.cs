@@ -27,14 +27,12 @@ namespace BBall.UI
             client = new BBClient(host, port);
             client.Start();
             clientDelayForm = new DelayForm();
-            clientDelayForm.Changed += _delayForm_Changed;
+            clientDelayForm.Delay = client.Delay;
+            clientDelayForm.UpdateInterval = client.UpdateInterval;
+            clientDelayForm.DelayChanged += (value) => client.Delay = value;
+            clientDelayForm.UpdateIntervalChanged += (value) => client.UpdateInterval = value;
             clientDelayForm.Reset += client.Reset;
             clientDelayForm.Show();
-        }
-
-        private void _delayForm_Changed(uint value)
-        {
-            client.Delay = TimeSpan.FromMilliseconds(value);
         }
 
         private void StartServer(ushort port)

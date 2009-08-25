@@ -24,6 +24,8 @@ namespace BBall.Client
         private System.Windows.Forms.Timer timer;
         private IObjectChannel updates;
 
+        private TimeSpan delay = TimeSpan.Zero;
+
         private double x = 6;
         private double y = 6;
         private double velX = 50;  // 5 pixels / second
@@ -37,26 +39,32 @@ namespace BBall.Client
         public BBClient(string host, uint port)
         {
             client = new GT.Net.Client(new BBClientConfiguration());
+            client.ConnexionAdded += _client_ConnexionAdded;
             this.host = host;
             this.port = port;
-            Interval = TimeSpan.FromMilliseconds(50);
+
+            timer = new System.Windows.Forms.Timer();
+            timer.Interval = 50;
+            timer.Tick += _timer_Tick;
         }
 
-        public TimeSpan Interval { get; set; }
+        public TimeSpan UpdateInterval
+        {
+            get { return TimeSpan.FromMilliseconds(timer.Interval); }
+            set { timer.Interval = (int)value.TotalMilliseconds; }
+        }
 
         public TimeSpan Delay
         {
+            get { return delay; }
             set
             {
+                delay = value;
                 foreach(IConnexion cnx in client.Connexions)
                 {
                     foreach (ITransport t in cnx.Transports)
                     {
-                        if(t is NetworkEmulatorTransport)
-                        {
-                            NetworkEmulatorTransport net = (NetworkEmulatorTransport) t;
-                            net.PacketFixedDelay = value;
-                        }
+                        UpdateTransport(t);
                     }
                 }
             }
@@ -74,12 +82,80 @@ namespace BBall.Client
                 ChannelDeliveryRequirements.MostStrict);
             updates.MessagesReceived += _updates_Received;
 
-            timer = new System.Windows.Forms.Timer();
-            timer.Interval = (int)Interval.TotalMilliseconds;
-            timer.Tick += _timer_Tick;
             timer.Start();
             sw.Start();
         }
+
+        public void Reset()
+        {
+            x = width / 2;
+            y = height / 2;
+            updates.Send(new PositionChanged { X = x, Y = y });
+            sw.Reset();
+            sw.Start();
+        }
+
+        public void Dispose()
+        {
+            timer.Dispose();
+            client.Dispose();
+        }
+
+        private void UpdatePosition()
+        {
+            double elapsed = sw.Elapsed.TotalSeconds;
+            x += velX * elapsed;
+            y += velY * elapsed;
+            if (x < radius)
+            {
+                velX = Math.Abs(velX);
+                x = radius;
+            }
+            else if (x > width - radius)
+            {
+                velX = -Math.Abs(velX);
+                x = width - radius;
+            }
+
+            if (y < radius)
+            {
+                velY = Math.Abs(velY);
+                y = radius;
+            }
+            else if (y > height - radius)
+            {
+                velY = -Math.Abs(velY);
+                y = height - radius;
+            }
+            sw.Reset();
+            sw.Start();
+        }
+
+        private void UpdateTransport(ITransport transport)
+        {
+            if (transport is NetworkEmulatorTransport)
+            {
+                NetworkEmulatorTransport net = (NetworkEmulatorTransport)transport;
+                net.PacketFixedDelay = delay;
+            }
+        }
+        
+        #region Event Handlers
+
+        private void _client_ConnexionAdded(Communicator c, IConnexion cnx)
+        {
+            cnx.TransportAdded += _cnx_TransportAdded;
+            foreach (ITransport t in cnx.Transports)
+            {
+                UpdateTransport(t);
+            }
+        }
+
+        private void _cnx_TransportAdded(IConnexion cnx, ITransport transport)
+        {
+            UpdateTransport(transport);
+        }
+
 
         private void _updates_Received(IObjectChannel channel)
         {
@@ -101,52 +177,11 @@ namespace BBall.Client
         private void _timer_Tick(object sender, EventArgs e1)
         {
             UpdatePosition();
-            updates.Send(new PositionChanged { X = x, Y = y });   
-        }
-
-        public void Reset()
-        {
-            x = width / 2;
-            y = height/2;
             updates.Send(new PositionChanged { X = x, Y = y });
-            sw.Reset();
-            sw.Start();
         }
+        
+        #endregion
 
-        private void UpdatePosition()
-        {
-            sw.Start();
-            double elapsed = sw.Elapsed.TotalSeconds;
-            x += velX*elapsed;
-            y += velY*elapsed;
-            if(x < radius)
-            {
-                velX = Math.Abs(velX);
-                x = radius;
-            } else if(x > width - radius)
-            {
-                velX = -Math.Abs(velX);
-                x = width - radius;
-            }
-
-            if (y < radius)
-            {
-                velY = Math.Abs(velY);
-                y = radius;
-            }
-            else if (y > height - radius)
-            {
-                velY = -Math.Abs(velY);
-                y = height - radius;
-            }
-            sw.Reset();
-            sw.Start();
-        }
-
-        public void Dispose()
-        {
-            timer.Dispose();
-        }
     }
 
 }

@@ -68,6 +68,7 @@
     </EmbeddedResource>
     <EmbeddedResource Include="Form1.resx">
       <DependentUpon>Form1.cs</DependentUpon>
+      <SubType>Designer</SubType>
     </EmbeddedResource>
     <EmbeddedResource Include="Properties\Resources.resx">
       <Generator>ResXFileCodeGenerator</Generator>
@@ -101,6 +102,10 @@
     <ProjectReference Include="..\GTServer\GTServer\GTServer.csproj">
       <Project>{709C5E40-E732-4196-A2F0-5B72206B7179}</Project>
       <Name>GTServer</Name>
+    </ProjectReference>
+    <ProjectReference Include="..\GTUI\GTUI.csproj">
+      <Project>{4EA5345C-EB1F-440A-8EFB-9EFF40AAF66F}</Project>
+      <Name>GTUI</Name>
     </ProjectReference>
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
