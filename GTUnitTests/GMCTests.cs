@@ -257,7 +257,7 @@ namespace GT.GMC
                     {
                         if (result.Length > sizes[j])
                         {
-                            Console.WriteLine("GMC'ed message #{0} expanded since last time!", j);
+                            Debug.WriteLine(String.Format("GMC'ed message #{0} expanded since last time!", j));
                         }
                         sizes[j] = result.Length;
                     }
@@ -293,7 +293,7 @@ namespace GT.GMC
                     {
                         if (result.Length > sizes[j])
                         {
-                            Console.WriteLine("GMC'ed message #{0} expanded since last time!", j);
+                            Debug.WriteLine(String.Format("GMC'ed message #{0} expanded since last time!", j));
                         }
                         sizes[j] = result.Length;
                     }
@@ -329,7 +329,7 @@ namespace GT.GMC
             string[] sList = s.Split(delim);
 
             int count = 0;
-            Console.WriteLine("GMC: compressing {0} lines in {1}", sList.Length, filename);
+            Console.WriteLine(String.Format("GMC: compressing {0} lines in {1}", sList.Length, filename));
             Stopwatch stopwatch = Stopwatch.StartNew();
             foreach (string line in sList)
             {
@@ -341,8 +341,8 @@ namespace GT.GMC
 
                     if (encodedMessage.Length > messageToEncode.Length)
                     {
-                        Console.WriteLine("GMC'ing message #{0} has grown from {1} bytes to {2} bytes",
-                            count, messageToEncode.Length, encodedMessage.Length);
+                        Debug.WriteLine(String.Format("GMC'ing message #{0} has grown from {1} bytes to {2} bytes",
+                            count, messageToEncode.Length, encodedMessage.Length));
                     }
 
                     byte[] decoded = gmc.Decode(0, encodedMessage);
