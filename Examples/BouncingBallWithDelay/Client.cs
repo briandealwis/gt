@@ -3,6 +3,7 @@ using BBall.Common;
 using GT.Net;
 using GT.Net.Utils;
 using System;
+using GT.Utils;
 
 namespace BBall.Client
 {
@@ -25,6 +26,9 @@ namespace BBall.Client
         private IObjectChannel updates;
 
         private TimeSpan delay = TimeSpan.Zero;
+        private double pLoss = 0;
+        private double pLossCorrelation = 0;
+        private double pReordering = 0;
 
         private double x = 6;
         private double y = 6;
@@ -35,6 +39,12 @@ namespace BBall.Client
         private double width = 100;
         private double height = 100;
 
+        /// <summary>
+        /// Reroute any packet disposition events from our NetworkEmulatorTransports.
+        /// </summary>
+        public Action<NetworkEmulatorTransport.PacketMode, 
+            NetworkEmulatorTransport.PacketEffect, TransportPacket> PacketDisposition;
+
 
         public BBClient(string host, uint port)
         {
@@ -42,6 +52,7 @@ namespace BBall.Client
             client.ConnexionAdded += _client_ConnexionAdded;
             this.host = host;
             this.port = port;
+            MDR = MessageDeliveryRequirements.MostStrict;
 
             timer = new System.Windows.Forms.Timer();
             timer.Interval = 50;
@@ -54,22 +65,64 @@ namespace BBall.Client
             set { timer.Interval = (int)value.TotalMilliseconds; }
         }
 
+        /// <summary>
+        /// Get/set the uniform delay introduced on all packets.
+        /// </summary>
         public TimeSpan Delay
         {
             get { return delay; }
             set
             {
                 delay = value;
-                foreach(IConnexion cnx in client.Connexions)
-                {
-                    foreach (ITransport t in cnx.Transports)
-                    {
-                        UpdateTransport(t);
-                    }
-                }
+                UpdateTransports();
             }
         }
 
+        /// <summary>
+        /// Get/set the probability of a packet being lost.
+        /// </summary>
+        public double PacketLoss
+        {
+            get { return pLoss; }
+            set
+            {
+                pLoss = value;
+                UpdateTransports();
+            }
+        }
+
+        /// <summary>
+        /// Get/set the probability of loss being correlated between
+        /// subsequent packets.  If 0, then packet loss is independent.
+        /// </summary>
+        public double PacketLossCorrelation
+        {
+            get { return pLossCorrelation; }
+            set
+            {
+                pLossCorrelation = value;
+                UpdateTransports();
+            }
+        }
+
+        /// <summary>
+        /// Get/set the probability of a packet being reordered.
+        /// If 0, then packets will not be reordered.
+        /// </summary>
+        public double PacketReordering
+        {
+            get { return pReordering; }
+            set
+            {
+                pReordering = value;
+                UpdateTransports();
+            }
+        }
+
+        /// <summary>
+        /// Get/set the message delivery requirements used for sending the updates.
+        /// </summary>
+        public MessageDeliveryRequirements MDR { get; set; }
 
         public void Start()
         {
@@ -131,12 +184,26 @@ namespace BBall.Client
             sw.Start();
         }
 
+        private void UpdateTransports()
+        {
+            foreach (IConnexion cnx in client.Connexions)
+            {
+                foreach (ITransport t in cnx.Transports)
+                {
+                    UpdateTransport(t);
+                }
+            }
+        }
+
         private void UpdateTransport(ITransport transport)
         {
             if (transport is NetworkEmulatorTransport)
             {
                 NetworkEmulatorTransport net = (NetworkEmulatorTransport)transport;
                 net.PacketFixedDelay = delay;
+                net.PacketLoss = pLoss;
+                net.PacketLossCorrelation = pLossCorrelation;
+                net.PacketReordering = pReordering;
             }
         }
         
@@ -147,15 +214,28 @@ namespace BBall.Client
             cnx.TransportAdded += _cnx_TransportAdded;
             foreach (ITransport t in cnx.Transports)
             {
-                UpdateTransport(t);
+                _cnx_TransportAdded(cnx, t);
             }
         }
 
         private void _cnx_TransportAdded(IConnexion cnx, ITransport transport)
         {
+            if(transport is NetworkEmulatorTransport)
+            {
+                ((NetworkEmulatorTransport) transport).PacketDisposition +=
+                    _transport_PacketDisposed;
+            }
             UpdateTransport(transport);
         }
 
+        private void _transport_PacketDisposed(NetworkEmulatorTransport.PacketMode mode, 
+            NetworkEmulatorTransport.PacketEffect effect, TransportPacket packet)
+        {
+            if(PacketDisposition != null)
+            {
+                PacketDisposition(mode, effect, packet);
+            }
+        }
 
         private void _updates_Received(IObjectChannel channel)
         {
@@ -177,11 +257,11 @@ namespace BBall.Client
         private void _timer_Tick(object sender, EventArgs e1)
         {
             UpdatePosition();
-            updates.Send(new PositionChanged { X = x, Y = y });
+            updates.Send(new PositionChanged { X = x, Y = y }, MDR);
+            updates.Flush();
         }
         
         #endregion
-
     }
 
 }

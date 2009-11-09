@@ -2,6 +2,7 @@
 using System.Windows.Forms;
 using BBall.Client;
 using BBall.Server;
+using GT.Net;
 
 namespace BBall.UI
 {
@@ -27,11 +28,26 @@ namespace BBall.UI
             client = new BBClient(host, port);
             client.Start();
             clientDelayForm = new DelayForm();
+
             clientDelayForm.Delay = client.Delay;
+            clientDelayForm.PacketLoss = (float)client.PacketLoss;
+            clientDelayForm.PacketLossCorrelation = (float)client.PacketLossCorrelation;
+            clientDelayForm.PacketReordering = (float)client.PacketReordering;
             clientDelayForm.UpdateInterval = client.UpdateInterval;
+            clientDelayForm.SendUnreliably = false;
+
             clientDelayForm.DelayChanged += (value) => client.Delay = value;
+            clientDelayForm.PacketLossChanged += (value) => client.PacketLoss = value;
+            clientDelayForm.PacketLossCorrelationChanged += (value) => client.PacketLossCorrelation = value;
+            clientDelayForm.PacketReorderingChanged += (value) => client.PacketReordering = value;
             clientDelayForm.UpdateIntervalChanged += (value) => client.UpdateInterval = value;
+            clientDelayForm.SendUnreliablyChanged +=
+                (value) =>
+                    client.MDR = value ? MessageDeliveryRequirements.LeastStrict 
+                        : MessageDeliveryRequirements.MostStrict;
+
             clientDelayForm.Reset += client.Reset;
+            client.PacketDisposition += clientDelayForm.ReportDisposition;
             clientDelayForm.Show();
         }
 
