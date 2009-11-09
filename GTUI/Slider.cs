@@ -7,7 +7,8 @@ namespace GT.UI
     [DefaultEvent("ValueChanged")]
     public partial class Slider : UserControl
     {
-        [Description("Triggered when the slider value is changed.")]
+        [Browsable(true),Description("Triggered when the slider value is changed."),
+        Category("Action")]
         public EventHandler ValueChanged;
 
         protected float minimum = 0.0f;
@@ -24,21 +25,24 @@ namespace GT.UI
             UpdateBounds();
         }
 
-        [Browsable(true), Description("The units of the value.")]
+        [Browsable(true), Category("Behavior"),
+        Description("The units of the value.")]
         public string Units
         {
             get { return unitsLabel.Text; }
             set { unitsLabel.Text = value ?? string.Empty; }
         }
 
-        [Browsable(true), Description("Show the minimum and maximum values below the slider.")]
+        [Browsable(true), Category("Behavior"), 
+        Description("Show the minimum and maximum values below the slider.")]
         public bool ShowMinMaxValues
         {
             get { return minLabel.Visible && maxLabel.Visible; }
             set { minLabel.Visible = maxLabel.Visible = value; }
         }
 
-        [Browsable(true), Description("The slider value.")]
+        [Browsable(true), Category("Behavior"), 
+        Description("The slider value.")]
         public float Value
         {
             get
@@ -70,7 +74,8 @@ namespace GT.UI
             }
         }
 
-        [Browsable(true), Description("The minimum slider value.")]
+        [Browsable(true), Category("Behavior"), 
+        Description("The minimum slider value.")]
         public float Minimum
         {
             get { return minimum; }
@@ -81,7 +86,8 @@ namespace GT.UI
             }
         }
 
-        [Browsable(true), Description("The maximum slider value.")]
+        [Browsable(true), Category("Behavior"), 
+        Description("The maximum slider value.")]
         public float Maximum
         {
             get { return maximum; }
@@ -92,7 +98,8 @@ namespace GT.UI
             }
         }
 
-        [Browsable(true), Description("The finest resolution of the slider area.")]
+        [Browsable(true), Category("Behavior"), 
+        Description("The finest resolution of the slider area.")]
         public float Resolution
         {
             get { return resolution; }
@@ -106,7 +113,8 @@ namespace GT.UI
             }
         }
 
-        [Browsable(true), Description("The tick frequency in the slider area.")]
+        [Browsable(true), Category("Behavior"), 
+        Description("The tick frequency in the slider area.")]
         public float TickFrequency
         {
             get { return tickFrequency; }
@@ -120,7 +128,8 @@ namespace GT.UI
             }
         }
 
-        [Browsable(true), Description("The change from clicking on the slider area.")]
+        [Browsable(true), Category("Behavior"), 
+        Description("The change from clicking on the slider area.")]
         public float LargeChange
         {
             get { return largeChange; }
