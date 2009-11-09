@@ -34,6 +34,18 @@ Please submit any problems or requests via the GT Trac found at:
 
 
 ================
+==== GT 3.1 ====
+================
+
+New Functionality:
+------------------
+
+  * Created a new example, Examples/BouncingBallWithDelay, demonstrating
+    the use of the NetworkEmulatorTransport to introduce delay.
+    <https://papyrus.usask.ca/trac/gt/ticket/90>
+
+
+================
 === GT 3.0.1 ===
 ================
 
