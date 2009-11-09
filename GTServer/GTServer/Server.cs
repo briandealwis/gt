@@ -23,6 +23,7 @@ using System;
 using System.Net;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Net.Sockets;
 using Common.Logging;
 using GT.Millipede;
 using GT.Utils;
@@ -180,6 +181,11 @@ namespace GT.Net
             ICollection<IAcceptor> acceptors = new List<IAcceptor>();
             acceptors.Add(new TcpAcceptor(IPAddress.Any, port));
             acceptors.Add(new UdpAcceptor(IPAddress.Any, port));
+            if (Socket.OSSupportsIPv6)
+            {
+                acceptors.Add(new TcpAcceptor(IPAddress.IPv6Any, port));
+                acceptors.Add(new UdpAcceptor(IPAddress.IPv6Any, port));
+            }
             // optionally use Millipede on the connectors, dependent on
             // GTMILLIPEDE environment variable
             return MillipedeAcceptor.Wrap(acceptors, MillipedeRecorder.Singleton);

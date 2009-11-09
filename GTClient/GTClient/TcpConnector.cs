@@ -63,37 +63,73 @@ namespace GT.Net
         public bool Active { get { return active; } }
         public void Dispose() { Stop(); }
 
-        public ITransport Connect(string address, string port, IDictionary<string, string> capabilities)
+        public ITransport Connect(string address, string portDescription,
+            IDictionary<string, string> capabilities)
         {
-            IPAddress[] addr = Dns.GetHostAddresses(address);
-            TcpClient client = null;
-            IPEndPoint endPoint = null;
+            IPAddress[] addresses;
+            int port;
+
+            try { addresses = Dns.GetHostAddresses(address); }
+            catch (SocketException e)
+            {
+                throw new CannotConnectException("Cannot resolve hostname: " + address, e);
+            }
+            if (addresses.Length == 0)
+            {
+                throw new CannotConnectException(
+                    String.Format("Cannot resolve address", address));
+            }
+
+            try { port = Int32.Parse(portDescription); }
+            catch (FormatException e)
+            {
+                throw new CannotConnectException("invalid port: " + portDescription, e);
+            }
 
             //try to connect to the address
+            TcpClient client = null;
+            IPEndPoint endPoint = null;
             CannotConnectException error = null;
-            for (int i = 0; i < addr.Length; i++)
+            foreach (IPAddress addr in addresses)
             {
+                // in case hanging around from last iteration
+                if (client != null)
+                {
+                    try
+                    {
+                        client.Close();
+                        client = null;
+                    }
+                    catch (Exception) {/*ignore*/}
+                }
                 try
                 {
-                    endPoint = new IPEndPoint(addr[0], Int32.Parse(port));
+                    endPoint = new IPEndPoint(addr, port);
                     client = new TcpClient();
                     client.NoDelay = true;
                     client.ReceiveTimeout = 1;
                     client.SendTimeout = 1;
                     client.Connect(endPoint);
+                    // must set to blocking *after* the connect
                     client.Client.Blocking = false;
                     error = null;
                     break;
                 }
-                catch (Exception e)
+                catch (SocketException e)
                 {
-                    error = new CannotConnectException(String.Format("Cannot connect to {0}/{1}: {2}",
-                        address, port, e.Message), e);
+                    String errorMsg = String.Format("Cannot connect to {0}: {1}",
+                        endPoint, e.Message);
+                    error = new CannotConnectException(errorMsg);
                     error.SourceComponent = this;
+                    log.Debug(errorMsg);
                 }
             }
 
-            if (error != null) { throw error; }
+            if (error != null)
+            {
+                log.Info(error.Message);
+                throw error;
+            }
 
             // FIXME: a handshake is between two people; we assume that if they don't want
             // to talk to us then they'll close the connexion.

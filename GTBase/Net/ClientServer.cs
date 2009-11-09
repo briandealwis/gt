@@ -798,13 +798,16 @@ namespace GT.Net
 
         /// <summary>
         /// A supplementary interface to be implemented by all <see cref="IConnexion"/>,
-        /// used by packet schedulers to marshal
+        /// used by packet schedulers to marshal.  Implementors are not expected to check
+        /// that the packet meets the provided transport's maximum packet size.
         /// </summary>
         IMarshalledResult Marshal(Message m, ITransportDeliveryCharacteristics tdc);
 
         /// <summary>
         /// A supplementary interface for use by <see cref="IPacketScheduler"/>.
-        /// Sends a packet on the provided transport.
+        /// Sends a packet on the provided transport.  Implementors may choose to
+        /// verify that the packet falls within the transport's packet size; violations
+        /// should be reported via <see cref="ErrorEvents"/>.
         /// </summary>
         /// <param name="transport">the transport to be sent</param>
         /// <param name="packet">the packet to be sent</param>

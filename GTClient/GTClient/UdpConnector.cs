@@ -116,21 +116,15 @@ namespace GT.Net
         public ITransport Connect(string address, string portDescription, 
             IDictionary<string, string> capabilities)
         {
-            IPAddress[] addr;
-            try
-            {
-                addr = Dns.GetHostAddresses(address);
-            }
+            IPAddress[] addresses;
+            try { addresses = Dns.GetHostAddresses(address); }
             catch (SocketException e)
             {
                 throw new CannotConnectException("Cannot resolve hostname: " + address, e);
             }
 
             int port;
-            try
-            {
-                port = Int32.Parse(portDescription);
-            }
+            try { port = Int32.Parse(portDescription); }
             catch (FormatException e)
             {
                 throw new CannotConnectException("invalid port: " + portDescription, e);
@@ -138,13 +132,13 @@ namespace GT.Net
 
             //try to connect to the address
             CannotConnectException error = null;
-            for (int i = 0; i < addr.Length; i++)
+            foreach(IPAddress addr in addresses)
             {
                 UdpClient client = null;
-
+                IPEndPoint endPoint = null;
                 try
                 {
-                    IPEndPoint endPoint = new IPEndPoint(addr[i], port);
+                    endPoint = new IPEndPoint(addr, port);
                     client = new UdpClient();
                     client.DontFragment = true; // FIXME: what are the implications of setting this flag?
                     client.Client.Blocking = false;
@@ -157,22 +151,27 @@ namespace GT.Net
                 }
                 catch (SocketException e)
                 {
-                    if (client != null) { client.Close(); client = null; }
-                    error = new CannotConnectException(
-                        String.Format("Cannot connect to {0}/{1}: {2}",
-                        address, port, e.Message));
-                    log.Info(e.Message);
+                    String errorMsg = String.Format("Cannot connect to {0}: {1}",
+                        endPoint, e.Message);
+                    error = new CannotConnectException(errorMsg);
                     error.SourceComponent = this;
+                    log.Debug(errorMsg);
                 }
                 catch (CannotConnectException e)
                 {
-                    log.Info(e.Message);
+                    log.Debug(String.Format("Could not connect to {0}: {1}",
+                        endPoint, e.Message));
                     error = e;
                 }
             }
-            if (error != null) { throw error; }
-            throw new CannotConnectException(
-                String.Format("Unable to connect to remote {0}/{1}", address, port));
+            if (error == null)
+            {
+                error = new CannotConnectException(
+                    String.Format("Unable to connect to remote {0}/{1}",
+                                  address, port));
+            }
+            log.Info(error.Message);
+            throw error;
         }
 
         /// <summary>
