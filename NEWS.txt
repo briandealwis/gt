@@ -44,6 +44,20 @@ New Functionality:
     the use of the NetworkEmulatorTransport to introduce delay.
     <https://papyrus.usask.ca/trac/gt/ticket/90>
 
+================
+=== GT 3.0.2 ===
+================
+
+GT 3.0.2 is a bug fix release:
+
+  * Packets sent with the NetworkEmulatorTransport may be sent out of
+    order <https://papyrus.usask.ca/trac/gt/ticket/87>
+
+  * ClientRepeater warns about oversized messages
+    <https://papyrus.usask.ca/trac/gt/ticket/88>
+
+  * GT fails in using IPv6, as caused on Win7
+    <https://papyrus.usask.ca/trac/gt/ticket/89>
 
 ================
 === GT 3.0.1 ===

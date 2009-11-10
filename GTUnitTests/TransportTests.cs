@@ -187,7 +187,10 @@ namespace GT.UnitTests
                         }
                         catch (Exception e)
                         {
-                            Console.WriteLine("Acceptor Thread: " + e);
+                            if (!(e is ThreadAbortException))
+                            {
+                                Console.WriteLine("Acceptor Thread: " + e);
+                            }
                         }
                     }
                 });
