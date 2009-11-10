@@ -165,11 +165,17 @@ namespace GT.Net
         /// <summary>
         /// Stop the instance.  Instances can be stopped multiple times.
         /// Stopping an instance may throw an exception on error.
+        /// This method should be overridden; implementors should 
+        /// ensure they cause <see cref="Active"/> will be false.
         /// </summary>
         public virtual void Stop()
         {
             // Should we call ConnexionRemoved on stop?
-            foreach(IConnexion cnx in connexions)
+            // No: it's an operation under programmatic control, so
+            // the caller is aware that they are being removed
+            List<IConnexion> copy = new List<IConnexion>(connexions);
+            connexions.Clear();
+            foreach (IConnexion cnx in copy)
             {
                 try { cnx.ShutDown(); }
                 catch (Exception e)
@@ -177,7 +183,6 @@ namespace GT.Net
                     log.Info("exception thrown when shutting down " + cnx, e);
                 }
             }
-            connexions.Clear();
         }
 
         /// <summary>
@@ -245,7 +250,11 @@ namespace GT.Net
         {
             Thread t = listeningThread;
             listeningThread = null;
-            if(t != null && t != Thread.CurrentThread) { t.Abort(); }
+            if(t != null && t != Thread.CurrentThread)
+            {
+                t.Abort();
+                t.Join(500);    // wait up to 500ms for the listener to finish
+            }
         }
 
         /// <summary>Starts an infinite loop to periodically call
