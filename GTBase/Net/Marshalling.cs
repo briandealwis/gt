@@ -26,6 +26,7 @@ using System.Text;
 using System.Diagnostics;
 using System.Collections.Generic;
 using GT.Utils;
+using System.Runtime.Serialization;
 
 namespace GT.Net
 {
@@ -322,6 +323,7 @@ namespace GT.Net
         /// <param name="msg">the message being sent, that is to be marshalled</param>
         /// <param name="tdc">the characteristics of the transport that will send the marshalled form</param>
         /// <returns>the marshalled representation</returns>
+        /// <exception cref="MarshallingException">on a marshalling error</exception>
         virtual public IMarshalledResult Marshal(int senderIdentity, Message msg, ITransportDeliveryCharacteristics tdc)
         {
             // This marshaller doesn't use <see cref="senderIdentity"/>.
@@ -352,6 +354,7 @@ namespace GT.Net
         /// <param name="m">the message contents to be marshalled</param>
         /// <param name="output">the destination for the marshalled message payload</param>
         /// <param name="tdc">the characteristics of the transport that is to be used for sending</param>
+        /// <exception cref="MarshallingException">on a marshalling error</exception>
         virtual protected void MarshalContents(Message m, Stream output, ITransportDeliveryCharacteristics tdc)
         {
             // Individual marshalling methods are **NO LONGER RESPONSIBLE** for encoding
@@ -371,12 +374,20 @@ namespace GT.Net
             }
         }
 
+        /// <param name="m">the message contents to be marshalled</param>
+        /// <param name="output">the destination for the marshalled message payload</param>
+        /// <param name="tdc">the characteristics of the transport that is to be used for sending</param>
+        /// <exception cref="MarshallingException">on a marshalling error</exception>
         protected virtual void MarshalSessionAction(SessionMessage sm, Stream output)
         {
             output.WriteByte((byte)sm.Action);
             output.Write(DataConverter.Converter.GetBytes(sm.ClientId), 0, 4);
         }
 
+        /// <param name="m">the message contents to be marshalled</param>
+        /// <param name="output">the destination for the marshalled message payload</param>
+        /// <param name="tdc">the characteristics of the transport that is to be used for sending</param>
+        /// <exception cref="MarshallingException">on a marshalling error</exception>
         protected virtual void MarshalSystemMessage(SystemMessage msg, Stream output)
         {
             // SystemMessageType is the channelId
@@ -398,6 +409,7 @@ namespace GT.Net
 
         #region Unmarshalling
 
+        /// <exception cref="MarshallingException">on a marshalling error</exception>
         virtual public void Unmarshal(TransportPacket tp, ITransportDeliveryCharacteristics tdc, EventHandler<MessageEventArgs> messageAvailable)
         {
             Debug.Assert(messageAvailable != null, "callers must provide a messageAvailale handler");
@@ -426,6 +438,7 @@ namespace GT.Net
         /// <param name="input">the marshalled contents</param>
         /// <param name="length">the number of bytes available</param>
         /// <returns>the unmarshalled message or null if the contents could not be unmarshalled</returns>
+        /// <exception cref="MarshallingException">thrown on marshalling error</exception>
         virtual protected Message UnmarshalContent(byte channelId, MessageType type, Stream input, uint length)
         {
             switch (type)
@@ -439,6 +452,12 @@ namespace GT.Net
             }
         }
 
+        /// <param name="channelId">the channelId received on</param>
+        /// <param name="type">the type of message</param>
+        /// <param name="input">the marshalled contents</param>
+        /// <param name="length">the number of bytes available</param>
+        /// <returns>the unmarshalled message or null if the contents could not be unmarshalled</returns>
+        /// <exception cref="MarshallingException">on a marshalling error</exception>
         protected Message UnmarshalSystemMessage(byte channelId, MessageType messageType, 
             Stream input, uint length)
         {
@@ -461,6 +480,12 @@ namespace GT.Net
             }
         }
 
+        /// <param name="channelId">the channelId received on</param>
+        /// <param name="type">the type of message</param>
+        /// <param name="input">the marshalled contents</param>
+        /// <param name="length">the number of bytes available</param>
+        /// <returns>the unmarshalled message or null if the contents could not be unmarshalled</returns>
+        /// <exception cref="MarshallingException">on a marshalling error</exception>
         protected SessionMessage UnmarshalSessionAction(byte channelId, MessageType type, 
             Stream input, uint length)
         {
@@ -487,7 +512,12 @@ namespace GT.Net
     public class DotNetSerializingMarshaller :
             BaseLWMCFMarshaller
     {
-        protected BinaryFormatter formatter = new BinaryFormatter();
+        protected IFormatter formatter;
+
+        public DotNetSerializingMarshaller()
+        {
+            formatter = CreateFormatter();
+        }
 
         public override string Descriptor
         {
@@ -500,8 +530,23 @@ namespace GT.Net
             base.Dispose();
         }
 
+        /// <summary>
+        /// Create & configure the formatter to be used.
+        /// </summary>
+        /// <returns>the formatter</returns>
+        virtual protected IFormatter CreateFormatter()
+        {
+            return new BinaryFormatter();
+        }
+
+        public IFormatter Formatter { get { return formatter; } }
+
         #region Marshalling
 
+        /// <param name="m">the message contents to be marshalled</param>
+        /// <param name="output">the destination for the marshalled message payload</param>
+        /// <param name="tdc">the characteristics of the transport that is to be used for sending</param>
+        /// <exception cref="MarshallingException">on a marshalling error</exception>
         override protected void MarshalContents(Message m, Stream output, ITransportDeliveryCharacteristics tdc)
         {
             // Individual marshalling methods are **NO LONGER RESPONSIBLE** for encoding
@@ -528,24 +573,44 @@ namespace GT.Net
             }
         }
 
-        protected void MarshalString(string s, Stream output)
+        /// <param name="s">the message contents to be marshalled</param>
+        /// <param name="output">the destination for the marshalled message payload</param>
+        /// <exception cref="MarshallingException">on a marshalling error</exception>
+        virtual protected void MarshalString(string s, Stream output)
         {
             StreamWriter w = new StreamWriter(output, Encoding.UTF8);
             w.Write(s);
             w.Flush();
         }
 
-        protected void MarshalObject(object o, Stream output)
+        /// <param name="o">the message contents to be marshalled</param>
+        /// <param name="output">the destination for the marshalled message payload</param>
+        /// <exception cref="MarshallingException">on a marshalling error</exception>
+        virtual protected void MarshalObject(object o, Stream output)
         {
-            formatter.Serialize(output, o);
+            try
+            {
+                formatter.Serialize(output, o);
+            }
+            catch (SerializationException e)
+            {
+                throw new MarshallingException(String.Format("Unable to serialize object of type {0}: {1}", 
+                    o.GetType().FullName, e.Message), e);
+            }
         }
 
-        protected void MarshalBinary(byte[] bytes, Stream output)
+        /// <param name="bytes">the message contents to be marshalled</param>
+        /// <param name="output">the destination for the marshalled message payload</param>
+        /// <exception cref="MarshallingException">on a marshalling error</exception>
+        virtual protected void MarshalBinary(byte[] bytes, Stream output)
         {
             output.Write(bytes, 0, bytes.Length);
         }
 
-        protected void MarshalTupleMessage(TupleMessage tm, Stream output)
+        /// <param name="tm">the message to be marshalled</param>
+        /// <param name="output">the destination for the marshalled message payload</param>
+        /// <exception cref="MarshallingException">on a marshalling error</exception>
+        virtual protected void MarshalTupleMessage(TupleMessage tm, Stream output)
         {
             output.Write(DataConverter.Converter.GetBytes(tm.ClientId), 0, 4);
             if (tm.Dimension >= 1) { EncodeConvertible(tm.X, output); }
@@ -553,7 +618,8 @@ namespace GT.Net
             if (tm.Dimension >= 3) { EncodeConvertible(tm.Z, output); }
         }
 
-        protected void EncodeConvertible(IConvertible value, Stream output) {
+        virtual protected void EncodeConvertible(IConvertible value, Stream output)
+        {
             output.WriteByte((byte)value.GetTypeCode());
             byte[] result;
             switch (value.GetTypeCode())
@@ -602,6 +668,12 @@ namespace GT.Net
 
         #region Unmarshalling
 
+        /// <param name="channelId">the channelId received on</param>
+        /// <param name="type">the type of message</param>
+        /// <param name="input">the marshalled contents</param>
+        /// <param name="length">the number of bytes available</param>
+        /// <returns>the unmarshalled message or null if the contents could not be unmarshalled</returns>
+        /// <exception cref="MarshallingException">on a marshalling error</exception>
         override protected Message UnmarshalContent(byte channelId, MessageType type, 
             Stream input, uint length)
         {
@@ -622,18 +694,44 @@ namespace GT.Net
             }
         }
 
-        protected StringMessage UnmarshalString(byte channelId, MessageType type, Stream input)
+        /// <param name="channelId">the channelId received on</param>
+        /// <param name="type">the type of message</param>
+        /// <param name="input">the marshalled contents</param>
+        /// <param name="length">the number of bytes available</param>
+        /// <returns>the unmarshalled message or null if the contents could not be unmarshalled</returns>
+        /// <exception cref="MarshallingException">on a marshalling error</exception>
+        virtual protected StringMessage UnmarshalString(byte channelId, MessageType type, Stream input)
         {
             StreamReader sr = new StreamReader(input, Encoding.UTF8);
             return new StringMessage(channelId, sr.ReadToEnd());
         }
 
-        protected ObjectMessage UnmarshalObject(byte channelId, MessageType type, Stream input)
+        /// <param name="channelId">the channelId received on</param>
+        /// <param name="type">the type of message</param>
+        /// <param name="input">the marshalled contents</param>
+        /// <param name="length">the number of bytes available</param>
+        /// <returns>the unmarshalled message or null if the contents could not be unmarshalled</returns>
+        /// <exception cref="MarshallingException">on a marshalling error</exception>
+        virtual protected ObjectMessage UnmarshalObject(byte channelId, MessageType type, Stream input)
         {
-            return new ObjectMessage(channelId, formatter.Deserialize(input));
+            try
+            {
+                return new ObjectMessage(channelId, formatter.Deserialize(input));
+            }
+            catch (SerializationException e)
+            {
+                throw new MarshallingException(String.Format(
+                    "Unable to deserialize object: {0}", e.Message), e);
+            }
         }
 
-        protected BinaryMessage UnmarshalBinary(byte channelId, MessageType type, Stream input)
+        /// <param name="channelId">the channelId received on</param>
+        /// <param name="type">the type of message</param>
+        /// <param name="input">the marshalled contents</param>
+        /// <param name="length">the number of bytes available</param>
+        /// <returns>the unmarshalled message or null if the contents could not be unmarshalled</returns>
+        /// <exception cref="MarshallingException">on a marshalling error</exception>
+        virtual protected BinaryMessage UnmarshalBinary(byte channelId, MessageType type, Stream input)
         {
             int length = (int)(input.Length - input.Position);
             byte[] result = new byte[length];
@@ -641,7 +739,13 @@ namespace GT.Net
             return new BinaryMessage(channelId, result);
         }
 
-        protected TupleMessage UnmarshalTuple(byte channelId, MessageType type, Stream input)
+        /// <param name="channelId">the channelId received on</param>
+        /// <param name="type">the type of message</param>
+        /// <param name="input">the marshalled contents</param>
+        /// <param name="length">the number of bytes available</param>
+        /// <returns>the unmarshalled message or null if the contents could not be unmarshalled</returns>
+        /// <exception cref="MarshallingException">on a marshalling error</exception>
+        virtual protected TupleMessage UnmarshalTuple(byte channelId, MessageType type, Stream input)
         {
             int clientId = DataConverter.Converter.ToInt32(ReadBytes(input, 4), 0);
             switch (type)
@@ -657,7 +761,7 @@ namespace GT.Net
             throw new MarshallingException("MessageType is not a tuple: " + type);
         }
 
-        protected IConvertible DecodeConvertible(Stream input)
+        virtual protected IConvertible DecodeConvertible(Stream input)
         {
             TypeCode tc = (TypeCode)input.ReadByte();
             switch (tc)
