@@ -1342,11 +1342,11 @@ namespace GT.Net
         public virtual void Send(IList<Message> messages, MessageDeliveryRequirements mdr,
             ChannelDeliveryRequirements cdr)
         {
-            InvalidStateException.Assert(Active, "Cannot send on a stopped connexion", this);
             // must be locked as is called by AbstractChannel implementations
             lock (this)
             {
-                foreach(Message m in messages)
+                InvalidStateException.Assert(Active, "Cannot send on a stopped connexion", this);
+                foreach (Message m in messages)
                 {
                     scheduler.Schedule(m, mdr, cdr);
                 }
