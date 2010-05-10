@@ -23,6 +23,7 @@ using System;
 using System.Runtime.Serialization;
 using System.Security.Permissions;
 using System.Collections.Generic;
+using System.Text;
 
 namespace GT.Net
 {
@@ -115,6 +116,26 @@ namespace GT.Net
             if (IsApplicable)
             {
                 throw this;
+            }
+        }
+
+        public override string Message
+        {
+            get
+            {
+                StringBuilder sb = new StringBuilder();
+                sb.Append(String.Format("{0} subexception(s): ",
+                                        messages == null ? 0 : messages.Count));
+                if (messages != null)
+                {
+                    int index = 0;
+                    foreach (Exception e in messages.Keys)
+                    {
+                        sb.Append(String.Format("[{0}: {1}: {2}]", ++index,
+                            e.GetType().Name, e.Message));
+                    }
+                }
+                return sb.ToString();
             }
         }
     }
